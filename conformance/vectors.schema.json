@@ -44,9 +44,10 @@
           "streaming",
           "multi_turn",
           "int64_json",
-          "bigint_json"
+          "bigint_json",
+          "buffered_output"
         ],
-        "description": "int64_json marks vectors whose JSON carries integers beyond 2^53 (within i64/u64): a JavaScript harness cannot even load such a file without silent rounding (JSON.parse), so it omits the capability and skips. bigint_json marks vectors carrying integers beyond u64/i64, which additionally exceed serde_json's integer range — only harness languages whose JSON layer preserves raw numeric tokens (Python int, Go json.Number, .NET JsonNode) can claim it."
+        "description": "int64_json marks vectors whose JSON carries integers beyond 2^53 (within i64/u64): a JavaScript harness cannot even load such a file without silent rounding (JSON.parse), so it omits the capability and skips. bigint_json marks vectors carrying integers beyond u64/i64, which additionally exceed serde_json's integer range — only harness languages whose JSON layer preserves raw numeric tokens (Python int, Go json.Number, .NET JsonNode) can claim it. buffered_output is declaration-only (§12.1a): it appears in a host's declared surface and claim, never as a vector requirement — the CTK's mocked I/O cannot exercise streaming egress."
       },
       "default": []
     },
@@ -433,6 +434,13 @@
                 "type": "object",
                 "additionalProperties": true,
                 "description": "Dotted-path -> expected-value assertions against the wire-shaped InterceptionRecord (§10.3): verdict.*, composition.*, verdicts[i].*, fold_truncated, resolved_by, identity_provider, input_identity/enforced_identity (null for the null provider)."
+              },
+              "absent": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Dotted paths that MUST NOT resolve on the matched record (e.g. verdict.transform.value under the §10.3 payload-free projection)."
               }
             }
           },

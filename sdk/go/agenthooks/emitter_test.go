@@ -10,6 +10,7 @@ package agenthooks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -476,5 +477,74 @@ func TestPanickingResolverFailsClosed(t *testing.T) {
 	}
 	if rec.Verdict.Reason != string(ErrApprovalResolverFailed) {
 		t.Errorf("reason = %q, want %s", rec.Verdict.Reason, ErrApprovalResolverFailed)
+	}
+}
+
+type failing struct{}
+
+func (failing) OnHook(context.Context, AgentContext) (Verdict, error) {
+	return Verdict{}, errors.New("boom")
+}
+
+func TestFailureDenyAttributedToFailingInterceptor(t *testing.T) {
+	// §10.3 (D3): a §6.3 failure deny carries the FAILING
+	// interceptor's index, in every profile.
+	e := NewInterceptionEmitter(Enforce, nil)
+	e.Register(scripted{AllowVerdict})
+	e.Register(failing{})
+	e.Register(scripted{AllowVerdict})
+	rec := emit(t, e, testCtx())
+	if rec.Verdict.Reason != string(ErrInterceptorFailed) {
+		t.Errorf("reason = %q, want %s", rec.Verdict.Reason, ErrInterceptorFailed)
+	}
+	if rec.DecidedBy == nil || *rec.DecidedBy != 1 {
+		t.Errorf("decided_by = %v, want 1 (failing interceptor)", rec.DecidedBy)
+	}
+	if rec.FoldTruncated == nil || !*rec.FoldTruncated {
+		t.Errorf("fold_truncated = %v, want true", rec.FoldTruncated)
+	}
+}
+
+func TestRecordCarriesPayloadFreeProjection(t *testing.T) {
+	// §10.3 (D2): transform.path kept, transform.value dropped.
+	e := NewInterceptionEmitter(Enforce, nil)
+	e.Register(scripted{transformVerdict("$target.url", "safe")})
+	c := testCtx()
+	rec := emit(t, e, c)
+	if rec.Verdict.Decision != Transform {
+		t.Fatalf("decision = %s, want transform", rec.Verdict.Decision)
+	}
+	if rec.Verdict.Transform == nil || rec.Verdict.Transform.Path != "$target.url" {
+		t.Errorf("transform.path = %v, want $target.url", rec.Verdict.Transform)
+	}
+	if rec.Verdict.Transform.Value != nil {
+		t.Errorf("transform.value = %v, want dropped (projection)", rec.Verdict.Transform.Value)
+	}
+	wire, err := json.Marshal(rec.Verdict)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(wire), `"value"`) {
+		t.Errorf("record verdict wire carries value member: %s", wire)
+	}
+	if got := targetURL(t, c); got != "safe" {
+		t.Errorf("target.url = %q, want safe (in-process enforcement unaffected)", got)
+	}
+}
+
+func TestOversizedEvidenceFailsVerdictGate(t *testing.T) {
+	// §5.3 (D5): evidence beyond 10240 canonical bytes -> verdict_invalid.
+	big := Verdict{
+		Decision: Allow,
+		Evidence: &Evidence{Artefact: strings.Repeat("x", 10300)},
+	}
+	e := NewInterceptionEmitter(Enforce, nil)
+	e.Register(scripted{big})
+	rec := emit(t, e, testCtx())
+	if rec.Verdict.Decision != Deny {
+		t.Errorf("decision = %s, want deny", rec.Verdict.Decision)
+	}
+	if rec.Verdict.Reason != string(ErrVerdictInvalid) {
+		t.Errorf("reason = %q, want %s", rec.Verdict.Reason, ErrVerdictInvalid)
 	}
 }

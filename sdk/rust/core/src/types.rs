@@ -127,7 +127,11 @@ pub enum HostError {
 pub struct Transform {
     /// Path rooted at `$target` (or the deprecated `$policy_target` alias).
     pub path: String,
-    /// New value to set at `path`.
+    /// New value to set at `path`. Serialized only when non-null: the
+    /// §10.3 record projection drops it (target content); the §5 wire
+    /// gate checks presence manually, so interceptor wire verdicts
+    /// still require the member.
+    #[serde(default, skip_serializing_if = "Value::is_null")]
     pub value: Value,
 }
 
@@ -139,6 +143,11 @@ pub struct Evidence {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub verification_pointers: BTreeMap<String, String>,
 }
+
+/// §5.3: maximum UTF-8 byte length of the RFC 8785 canonical
+/// serialization of the `evidence` member. Breach fails §5 validation
+/// (`verdict_invalid`).
+pub const EVIDENCE_MAX_BYTES: usize = 10240;
 
 /// A recorded concern that does not affect control flow (§5.1).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -243,6 +252,14 @@ impl Verdict {
         }
         if self.approval.is_some() && self.decision != Decision::Deny {
             return Err(HostError::VerdictInvalid);
+        }
+        if let Some(e) = &self.evidence {
+            // §5.3: measured as the UTF-8 byte length of the canonical
+            // serialization of the evidence member.
+            let v = serde_json::to_value(e).map_err(|_| HostError::VerdictInvalid)?;
+            if crate::canonical::canonical_json(&v).len() > EVIDENCE_MAX_BYTES {
+                return Err(HostError::VerdictInvalid);
+            }
         }
         // NB: an or-pattern guard applies to every alternative, so the
         // two invalid shapes need separate arms (NOW-06).

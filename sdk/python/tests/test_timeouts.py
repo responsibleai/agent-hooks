@@ -43,7 +43,9 @@ def test_slow_interceptor_times_out() -> None:
     record = asyncio.run(em.emit_unchecked(_ctx()))
     assert record.verdict.reason == "host_error:interceptor_timeout"
     assert not record.proceeds
-    assert record.decided_by is None
+    # §10.3 (D3): the §6.3 failure deny is attributed to the failing
+    # interceptor's index.
+    assert record.decided_by == 0
 
 
 def test_fast_interceptor_passes_within_timeout() -> None:

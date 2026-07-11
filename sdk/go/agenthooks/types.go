@@ -100,6 +100,21 @@ type TransformBody struct {
 	Value any    `json:"value"`
 }
 
+// MarshalJSON emits value only when non-nil, mirroring the core: the
+// §10.3 record projection drops transform.value, and at §5.2 apply
+// time an absent value is equivalent to JSON null. A plain omitempty
+// tag would also drop legitimate zero values (0, "", false), which
+// MUST survive the wire — hence the custom marshaller.
+func (t TransformBody) MarshalJSON() ([]byte, error) {
+	if t.Value == nil {
+		return json.Marshal(struct {
+			Path string `json:"path"`
+		}{t.Path})
+	}
+	type wire TransformBody // no methods: avoids recursion
+	return json.Marshal(wire(t))
+}
+
 // Evidence is an opaque pointer to an offline-verifiable artefact (§5.3).
 type Evidence struct {
 	Artefact             string            `json:"artefact,omitempty"`

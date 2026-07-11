@@ -350,4 +350,54 @@ public sealed class EmitterCompositionTests
         Assert.Throws<ArgumentOutOfRangeException>(
             () => Verdict.FromWire(new JsonObject { ["decision"] = "escalate" }));
     }
+
+    private sealed class Throwing : IInterceptor
+    {
+        public ValueTask<Verdict> InterceptAsync(AgentContext ctx, CancellationToken ct = default)
+            => throw new InvalidOperationException("boom");
+    }
+
+    [Fact]
+    public async Task FailureDenyAttributedToFailingInterceptor()
+    {
+        // §10.3 (D3): a §6.3 failure deny carries the FAILING
+        // interceptor's index, in every profile.
+        var e = new InterceptionEmitter();
+        e.Register(new Scripted(Verdict.Allow));
+        e.Register(new Throwing());
+        e.Register(new Scripted(Verdict.Allow));
+        var r = await e.EmitUncheckedAsync(Ctx());
+        Assert.Equal(HostError.InterceptorFailed, r.Verdict.Reason);
+        Assert.Equal(1, r.DecidedBy);
+        Assert.True(r.FoldTruncated);
+    }
+
+    [Fact]
+    public async Task RecordCarriesPayloadFreeProjection()
+    {
+        // §10.3 (D2): transform.path kept, transform.value dropped.
+        var e = new InterceptionEmitter();
+        e.Register(new Scripted(TransformV("$target.url", "safe")));
+        var c = Ctx();
+        var r = await e.EmitUncheckedAsync(c);
+        Assert.Equal(Decision.Transform, r.Verdict.Decision);
+        Assert.Equal("$target.url", r.Verdict.Transform!.Path);
+        Assert.Null(r.Verdict.Transform.Value);
+        Assert.Equal("safe", (string)c.Json["target"]!["url"]!);
+    }
+
+    [Fact]
+    public async Task OversizedEvidenceFailsVerdictGate()
+    {
+        // §5.3 (D5): evidence beyond 10240 canonical bytes -> verdict_invalid.
+        var big = Verdict.Allow with
+        {
+            Evidence = new Evidence(Artefact: new string('x', 10300)),
+        };
+        var e = new InterceptionEmitter();
+        e.Register(new Scripted(big));
+        var r = await e.EmitUncheckedAsync(Ctx());
+        Assert.Equal(Decision.Deny, r.Verdict.Decision);
+        Assert.Equal(HostError.VerdictInvalid, r.Verdict.Reason);
+    }
 }

@@ -334,9 +334,12 @@ public sealed class InterceptionEmitter
             if (IsHostSynthesized(v))
             {
                 // §6.3: malformed verdict fails closed and — in this
-                // profile — short-circuits like any deny.
+                // profile — short-circuits like any deny. The failure
+                // deny is attributed to the failing interceptor
+                // (§10.3 decided_by), matching the aggregation
+                // profiles.
                 return new DispatchOutcome(
-                    WithUnions(v, pool), null, Summaries(perInterceptor),
+                    WithUnions(v, pool), i, Summaries(perInterceptor),
                     Truncated(i), resolvedBy);
             }
 

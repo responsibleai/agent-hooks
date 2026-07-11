@@ -106,6 +106,11 @@ class Transform:
             )
 
     def to_wire(self) -> dict[str, Any]:
+        # Mirrors the core: value serialized only when non-null; the
+        # §10.3 record projection drops it (the §5 wire gate checks
+        # presence for interceptor verdicts, so this never weakens it).
+        if self.value is None:
+            return {"path": self.path}
         return {"path": self.path, "value": self.value}
 
     @classmethod
@@ -322,7 +327,8 @@ class Verdict:
         """
         transform = None
         if vw.get("transform") is not None:
-            transform = Transform(vw["transform"]["path"], vw["transform"]["value"])
+            # §10.3 record projection drops transform.value.
+            transform = Transform(vw["transform"]["path"], vw["transform"].get("value"))
         evidence = None
         if vw.get("evidence") is not None:
             evidence = Evidence.from_wire(vw["evidence"])

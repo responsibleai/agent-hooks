@@ -28,8 +28,27 @@
       ]
     },
     "verdict": {
-      "description": "The combined verdict (§7.3), possibly host-synthesized or approval-substituted.",
-      "type": "object"
+      "description": "The payload-free projection of the combined verdict (§10.3): transform.value dropped, approval members stripped, messages truncated to 256 UTF-8 bytes.",
+      "type": "object",
+      "properties": {
+        "transform": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Presence only; members are stripped by the projection."
+        }
+      }
     },
     "input_identity": {
       "type": [
