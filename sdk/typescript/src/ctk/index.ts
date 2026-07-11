@@ -70,7 +70,12 @@ export interface Harness {
    * register the interceptors and resolver, set the enforcement mode,
    * the vector's composition profile (§7.1), and its identity provider
    * (§10.1; vectors declare `"jcs-sha256"` or `null` — custom providers
-   * are functions and not vector-expressible). */
+   * are functions and not vector-expressible). When
+   * `redactForApproval` is non-empty the harness MUST register a §9
+   * approval redactor that replaces each listed §5.2 path in the
+   * request context's target with the string `"[redacted]"`
+   * (write-back mirrored per §4.3), leaving unresolvable paths
+   * untouched. */
   setup(
     scenario: Scenario,
     interceptors: Interceptor[],
@@ -78,6 +83,7 @@ export interface Harness {
     mode: EnforcementMode,
     composition: CompositionConfig,
     identityProvider: 'jcs-sha256' | 'ctk-fault' | null,
+    redactForApproval?: string[],
   ): void;
 
   run(): Promise<RunRecord>;

@@ -50,6 +50,7 @@ func (h *ReferenceHarness) Setup(
 	mode agenthooks.EnforcementMode,
 	composition agenthooks.CompositionConfig,
 	identityProvider *agenthooks.IdentityProvider,
+	redactForApproval []string,
 ) error {
 	h.scenario = scenario
 	h.toolLog = nil
@@ -57,6 +58,23 @@ func (h *ReferenceHarness) Setup(
 	em.SetComposition(composition)
 	if _, err := em.SetIdentityProvider(identityProvider); err != nil {
 		return err
+	}
+	if len(redactForApproval) > 0 {
+		// §9 redaction seam, CTK convention: each listed path is
+		// replaced with "[redacted]" via the §5.2/§4.3 transform
+		// machinery; unresolvable paths are left untouched.
+		paths := append([]string(nil), redactForApproval...)
+		em.SetApprovalRedactor(func(actx agenthooks.AgentContext) agenthooks.AgentContext {
+			current := actx
+			for _, path := range paths {
+				next, err := agenthooks.ApplyTransformToContext(current, path, "[redacted]")
+				if err != nil {
+					continue // unresolvable at this point — skip
+				}
+				current = next
+			}
+			return current
+		})
 	}
 	for _, i := range interceptors {
 		em.Register(i)

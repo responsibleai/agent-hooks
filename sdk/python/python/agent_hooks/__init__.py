@@ -49,7 +49,7 @@ from agent_hooks.composition import (
     SynthesisPolicy,
 )
 from agent_hooks.context import AgentContext, AgentContextBuilder
-from agent_hooks.emitter import IdentityProvider, InterceptionEmitter
+from agent_hooks.emitter import EmitOutcome, IdentityProvider, InterceptionEmitter
 from agent_hooks.exceptions import InterceptionBlocked, InterceptionSuspended
 from agent_hooks.interceptor import Interceptor
 
@@ -66,6 +66,7 @@ __all__ = [
     "CompositionConfig",
     "CompositionProfile",
     "Decision",
+    "EmitOutcome",
     "EnforcementMode",
     "Evidence",
     "HostError",

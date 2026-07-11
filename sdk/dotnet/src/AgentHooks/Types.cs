@@ -504,6 +504,11 @@ public interface IApprovalResolver
 }
 
 /// <summary>Raised by a host when a verdict blocks the guarded action (§6).</summary>
+/// <summary>Returned by <c>InterceptionEmitter.EmitAsync</c> on a
+/// proceeding emission: the record plus the <b>effective</b>
+/// (post-composition) target the guarded action MUST consume (§4.3).</summary>
+public sealed record EmitOutcome(InterceptionRecord Record, JsonNode? Target);
+
 public sealed class InterceptionBlockedException(InterceptionRecord result)
     : InvalidOperationException(
         $"{result.InterceptionPoint.ToWireName()} blocked: {result.Verdict.Decision.ToWireName()} ({result.Verdict.Reason ?? "no reason"})")

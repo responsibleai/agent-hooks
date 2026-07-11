@@ -133,6 +133,19 @@ impl ApprovalResolver for ScriptedResolver {
     }
 }
 
+/// Everything one vector asks a harness to wire (§13.2). Bundled so
+/// the seam can grow without breaking every implementor.
+pub struct VectorSetup {
+    pub scenario: Value,
+    pub interceptors: Vec<Box<dyn Interceptor>>,
+    pub resolver: Option<Box<dyn ApprovalResolver>>,
+    pub mode: EnforcementMode,
+    pub composition: CompositionConfig,
+    pub identity_provider: IdentityProvider,
+    /// §9 redaction seam paths; empty = no redactor.
+    pub redact_for_approval: Vec<String>,
+}
+
 /// The single trait a framework adapter implements for the CTK.
 #[async_trait]
 pub trait Harness: Send {
@@ -143,20 +156,15 @@ pub trait Harness: Send {
     /// (`"model_calls"`, `"tool_calls"`, …).
     fn capabilities(&self) -> Vec<String>;
 
-    /// Wire the scenario's mock model + tools into the framework,
-    /// register the interceptors and resolver, set the enforcement
-    /// mode, the vector's composition profile (§7.1), and its identity
-    /// provider (§10.1; vectors can declare `"jcs-sha256"` or `null` —
-    /// custom providers are functions and not vector-expressible).
-    fn setup(
-        &mut self,
-        scenario: Value,
-        interceptors: Vec<Box<dyn Interceptor>>,
-        resolver: Option<Box<dyn ApprovalResolver>>,
-        mode: EnforcementMode,
-        composition: CompositionConfig,
-        identity_provider: IdentityProvider,
-    );
+    /// Wire one vector into the framework: the scenario's mock model +
+    /// tools, the interceptors and resolver, the enforcement mode, the
+    /// vector's composition profile (§7.1), its identity provider
+    /// (§10.1), and — when `redact_for_approval` is non-empty — an
+    /// approval redactor that replaces each listed §5.2 path in the
+    /// request context's target with the string `"[redacted]"`
+    /// (write-back mirrored per §4.3), leaving unresolvable paths
+    /// untouched.
+    fn setup(&mut self, setup: VectorSetup);
 
     /// Execute one session; return what happened.
     async fn run(&mut self) -> RunRecord;
@@ -244,14 +252,26 @@ pub async fn run_vector(harness: &mut dyn Harness, vector: &Value) -> VectorResu
         _ => IdentityProvider::JcsSha256,
     };
 
-    harness.setup(
-        vector["scenario"].clone(),
+    let redact_for_approval: Vec<String> = vector
+        .get("redact_for_approval")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    harness.setup(VectorSetup {
+        scenario: vector["scenario"].clone(),
         interceptors,
         resolver,
         mode,
         composition,
         identity_provider,
-    );
+        redact_for_approval,
+    });
     let rr = harness.run().await;
     harness.teardown();
 
@@ -431,24 +451,34 @@ impl Harness for ReferenceHarness {
         vec!["model_calls".into(), "tool_calls".into(), "int64_json".into()]
     }
 
-    fn setup(
-        &mut self,
-        scenario: Value,
-        interceptors: Vec<Box<dyn Interceptor>>,
-        resolver: Option<Box<dyn ApprovalResolver>>,
-        mode: EnforcementMode,
-        composition: CompositionConfig,
-        identity_provider: IdentityProvider,
-    ) {
-        self.scenario = scenario;
+    fn setup(&mut self, setup: VectorSetup) {
+        self.scenario = setup.scenario;
         self.tool_log.clear();
         self.session_counter += 1;
-        let mut emitter = InterceptionEmitter::new(mode, resolver);
-        emitter.set_composition(composition);
+        let mut emitter = InterceptionEmitter::new(setup.mode, setup.resolver);
+        emitter.set_composition(setup.composition);
         emitter
-            .set_identity_provider(identity_provider)
+            .set_identity_provider(setup.identity_provider)
             .expect("CTK provider names are valid by construction");
-        for interceptor in interceptors {
+        let redact_for_approval = setup.redact_for_approval;
+        if !redact_for_approval.is_empty() {
+            // §9 redaction seam, CTK convention: each listed path is
+            // replaced with "[redacted]" via the §5.2/§4.3 transform
+            // machinery; a path that does not resolve at the escalating
+            // point is left untouched.
+            emitter.set_approval_redactor(move |ctx| {
+                let mut c = ctx.clone();
+                for path in &redact_for_approval {
+                    let t = crate::types::Transform {
+                        path: path.clone(),
+                        value: Value::String("[redacted]".into()),
+                    };
+                    let _ = crate::enforce::apply_transform_to_ctx(&mut c, &t);
+                }
+                c
+            });
+        }
+        for interceptor in setup.interceptors {
             emitter.register(interceptor);
         }
         self.emitter = Some(emitter);

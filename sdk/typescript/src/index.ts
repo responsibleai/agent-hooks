@@ -504,6 +504,14 @@ export { AgentContextBuilder } from "./builder";
 export { InterceptionEmitter } from "./emitter";
 
 /** Raised by a host when a verdict blocks the guarded action (§6). */
+/** Returned by `InterceptionEmitter.emit` on a proceeding emission:
+ * the record plus the **effective** (post-composition) target the
+ * guarded action MUST consume (§4.3). */
+export interface EmitOutcome {
+  record: InterceptionRecord;
+  target: unknown;
+}
+
 export class InterceptionBlocked extends Error {
   constructor(public readonly result: InterceptionRecord) {
     super(

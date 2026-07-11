@@ -35,6 +35,7 @@ threads is not supported.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
 import dataclasses
 import inspect
@@ -198,6 +199,16 @@ class _Outcome:
     resolved_by: str | None = None
 
 
+@dataclass(slots=True)
+class EmitOutcome:
+    """Returned by :meth:`InterceptionEmitter.emit` on a proceeding
+    emission: the record plus the **effective** (post-composition)
+    target the guarded action MUST consume (§4.3)."""
+
+    record: InterceptionRecord
+    target: Any
+
+
 class InterceptionEmitter:
     """Host-side helper that implements §6–§10 once so adapters don't have to.
 
@@ -217,12 +228,16 @@ class InterceptionEmitter:
     """
 
     __slots__ = (
+        "_approval_redactor",
         "_composition",
         "_identity",
         "_interceptors",
+        "_max_records",
         "_mode",
         "_names",
+        "_record_sink",
         "_records",
+        "_records_dropped",
         "_resolver",
         "_timeout",
     )
@@ -244,6 +259,10 @@ class InterceptionEmitter:
         self._composition = composition if composition is not None else CompositionConfig.default()
         self._identity = self._check_provider(identity_provider)
         self._names: list[str | None] = []
+        self._approval_redactor: Callable[[AgentContext], AgentContext] | None = None
+        self._record_sink: Callable[[InterceptionRecord], None] | None = None
+        self._max_records: int | None = None
+        self._records_dropped = 0
 
     @staticmethod
     def _check_provider(
@@ -306,16 +325,62 @@ class InterceptionEmitter:
         self._identity = self._check_provider(provider)
         return self
 
+    def set_approval_redactor(
+        self, redactor: Callable[[AgentContext], AgentContext]
+    ) -> InterceptionEmitter:
+        """Register the §9/§14 approval redactor: a pure function
+        producing the context to place in every ApprovalRequest. The §9
+        identity is computed over the redacted context (binding the
+        approval to what the approver saw); the record's identities are
+        unaffected. A redactor that raises fails the consultation closed
+        as ``host_error:approval_resolver_failed``."""
+        self._approval_redactor = redactor
+        return self
+
+    def set_record_sink(
+        self, sink: Callable[[InterceptionRecord], None]
+    ) -> InterceptionEmitter:
+        """Register a per-emission record callback (§10.3), invoked
+        synchronously after every emission before buffering; a sink
+        exception is swallowed (audit delivery is the host's liveness
+        concern, not the control plane's)."""
+        self._record_sink = sink
+        return self
+
+    def set_max_records(self, max_records: int) -> InterceptionEmitter:
+        """Bound the in-memory record buffer: when full, the OLDEST
+        record is dropped and :attr:`records_dropped` increments.
+        Unbounded by default."""
+        self._max_records = max_records
+        return self
+
+    @property
+    def records_dropped(self) -> int:
+        """Records evicted by the :meth:`set_max_records` bound."""
+        return self._records_dropped
+
+    def take_records(self) -> list[InterceptionRecord]:
+        """Drain the in-memory record buffer (retention stays bounded
+        on long-running sessions)."""
+        out = self._records
+        self._records = []
+        return out
+
     # -------------------------------------------------------------------------
 
-    async def emit(self, ctx: AgentContext) -> InterceptionRecord:
+    async def emit(self, ctx: AgentContext) -> EmitOutcome:
         """Run the emission and **raise** :class:`InterceptionBlocked`
         if the guarded action must not proceed (§6). This is the primary
-        entry point; the safe path is the default."""
+        entry point; the safe path is the default.
+
+        Returns the record plus the **effective** (post-composition)
+        target the guarded action MUST consume (§4.3) — a reference
+        captured before ``emit`` may predate a transform.
+        """
         record = await self.emit_unchecked(ctx)
         if not record.proceeds:
             raise InterceptionBlocked(record)
-        return record
+        return EmitOutcome(record=record, target=ctx.get("target"))
 
     async def emit_unchecked(self, ctx: AgentContext) -> InterceptionRecord:
         """Run the emission and return the record without raising.
@@ -354,6 +419,16 @@ class InterceptionEmitter:
             outcome = await self._dispatch(ctx)
 
         record = self._finalize(ctx, outcome, input_identity)
+        if self._record_sink is not None:
+            # Audit delivery must not take down the control plane
+            # (§10.3): a sink failure is swallowed — the emission
+            # outcome is already decided.
+            with contextlib.suppress(Exception):
+                self._record_sink(record)
+        if self._max_records is not None:
+            while len(self._records) >= max(self._max_records, 1):
+                self._records.pop(0)
+                self._records_dropped += 1
         self._records.append(record)
         return record
 
@@ -688,10 +763,25 @@ class InterceptionEmitter:
         if self._resolver is None:
             return None
 
+        # §9/§14: the host's approval redactor minimizes the context
+        # egressing through the seam; a raising redactor fails closed.
+        presented = ctx
+        if self._approval_redactor is not None:
+            try:
+                presented = self._approval_redactor(ctx)
+            except Exception as e:  # noqa: BLE001
+                return (
+                    Verdict.host_error(
+                        HostError.APPROVAL_RESOLVER_FAILED, type(e).__name__
+                    ),
+                    False,
+                )
+
         # §9: identity of the context as presented to the resolver —
-        # consultation time, after any transforms that folded earlier.
+        # consultation time, after any transforms that folded earlier
+        # and after any redaction.
         try:
-            identity = self._compute_identity(ctx)
+            identity = self._compute_identity(presented)
         except _core.AgentHooksCoreError as e:
             return (
                 Verdict.host_error(_host_error_of(e, HostError.CONTEXT_INVALID), str(e)),
@@ -710,7 +800,7 @@ class InterceptionEmitter:
                     context_identity=identity,
                     interception_point=ip,
                     verdict=verdict,
-                    context=ctx,
+                    context=presented,
                 )
             )
             if inspect.isawaitable(raw):

@@ -42,6 +42,7 @@ import {
   FinalizeMeta,
   HostError,
   IdentityProvider,
+  EmitOutcome,
   InterceptionBlocked,
   InterceptionPoint,
   InterceptionRecord,
@@ -161,10 +162,14 @@ const NOT_CONSULTED: Consultation = { consulted: false };
 
 export class InterceptionEmitter {
   private readonly interceptors: Interceptor[] = [];
-  private readonly _records: InterceptionRecord[] = [];
+  private _records: InterceptionRecord[] = [];
   private composition: CompositionConfig = Composition.default();
   private identity: IdentityProvider = JCS_SHA256;
   private readonly names: Array<string | null> = [];
+  private approvalRedactor: ((ctx: AgentContext) => AgentContext) | null = null;
+  private recordSink: ((record: InterceptionRecord) => void) | null = null;
+  private maxRecords: number | null = null;
+  private _recordsDropped = 0;
 
   /**
    * `timeoutMs` bounds each interceptor `intercept()` and resolver
@@ -230,12 +235,57 @@ export class InterceptionEmitter {
     return this;
   }
 
+  /** Register the §9/§14 approval redactor: a pure function producing
+   * the context to place in every ApprovalRequest. The §9 identity is
+   * computed over the redacted context (binding the approval to what
+   * the approver saw); the record's identities are unaffected. A
+   * redactor that throws fails the consultation closed as
+   * `host_error:approval_resolver_failed`. */
+  setApprovalRedactor(redactor: (ctx: AgentContext) => AgentContext): this {
+    this.approvalRedactor = redactor;
+    return this;
+  }
+
+  /** Register a per-emission record callback (§10.3), invoked
+   * synchronously after every emission before buffering; a sink
+   * exception is swallowed (audit delivery is the host's liveness
+   * concern, not the control plane's). */
+  setRecordSink(sink: (record: InterceptionRecord) => void): this {
+    this.recordSink = sink;
+    return this;
+  }
+
+  /** Bound the in-memory record buffer: when full, the OLDEST record
+   * is dropped and {@link recordsDropped} increments. Unbounded by
+   * default. */
+  setMaxRecords(max: number): this {
+    this.maxRecords = max;
+    return this;
+  }
+
+  /** Records evicted by the {@link setMaxRecords} bound. */
+  get recordsDropped(): number {
+    return this._recordsDropped;
+  }
+
+  /** Drain the in-memory record buffer (retention stays bounded on
+   * long-running sessions). */
+  takeRecords(): InterceptionRecord[] {
+    const out = this._records;
+    this._records = [];
+    return out;
+  }
+
   /** Run the emission and **throw** {@link InterceptionBlocked} if the
-   * guarded action must not proceed (§6). Primary entry point. */
-  async emit(ctx: AgentContext): Promise<InterceptionRecord> {
+   * guarded action must not proceed (§6). Primary entry point.
+   *
+   * Returns the record plus the **effective** (post-composition)
+   * target the guarded action MUST consume (§4.3) — a reference
+   * captured before `emit` may predate a transform. */
+  async emit(ctx: AgentContext): Promise<EmitOutcome> {
     const record = await this.emitUnchecked(ctx);
     if (!proceeds(record)) throw new InterceptionBlocked(record);
-    return record;
+    return { record, target: (ctx as Record<string, unknown>)["target"] };
   }
 
   /** Run the emission and return the record without throwing. The
@@ -307,6 +357,20 @@ export class InterceptionEmitter {
       record.identity_provider = providerName;
     } else {
       record = finalize(ctx, outcome.combined, this.mode, meta);
+    }
+    if (this.recordSink) {
+      // Audit delivery must not take down the control plane (§10.3).
+      try {
+        this.recordSink(record);
+      } catch {
+        /* swallowed by design */
+      }
+    }
+    if (this.maxRecords !== null) {
+      while (this._records.length >= Math.max(this.maxRecords, 1)) {
+        this._records.shift();
+        this._recordsDropped += 1;
+      }
     }
     this._records.push(record);
     return record;
@@ -664,11 +728,26 @@ export class InterceptionEmitter {
       permitted: false,
     });
 
+    // §9/§14: the host's approval redactor minimizes the context
+    // egressing through the seam; a throwing redactor fails closed.
+    let presented = ctx;
+    if (this.approvalRedactor) {
+      try {
+        presented = this.approvalRedactor(ctx);
+      } catch (e) {
+        return fail(
+          HostError.ApprovalResolverFailed,
+          (e as Error)?.constructor?.name ?? "Error",
+        );
+      }
+    }
+
     // §9: identity of the context as presented to the resolver —
-    // consultation time, after any transforms that folded earlier.
+    // consultation time, after any transforms that folded earlier and
+    // after any redaction.
     let identity: string | null;
     try {
-      identity = this.identityOf(ctx);
+      identity = this.identityOf(presented);
     } catch (e) {
       const [code, detail] = codeAndDetail(e);
       return fail(code, detail);
@@ -681,7 +760,7 @@ export class InterceptionEmitter {
           context_identity: identity,
           interception_point: ctx.interception_point,
           verdict,
-          context: ctx,
+          context: presented,
         }),
       );
     } catch (e) {

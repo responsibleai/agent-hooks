@@ -130,11 +130,24 @@ type InterceptionEmitter struct {
 	// before the first Emit; not synchronized.
 	Timeout time.Duration
 
+	// approvalRedactor, when set, produces the context placed in every
+	// ApprovalRequest (§9/§14). Set before the first Emit; not
+	// synchronized.
+	approvalRedactor func(AgentContext) AgentContext
+	// recordSink, when set, is invoked synchronously after every
+	// emission before buffering (§10.3); a sink panic is swallowed.
+	recordSink func(InterceptionRecord)
+	// maxRecords bounds the in-memory record buffer (0 = unbounded):
+	// when full, the oldest record is dropped and recordsDropped
+	// increments.
+	maxRecords int
+
 	mu sync.Mutex
 	// records holds every InterceptionRecord emitted so far, in
 	// sequence order. Guarded by mu: emissions for different tool
 	// calls may run concurrently (§12.2).
-	records []InterceptionRecord
+	records        []InterceptionRecord
+	recordsDropped uint64
 }
 
 // callRecovered runs fn, converting a panic into an error (§6.3: a
@@ -248,6 +261,53 @@ func (e *InterceptionEmitter) SetIdentityProvider(p *IdentityProvider) (*Interce
 var providerNameRe = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
 // Register appends an interceptor and returns the emitter for chaining.
+// SetApprovalRedactor registers the §9/§14 approval redactor: a pure
+// function producing the context to place in every ApprovalRequest.
+// The §9 identity is computed over the redacted context (binding the
+// approval to what the approver saw); the record's identities are
+// unaffected. A panicking redactor fails the consultation closed as
+// host_error:approval_resolver_failed. Set before the first Emit; not
+// synchronized.
+func (e *InterceptionEmitter) SetApprovalRedactor(f func(AgentContext) AgentContext) *InterceptionEmitter {
+	e.approvalRedactor = f
+	return e
+}
+
+// SetRecordSink registers a per-emission record callback (§10.3),
+// invoked synchronously after every emission before buffering; a sink
+// panic is swallowed (audit delivery is the host's liveness concern,
+// not the control plane's). Set before the first Emit; not
+// synchronized.
+func (e *InterceptionEmitter) SetRecordSink(sink func(InterceptionRecord)) *InterceptionEmitter {
+	e.recordSink = sink
+	return e
+}
+
+// SetMaxRecords bounds the in-memory record buffer: when full, the
+// OLDEST record is dropped and RecordsDropped increments. Unbounded by
+// default. Set before the first Emit; not synchronized.
+func (e *InterceptionEmitter) SetMaxRecords(maxRecords int) *InterceptionEmitter {
+	e.maxRecords = maxRecords
+	return e
+}
+
+// RecordsDropped reports records evicted by the SetMaxRecords bound.
+func (e *InterceptionEmitter) RecordsDropped() uint64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.recordsDropped
+}
+
+// TakeRecords drains the in-memory record buffer (retention stays
+// bounded on long-running sessions).
+func (e *InterceptionEmitter) TakeRecords() []InterceptionRecord {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	out := e.records
+	e.records = nil
+	return out
+}
+
 func (e *InterceptionEmitter) Register(i Interceptor) *InterceptionEmitter {
 	return e.RegisterNamed(i, "")
 }
@@ -261,18 +321,27 @@ func (e *InterceptionEmitter) RegisterNamed(i Interceptor, name string) *Interce
 	return e
 }
 
+// EmitOutcome is returned by Emit on a proceeding emission: the record
+// plus the effective (post-composition) target the guarded action MUST
+// consume (§4.3) — a reference captured before Emit may predate a
+// transform.
+type EmitOutcome struct {
+	Record InterceptionRecord
+	Target any
+}
+
 // Emit runs the emission and returns InterceptionBlocked as the error
 // if the guarded action must not proceed (§6). This is the primary
 // entry point; the safe path is the default.
-func (e *InterceptionEmitter) Emit(ctx context.Context, actx AgentContext) (InterceptionRecord, error) {
+func (e *InterceptionEmitter) Emit(ctx context.Context, actx AgentContext) (EmitOutcome, error) {
 	rec, err := e.EmitUnchecked(ctx, actx)
 	if err != nil {
-		return rec, err
+		return EmitOutcome{Record: rec}, err
 	}
 	if !rec.Proceeds() {
-		return rec, InterceptionBlocked{Result: rec}
+		return EmitOutcome{Record: rec}, InterceptionBlocked{Result: rec}
 	}
-	return rec, nil
+	return EmitOutcome{Record: rec, Target: actx["target"]}, nil
 }
 
 // EmitUnchecked runs the emission and returns the record without a
@@ -354,7 +423,20 @@ func (e *InterceptionEmitter) EmitUnchecked(ctx context.Context, actx AgentConte
 	if err := json.Unmarshal([]byte(recJSON), &rec); err != nil {
 		return InterceptionRecord{}, err
 	}
+	if e.recordSink != nil {
+		// Audit delivery must not take down the control plane (§10.3).
+		func() {
+			defer func() { _ = recover() }()
+			e.recordSink(rec)
+		}()
+	}
 	e.mu.Lock()
+	if e.maxRecords > 0 {
+		for len(e.records) >= e.maxRecords {
+			e.records = e.records[1:]
+			e.recordsDropped++
+		}
+	}
 	e.records = append(e.records, rec)
 	e.mu.Unlock()
 	return rec, nil
@@ -720,9 +802,28 @@ func (e *InterceptionEmitter) consult(ctx context.Context, actx AgentContext, ve
 		return Verdict{}, false, false
 	}
 
+	// §9/§14: the host's approval redactor minimizes the context
+	// egressing through the seam; a panicking redactor fails closed.
+	presented := actx
+	if e.approvalRedactor != nil {
+		redacted, redactErr := func() (out AgentContext, err error) {
+			defer func() {
+				if r := recover(); r != nil {
+					err = fmt.Errorf("approval redactor panicked: %T", r)
+				}
+			}()
+			return e.approvalRedactor(actx), nil
+		}()
+		if redactErr != nil {
+			return HostErrorVerdict(ErrApprovalResolverFailed, redactErr.Error()), true, false
+		}
+		presented = redacted
+	}
+
 	// §9: identity of the context as presented to the resolver —
-	// consultation time, after any transforms that folded earlier.
-	identity, err := e.identity.compute(actx)
+	// consultation time, after any transforms that folded earlier and
+	// after any redaction.
+	identity, err := e.identity.compute(presented)
 	if err != nil {
 		return coreErrVerdict(err, ErrContextInvalid), true, false
 	}
@@ -733,7 +834,7 @@ func (e *InterceptionEmitter) consult(ctx context.Context, actx AgentContext, ve
 				ContextIdentity:   identity,
 				InterceptionPoint: actx.InterceptionPoint(),
 				Verdict:           verdict,
-				Context:           actx,
+				Context:           presented,
 			})
 		})
 	if timedOut {
