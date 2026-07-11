@@ -12,8 +12,14 @@
 #            credential).
 #   crates — secret CARGO_REGISTRY_TOKEN (scoped publish-only token from
 #            https://crates.io/settings/tokens).
-#   npm    — secret NPM_TOKEN (granular, publish-only, @responsibleai
-#            scope); `--provenance` attaches build provenance.
+#   npm    — trusted publishing (OIDC): configure a trusted publisher
+#            on the package (repo responsibleai/agent-hooks, workflow
+#            release.yml, environment release) at
+#            npmjs.com > package > Settings > Trusted Publisher.
+#            No token. First-ever publish of a new package cannot use
+#            trusted publishing — bootstrap once with a granular token
+#            (npm publish from a maintainer machine or a temporary
+#            NPM_TOKEN secret), then configure the publisher.
 #   NuGet  — secret NUGET_API_KEY (scoped to ResponsibleAI.AgentHooks).
 #   Go     — no registry: the module proxy serves the git tag directly.
 name: release
@@ -123,12 +129,16 @@ jobs:
         uses: actions/attest-build-provenance@c074443f1aee8d4aeeae555aebba3282517141b2 # v2
         with:
           subject-path: sdk/typescript/*.tgz
-      - name: Publish to npm (with provenance)
+      - name: Publish to npm (trusted publishing)
         if: env.DRY_RUN != 'true'
-        run: npm publish --provenance --access public
+        # OIDC trusted publishing: no token. Requires npm >= 11.5.1 and a
+        # trusted publisher configured on the package (repo
+        # responsibleai/agent-hooks, workflow release.yml, environment
+        # release). Provenance is generated automatically; note npm
+        # provenance requires a PUBLIC source repo — while this repo is
+        # private, expect the publish step to fail on the provenance leg.
+        run: npm install -g npm@latest && npm publish --access public
         working-directory: sdk/typescript
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   dotnet:
     runs-on: ubuntu-latest
