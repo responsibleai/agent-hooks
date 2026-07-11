@@ -110,6 +110,13 @@ type CtkVectorResult struct {
 // runRecordJSON is the wire-shaped RunRecord:
 // {outcome, final_output, tool_invocations, error, identities}.
 func CtkAssert(vectorJSON string, recorded []AgentContext, runRecordJSON string) (CtkVectorResult, error) {
+	// A nil slice marshals to JSON null, which the core rejects
+	// (serde expects a sequence). A registered interceptor that never
+	// ran (e.g. a provider fault denying at agent_startup, AH-CTK-096)
+	// leaves the recording slice nil.
+	if recorded == nil {
+		recorded = []AgentContext{}
+	}
 	rb, err := json.Marshal(recorded)
 	if err != nil {
 		return CtkVectorResult{}, err
