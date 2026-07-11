@@ -881,10 +881,27 @@ composition profile in effect says to (§7.4–§7.6), and never at
 The `context_identity` presented in the request is computed by the
 identity provider from the context **as presented to the resolver** —
 at consultation time, after any transforms that folded earlier in a
-sequential dispatch. Binding the approval to the identity of what was
-actually shown to the approver prevents an approval obtained for one
-content from being replayed against another (when the provider is
+sequential dispatch, **and after any host redaction applied for the
+request**. Binding the approval to the identity of what was actually
+shown to the approver prevents an approval obtained for one content
+from being replayed against another (when the provider is
 content-derived, §10.1).
+
+**Redaction seam.** The approval resolver is the contract's primary
+out-of-process egress (ticketing UIs, chat approvals). A host MAY
+register an **approval redactor** — a pure function producing the
+context to place in the ApprovalRequest — to minimize that egress.
+Rules:
+
+- the request's `context_identity` is computed over the **redacted**
+  context (above), so the echo rule and replay defence still hold for
+  exactly the bytes the approver saw;
+- the record's `input_identity`/`enforced_identity` are unaffected —
+  they bind the enforcement path, not the approval egress;
+- a redactor that raises or panics fails the consultation closed as
+  `deny host_error:approval_resolver_failed`;
+- hosts SHOULD document removed content under the reserved
+  `extensions.<host>.redacted` shape: an array of §5.2 path strings.
 
 ---
 
@@ -1226,7 +1243,9 @@ threat→mitigation→test traceability is `docs/THREAT-MODEL.md`.
   tool arguments, or model output. Hosts SHOULD redact known-sensitive fields
   before constructing `AgentContext` when the interceptor's trust level does not
   warrant raw access, and SHOULD document any redaction in
-  `extensions.<host>.redacted: ["<jsonpath>", ...]`.
+  `extensions.<host>.redacted: ["<jsonpath>", ...]` — an array of §5.2
+  path strings (the same reserved shape the §9 approval redactor
+  uses).
 - `evidence.verification_pointers` are URIs a host MUST NOT dereference
   automatically; doing so is an SSRF vector.
 - A `transform` verdict rewrites data the agent will act on. Hosts SHOULD

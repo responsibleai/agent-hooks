@@ -625,3 +625,128 @@ func TestNamesAndCountOnRecord(t *testing.T) {
 		t.Errorf("verdicts names = %+v", rec.Verdicts)
 	}
 }
+
+// ---- NEXT-08/13/14/20 seams (mirror sdk/python/tests/test_emitter_seams.py)
+
+// capturingApprover approves, capturing what egressed through the seam.
+type capturingApprover struct {
+	identity  *string
+	presented string
+}
+
+func (c *capturingApprover) Resolve(_ context.Context, req ApprovalRequest) (ApprovalResolution, error) {
+	c.identity = req.ContextIdentity
+	b, _ := json.Marshal(map[string]any(req.Context))
+	c.presented = string(b)
+	v := Verdict{Decision: Allow}
+	return ApprovalResolution{Outcome: Approve, ContextIdentity: req.ContextIdentity, Verdict: &v}, nil
+}
+
+func TestApprovalRedactorBindsIdentityToPresentedContext(t *testing.T) {
+	capr := &capturingApprover{}
+	e := NewInterceptionEmitter(Enforce, capr)
+	e.Register(scripted{v: Escalate("check", "")})
+	e.SetApprovalRedactor(func(actx AgentContext) AgentContext {
+		out, err := ApplyTransformToContext(actx, "$target.url", "[redacted]")
+		if err != nil {
+			t.Fatalf("redact: %v", err)
+		}
+		return out
+	})
+	rec, err := e.EmitUnchecked(context.Background(), testCtx())
+	if err != nil {
+		t.Fatalf("EmitUnchecked: %v", err)
+	}
+	if !rec.Proceeds() {
+		t.Fatalf("approval should lift: %+v", rec.Verdict)
+	}
+	if rec.ResolvedBy == nil || *rec.ResolvedBy != ResolvedByApproval {
+		t.Fatalf("resolved_by = %v, want approval", rec.ResolvedBy)
+	}
+	if strings.Contains(capr.presented, "evil") {
+		t.Fatalf("unredacted content egressed: %s", capr.presented)
+	}
+	if capr.identity == nil || rec.InputIdentity == nil || *capr.identity == *rec.InputIdentity {
+		t.Fatalf("request identity should cover the redacted context, not the record's")
+	}
+}
+
+func TestPanickingRedactorFailsClosed(t *testing.T) {
+	capr := &capturingApprover{}
+	e := NewInterceptionEmitter(Enforce, capr)
+	e.Register(scripted{v: Escalate("check", "")})
+	e.SetApprovalRedactor(func(AgentContext) AgentContext {
+		panic("SECRET must not leak")
+	})
+	rec, err := e.EmitUnchecked(context.Background(), testCtx())
+	if err != nil {
+		t.Fatalf("EmitUnchecked: %v", err)
+	}
+	if rec.Proceeds() {
+		t.Fatal("panicking redactor must fail closed")
+	}
+	if rec.Verdict.Reason != string(ErrApprovalResolverFailed) {
+		t.Fatalf("reason = %q, want approval_resolver_failed", rec.Verdict.Reason)
+	}
+	if strings.Contains(rec.Verdict.Message, "SECRET") {
+		t.Fatalf("panic payload leaked: %s", rec.Verdict.Message)
+	}
+}
+
+func TestRecordSinkAndRingBuffer(t *testing.T) {
+	seen := 0
+	e := NewInterceptionEmitter(Enforce, nil)
+	e.Register(scripted{v: Verdict{Decision: Allow}})
+	e.SetRecordSink(func(InterceptionRecord) { seen++ })
+	e.SetMaxRecords(2)
+	for i := 0; i < 5; i++ {
+		if _, err := e.EmitUnchecked(context.Background(), testCtx()); err != nil {
+			t.Fatalf("EmitUnchecked: %v", err)
+		}
+	}
+	if seen != 5 {
+		t.Fatalf("sink saw %d, want 5", seen)
+	}
+	if n := len(e.Records()); n != 2 {
+		t.Fatalf("buffered %d, want 2", n)
+	}
+	if d := e.RecordsDropped(); d != 3 {
+		t.Fatalf("dropped %d, want 3", d)
+	}
+	if n := len(e.TakeRecords()); n != 2 {
+		t.Fatalf("drained %d, want 2", n)
+	}
+	if n := len(e.Records()); n != 0 {
+		t.Fatalf("buffer after drain %d, want 0", n)
+	}
+}
+
+func TestSinkPanicIsSwallowed(t *testing.T) {
+	e := NewInterceptionEmitter(Enforce, nil)
+	e.Register(scripted{v: Verdict{Decision: Allow}})
+	e.SetRecordSink(func(InterceptionRecord) { panic("sink down") })
+	rec, err := e.EmitUnchecked(context.Background(), testCtx())
+	if err != nil {
+		t.Fatalf("EmitUnchecked: %v", err)
+	}
+	if !rec.Proceeds() {
+		t.Fatal("sink panic must not affect the emission outcome")
+	}
+}
+
+func TestEmitReturnsEffectiveTarget(t *testing.T) {
+	e := NewInterceptionEmitter(Enforce, nil)
+	tr := TransformBody{Path: "$target.url", Value: "clean"}
+	e.Register(scripted{v: Verdict{Decision: Transform, Transform: &tr}})
+	out, err := e.Emit(context.Background(), testCtx())
+	if err != nil {
+		t.Fatalf("Emit: %v", err)
+	}
+	target, ok := out.Target.(map[string]any)
+	if !ok {
+		t.Fatalf("target type %T", out.Target)
+	}
+	if target["url"] != "clean" {
+		t.Fatalf("target.url = %v, want clean", target["url"])
+	}
+}

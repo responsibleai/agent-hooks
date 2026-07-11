@@ -7,9 +7,11 @@ CTK can self-test without depending on any real framework.
 """
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any, ClassVar
 
+from agent_hooks import _core
 from agent_hooks._types import EnforcementMode
 from agent_hooks.approval import ApprovalResolver
 from agent_hooks.composition import CompositionConfig
@@ -51,6 +53,7 @@ class ReferenceHarness:
         mode: EnforcementMode,
         composition: CompositionConfig | None = None,
         identity_provider: str | None = "jcs-sha256",
+        redact_for_approval: list[str] | None = None,
     ) -> None:
         self._scenario = scenario
         self._tool_log = []
@@ -60,6 +63,22 @@ class ReferenceHarness:
             composition=composition,
             identity_provider=_provider_of(identity_provider),
         )
+        if redact_for_approval:
+            # §9 redaction seam, CTK convention: each listed path is
+            # replaced with "[redacted]" via the §5.2/§4.3 transform
+            # machinery; unresolvable paths are left untouched.
+            paths = list(redact_for_approval)
+
+            def _redact(ctx: dict[str, Any]) -> dict[str, Any]:
+                out = json.dumps(ctx)
+                for path in paths:
+                    try:
+                        out = _core.apply_transform_ctx(out, path, '"[redacted]"')
+                    except Exception:  # noqa: BLE001 — skip unresolvable
+                        continue
+                return json.loads(out)
+
+            em.set_approval_redactor(_redact)
         for i in interceptors:
             em.register(i)
         self._emitter = em

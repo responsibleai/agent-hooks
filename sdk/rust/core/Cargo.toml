@@ -22,10 +22,15 @@ sha2 = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true }
 ryu-js = { version = "1.0", default-features = false }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+tokio = { version = "1", features = ["time"], optional = true }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt"] }
+tokio = { version = "1", features = ["macros", "rt", "time"] }
 
 [features]
 default = []
 ctk = []
+# §7 timeout wrappers for Rust-native hosts (TimeoutInterceptor /
+# TimeoutResolver); gated because the core is otherwise runtime-agnostic.
+tokio-timeout = ["dep:tokio"]

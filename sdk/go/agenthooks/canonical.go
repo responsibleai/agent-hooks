@@ -49,6 +49,28 @@ func ApplyTransform(target any, path string, value any) (any, error) {
 	return result, json.Unmarshal([]byte(out), &result)
 }
 
+// ApplyTransformToContext applies one $target-rooted transform to the
+// context's target, mirroring the write-back into the aliased
+// conditional field (§4.3, §5.2), and returns the updated context.
+// Implemented by the Rust core. Used by CTK harnesses to build §9
+// approval redactors.
+func ApplyTransformToContext(actx AgentContext, path string, value any) (AgentContext, error) {
+	cb, err := json.Marshal(map[string]any(actx))
+	if err != nil {
+		return nil, err
+	}
+	vb, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	out, err := nativeApplyTransformCtx(string(cb), path, string(vb))
+	if err != nil {
+		return nil, err
+	}
+	var result AgentContext
+	return result, json.Unmarshal([]byte(out), &result)
+}
+
 // ValidateVerdict validates an interceptor's wire return per §5.
 // Implemented by the Rust core.
 func ValidateVerdict(v Verdict) error {

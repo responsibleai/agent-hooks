@@ -19,25 +19,18 @@
 //! any block — the ignorable-record variant is the explicitly named
 //! [`InterceptionEmitter::emit_unchecked`].
 //!
-//! # Timeouts (§7)
+//! # Timeouts and panic isolation (§6.3, §7)
 //!
-//! Unlike the Python/TypeScript/.NET/Go emitters, this emitter does
-//! **not** enforce the §7 RECOMMENDED 5000 ms interceptor/resolver
-//! timeout: the crate is runtime-agnostic (no tokio/async-std
-//! dependency), and a portable future timeout requires a timer driver.
-//! Rust hosts own the timeout at the interceptor boundary — wrap each
-//! implementation with the host runtime's timeout and map the breach to
-//! the reserved reasons, e.g. under tokio:
-//!
-//! ```ignore
-//! // inside your Interceptor::intercept impl
-//! match tokio::time::timeout(Duration::from_millis(5000), inner.intercept(ctx)).await {
-//!     Ok(v) => v,
-//!     Err(_) => Verdict::host_error(HostError::InterceptorTimeout, None),
-//! }
-//! ```
-//!
-//! The wrapped verdict flows through the normal §6.3 fail-closed path.
+//! Interceptor and resolver panics are always isolated: a panic
+//! becomes that component's §6.3/§9 failure deny, never a host crash.
+//! The §7 RECOMMENDED 5000 ms timeout is emitter-owned **with the
+//! `tokio-timeout` feature** ([`InterceptionEmitter::set_timeout`]) —
+//! parity with the Python/TypeScript/.NET/Go emitters. Without the
+//! feature the crate stays runtime-agnostic and hosts on other
+//! runtimes own the timeout at the interceptor boundary. Note that a
+//! host-side wrapper interceptor must NOT return `host_error:*`
+//! reasons itself — the §5 gate treats that as spoofing (TM-02); use
+//! the feature or fail the future.
 
 use crate::canonical;
 use crate::composition::{
@@ -52,6 +45,16 @@ use crate::types::{
 };
 use serde_json::Value;
 use std::fmt;
+
+/// Returned by [`InterceptionEmitter::emit`] on a proceeding emission:
+/// the record plus the **effective** (post-composition) target the
+/// guarded action MUST consume (§4.3 — a reference captured before
+/// `emit` may predate a transform).
+#[derive(Debug, Clone)]
+pub struct EmitOutcome {
+    pub record: InterceptionRecord,
+    pub target: Value,
+}
 
 /// Returned by [`InterceptionEmitter::emit`] when the combined verdict
 /// blocks the guarded action (§6).
@@ -138,6 +141,40 @@ impl IdentityProvider {
     }
 }
 
+
+
+/// §6.3/§7: invoke one interceptor with panic isolation and (with the
+/// `tokio-timeout` feature) the emitter-owned timeout. `Err` carries a
+/// host-synthesized failure verdict that MUST bypass the §5 gate — the
+/// gate exists to stop *interceptors* spoofing reserved reasons, not
+/// the host substituting them (TM-02).
+async fn call_isolated(
+    interceptor: &dyn Interceptor,
+    ctx: &AgentContext,
+    #[allow(unused_variables)] limit: Option<std::time::Duration>,
+) -> Result<Verdict, Verdict> {
+    use futures_util::FutureExt;
+    let fut = std::panic::AssertUnwindSafe(interceptor.intercept(ctx)).catch_unwind();
+    #[cfg(feature = "tokio-timeout")]
+    let caught = match limit {
+        Some(d) => match tokio::time::timeout(d, fut).await {
+            Ok(c) => c,
+            Err(_) => {
+                return Err(Verdict::host_error(HostError::InterceptorTimeout, None));
+            }
+        },
+        None => fut.await,
+    };
+    #[cfg(not(feature = "tokio-timeout"))]
+    let caught = fut.await;
+    caught.map_err(|_| {
+        Verdict::host_error(
+            HostError::InterceptorFailed,
+            Some("interceptor panicked (see spec §6.3)".into()),
+        )
+    })
+}
+
 /// Whether a verdict was synthesized by the host (§11) rather than
 /// returned by an interceptor or resolver.
 fn is_host_synthesized(v: &Verdict) -> bool {
@@ -145,6 +182,13 @@ fn is_host_synthesized(v: &Verdict) -> bool {
         .as_deref()
         .is_some_and(|r| r.starts_with("host_error:"))
 }
+
+/// §9/§14 approval redactor: produces the context placed in every
+/// ApprovalRequest.
+pub type ApprovalRedactor = Box<dyn Fn(&AgentContext) -> AgentContext + Send + Sync>;
+
+/// Per-emission record callback (§10.3).
+pub type RecordSink = Box<dyn Fn(&InterceptionRecord) + Send + Sync>;
 
 /// Internal result of one profile dispatch.
 struct DispatchOutcome {
@@ -189,6 +233,13 @@ pub struct InterceptionEmitter {
     mode: EnforcementMode,
     composition: CompositionConfig,
     identity: IdentityProvider,
+    approval_redactor: Option<ApprovalRedactor>,
+    /// §7 emitter-owned timeout (None = unbounded; enforced only with
+    /// the `tokio-timeout` feature).
+    timeout: Option<std::time::Duration>,
+    record_sink: Option<RecordSink>,
+    max_records: Option<usize>,
+    records_dropped: u64,
     records: Vec<InterceptionRecord>,
 }
 
@@ -200,6 +251,11 @@ impl InterceptionEmitter {
             mode,
             composition: CompositionConfig::default(),
             identity: IdentityProvider::JcsSha256,
+            approval_redactor: None,
+            timeout: None,
+            record_sink: None,
+            max_records: None,
+            records_dropped: 0,
             records: Vec::new(),
         }
     }
@@ -228,9 +284,68 @@ impl InterceptionEmitter {
         Ok(self)
     }
 
-    /// All interception records emitted so far in this session, in order.
+    /// All interception records emitted so far in this session, in
+    /// order (§10.3). Subject to [`Self::set_max_records`]; durable
+    /// audit storage is the host's job via [`Self::set_record_sink`]
+    /// or [`Self::take_records`].
     pub fn records(&self) -> &[InterceptionRecord] {
         &self.records
+    }
+
+    /// Drain the in-memory record buffer (retention stays bounded on
+    /// long-running sessions).
+    pub fn take_records(&mut self) -> Vec<InterceptionRecord> {
+        std::mem::take(&mut self.records)
+    }
+
+    /// Register a per-emission record callback (§10.3). The sink is
+    /// invoked synchronously after every emission, before the record
+    /// is buffered; a sink panic is swallowed (the emission outcome is
+    /// already decided — audit delivery is the host's liveness
+    /// concern, not the control plane's).
+    pub fn set_record_sink(
+        &mut self,
+        sink: impl Fn(&InterceptionRecord) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.record_sink = Some(Box::new(sink));
+        self
+    }
+
+    /// Bound the in-memory record buffer: when full, the OLDEST record
+    /// is dropped and [`Self::records_dropped`] increments. Unbounded
+    /// by default.
+    pub fn set_max_records(&mut self, max: usize) -> &mut Self {
+        self.max_records = Some(max);
+        self
+    }
+
+    /// Records evicted by the [`Self::set_max_records`] bound.
+    pub fn records_dropped(&self) -> u64 {
+        self.records_dropped
+    }
+
+    /// Bound each interceptor call with the §7 timeout (RECOMMENDED
+    /// default 5000 ms); breach fails closed with
+    /// `host_error:interceptor_timeout`. Enforced only with the
+    /// `tokio-timeout` feature — without it the crate is
+    /// runtime-agnostic and the timeout stays host-owned (module docs).
+    pub fn set_timeout(&mut self, limit: std::time::Duration) -> &mut Self {
+        self.timeout = Some(limit);
+        self
+    }
+
+    /// Register the §9/§14 approval redactor: a pure function producing
+    /// the context to place in every ApprovalRequest. The §9 identity
+    /// is computed over the redacted context (binding the approval to
+    /// what the approver saw); the record's identities are unaffected.
+    /// Hosts SHOULD document removed paths under
+    /// `extensions.<host>.redacted` (§14).
+    pub fn set_approval_redactor(
+        &mut self,
+        f: impl Fn(&AgentContext) -> AgentContext + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.approval_redactor = Some(Box::new(f));
+        self
     }
 
     pub fn register(&mut self, interceptor: Box<dyn Interceptor>) -> &mut Self {
@@ -246,10 +361,14 @@ impl InterceptionEmitter {
     pub async fn emit(
         &mut self,
         ctx: &mut AgentContext,
-    ) -> Result<InterceptionRecord, InterceptionBlocked> {
+    ) -> Result<EmitOutcome, InterceptionBlocked> {
         let record = self.emit_unchecked(ctx).await;
         if record.proceeds() {
-            Ok(record)
+            // §4.3/§10.3: hand back the effective (post-composition)
+            // target so the natural pattern consumes the transformed
+            // value — a target captured before emit may be stale.
+            let target = ctx.get("target").cloned().unwrap_or(Value::Null);
+            Ok(EmitOutcome { record, target })
         } else {
             Err(InterceptionBlocked { record })
         }
@@ -310,6 +429,16 @@ impl InterceptionEmitter {
             interceptors_registered: self.interceptors.len() as u32,
         };
         let record = finalize(ctx, outcome.combined, self.mode, meta);
+        if let Some(sink) = &self.record_sink {
+            // Audit delivery must not take down the control plane.
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| sink(&record)));
+        }
+        if let Some(max) = self.max_records {
+            while self.records.len() >= max.max(1) {
+                self.records.remove(0);
+                self.records_dropped += 1;
+            }
+        }
         self.records.push(record.clone());
         record
     }
@@ -354,11 +483,15 @@ impl InterceptionEmitter {
             let idx = i as u32;
             // §7: each interceptor gets its own copy — in-place mutation
             // of the copy cannot alter enforcement.
-            let v = interceptor.intercept(&ctx.clone()).await;
-            let v = if v.validate().is_err() {
-                Verdict::host_error(HostError::VerdictInvalid, None)
-            } else {
-                v
+            // §5 gate on the interceptor's own return; host-synthesized
+            // failure substitutions (Err) bypass it (TM-02 is about
+            // interceptor spoofing, not host substitution).
+            let v = match call_isolated(interceptor.as_ref(), &ctx.clone(), self.timeout).await {
+                Ok(v) if v.validate().is_err() => {
+                    Verdict::host_error(HostError::VerdictInvalid, None)
+                }
+                Ok(v) => v,
+                Err(f) => f,
             };
             per_interceptor.push(v.clone());
             pool.push(v.clone());
@@ -488,13 +621,15 @@ impl InterceptionEmitter {
     async fn dispatch_run_all(&self, ctx: &mut AgentContext) -> DispatchOutcome {
         let mut all: Vec<Verdict> = Vec::new();
         for interceptor in self.interceptors.iter() {
-            let v = interceptor.intercept(&ctx.clone()).await;
             // §6.3 per-interceptor: a malformed verdict becomes that
             // interceptor's synthesized deny; the rest still run.
-            let v = if v.validate().is_err() {
-                Verdict::host_error(HostError::VerdictInvalid, None)
-            } else {
-                v
+            // Host-synthesized substitutions (Err) bypass the §5 gate.
+            let v = match call_isolated(interceptor.as_ref(), &ctx.clone(), self.timeout).await {
+                Ok(v) if v.validate().is_err() => {
+                    Verdict::host_error(HostError::VerdictInvalid, None)
+                }
+                Ok(v) => v,
+                Err(f) => f,
             };
             if v.decision == Decision::Transform {
                 let folded = self.fold_transform(ctx, v);
@@ -524,12 +659,16 @@ impl InterceptionEmitter {
         let snapshot = ctx.clone();
         let mut all: Vec<Verdict> = Vec::new();
         for interceptor in self.interceptors.iter() {
-            let v = interceptor.intercept(&snapshot.clone()).await;
-            all.push(if v.validate().is_err() {
-                Verdict::host_error(HostError::VerdictInvalid, None)
-            } else {
-                v
-            });
+            // Host-synthesized substitutions (Err) bypass the §5 gate.
+            let v = match call_isolated(interceptor.as_ref(), &snapshot.clone(), self.timeout).await
+            {
+                Ok(v) if v.validate().is_err() => {
+                    Verdict::host_error(HostError::VerdictInvalid, None)
+                }
+                Ok(v) => v,
+                Err(f) => f,
+            };
+            all.push(v);
         }
 
         if self.composition.profile == CompositionProfile::ParallelUnanimous {
@@ -796,9 +935,35 @@ impl InterceptionEmitter {
             return Consultation::NotConsulted;
         };
 
+        // §9/§14: the host's approval redactor minimizes the context
+        // that egresses through the seam. The identity is computed over
+        // the context ACTUALLY placed in the request (post-redaction) —
+        // binding the approval to what the approver saw.
+        let redacted;
+        let presented: &AgentContext = match &self.approval_redactor {
+            Some(f) => {
+                redacted = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(ctx)))
+                {
+                    Ok(c) => c,
+                    Err(_) => {
+                        return Consultation::Substituted {
+                            verdict: Box::new(Verdict::host_error(
+                                HostError::ApprovalResolverFailed,
+                                Some("approval redactor panicked (see spec §9)".into()),
+                            )),
+                            permitted: false,
+                        }
+                    }
+                };
+                &redacted
+            }
+            None => ctx,
+        };
+
         // §9: identity of the context as presented to the resolver —
-        // consultation time, after any transforms that folded earlier.
-        let identity = match self.identity.compute(ctx) {
+        // consultation time, after any transforms that folded earlier
+        // and after any redaction.
+        let identity = match self.identity.compute(presented) {
             Ok(id) => id,
             Err((e, detail)) => {
                 return Consultation::Substituted {
@@ -813,14 +978,29 @@ impl InterceptionEmitter {
             .and_then(Value::as_str)
             .and_then(|s| s.parse().ok())
             .unwrap_or(InterceptionPoint::AgentStartup);
-        let res = resolver
-            .resolve(ApprovalRequest {
-                context_identity: identity.clone(),
-                interception_point: ip,
-                verdict,
-                context: ctx,
-            })
-            .await;
+        // §6.3/§9: a panicking resolver is a resolver failure, never a
+        // host crash.
+        use futures_util::FutureExt;
+        let res = match std::panic::AssertUnwindSafe(resolver.resolve(ApprovalRequest {
+            context_identity: identity.clone(),
+            interception_point: ip,
+            verdict,
+            context: presented,
+        }))
+        .catch_unwind()
+        .await
+        {
+            Ok(res) => res,
+            Err(_) => {
+                return Consultation::Substituted {
+                    verdict: Box::new(Verdict::host_error(
+                        HostError::ApprovalResolverFailed,
+                        Some("resolver panicked (see spec §9)".into()),
+                    )),
+                    permitted: false,
+                }
+            }
+        };
 
         let fail = |e: HostError| Consultation::Substituted {
             verdict: Box::new(Verdict::host_error(e, None)),
@@ -867,7 +1047,7 @@ impl InterceptionEmitter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::Transform;
+    use crate::types::{ApprovalResolution, Transform};
     use async_trait::async_trait;
     use serde_json::json;
 
@@ -1125,4 +1305,119 @@ mod tests {
         assert_eq!(r.decided_by, Some(1));
         assert_eq!(r.fold_truncated, Some(true));
     }
+    #[tokio::test]
+    async fn panicking_interceptor_fails_closed() {
+        // §6.3/NEXT-13: a panic is that interceptor's failure, not a
+        // host crash.
+        struct Panics;
+        #[async_trait::async_trait]
+        impl Interceptor for Panics {
+            async fn intercept(&self, _c: &AgentContext) -> Verdict {
+                panic!("SECRET-PAYLOAD must not leak");
+            }
+        }
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.register(Box::new(Panics));
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(!r.proceeds());
+        assert_eq!(r.verdict.reason.as_deref(), Some("host_error:interceptor_failed"));
+        assert!(!r.verdict.message.as_deref().unwrap_or("").contains("SECRET"));
+    }
+
+    #[cfg(feature = "tokio-timeout")]
+    #[tokio::test]
+    async fn emitter_timeout_fails_closed() {
+        struct Slow;
+        #[async_trait::async_trait]
+        impl Interceptor for Slow {
+            async fn intercept(&self, _c: &AgentContext) -> Verdict {
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                Verdict::allow()
+            }
+        }
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.set_timeout(std::time::Duration::from_millis(20));
+        e.register(Box::new(Slow));
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert_eq!(r.verdict.reason.as_deref(), Some("host_error:interceptor_timeout"));
+        assert_eq!(r.verdict.decision, Decision::Deny);
+    }
+
+    #[tokio::test]
+    async fn record_sink_and_ring_buffer() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        let seen = Arc::new(AtomicUsize::new(0));
+        let seen2 = seen.clone();
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.register(Box::new(Scripted(Verdict::allow())));
+        e.set_record_sink(move |_r| {
+            seen2.fetch_add(1, Ordering::SeqCst);
+        });
+        e.set_max_records(2);
+        for _ in 0..5 {
+            let _ = e.emit_unchecked(&mut ctx()).await;
+        }
+        assert_eq!(seen.load(Ordering::SeqCst), 5);
+        assert_eq!(e.records().len(), 2);
+        assert_eq!(e.records_dropped(), 3);
+        assert_eq!(e.take_records().len(), 2);
+        assert!(e.records().is_empty());
+    }
+
+    #[tokio::test]
+    async fn approval_redactor_binds_identity_to_presented_context() {
+        // §9/NEXT-08: the request identity covers the REDACTED context,
+        // and the redacted field never reaches the resolver.
+        use std::sync::Mutex;
+        struct Capture(Mutex<Option<(String, String)>>);
+        #[async_trait::async_trait]
+        impl ApprovalResolver for Capture {
+            async fn resolve(&self, req: ApprovalRequest<'_>) -> ApprovalResolution {
+                let ctx_json = serde_json::to_string(req.context).unwrap();
+                *self.0.lock().unwrap() =
+                    Some((req.context_identity.clone().unwrap_or_default(), ctx_json));
+                ApprovalResolution {
+                    outcome: ApprovalOutcome::Approve,
+                    context_identity: req.context_identity.clone(),
+                    verdict: Some(Verdict::allow()),
+                }
+            }
+        }
+        let captured = std::sync::Arc::new(Capture(Mutex::new(None)));
+        struct Escalates;
+        #[async_trait::async_trait]
+        impl Interceptor for Escalates {
+            async fn intercept(&self, _c: &AgentContext) -> Verdict {
+                Verdict::escalate(Some("check".into()), None)
+            }
+        }
+        struct Shared(std::sync::Arc<Capture>);
+        #[async_trait::async_trait]
+        impl ApprovalResolver for Shared {
+            async fn resolve(&self, req: ApprovalRequest<'_>) -> ApprovalResolution {
+                self.0.resolve(req).await
+            }
+        }
+        let mut e =
+            InterceptionEmitter::new(EnforcementMode::Enforce, Some(Box::new(Shared(captured.clone()))));
+        e.register(Box::new(Escalates));
+        e.set_approval_redactor(|ctx| {
+            let mut c = ctx.clone();
+            if let Some(Value::Object(tc)) = c.get_mut("tool_call") {
+                tc.insert("args".into(), serde_json::json!({"REDACTED": true}));
+            }
+            c.insert("target".into(), serde_json::json!({"REDACTED": true}));
+            c
+        });
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(r.proceeds());
+        let (identity, presented) = captured.0.lock().unwrap().clone().unwrap();
+        assert!(!presented.contains("evil"), "unredacted content egressed: {presented}");
+        // The echoed identity matched what the emitter computed over
+        // the redacted context (approve succeeded), and differs from
+        // the record's own (unredacted) identities.
+        assert_ne!(Some(identity.as_str()), r.input_identity.as_deref());
+    }
+
 }

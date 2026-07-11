@@ -116,11 +116,25 @@ pub fn scripted_resolve(rules: &[Value], ctx: &Value, context_identity: &str) ->
             if r.get("fault").and_then(Value::as_str) == Some("raise") {
                 return serde_json::json!({"__ctk_fault__": "raise"});
             }
-            // identity_override exercises §9 approval_action_mismatch.
-            let identity = r
-                .get("identity_override")
-                .and_then(Value::as_str)
-                .unwrap_or(context_identity);
+            // identity_override exercises §9 approval_identity_mismatch;
+            // echo_recomputed pins the §9 redaction rule: the resolver
+            // recomputes the jcs-sha256 identity from the request
+            // context it actually received, so a host that computed
+            // the request identity over a different (unredacted)
+            // context fails the echo.
+            let recomputed;
+            let identity = if r.get("echo_recomputed").and_then(Value::as_bool) == Some(true) {
+                recomputed = ctx
+                    .as_object()
+                    .map(crate::canonical::context_identity)
+                    .and_then(Result::ok)
+                    .unwrap_or_default();
+                recomputed.as_str()
+            } else {
+                r.get("identity_override")
+                    .and_then(Value::as_str)
+                    .unwrap_or(context_identity)
+            };
             let mut out = serde_json::json!({
                 "outcome": r["outcome"],
                 "context_identity": identity,
