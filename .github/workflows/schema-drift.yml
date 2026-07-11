@@ -1,15 +1,13 @@
 name: schema-drift
 
+# No path filter on pull_request: `drift` is a required check, and a
+# path-filtered required check deadlocks every PR that doesn't match the
+# filter (GitHub never creates the check run, so the branch protection
+# waits forever). The job is cheap; run it on every PR.
 on:
   push:
     branches: [main]
   pull_request:
-    paths:
-      - "spec/schema/**"
-      - "scripts/**"
-      - "sdk/python/python/agent_hooks/schema/**"
-      - "conformance/vectors/**"
-      - "sdk/python/python/agent_hooks/ctk/vectors/**"
 
 permissions:
   contents: read
