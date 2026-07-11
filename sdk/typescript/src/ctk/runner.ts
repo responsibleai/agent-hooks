@@ -153,6 +153,8 @@ export async function runVector(harness: Harness, vector: JsonValue): Promise<Ve
       ? (v.identity_provider as 'jcs-sha256' | 'ctk-fault' | null)
       : 'jcs-sha256';
 
+  const redactForApproval = (v.redact_for_approval as string[] | undefined) ?? [];
+
   harness.setup(
     v.scenario as unknown as Scenario,
     interceptors,
@@ -160,6 +162,7 @@ export async function runVector(harness: Harness, vector: JsonValue): Promise<Ve
     mode,
     composition,
     identityProvider,
+    redactForApproval,
   );
   let rr: RunRecord;
   try {

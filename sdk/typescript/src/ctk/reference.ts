@@ -21,6 +21,7 @@ import {
 import { AgentContextBuilder } from "../builder";
 import { InterceptionEmitter } from "../emitter";
 import type { Capability, Harness, RunOutcome, RunRecord, Scenario } from "./index";
+import { native } from "../native";
 
 type ToolArgs = Record<string, JsonValue>;
 
@@ -40,11 +41,28 @@ export class ReferenceHarness implements Harness {
     mode: EnforcementMode,
     composition: CompositionConfig,
     identityProvider: 'jcs-sha256' | 'ctk-fault' | null,
+    redactForApproval: string[] = [],
   ): void {
     this.scenario = scenario;
     this.toolLog = [];
     const em = new InterceptionEmitter(mode, resolver);
     em.setComposition(composition);
+    if (redactForApproval.length > 0) {
+      // §9 redaction seam, CTK convention: each listed path is replaced
+      // with "[redacted]" via the §5.2/§4.3 transform machinery;
+      // unresolvable paths are left untouched.
+      em.setApprovalRedactor((ctx) => {
+        let out = JSON.stringify(ctx);
+        for (const path of redactForApproval) {
+          try {
+            out = native.applyTransformCtx(out, path, '"[redacted]"');
+          } catch {
+            /* unresolvable at this point — skip */
+          }
+        }
+        return JSON.parse(out) as typeof ctx;
+      });
+    }
     // §13.2: "ctk-fault" is a custom provider that throws, pinning the
     // §10.1 provider-failure rule (deny context_invalid pre-dispatch).
     em.setIdentityProvider(

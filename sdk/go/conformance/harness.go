@@ -90,6 +90,10 @@ type Harness interface {
 	// mode, the vector's composition profile (§7.1), and its identity
 	// provider (§10.1; nil = identity-unbound — vectors declare
 	// "jcs-sha256" or null, custom providers are not vector-expressible).
+	// When redactForApproval is non-empty the harness MUST register a §9
+	// approval redactor that replaces each listed §5.2 path in the
+	// request context's target with the string "[redacted]" (write-back
+	// mirrored per §4.3), leaving unresolvable paths untouched.
 	Setup(
 		scenario Scenario,
 		interceptors []agenthooks.Interceptor,
@@ -97,6 +101,7 @@ type Harness interface {
 		mode agenthooks.EnforcementMode,
 		composition agenthooks.CompositionConfig,
 		identityProvider *agenthooks.IdentityProvider,
+		redactForApproval []string,
 	) error
 
 	Run(ctx context.Context) (RunRecord, error)

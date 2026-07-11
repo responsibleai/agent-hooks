@@ -131,6 +131,7 @@ class Harness(Protocol):
         mode: EnforcementMode,
         composition: CompositionConfig,
         identity_provider: str | None,
+        redact_for_approval: list[str] | None = None,
     ) -> None: ...
 
     async def run(self) -> RunRecord: ...

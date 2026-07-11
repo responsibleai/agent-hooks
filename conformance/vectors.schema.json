@@ -131,6 +131,14 @@
     "part": {
       "type": "string",
       "description": "Declared-surface tag (§13.1): grouping runner results by part is the conformance report (e.g. composition/parallel_strictest, approval_seam, identity_provider)."
+    },
+    "redact_for_approval": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^\\$target(\\.|\\[|$)"
+      },
+      "description": "§9 redaction seam: the harness MUST register an approval redactor that replaces each listed §5.2 path in the request context's target with the string \"[redacted]\" (write-back mirrored per §4.3). The request identity is computed over the redacted context."
     }
   },
   "$defs": {
@@ -323,6 +331,10 @@
             "identity_override": {
               "type": "string",
               "description": "Return this context_identity instead of echoing the request's (violates the §9 echo rule; exercises host_error:approval_identity_mismatch)."
+            },
+            "echo_recomputed": {
+              "type": "boolean",
+              "description": "§9 redaction pinning: the scripted resolver recomputes the jcs-sha256 identity from the request context it actually received and echoes that, so a host that computed the request identity over a different (unredacted) context fails the echo rule. Overrides identity_override."
             }
           },
           "oneOf": [

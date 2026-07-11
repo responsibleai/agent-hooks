@@ -203,7 +203,17 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 		}
 	}
 
-	if err := h.Setup(scenario, interceptors, resolver, mode, composition, identityProvider); err != nil {
+	var redactForApproval []string
+	if raw, ok := vector["redact_for_approval"].([]any); ok {
+		for _, p := range raw {
+			if sp, ok := p.(string); ok {
+				redactForApproval = append(redactForApproval, sp)
+			}
+		}
+	}
+
+	if err := h.Setup(scenario, interceptors, resolver, mode, composition, identityProvider,
+		redactForApproval); err != nil {
 		return VectorResult{ID: id, Title: title, Status: "fail",
 			Failures: []string{fmt.Sprintf("harness.Setup: %v", err)}}, nil
 	}

@@ -111,8 +111,17 @@ async def run_vector(harness: Harness, vector: dict[str, Any]) -> VectorResult:
     composition = CompositionConfig.from_wire(vector.get("composition"))
     # §10.1: absent → the default provider; explicit null → unbound.
     identity_provider = vector.get("identity_provider", "jcs-sha256")
+    redact_for_approval = list(vector.get("redact_for_approval", []))
 
-    harness.setup(scenario, interceptors, resolver, mode, composition, identity_provider)
+    harness.setup(
+        scenario,
+        interceptors,
+        resolver,
+        mode,
+        composition,
+        identity_provider,
+        redact_for_approval,
+    )
     try:
         rr = await harness.run()
     except Exception as e:  # noqa: BLE001

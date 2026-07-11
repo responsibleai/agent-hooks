@@ -511,3 +511,87 @@ test("verdicts[].name carries registration names (§10.3)", async () => {
   assert.equal(r.verdicts[1].name, undefined);
   assert.equal(r.interceptors_registered, 2);
 });
+
+// ---- NEXT-08/13/14/20 seams (mirror sdk/python/tests/test_emitter_seams.py)
+
+test("approval redactor binds identity to the presented context", async () => {
+  let presented = null;
+  let identity = null;
+  const resolver = {
+    resolve(req) {
+      presented = JSON.stringify(req.context);
+      identity = req.context_identity;
+      return {
+        outcome: ApprovalOutcome.Approve,
+        context_identity: req.context_identity,
+        verdict: { decision: Decision.Allow },
+      };
+    },
+  };
+  const e = new InterceptionEmitter(EnforcementMode.Enforce, resolver);
+  e.register({ intercept: () => Verdict.escalate("check") });
+  e.setApprovalRedactor((c) => {
+    const out = structuredClone(c);
+    out.target = { REDACTED: true };
+    out.tool_call.args = { REDACTED: true };
+    return out;
+  });
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.resolved_by, "approval");
+  assert.ok(!presented.includes("evil"), `unredacted content egressed: ${presented}`);
+  assert.notEqual(identity, r.input_identity);
+});
+
+test("throwing redactor fails the consultation closed", async () => {
+  const resolver = {
+    resolve() {
+      throw new Error("resolver must not be reached");
+    },
+  };
+  const e = new InterceptionEmitter(EnforcementMode.Enforce, resolver);
+  e.register({ intercept: () => Verdict.escalate("check") });
+  e.setApprovalRedactor(() => {
+    throw new Error("SECRET must not leak");
+  });
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.equal(r.verdict.reason, HostError.ApprovalResolverFailed);
+  assert.ok(!(r.verdict.message ?? "").includes("SECRET"));
+});
+
+test("record sink and ring buffer", async () => {
+  const seen = [];
+  const e = new InterceptionEmitter(EnforcementMode.Enforce, null);
+  e.register({ intercept: () => Verdict.allow() });
+  e.setRecordSink((r) => seen.push(r.sequence));
+  e.setMaxRecords(2);
+  for (let i = 0; i < 5; i++) await e.emitUnchecked(ctx());
+  assert.equal(seen.length, 5);
+  assert.equal(e.records.length, 2);
+  assert.equal(e.recordsDropped, 3);
+  assert.equal(e.takeRecords().length, 2);
+  assert.equal(e.records.length, 0);
+});
+
+test("sink exception is swallowed", async () => {
+  const e = new InterceptionEmitter(EnforcementMode.Enforce, null);
+  e.register({ intercept: () => Verdict.allow() });
+  e.setRecordSink(() => {
+    throw new Error("sink down");
+  });
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Allow);
+});
+
+test("emit returns the effective (post-transform) target", async () => {
+  const e = new InterceptionEmitter(EnforcementMode.Enforce, null);
+  e.register({
+    intercept: () => ({
+      decision: Decision.Transform,
+      transform: { path: "$target.url", value: "clean" },
+    }),
+  });
+  const out = await e.emit(ctx());
+  assert.equal(out.target.url, "clean");
+  assert.equal(out.record.verdict.decision, Decision.Transform);
+});

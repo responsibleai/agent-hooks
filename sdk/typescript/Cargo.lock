@@ -17,6 +17,7 @@ name = "agent-hooks-sdk"
 version = "0.1.0-alpha.2"
 dependencies = [
  "async-trait",
+ "futures-util",
  "ryu-js",
  "serde",
  "serde_json",

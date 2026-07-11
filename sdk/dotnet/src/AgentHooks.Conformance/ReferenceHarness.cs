@@ -27,7 +27,8 @@ public sealed class ReferenceHarness : IHarness
     public void Setup(
         Scenario scenario, IReadOnlyList<IInterceptor> interceptors,
         IApprovalResolver? resolver, EnforcementMode mode,
-        CompositionConfig composition, string? identityProvider)
+        CompositionConfig composition, string? identityProvider,
+        IReadOnlyList<string>? redactForApproval = null)
     {
         _scenario = scenario;
         _toolLog.Clear();
@@ -43,6 +44,30 @@ public sealed class ReferenceHarness : IHarness
                 "ctk-fault", _ => throw new InvalidOperationException("ctk scripted provider fault")),
             _ => IdentityProvider.JcsSha256,
         });
+        if (redactForApproval is { Count: > 0 })
+        {
+            // §9 redaction seam, CTK convention: each listed path is
+            // replaced with "[redacted]" via the §5.2/§4.3 transform
+            // machinery; unresolvable paths are left untouched.
+            var paths = redactForApproval.ToList();
+            em.SetApprovalRedactor(ctx =>
+            {
+                var current = ctx;
+                foreach (var path in paths)
+                {
+                    try
+                    {
+                        current = new AgentContext(
+                            Canonical.ApplyTransformCtx(current, path, "[redacted]"));
+                    }
+                    catch (AgentHooksCoreException)
+                    {
+                        // unresolvable at this point — skip
+                    }
+                }
+                return current;
+            });
+        }
         foreach (var i in interceptors) em.Register(i);
         _emitter = em;
         _builder = new AgentContextBuilder(

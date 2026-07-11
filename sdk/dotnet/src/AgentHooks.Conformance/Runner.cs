@@ -91,7 +91,13 @@ public static class Runner
             ? (string?)vector["identity_provider"]
             : Spec.JcsSha256;
 
-        harness.Setup(scenario, interceptors, resolver, mode, composition, identityProvider);
+        var redactForApproval = vector["redact_for_approval"] is JsonArray ra
+            ? ra.Select(n => (string)n!).ToList()
+            : [];
+
+        harness.Setup(
+            scenario, interceptors, resolver, mode, composition, identityProvider,
+            redactForApproval);
         RunRecord rr;
         try
         {

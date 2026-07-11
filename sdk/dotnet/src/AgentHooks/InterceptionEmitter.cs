@@ -96,6 +96,10 @@ public sealed class InterceptionEmitter
     private readonly TimeSpan _timeout;
     private CompositionConfig _composition = CompositionConfig.Default;
     private IdentityProvider _identity = IdentityProvider.JcsSha256;
+    private Func<AgentContext, AgentContext>? _approvalRedactor;
+    private Action<InterceptionRecord>? _recordSink;
+    private int? _maxRecords;
+    private long _recordsDropped;
 
     /// <param name="timeout">Bounds each interceptor
     /// <c>InterceptAsync</c> and resolver <c>ResolveAsync</c> call (§7,
@@ -167,16 +171,67 @@ public sealed class InterceptionEmitter
         return this;
     }
 
+    /// <summary>Register the §9/§14 approval redactor: a pure function
+    /// producing the context to place in every ApprovalRequest. The §9
+    /// identity is computed over the redacted context (binding the
+    /// approval to what the approver saw); the record's identities are
+    /// unaffected. A redactor that throws fails the consultation closed
+    /// as <c>host_error:approval_resolver_failed</c>.</summary>
+    public InterceptionEmitter SetApprovalRedactor(Func<AgentContext, AgentContext> redactor)
+    {
+        _approvalRedactor = redactor;
+        return this;
+    }
+
+    /// <summary>Register a per-emission record callback (§10.3), invoked
+    /// synchronously after every emission before buffering; a sink
+    /// exception is swallowed (audit delivery is the host's liveness
+    /// concern, not the control plane's).</summary>
+    public InterceptionEmitter SetRecordSink(Action<InterceptionRecord> sink)
+    {
+        _recordSink = sink;
+        return this;
+    }
+
+    /// <summary>Bound the in-memory record buffer: when full, the OLDEST
+    /// record is dropped and <see cref="RecordsDropped"/> increments.
+    /// Unbounded by default.</summary>
+    public InterceptionEmitter SetMaxRecords(int max)
+    {
+        _maxRecords = max;
+        return this;
+    }
+
+    /// <summary>Records evicted by the <see cref="SetMaxRecords"/> bound.</summary>
+    public long RecordsDropped
+    {
+        get { lock (_recordsLock) return _recordsDropped; }
+    }
+
+    /// <summary>Drain the in-memory record buffer (retention stays
+    /// bounded on long-running sessions).</summary>
+    public List<InterceptionRecord> TakeRecords()
+    {
+        lock (_recordsLock)
+        {
+            var outRecords = new List<InterceptionRecord>(_records);
+            _records.Clear();
+            return outRecords;
+        }
+    }
+
     /// <summary>Run the emission and THROW
     /// <see cref="InterceptionBlockedException"/> if the guarded action must
     /// not proceed (§6). This is the primary entry point; the safe path is
-    /// the default.</summary>
-    public async ValueTask<InterceptionRecord> EmitAsync(
+    /// the default. Returns the record plus the <b>effective</b>
+    /// (post-composition) target the guarded action MUST consume (§4.3) —
+    /// a reference captured before the emission may predate a transform.</summary>
+    public async ValueTask<EmitOutcome> EmitAsync(
         AgentContext ctx, CancellationToken ct = default)
     {
         var record = await EmitUncheckedAsync(ctx, ct);
         if (!record.Proceeds) throw new InterceptionBlockedException(record);
-        return record;
+        return new EmitOutcome(record, ctx.Json["target"]);
     }
 
     /// <summary>Run the emission and return the record without throwing.
@@ -234,7 +289,24 @@ public sealed class InterceptionEmitter
             _mode == EnforcementMode.Enforce ? "enforce" : "evaluate_only",
             options.ToJsonString(Compact));
         var record = RecordFromCore((JsonObject)JsonNode.Parse(recordJson)!);
-        lock (_recordsLock) _records.Add(record);
+        if (_recordSink is { } sink)
+        {
+            // Audit delivery must not take down the control plane (§10.3).
+            try { sink(record); }
+            catch { /* swallowed by design */ }
+        }
+        lock (_recordsLock)
+        {
+            if (_maxRecords is { } max)
+            {
+                while (_records.Count >= Math.Max(max, 1))
+                {
+                    _records.RemoveAt(0);
+                    _recordsDropped++;
+                }
+            }
+            _records.Add(record);
+        }
         return record;
     }
 
@@ -594,12 +666,30 @@ public sealed class InterceptionEmitter
         if (_resolver is null)
             return null;
 
+        // §9/§14: the host's approval redactor minimizes the context
+        // egressing through the seam; a throwing redactor fails closed.
+        var presented = ctx;
+        if (_approvalRedactor is { } redactor)
+        {
+            try
+            {
+                presented = redactor(ctx);
+            }
+            catch (Exception e)
+            {
+                return new Consultation(
+                    Verdict.FromHostError(HostError.ApprovalResolverFailed, e.GetType().Name),
+                    false);
+            }
+        }
+
         // §9: identity of the context as presented to the resolver —
-        // consultation time, after any transforms that folded earlier.
+        // consultation time, after any transforms that folded earlier
+        // and after any redaction.
         string? identity;
         try
         {
-            identity = _identity.Compute(ctx);
+            identity = _identity.Compute(presented);
         }
         catch (AgentHooksCoreException e)
         {
@@ -623,7 +713,7 @@ public sealed class InterceptionEmitter
         try
         {
             res = await WithTimeoutAsync(
-                t => _resolver.ResolveAsync(new ApprovalRequest(identity, ip, verdict, ctx), t),
+                t => _resolver.ResolveAsync(new ApprovalRequest(identity, ip, verdict, presented), t),
                 ct);
         }
         catch (TimeoutException)
