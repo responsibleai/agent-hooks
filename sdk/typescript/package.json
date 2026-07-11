@@ -9,10 +9,15 @@
     ".": "./dist/index.js",
     "./ctk": "./dist/ctk/index.js"
   },
-  "files": ["dist", "binding.js", "binding.d.ts", "*.node"],
+  "files": [
+    "dist",
+    "binding.js",
+    "binding.d.ts",
+    "*.node"
+  ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/responsibleai/agent-hooks.git",
+    "url": "git+https://github.com/responsibleai/agent-hooks.git",
     "directory": "sdk/typescript"
   },
   "napi": {
@@ -32,5 +37,7 @@
     "@types/node": "^22.0.0",
     "typescript": "^5.5.0"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

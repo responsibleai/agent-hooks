@@ -137,7 +137,13 @@ jobs:
         # release). Provenance is generated automatically; note npm
         # provenance requires a PUBLIC source repo — while this repo is
         # private, expect the publish step to fail on the provenance leg.
-        run: npm install -g npm@latest && npm publish --access public
+        # Prerelease versions publish under the `alpha` dist-tag (npm
+        # requires an explicit tag for prereleases); stable under latest.
+        run: |
+          npm install -g npm@latest
+          V=$(node -p "require('./package.json').version")
+          case "$V" in *-*) T=alpha;; *) T=latest;; esac
+          npm publish --access public --tag "$T"
         working-directory: sdk/typescript
 
   dotnet:
