@@ -148,7 +148,10 @@ export async function runVector(harness: Harness, vector: JsonValue): Promise<Ve
   const composition =
     (v.composition as unknown as CompositionConfig | undefined) ?? Composition.default();
   // §10.1: absent → the default provider; explicit null → unbound.
-  const identityProvider = 'identity_provider' in v ? (v.identity_provider as null) : 'jcs-sha256';
+  const identityProvider =
+    'identity_provider' in v
+      ? (v.identity_provider as 'jcs-sha256' | 'ctk-fault' | null)
+      : 'jcs-sha256';
 
   harness.setup(
     v.scenario as unknown as Scenario,

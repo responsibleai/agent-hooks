@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-hooks.responsibleai.dev/v0.1/reserved-reasons.json",
+  "title": "Agent Hooks — reserved host_error:* reasons",
+  "description": "Host-synthesized deny reasons (AGENT-HOOKS-0.1 §11). Interceptors MUST NOT emit reasons with the host_error: prefix.",
+  "reasons": [
+    {
+      "id": "host_error:context_invalid",
+      "cause": "Host could not construct a schema-valid AgentContext, or the jcs-sha256 identity provider rejected its value domain (§10.2)."
+    },
+    {
+      "id": "host_error:interceptor_failed",
+      "cause": "An interceptor raised or returned a non-JSON value."
+    },
+    {
+      "id": "host_error:interceptor_timeout",
+      "cause": "An interceptor exceeded the host timeout."
+    },
+    {
+      "id": "host_error:verdict_invalid",
+      "cause": "An interceptor returned a value that fails §5 validation."
+    },
+    {
+      "id": "host_error:transform_invalid",
+      "cause": "transform.path did not resolve or value could not be set."
+    },
+    {
+      "id": "host_error:transform_target_forbidden",
+      "cause": "transform.path is not rooted at $target, or the interception point forbids transform."
+    },
+    {
+      "id": "host_error:transform_conflict",
+      "cause": "Two or more transforms against the same snapshot in a parallel profile (§7.5)."
+    },
+    {
+      "id": "host_error:composition_disagreement",
+      "cause": "Non-unanimous outcome under parallel/unanimous (§7.5)."
+    },
+    {
+      "id": "host_error:approval_resolver_failed",
+      "cause": "Approval resolver raised or timed out."
+    },
+    {
+      "id": "host_error:approval_unresolved",
+      "cause": "Approval resolver returned outcome: unresolved."
+    },
+    {
+      "id": "host_error:approval_identity_mismatch",
+      "cause": "Approval resolution context_identity violated the echo rule (§9)."
+    },
+    {
+      "id": "host_error:adapter_unsupported",
+      "cause": "The host adapter cannot emit this interception point."
+    },
+    {
+      "id": "host_error:streaming_unsupported",
+      "cause": "Host cannot assemble a streaming response before post_model_call."
+    },
+    {
+      "id": "host_error:no_interceptor",
+      "cause": "An enforce-mode emission with zero registered interceptors (§7)."
+    }
+  ]
+}

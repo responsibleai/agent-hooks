@@ -548,3 +548,80 @@ func TestOversizedEvidenceFailsVerdictGate(t *testing.T) {
 		t.Errorf("reason = %q, want %s", rec.Verdict.Reason, ErrVerdictInvalid)
 	}
 }
+
+// ---- NEXT-01/04/05/06 record semantics (§4, §10.1, §10.3) ------------------
+
+// tracking wraps a verdict and records whether it ran.
+type tracking struct {
+	v   Verdict
+	ran *bool
+}
+
+func (tr tracking) OnHook(context.Context, AgentContext) (Verdict, error) {
+	*tr.ran = true
+	return tr.v, nil
+}
+
+func TestEnvelopeMissingConditionalFailsClosedPreDispatch(t *testing.T) {
+	e := NewInterceptionEmitter(Enforce, nil)
+	ran := false
+	e.Register(tracking{AllowVerdict, &ran})
+	actx := testCtx()
+	delete(actx, "tool_call")
+	rec := emit(t, e, actx)
+	if rec.Verdict.Reason != string(ErrContextInvalid) {
+		t.Errorf("reason = %q, want %q", rec.Verdict.Reason, ErrContextInvalid)
+	}
+	if ran {
+		t.Error("interceptor ran on an invalid envelope")
+	}
+	if rec.InputIdentity != nil {
+		t.Errorf("input_identity = %v, want nil", rec.InputIdentity)
+	}
+	if rec.InterceptorsRegistered != 1 {
+		t.Errorf("interceptors_registered = %d, want 1", rec.InterceptorsRegistered)
+	}
+}
+
+func TestProviderNameRulesEnforced(t *testing.T) {
+	e := NewInterceptionEmitter(Enforce, nil)
+	compute := func(AgentContext) (string, error) { return "x", nil }
+	if _, err := e.SetIdentityProvider(&IdentityProvider{Name: "jcs-fake", Compute: compute}); err == nil {
+		t.Error("jcs-prefixed name accepted")
+	}
+	if _, err := e.SetIdentityProvider(&IdentityProvider{Name: "Bad Name", Compute: compute}); err == nil {
+		t.Error("malformed name accepted")
+	}
+	if _, err := e.SetIdentityProvider(&IdentityProvider{Name: "named-no-compute"}); err == nil {
+		t.Error("custom provider without Compute accepted")
+	}
+	if _, err := e.SetIdentityProvider(&IdentityProvider{Name: "myco-hash", Compute: compute}); err != nil {
+		t.Errorf("valid name rejected: %v", err)
+	}
+}
+
+func TestRejectedConsultationRecordsResolvedBy(t *testing.T) {
+	e := NewInterceptionEmitter(Enforce, approver{Reject, Verdict{Decision: Deny, Reason: "no"}})
+	e.Register(scripted{Escalate("check", "")})
+	rec := emit(t, e, testCtx())
+	if rec.ResolvedBy == nil || *rec.ResolvedBy != ResolvedByRejection {
+		t.Errorf("resolved_by = %v, want rejection", rec.ResolvedBy)
+	}
+	if rec.Verdict.Reason != "no" {
+		t.Errorf("reason = %q, want no", rec.Verdict.Reason)
+	}
+}
+
+func TestNamesAndCountOnRecord(t *testing.T) {
+	e := NewInterceptionEmitter(Enforce, nil)
+	e.SetComposition(RunAllComposition())
+	e.RegisterNamed(scripted{AllowVerdict}, "pii-scan")
+	e.Register(scripted{AllowVerdict})
+	rec := emit(t, e, testCtx())
+	if rec.InterceptorsRegistered != 2 {
+		t.Errorf("interceptors_registered = %d, want 2", rec.InterceptorsRegistered)
+	}
+	if len(rec.Verdicts) != 2 || rec.Verdicts[0].Name != "pii-scan" || rec.Verdicts[1].Name != "" {
+		t.Errorf("verdicts names = %+v", rec.Verdicts)
+	}
+}

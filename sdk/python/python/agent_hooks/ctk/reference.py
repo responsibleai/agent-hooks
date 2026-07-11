@@ -15,7 +15,7 @@ from agent_hooks.approval import ApprovalResolver
 from agent_hooks.composition import CompositionConfig
 from agent_hooks.context import AgentContextBuilder
 from agent_hooks.ctk.harness import Capability, RunOutcome, RunRecord, Scenario
-from agent_hooks.emitter import InterceptionEmitter
+from agent_hooks.emitter import IdentityProvider, InterceptionEmitter
 from agent_hooks.exceptions import InterceptionBlocked
 from agent_hooks.interceptor import Interceptor
 
@@ -58,7 +58,7 @@ class ReferenceHarness:
             mode=mode,
             resolver=resolver,
             composition=composition,
-            identity_provider=identity_provider,
+            identity_provider=_provider_of(identity_provider),
         )
         for i in interceptors:
             em.register(i)
@@ -153,3 +153,15 @@ class ReferenceHarness:
             )
         )
         messages.append({"role": "tool", "content": value})
+
+
+def _provider_of(declared: str | None):
+    """Map the vector's identity_provider to an emitter provider
+    (§13.2): "ctk-fault" is a custom provider that raises, pinning the
+    §10.1 provider-failure rule."""
+    if declared == "ctk-fault":
+        def _boom(_ctx: object) -> str:
+            raise RuntimeError("ctk scripted provider fault")
+
+        return IdentityProvider("ctk-fault", _boom)
+    return declared

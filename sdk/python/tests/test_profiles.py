@@ -209,7 +209,8 @@ def test_first_deny_reject_leaves_deny_standing() -> None:
     r = _emit(em, _ctx())
     assert r.verdict.decision is Decision.DENY
     assert r.verdict.reason == "rejected"
-    assert r.resolved_by is None
+    # §10.3: a consultation that did not lift is still recorded.
+    assert r.resolved_by == "rejection"
     assert r.decided_by == 0
 
 

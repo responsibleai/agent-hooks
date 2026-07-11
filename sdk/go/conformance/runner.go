@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -186,8 +187,20 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 
 	// §10.1: absent → the default provider; explicit null → unbound.
 	identityProvider := agenthooks.DefaultIdentityProvider()
-	if raw, present := vector["identity_provider"]; present && raw == nil {
-		identityProvider = nil
+	if raw, present := vector["identity_provider"]; present {
+		switch {
+		case raw == nil:
+			identityProvider = nil
+		case raw == "ctk-fault":
+			// §13.2: a custom provider that fails, pinning the §10.1
+			// provider-failure rule (deny context_invalid pre-dispatch).
+			identityProvider = &agenthooks.IdentityProvider{
+				Name: "ctk-fault",
+				Compute: func(agenthooks.AgentContext) (string, error) {
+					return "", errors.New("ctk scripted provider fault")
+				},
+			}
+		}
 	}
 
 	if err := h.Setup(scenario, interceptors, resolver, mode, composition, identityProvider); err != nil {

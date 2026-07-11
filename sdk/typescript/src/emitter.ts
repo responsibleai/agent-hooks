@@ -135,7 +135,7 @@ interface DispatchOutcome {
   decidedBy: number | null;
   verdicts: VerdictSummary[];
   foldTruncated: boolean | null;
-  resolvedBy: "approval" | null;
+  resolvedBy: "approval" | "rejection" | null;
 }
 
 function synthesized(err: HostError, detail?: string): DispatchOutcome {
@@ -164,6 +164,7 @@ export class InterceptionEmitter {
   private readonly _records: InterceptionRecord[] = [];
   private composition: CompositionConfig = Composition.default();
   private identity: IdentityProvider = JCS_SHA256;
+  private readonly names: Array<string | null> = [];
 
   /**
    * `timeoutMs` bounds each interceptor `intercept()` and resolver
@@ -199,8 +200,11 @@ export class InterceptionEmitter {
     return this._records;
   }
 
-  register(interceptor: Interceptor): this {
+  /** Register an interceptor, optionally with a host-chosen
+   * payload-free `name` recorded on `verdicts[].name` (§10.3). */
+  register(interceptor: Interceptor, name?: string): this {
     this.interceptors.push(interceptor);
+    this.names.push(name ?? null);
     return this;
   }
 
@@ -210,8 +214,18 @@ export class InterceptionEmitter {
     return this;
   }
 
-  /** Declare the identity provider (§10.1). Default `"jcs-sha256"`. */
+  /** Declare the identity provider (§10.1). Default `"jcs-sha256"`.
+   * §10.1 name rules are enforced: a custom provider name must match
+   * `^[a-z][a-z0-9_-]*$` and must not begin with `jcs` (reserved so a
+   * custom function can never claim golden-vector semantics). */
   setIdentityProvider(provider: IdentityProvider): this {
+    if (provider !== null && provider !== JCS_SHA256) {
+      if (!/^[a-z][a-z0-9_-]*$/.test(provider.name) || provider.name.startsWith("jcs")) {
+        throw new RangeError(
+          "identity provider name must match ^[a-z][a-z0-9_-]*$ and must not begin with 'jcs' (§10.1)",
+        );
+      }
+    }
     this.identity = provider;
     return this;
   }
@@ -237,14 +251,16 @@ export class InterceptionEmitter {
     if (hit !== null) {
       outcome = synthesized(HostError.ContextInvalid, nonFiniteDetail(hit));
     } else {
-      // §10.3: input identity binds to the context BEFORE dispatch, so
-      // neither interceptor mutation nor fold-through can retroactively
-      // alter what the record claims was evaluated.
+      // §4/§6.3: an invalid envelope is denied before any interceptor
+      // or identity provider sees it; §10.3: input identity binds to
+      // the context BEFORE dispatch.
       try {
+        native.validateEnvelope(JSON.stringify(ctx));
         inputIdentity = this.identityOf(ctx);
       } catch (e) {
-        // §10.2: the default provider rejected the value domain. Fail
-        // closed before any interceptor runs.
+        // §10.1/§10.2: envelope invalid, value domain rejected, or the
+        // provider itself failed. Fail closed before any interceptor
+        // runs.
         outcome = synthesized(...codeAndDetail(e));
       }
     }
@@ -258,14 +274,20 @@ export class InterceptionEmitter {
       identity_provider: providerName,
       enforced_identity:
         // Custom providers only; the core computes jcs-sha256 itself.
+        // A provider that fails here yields honest absence (§10.1) —
+        // the pre-dispatch failure path already denies.
         !identityFailed && this.identity !== null && this.identity !== JCS_SHA256
-          ? this.identity.fn(ctx)
+          ? this.tryCustomIdentity(ctx)
           : null,
       decided_by: outcome.decidedBy,
       composition: this.composition,
-      verdicts: outcome.verdicts,
+      verdicts: outcome.verdicts.map((v) => ({
+        ...v,
+        ...(this.names[v.index] != null ? { name: this.names[v.index] as string } : {}),
+      })),
       fold_truncated: outcome.foldTruncated,
       resolved_by: outcome.resolvedBy,
+      interceptors_registered: this.interceptors.length,
     };
 
     let record: InterceptionRecord;
@@ -359,7 +381,7 @@ export class InterceptionEmitter {
     const perInterceptor: Verdict[] = [];
     const pool: Verdict[] = [];
     let lastTransform: [number, Verdict] | null = null;
-    let resolvedBy: "approval" | null = null;
+    let resolvedBy: "approval" | "rejection" | null = null;
     const truncated = (i: number) => i + 1 < n;
 
     for (let i = 0; i < n; i++) {
@@ -392,13 +414,14 @@ export class InterceptionEmitter {
           };
         }
         if (!c.permitted) {
-          // Reject / unresolved / echo violation: a deny stands (§9).
+          // Reject / unresolved / echo violation: a deny stands (§9);
+          // the consultation is still recorded (§10.3 resolved_by).
           return {
             combined: withUnions(c.verdict, pool),
             decidedBy: isHostSynthesized(c.verdict) ? null : i,
             verdicts: summaries(perInterceptor),
             foldTruncated: truncated(i),
-            resolvedBy,
+            resolvedBy: "rejection",
           };
         }
         resolvedBy = "approval";
@@ -526,7 +549,7 @@ export class InterceptionEmitter {
     }
     let combined = agg.combined;
     let decidedBy = agg.decided_by;
-    let resolvedBy: "approval" | null = null;
+    let resolvedBy: "approval" | "rejection" | null = null;
 
     // Parallel winner: apply the single winning transform now
     // (sequential transforms already folded during dispatch).
@@ -559,6 +582,8 @@ export class InterceptionEmitter {
               : c.verdict;
           combined = permits(sub.decision) ? withUnions(sub, [...all, sub]) : sub;
         } else {
+          // §10.3: consultation without a permit substitution.
+          resolvedBy = "rejection";
           combined = withUnions(c.verdict, all);
           if (isHostSynthesized(c.verdict)) decidedBy = null;
         }
@@ -597,15 +622,27 @@ export class InterceptionEmitter {
   /** The declared provider's output for `ctx` (§10.1); `null` iff the
    * provider is `null`. Throws {@link AgentHooksCoreError} iff the
    * provider rejected the context (§10.2 fail-closed value domain). */
+  /** Custom-provider identity, or null when the provider fails (the
+   * emission has already been decided at this point). */
+  private tryCustomIdentity(ctx: AgentContext): string | null {
+    try {
+      return this.identityOf(ctx);
+    } catch {
+      return null;
+    }
+  }
+
   private identityOf(ctx: AgentContext): string | null {
     if (this.identity === null) return null;
     if (this.identity === JCS_SHA256) return native.contextIdentity(JSON.stringify(ctx));
     try {
       return this.identity.fn(ctx);
     } catch (e) {
+      // §14/TM-09: exception *type* only — a provider error message can
+      // embed the context it was hashing.
       throw new AgentHooksCoreError(
         HostError.ContextInvalid,
-        `identity provider ${this.identity.name} raised: ${(e as Error)?.message ?? e}`,
+        `identity provider failed: ${(e as Error)?.constructor?.name ?? "Error"} (see spec §10.1)`,
       );
     }
   }

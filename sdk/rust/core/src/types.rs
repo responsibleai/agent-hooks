@@ -13,6 +13,29 @@ pub const SPEC_VERSION: &str = "agent-hooks/0.1";
 /// Name of the default identity provider (§10.1, §10.2).
 pub const JCS_SHA256: &str = "jcs-sha256";
 
+/// §10.1 host-defined identity-provider name rules: must match
+/// `^[a-z][a-z0-9_-]*$` and must not begin with `jcs` (reserved so a
+/// custom provider cannot claim golden-vector semantics).
+pub fn validate_provider_name(name: &str) -> Result<(), (HostError, String)> {
+    let mut chars = name.chars();
+    let head_ok = chars.next().is_some_and(|c| c.is_ascii_lowercase());
+    let rest_ok =
+        chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-');
+    if !head_ok || !rest_ok {
+        return Err((
+            HostError::ContextInvalid,
+            "identity provider name must match ^[a-z][a-z0-9_-]*$ (see spec 10.1)".into(),
+        ));
+    }
+    if name.starts_with("jcs") {
+        return Err((
+            HostError::ContextInvalid,
+            "identity provider names beginning with 'jcs' are reserved (see spec 10.1)".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// The closed set of agent lifecycle interception points (§3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -282,6 +305,11 @@ pub struct VerdictSummary {
     pub decision: Decision,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+    /// Host-chosen registration name for the interceptor at `index`
+    /// (§10.3). Payload-free: an identifier, never verdict/target
+    /// content.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 /// Host-side record of one emission (§10.3).
@@ -321,14 +349,22 @@ pub struct InterceptionRecord {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub verdicts: Vec<VerdictSummary>,
     /// `true` iff one or more registered interceptors were never
-    /// invoked in this emission. Defined only for
-    /// `sequential/first_deny` (§7.4).
+    /// invoked in this emission (short-circuit, approval-stop, or a
+    /// failed fold-transform). Defined for the sequential profiles
+    /// (§7.4).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fold_truncated: Option<bool>,
-    /// `"approval"` iff an approval resolution substituted for a
-    /// verdict in this emission (§7.6).
+    /// Consultation outcome (§7.6, §10.3): `"approval"` iff a permit
+    /// resolution substituted for a verdict; `"rejection"` iff the
+    /// seam was consulted and did **not** lift the deny (reject,
+    /// unresolved, resolver failure, or echo violation); absent iff
+    /// the seam was never consulted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolved_by: Option<&'static str>,
+    /// Number of interceptors registered at emission time (§10.3) —
+    /// lets a record reader detect skipped interceptors without host
+    /// configuration.
+    pub interceptors_registered: u32,
 }
 
 impl InterceptionRecord {
@@ -343,6 +379,12 @@ impl InterceptionRecord {
 pub trait Interceptor: Send + Sync {
     /// Receive an `AgentContext` and return a `Verdict`.
     async fn intercept(&self, context: &AgentContext) -> Verdict;
+
+    /// Optional host-chosen identifier recorded on `verdicts[].name`
+    /// (§10.3). MUST be payload-free.
+    fn name(&self) -> Option<String> {
+        None
+    }
 }
 
 /// Approval resolver outcome (§9).
@@ -434,4 +476,15 @@ mod verdict_validate_tests {
         assert_eq!(v.warnings.len(), 1);
         assert!(v.validate().is_ok());
     }
+    #[test]
+    fn provider_name_rules() {
+        assert!(validate_provider_name("myco-hasher").is_ok());
+        assert!(validate_provider_name("a1_b-c").is_ok());
+        assert!(validate_provider_name("jcs-sha256").is_err()); // reserved
+        assert!(validate_provider_name("jcsx").is_err());
+        assert!(validate_provider_name("Bad").is_err());
+        assert!(validate_provider_name("1abc").is_err());
+        assert!(validate_provider_name("").is_err());
+    }
+
 }

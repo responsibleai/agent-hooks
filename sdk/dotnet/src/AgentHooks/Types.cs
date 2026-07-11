@@ -397,7 +397,8 @@ public readonly struct AgentContext(JsonObject json)
 }
 
 /// <summary>Payload-free per-interceptor summary on the record (§10.3).</summary>
-public sealed record VerdictSummary(int Index, Decision Decision, string? Reason = null)
+public sealed record VerdictSummary(
+    int Index, Decision Decision, string? Reason = null, string? Name = null)
 {
     public JsonObject ToWire()
     {
@@ -407,13 +408,15 @@ public sealed record VerdictSummary(int Index, Decision Decision, string? Reason
             ["decision"] = Decision.ToWireName(),
         };
         if (Reason is not null) o["reason"] = Reason;
+        if (Name is not null) o["name"] = Name;
         return o;
     }
 
     public static VerdictSummary FromWire(JsonObject o) => new(
         (int)o["index"]!,
         DecisionExtensions.FromWireName((string)o["decision"]!),
-        (string?)o["reason"]);
+        (string?)o["reason"],
+        (string?)o["name"]);
 }
 
 /// <summary>Host-side record of one emission (§10.3).
@@ -437,7 +440,8 @@ public sealed record InterceptionRecord(
     CompositionConfig Composition,
     IReadOnlyList<VerdictSummary> Verdicts,
     bool? FoldTruncated,
-    string? ResolvedBy)
+    string? ResolvedBy,
+    int InterceptorsRegistered = 0)
 {
     /// <summary>Whether the guarded action executes (§6, §8).</summary>
     public bool Proceeds => Mode == EnforcementMode.EvaluateOnly || Verdict.Decision.Permits();
@@ -464,6 +468,7 @@ public sealed record InterceptionRecord(
             o["verdicts"] = new JsonArray(Verdicts.Select(v => (JsonNode)v.ToWire()).ToArray());
         if (FoldTruncated is not null) o["fold_truncated"] = FoldTruncated;
         if (ResolvedBy is not null) o["resolved_by"] = ResolvedBy;
+        o["interceptors_registered"] = InterceptorsRegistered;
         return o;
     }
 }

@@ -123,9 +123,10 @@
     "identity_provider": {
       "enum": [
         "jcs-sha256",
+        "ctk-fault",
         null
       ],
-      "description": "Identity provider the harness MUST declare (§10.1). Absent means jcs-sha256; null means identity-unbound. Custom providers are functions and not vector-expressible."
+      "description": "Identity provider the harness MUST declare (§10.1). Absent means jcs-sha256; null means identity-unbound; \"ctk-fault\" means a custom provider named ctk-fault that fails on every compute (pins the §10.1 provider-failure rule). Other custom providers are functions and not vector-expressible."
     },
     "part": {
       "type": "string",

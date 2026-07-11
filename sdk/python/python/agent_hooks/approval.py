@@ -49,15 +49,17 @@ class ApprovalResolution:
     verdict: Verdict | None = None
 
     def __post_init__(self) -> None:
+        # Outcome/verdict *presence* is a type-level invariant (§9
+        # validation step 2). Outcome/decision *consistency* (step 4:
+        # approve carries a permit, reject a deny) is deliberately NOT
+        # checked here: it is the host's ordered §9 validation, which
+        # names `host_error:verdict_invalid` — an eager constructor
+        # check would misreport it as a resolver failure.
         if self.outcome is ApprovalOutcome.UNRESOLVED:
             if self.verdict is not None:
                 raise ValueError("unresolved resolution MUST NOT carry a verdict")
         elif self.verdict is None:
             raise ValueError("approve/reject resolution MUST carry a verdict")
-        elif self.outcome is ApprovalOutcome.APPROVE and not self.verdict.decision.permits:
-            raise ValueError("approve MUST carry a permit verdict")
-        elif self.outcome is ApprovalOutcome.REJECT and self.verdict.decision.permits:
-            raise ValueError("reject MUST carry a deny verdict")
 
 
 @runtime_checkable

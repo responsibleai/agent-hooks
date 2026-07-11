@@ -88,6 +88,14 @@ func nativeValidateVerdict(verdictJSON string) (string, error) {
 	return unwrap(C.ah_validate_verdict(c))
 }
 
+// nativeValidateEnvelope runs the §4/§6.3 envelope validation (fail
+// closed, value-free detail). The Ok value is the empty string.
+func nativeValidateEnvelope(ctxJSON string) (string, error) {
+	c, free := cstr(ctxJSON)
+	defer free()
+	return unwrap(C.ah_validate_envelope(c))
+}
+
 func nativeApplyTransform(targetJSON, path, valueJSON string) (string, error) {
 	ct, ft := cstr(targetJSON)
 	defer ft()

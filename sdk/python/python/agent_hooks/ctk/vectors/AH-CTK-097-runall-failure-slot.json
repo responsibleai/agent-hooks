@@ -1,8 +1,8 @@
 {
-  "id": "AH-CTK-031",
-  "title": "liftable deny at pre_tool_call: reject leaves the deny standing",
-  "spec_clause": "5.1, 9",
-  "part": "approval_seam",
+  "id": "AH-CTK-097",
+  "title": "run_all: per-interceptor §6.3 substitution — a failing interceptor denies its slot, others compose normally (reserved-reason detail is SDK-pinned)",
+  "spec_clause": "6.3, 7.4, 10.3",
+  "part": "composition/sequential_run_all",
   "capabilities": [
     "model_calls",
     "tool_calls"
@@ -47,27 +47,6 @@
       }
     ]
   },
-  "interceptor_script": [
-    {
-      "at": "pre_tool_call",
-      "return": {
-        "decision": "deny",
-        "reason": "ctk:requires_approval",
-        "approval": {}
-      }
-    }
-  ],
-  "approval_script": [
-    {
-      "resolve": {
-        "outcome": "reject",
-        "verdict": {
-          "decision": "deny",
-          "reason": "ctk:rejected"
-        }
-      }
-    }
-  ],
   "expect": {
     "sequence_strict": false,
     "interceptions": [
@@ -86,11 +65,33 @@
         "interception_point": "pre_tool_call",
         "assert": {
           "verdict.decision": "deny",
-          "verdict.reason": "ctk:rejected",
-          "resolved_by": "rejection"
+          "decided_by": 0,
+          "verdicts[0].decision": "deny",
+          "verdicts[1].decision": "allow",
+          "verdicts[1].reason": "ctk:second-ran"
         }
       }
     ],
     "run_outcome": "completed"
-  }
+  },
+  "composition": {
+    "profile": "sequential/run_all"
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "fault": "raise"
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow",
+          "reason": "ctk:second-ran"
+        }
+      }
+    ]
+  ]
 }

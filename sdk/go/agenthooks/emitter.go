@@ -30,6 +30,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -114,6 +115,7 @@ type dispatchOutcome struct {
 // One instance per session.
 type InterceptionEmitter struct {
 	interceptors []Interceptor
+	names        []string
 	resolver     ApprovalResolver
 	mode         EnforcementMode
 	composition  CompositionConfig
@@ -222,15 +224,40 @@ func (e *InterceptionEmitter) SetComposition(c CompositionConfig) *InterceptionE
 }
 
 // SetIdentityProvider declares the identity provider (§10.1); nil is
-// the null provider (identity-unbound records and approvals).
-func (e *InterceptionEmitter) SetIdentityProvider(p *IdentityProvider) *InterceptionEmitter {
+// the null provider (identity-unbound records and approvals). The
+// §10.1 name rules are enforced for custom providers: the name must
+// match ^[a-z][a-z0-9_-]*$ and must not begin with "jcs" (reserved so
+// a custom function can never claim golden-vector semantics); a
+// violating provider is rejected with a non-nil error. A custom
+// provider with a nil Compute is also rejected — a named provider
+// that cannot compute would silently unbind every emission.
+func (e *InterceptionEmitter) SetIdentityProvider(p *IdentityProvider) (*InterceptionEmitter, error) {
+	if p != nil && p.Name != JCSSHA256 {
+		if p.Compute == nil {
+			return nil, fmt.Errorf("identity provider %q has no Compute function (see spec 10.1)", p.Name)
+		}
+		if !providerNameRe.MatchString(p.Name) || strings.HasPrefix(p.Name, "jcs") {
+			return nil, fmt.Errorf("identity provider name must match ^[a-z][a-z0-9_-]*$ and must not begin with 'jcs' (see spec 10.1)")
+		}
+	}
 	e.identity = p
-	return e
+	return e, nil
 }
+
+// providerNameRe is the §10.1 host-defined provider-name pattern.
+var providerNameRe = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
 // Register appends an interceptor and returns the emitter for chaining.
 func (e *InterceptionEmitter) Register(i Interceptor) *InterceptionEmitter {
+	return e.RegisterNamed(i, "")
+}
+
+// RegisterNamed appends an interceptor with a host-chosen payload-free
+// name recorded on verdicts[].name (§10.3). An empty name records
+// nothing.
+func (e *InterceptionEmitter) RegisterNamed(i Interceptor, name string) *InterceptionEmitter {
 	e.interceptors = append(e.interceptors, i)
+	e.names = append(e.names, name)
 	return e
 }
 
@@ -257,17 +284,36 @@ func (e *InterceptionEmitter) Emit(ctx context.Context, actx AgentContext) (Inte
 // transformed value. A non-nil error is an infrastructure failure only
 // (JSON marshalling or core invocation), never a verdict outcome.
 func (e *InterceptionEmitter) EmitUnchecked(ctx context.Context, actx AgentContext) (InterceptionRecord, error) {
-	// §10.3: input identity binds to the context BEFORE dispatch, so
-	// neither interceptor mutation nor fold-through can retroactively
-	// alter what the record claims was evaluated.
-	inputID, idErr := e.identity.compute(actx)
-	var outcome dispatchOutcome
-	if idErr != nil {
-		// §10.2: the provider rejected the value domain (or a custom
-		// provider failed). Fail closed before any interceptor runs.
-		outcome = dispatchOutcome{combined: coreErrVerdict(idErr, ErrContextInvalid)}
-	} else {
-		outcome = e.dispatch(ctx, actx)
+	// §4/§6.3: an invalid envelope is denied before any interceptor
+	// or identity provider sees it. §10.3: input identity binds to the
+	// context BEFORE dispatch, so neither interceptor mutation nor
+	// fold-through can retroactively alter what the record claims was
+	// evaluated.
+	var (
+		inputID *string
+		outcome dispatchOutcome
+		decided bool
+	)
+	if envJSON, envErr := json.Marshal(map[string]any(actx)); envErr != nil {
+		outcome = dispatchOutcome{combined: HostErrorVerdict(ErrContextInvalid,
+			"context is not marshallable JSON (see spec 4.4)")}
+		decided = true
+	} else if _, envErr := nativeValidateEnvelope(string(envJSON)); envErr != nil {
+		outcome = dispatchOutcome{combined: coreErrVerdict(envErr, ErrContextInvalid)}
+		decided = true
+	}
+	if !decided {
+		var idErr error
+		inputID, idErr = e.identity.compute(actx)
+		if idErr != nil {
+			// §10.1/§10.2: the provider rejected the value domain or
+			// the custom provider failed. Fail closed before any
+			// interceptor runs.
+			outcome = dispatchOutcome{combined: coreErrVerdict(idErr, ErrContextInvalid)}
+			inputID = nil
+		} else {
+			outcome = e.dispatch(ctx, actx)
+		}
 	}
 
 	opts := map[string]any{
@@ -278,6 +324,7 @@ func (e *InterceptionEmitter) EmitUnchecked(ctx context.Context, actx AgentConte
 		"verdicts":          outcome.verdicts,
 		"fold_truncated":    outcome.foldTruncated,
 		"resolved_by":       outcome.resolvedBy,
+		"interceptors_registered": len(e.interceptors),
 	}
 	if e.identity != nil && e.identity.Compute != nil {
 		// Custom providers only: finalize cannot invoke the host
@@ -400,7 +447,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 			return dispatchOutcome{
 				combined:      withUnions(v, pool),
 				decidedBy:     &idx,
-				verdicts:      summaries(perInterceptor),
+				verdicts:      e.named(summaries(perInterceptor)),
 				foldTruncated: truncated(i),
 				resolvedBy:    resolvedBy,
 			}
@@ -414,24 +461,27 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 				return dispatchOutcome{
 					combined:      withUnions(v, pool),
 					decidedBy:     &idx,
-					verdicts:      summaries(perInterceptor),
+					verdicts:      e.named(summaries(perInterceptor)),
 					foldTruncated: truncated(i),
 					resolvedBy:    resolvedBy,
 				}
 			}
 			if !permitted {
-				// Reject / unresolved / echo violation: a deny stands (§9).
+				// Reject / unresolved / echo violation: a deny stands
+				// (§9); the consultation is still recorded (§10.3
+				// resolved_by).
 				var decidedBy *int
 				if !isHostSynthesized(verdict) {
 					idx := i
 					decidedBy = &idx
 				}
+				rej := ResolvedByRejection
 				return dispatchOutcome{
 					combined:      withUnions(verdict, pool),
 					decidedBy:     decidedBy,
-					verdicts:      summaries(perInterceptor),
+					verdicts:      e.named(summaries(perInterceptor)),
 					foldTruncated: truncated(i),
-					resolvedBy:    resolvedBy,
+					resolvedBy:    &rej,
 				}
 			}
 			rb := ResolvedByApproval
@@ -445,7 +495,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 			if !sub.Decision.Permits() {
 				return dispatchOutcome{
 					combined:      sub,
-					verdicts:      summaries(perInterceptor),
+					verdicts:      e.named(summaries(perInterceptor)),
 					foldTruncated: truncated(i),
 					resolvedBy:    resolvedBy,
 				}
@@ -459,7 +509,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 				return dispatchOutcome{
 					combined:      withUnions(sub, pool),
 					decidedBy:     &idx,
-					verdicts:      summaries(perInterceptor),
+					verdicts:      e.named(summaries(perInterceptor)),
 					foldTruncated: truncated(i),
 					resolvedBy:    resolvedBy,
 				}
@@ -475,7 +525,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 				// Transform failed closed (host-synthesized §5.2).
 				return dispatchOutcome{
 					combined:      v,
-					verdicts:      summaries(perInterceptor),
+					verdicts:      e.named(summaries(perInterceptor)),
 					foldTruncated: truncated(i),
 					resolvedBy:    resolvedBy,
 				}
@@ -494,7 +544,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 	return dispatchOutcome{
 		combined:      withUnions(combined, pool),
 		decidedBy:     decidedBy,
-		verdicts:      summaries(perInterceptor),
+		verdicts:      e.named(summaries(perInterceptor)),
 		foldTruncated: &f,
 		resolvedBy:    resolvedBy,
 	}
@@ -516,7 +566,7 @@ func (e *InterceptionEmitter) dispatchRunAll(ctx context.Context, actx AgentCont
 				// §7.4: a transform that fails to apply short-circuits
 				// in both sequential profiles.
 				all = append(all, folded)
-				return dispatchOutcome{combined: folded, verdicts: summaries(all)}
+				return dispatchOutcome{combined: folded, verdicts: e.named(summaries(all))}
 			}
 			v = folded
 		}
@@ -544,15 +594,15 @@ func (e *InterceptionEmitter) dispatchParallel(ctx context.Context, actx AgentCo
 func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx AgentContext, all []Verdict) dispatchOutcome {
 	cfgJSON, err := json.Marshal(e.composition)
 	if err != nil {
-		return dispatchOutcome{combined: HostErrorVerdict(ErrContextInvalid, err.Error()), verdicts: summaries(all)}
+		return dispatchOutcome{combined: HostErrorVerdict(ErrContextInvalid, err.Error()), verdicts: e.named(summaries(all))}
 	}
 	allJSON, err := json.Marshal(all)
 	if err != nil {
-		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: summaries(all)}
+		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: e.named(summaries(all))}
 	}
 	out, err := nativeComposeAggregate(string(cfgJSON), string(allJSON))
 	if err != nil {
-		return dispatchOutcome{combined: coreErrVerdict(err, ErrVerdictInvalid), verdicts: summaries(all)}
+		return dispatchOutcome{combined: coreErrVerdict(err, ErrVerdictInvalid), verdicts: e.named(summaries(all))}
 	}
 	var agg struct {
 		Combined       Verdict          `json:"combined"`
@@ -562,7 +612,7 @@ func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx Agen
 		Verdicts       []VerdictSummary `json:"verdicts"`
 	}
 	if err := json.Unmarshal([]byte(out), &agg); err != nil {
-		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: summaries(all)}
+		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: e.named(summaries(all))}
 	}
 	combined, decidedBy := agg.Combined, agg.DecidedBy
 	var resolvedBy *string
@@ -572,9 +622,9 @@ func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx Agen
 		// (nothing folded during dispatch).
 		folded := e.foldTransform(actx, combined)
 		if !folded.Decision.Permits() {
-			return dispatchOutcome{combined: folded, verdicts: agg.Verdicts}
+			return dispatchOutcome{combined: folded, verdicts: e.named(agg.Verdicts)}
 		}
-		return dispatchOutcome{combined: folded, decidedBy: decidedBy, verdicts: agg.Verdicts}
+		return dispatchOutcome{combined: folded, decidedBy: decidedBy, verdicts: e.named(agg.Verdicts)}
 	}
 
 	if agg.Consult {
@@ -597,6 +647,9 @@ func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx Agen
 					combined = sub // fold failed closed
 				}
 			} else {
+				// §10.3: consultation without a permit substitution.
+				rej := ResolvedByRejection
+				resolvedBy = &rej
 				if isHostSynthesized(verdict) {
 					decidedBy = nil
 				}
@@ -604,7 +657,7 @@ func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx Agen
 			}
 		}
 	}
-	return dispatchOutcome{combined: combined, decidedBy: decidedBy, verdicts: agg.Verdicts, resolvedBy: resolvedBy}
+	return dispatchOutcome{combined: combined, decidedBy: decidedBy, verdicts: e.named(agg.Verdicts), resolvedBy: resolvedBy}
 }
 
 // foldTransform applies (enforce) or validates (evaluate_only) one
@@ -746,6 +799,16 @@ func summaries(verdicts []Verdict) []VerdictSummary {
 		out[i] = VerdictSummary{Index: i, Decision: v.Decision, Reason: v.Reason}
 	}
 	return out
+}
+
+// named attaches the hosts' registration names positionally (§10.3).
+func (e *InterceptionEmitter) named(sums []VerdictSummary) []VerdictSummary {
+	for i := range sums {
+		if idx := sums[i].Index; idx < len(e.names) && e.names[idx] != "" {
+			sums[i].Name = e.names[idx]
+		}
+	}
+	return sums
 }
 
 // unionWarnings is the first-seen-ordered union of warnings from every

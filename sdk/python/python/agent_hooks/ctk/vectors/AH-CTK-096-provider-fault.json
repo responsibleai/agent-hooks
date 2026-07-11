@@ -1,8 +1,8 @@
 {
-  "id": "AH-CTK-031",
-  "title": "liftable deny at pre_tool_call: reject leaves the deny standing",
-  "spec_clause": "5.1, 9",
-  "part": "approval_seam",
+  "id": "AH-CTK-096",
+  "title": "a failing identity provider denies context_invalid at the first emission (agent_startup) — §10.1 provider-failure rule, session never starts",
+  "spec_clause": "10.1",
+  "part": "identity_provider",
   "capabilities": [
     "model_calls",
     "tool_calls"
@@ -51,46 +51,36 @@
     {
       "at": "pre_tool_call",
       "return": {
-        "decision": "deny",
-        "reason": "ctk:requires_approval",
-        "approval": {}
-      }
-    }
-  ],
-  "approval_script": [
-    {
-      "resolve": {
-        "outcome": "reject",
-        "verdict": {
-          "decision": "deny",
-          "reason": "ctk:rejected"
-        }
+        "decision": "allow",
+        "reason": "ctk:should-not-run"
       }
     }
   ],
   "expect": {
-    "sequence_strict": false,
-    "interceptions": [
-      {
-        "interception_point": "pre_tool_call"
-      }
-    ],
+    "sequence_strict": true,
+    "interceptions": [],
     "interceptions_absent": [
-      "post_tool_call"
-    ],
-    "tool_not_invoked": [
-      "wire_transfer"
+      "input",
+      "pre_model_call",
+      "post_model_call",
+      "pre_tool_call",
+      "post_tool_call",
+      "output"
     ],
     "records": [
       {
-        "interception_point": "pre_tool_call",
+        "interception_point": "agent_startup",
         "assert": {
           "verdict.decision": "deny",
-          "verdict.reason": "ctk:rejected",
-          "resolved_by": "rejection"
+          "verdict.reason": "host_error:context_invalid",
+          "input_identity": null,
+          "enforced_identity": null,
+          "identity_provider": "ctk-fault"
         }
       }
     ],
-    "run_outcome": "completed"
-  }
+    "run_outcome": "blocked",
+    "final_output": null
+  },
+  "identity_provider": "ctk-fault"
 }

@@ -33,8 +33,16 @@ public sealed class ReferenceHarness : IHarness
         _toolLog.Clear();
         var em = new InterceptionEmitter(mode, resolver);
         em.SetComposition(composition);
-        em.SetIdentityProvider(identityProvider is null
-            ? IdentityProvider.Null : IdentityProvider.JcsSha256);
+        // §13.2: "ctk-fault" is a custom provider that throws, pinning
+        // the §10.1 provider-failure rule (deny context_invalid
+        // pre-dispatch).
+        em.SetIdentityProvider(identityProvider switch
+        {
+            null => IdentityProvider.Null,
+            "ctk-fault" => IdentityProvider.Custom(
+                "ctk-fault", _ => throw new InvalidOperationException("ctk scripted provider fault")),
+            _ => IdentityProvider.JcsSha256,
+        });
         foreach (var i in interceptors) em.Register(i);
         _emitter = em;
         _builder = new AgentContextBuilder(

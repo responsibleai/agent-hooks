@@ -39,13 +39,19 @@ export class ReferenceHarness implements Harness {
     resolver: ApprovalResolver | null,
     mode: EnforcementMode,
     composition: CompositionConfig,
-    identityProvider: 'jcs-sha256' | null,
+    identityProvider: 'jcs-sha256' | 'ctk-fault' | null,
   ): void {
     this.scenario = scenario;
     this.toolLog = [];
     const em = new InterceptionEmitter(mode, resolver);
     em.setComposition(composition);
-    em.setIdentityProvider(identityProvider);
+    // §13.2: "ctk-fault" is a custom provider that throws, pinning the
+    // §10.1 provider-failure rule (deny context_invalid pre-dispatch).
+    em.setIdentityProvider(
+      identityProvider === 'ctk-fault'
+        ? { name: 'ctk-fault', fn: () => { throw new Error('ctk scripted provider fault'); } }
+        : identityProvider,
+    );
     for (const i of interceptors) em.register(i);
     this.emitter = em;
     this.builder = new AgentContextBuilder({

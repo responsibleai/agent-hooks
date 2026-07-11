@@ -39,6 +39,7 @@ import copy
 import dataclasses
 import inspect
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -153,10 +154,19 @@ def _with_unions(combined: Verdict, pool: list[Verdict]) -> Verdict:
     return _replace(combined, **kw) if kw else combined
 
 
-def _summaries(verdicts: list[Verdict]) -> tuple[VerdictSummary, ...]:
-    """Payload-free per-interceptor summaries for the record (§10.3)."""
+def _summaries(
+    verdicts: list[Verdict], names: list[str | None] | None = None
+) -> tuple[VerdictSummary, ...]:
+    """Payload-free per-interceptor summaries for the record (§10.3),
+    with the hosts' registration names attached positionally."""
+    names = names or []
     return tuple(
-        VerdictSummary(index=i, decision=v.decision, reason=v.reason)
+        VerdictSummary(
+            index=i,
+            decision=v.decision,
+            reason=v.reason,
+            name=names[i] if i < len(names) else None,
+        )
         for i, v in enumerate(verdicts)
     )
 
@@ -211,6 +221,7 @@ class InterceptionEmitter:
         "_identity",
         "_interceptors",
         "_mode",
+        "_names",
         "_records",
         "_resolver",
         "_timeout",
@@ -232,6 +243,7 @@ class InterceptionEmitter:
         self._timeout = timeout
         self._composition = composition if composition is not None else CompositionConfig.default()
         self._identity = self._check_provider(identity_provider)
+        self._names: list[str | None] = []
 
     @staticmethod
     def _check_provider(
@@ -246,6 +258,17 @@ class InterceptionEmitter:
                 f"identity_provider must be {JCS_SHA256!r}, an IdentityProvider, "
                 f"or None (got {provider!r}); wrap a custom provider in "
                 "IdentityProvider(name, fn) (§10.1)"
+            )
+        # §10.1 name rules: enforced, not advisory — the jcs prefix is
+        # reserved so a custom function can never claim golden-vector
+        # semantics on records.
+        if isinstance(provider, IdentityProvider) and (
+            not re.fullmatch(r"[a-z][a-z0-9_-]*", provider.name)
+            or provider.name.startswith("jcs")
+        ):
+            raise ValueError(
+                "identity provider name must match ^[a-z][a-z0-9_-]*$ "
+                "and must not begin with 'jcs' (§10.1)"
             )
         return provider
 
@@ -262,8 +285,13 @@ class InterceptionEmitter:
         """All interception records emitted so far in this session, in order."""
         return list(self._records)
 
-    def register(self, interceptor: Interceptor) -> InterceptionEmitter:
+    def register(
+        self, interceptor: Interceptor, name: str | None = None
+    ) -> InterceptionEmitter:
+        """Register an interceptor, optionally with a host-chosen
+        payload-free ``name`` recorded on ``verdicts[].name`` (§10.3)."""
         self._interceptors.append(interceptor)
+        self._names.append(name)
         return self
 
     def set_composition(self, composition: CompositionConfig) -> InterceptionEmitter:
@@ -303,7 +331,9 @@ class InterceptionEmitter:
         try:
             # §4.4 marshalling guard: a context the wire cannot carry
             # (NaN/Infinity) fails closed before any interceptor runs.
-            dumps(ctx)
+            # §4/§6.3: an invalid envelope is denied before any
+            # interceptor or identity provider sees it.
+            _core.validate_envelope(dumps(ctx))
             input_identity = self._compute_identity(ctx)
         except _core.AgentHooksCoreError as e:
             # §10.2: the default provider rejected the value domain.
@@ -361,6 +391,7 @@ class InterceptionEmitter:
             "verdicts": [s.to_wire() for s in outcome.verdicts],
             "fold_truncated": outcome.fold_truncated,
             "resolved_by": outcome.resolved_by,
+            "interceptors_registered": len(self._interceptors),
         }
         if isinstance(self._identity, IdentityProvider) and input_identity is not None:
             try:
@@ -436,6 +467,7 @@ class InterceptionEmitter:
         or ``resume`` per the knob."""
         n = len(self._interceptors)
         on_approval = self._composition.on_approval or OnApproval.STOP
+        names = self._names
         per: list[Verdict] = []  # index-aligned §10.3 summaries
         pool: list[Verdict] = []  # + substituted resolutions, §7.3 unions
         last_transform: tuple[int, Verdict] | None = None
@@ -454,26 +486,27 @@ class InterceptionEmitter:
                 # deny is attributed to the failing interceptor (§10.3
                 # decided_by), matching the aggregation profiles.
                 return _Outcome(
-                    _with_unions(v, pool), i, _summaries(per), truncated(i), resolved_by
+                    _with_unions(v, pool), i, _summaries(per, names), truncated(i), resolved_by
                 )
 
             if v.decision is Decision.DENY:
                 consultation = await self._consult(ctx, v)
                 if consultation is None:
                     return _Outcome(
-                        _with_unions(v, pool), i, _summaries(per), truncated(i), resolved_by
+                        _with_unions(v, pool), i, _summaries(per, names), truncated(i), resolved_by
                     )
                 rv, permitted = consultation
                 if not permitted:
                     # Reject / unresolved / echo violation: a deny
-                    # stands (§9).
+                    # stands (§9); the consultation is still recorded
+                    # (§10.3 resolved_by).
                     synthesized = _is_host_synthesized(rv)
                     return _Outcome(
                         _with_unions(rv, pool),
                         None if synthesized else i,
-                        _summaries(per),
+                        _summaries(per, names),
                         truncated(i),
-                        resolved_by,
+                        "rejection",
                     )
                 resolved_by = "approval"
                 # §7.6: the permit resolution substitutes at this
@@ -481,14 +514,18 @@ class InterceptionEmitter:
                 # (§7.4).
                 sub = self._fold_transform(ctx, rv) if rv.decision is Decision.TRANSFORM else rv
                 if not sub.decision.permits:
-                    return _Outcome(sub, None, _summaries(per), truncated(i), resolved_by)
+                    return _Outcome(sub, None, _summaries(per, names), truncated(i), resolved_by)
                 pool.append(sub)
                 if on_approval is OnApproval.STOP:
                     # §7.4 stop: the resolution is the combined verdict;
                     # the emission ends. fold_truncated makes the skip
                     # legible.
                     return _Outcome(
-                        _with_unions(sub, pool), i, _summaries(per), truncated(i), resolved_by
+                        _with_unions(sub, pool),
+                        i,
+                        _summaries(per, names),
+                        truncated(i),
+                        resolved_by,
                     )
                 if sub.decision is Decision.TRANSFORM:
                     last_transform = (i, sub)
@@ -497,7 +534,7 @@ class InterceptionEmitter:
                 v = self._fold_transform(ctx, v)
                 if not v.decision.permits:
                     # Transform failed closed (host-synthesized §5.2).
-                    return _Outcome(v, None, _summaries(per), truncated(i), resolved_by)
+                    return _Outcome(v, None, _summaries(per, names), truncated(i), resolved_by)
                 last_transform = (i, v)
             # allow: continue
 
@@ -507,7 +544,7 @@ class InterceptionEmitter:
         else:
             combined, decided_by = Verdict(decision=Decision.ALLOW), None
         return _Outcome(
-            _with_unions(combined, pool), decided_by, _summaries(per), False, resolved_by
+            _with_unions(combined, pool), decided_by, _summaries(per, names), False, resolved_by
         )
 
     async def _dispatch_run_all(self, ctx: AgentContext) -> _Outcome:
@@ -525,7 +562,7 @@ class InterceptionEmitter:
                 if not folded.decision.permits:
                     # §7.4: a transform that fails to apply
                     # short-circuits in both sequential profiles.
-                    return _Outcome(folded, None, _summaries(all_v))
+                    return _Outcome(folded, None, _summaries(all_v, self._names))
             else:
                 all_v.append(v)
         return await self._aggregate_and_consult(ctx, all_v)
@@ -558,7 +595,13 @@ class InterceptionEmitter:
         )
         combined = Verdict._from_core(agg["combined"])
         decided_by: int | None = agg["decided_by"]
-        verdicts = tuple(VerdictSummary.from_wire(s) for s in agg["verdicts"])
+        verdicts = tuple(
+            dataclasses.replace(
+                VerdictSummary.from_wire(s),
+                name=self._names[i] if i < len(self._names) else None,
+            )
+            for i, s in enumerate(agg["verdicts"])
+        )
         resolved_by: str | None = None
 
         if agg["apply_transform"]:
@@ -590,6 +633,8 @@ class InterceptionEmitter:
                         else sub
                     )
                 else:
+                    # §10.3: consultation without a permit substitution.
+                    resolved_by = "rejection"
                     combined = _with_unions(rv, all_v)
                     if _is_host_synthesized(rv):
                         decided_by = None

@@ -21,6 +21,11 @@ const JCSSHA256 = "jcs-sha256"
 // approval resolution substituted for a verdict (§7.6).
 const ResolvedByApproval = "approval"
 
+// ResolvedByRejection is the §10.3 `resolved_by` marker recorded when
+// the seam was consulted and did not lift the deny (reject, unresolved,
+// resolver failure, or echo violation).
+const ResolvedByRejection = "rejection"
+
 // InterceptionPoint is one of the eight agent lifecycle interception points (§3).
 type InterceptionPoint string
 
@@ -318,6 +323,9 @@ type VerdictSummary struct {
 	Index    int      `json:"index"`
 	Decision Decision `json:"decision"`
 	Reason   string   `json:"reason,omitempty"`
+	// Name is the host-chosen payload-free registration identifier for
+	// the interceptor at Index (§10.3).
+	Name string `json:"name,omitempty"`
 }
 
 // ---- interception record (§10.3) --------------------------------------------
@@ -357,12 +365,17 @@ type InterceptionRecord struct {
 	// multi-verdict profiles (sequential/run_all, parallel/*).
 	Verdicts []VerdictSummary `json:"verdicts,omitempty"`
 	// FoldTruncated is true iff one or more registered interceptors
-	// were never invoked in this emission. Defined only for
-	// sequential/first_deny (§7.4).
+	// were never invoked in this emission (short-circuit, approval-stop,
+	// or a failed fold-transform). Defined for the sequential profiles
+	// (§7.4).
 	FoldTruncated *bool `json:"fold_truncated,omitempty"`
-	// ResolvedBy is "approval" iff an approval resolution substituted
-	// for a verdict in this emission (§7.6).
+	// ResolvedBy is the consultation outcome (§7.6, §10.3):
+	// "approval" iff a permit resolution substituted; "rejection" iff
+	// the seam was consulted without a lift; nil iff never consulted.
 	ResolvedBy *string `json:"resolved_by,omitempty"`
+	// InterceptorsRegistered is the number of interceptors registered
+	// at emission time (§10.3).
+	InterceptorsRegistered int `json:"interceptors_registered"`
 }
 
 // Proceeds reports whether the guarded action executes (§6, §8).

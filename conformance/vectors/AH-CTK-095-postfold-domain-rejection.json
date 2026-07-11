@@ -1,11 +1,12 @@
 {
-  "id": "AH-CTK-031",
-  "title": "liftable deny at pre_tool_call: reject leaves the deny standing",
-  "spec_clause": "5.1, 9",
-  "part": "approval_seam",
+  "id": "AH-CTK-095",
+  "title": "a transform that pushes the context outside the I-JSON domain fails closed at finalize (deny context_invalid, null enforced identity)",
+  "spec_clause": "10.2, 10.3",
+  "part": "identity_provider",
   "capabilities": [
     "model_calls",
-    "tool_calls"
+    "tool_calls",
+    "int64_json"
   ],
   "scenario": {
     "input": {
@@ -51,19 +52,11 @@
     {
       "at": "pre_tool_call",
       "return": {
-        "decision": "deny",
-        "reason": "ctk:requires_approval",
-        "approval": {}
-      }
-    }
-  ],
-  "approval_script": [
-    {
-      "resolve": {
-        "outcome": "reject",
-        "verdict": {
-          "decision": "deny",
-          "reason": "ctk:rejected"
+        "decision": "transform",
+        "reason": "ctk:inject-bigint",
+        "transform": {
+          "path": "$target.amount",
+          "value": 9007199254740993
         }
       }
     }
@@ -86,8 +79,9 @@
         "interception_point": "pre_tool_call",
         "assert": {
           "verdict.decision": "deny",
-          "verdict.reason": "ctk:rejected",
-          "resolved_by": "rejection"
+          "verdict.reason": "host_error:context_invalid",
+          "enforced_identity": null,
+          "identity_provider": "jcs-sha256"
         }
       }
     ],

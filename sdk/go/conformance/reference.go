@@ -55,7 +55,9 @@ func (h *ReferenceHarness) Setup(
 	h.toolLog = nil
 	em := agenthooks.NewInterceptionEmitter(mode, resolver)
 	em.SetComposition(composition)
-	em.SetIdentityProvider(identityProvider)
+	if _, err := em.SetIdentityProvider(identityProvider); err != nil {
+		return err
+	}
 	for _, i := range interceptors {
 		em.Register(i)
 	}

@@ -16,6 +16,7 @@ const binding = require("../binding.js") as {
   canonicalJson(valueJson: string): string;
   contextIdentity(ctxJson: string): string;
   validateVerdict(verdictJson: string): string;
+  validateEnvelope(ctxJson: string): string;
   applyTransform(targetJson: string, path: string, valueJson: string): string;
   applyTransformCtx(ctxJson: string, path: string, valueJson: string): string;
   validateTransformCtx(ctxJson: string, path: string, valueJson: string): string;
@@ -57,6 +58,7 @@ export const native = {
   canonicalJson: wrap(binding.canonicalJson),
   contextIdentity: wrap(binding.contextIdentity),
   validateVerdict: wrap(binding.validateVerdict),
+  validateEnvelope: wrap(binding.validateEnvelope),
   applyTransform: wrap(binding.applyTransform),
   applyTransformCtx: wrap(binding.applyTransformCtx),
   validateTransformCtx: wrap(binding.validateTransformCtx),

@@ -83,11 +83,27 @@ pub enum IdentityProvider {
     /// carry `null` identities and self-describe as unbound.
     Null,
     /// A host-supplied pure function. The echo and record rules (§10.1)
-    /// still apply; the golden vectors do not.
+    /// still apply; the golden vectors do not. Construct via
+    /// [`IdentityProvider::custom`], which enforces the §10.1 name
+    /// rules.
     Custom {
         name: String,
         f: Box<dyn Fn(&AgentContext) -> String + Send + Sync>,
     },
+}
+
+impl IdentityProvider {
+    /// Build a custom provider, enforcing the §10.1 name rules
+    /// (`^[a-z][a-z0-9_-]*$`, no `jcs` prefix — a custom provider must
+    /// not claim golden-vector semantics).
+    pub fn custom(
+        name: impl Into<String>,
+        f: impl Fn(&AgentContext) -> String + Send + Sync + 'static,
+    ) -> Result<Self, (HostError, String)> {
+        let name = name.into();
+        crate::types::validate_provider_name(&name)?;
+        Ok(Self::Custom { name, f: Box::new(f) })
+    }
 }
 
 impl IdentityProvider {
@@ -100,12 +116,24 @@ impl IdentityProvider {
     }
 
     /// `Ok(None)` iff the provider is `Null`; `Err` iff the default
-    /// provider rejected the value domain (§10.2).
+    /// provider rejected the value domain (§10.2) or a custom provider
+    /// failed (§10.1: raise/panic fails closed as `context_invalid` —
+    /// a provider that cannot compute MUST NOT silently unbind the
+    /// emission).
     fn compute(&self, ctx: &AgentContext) -> Result<Option<String>, (HostError, String)> {
         match self {
             Self::JcsSha256 => canonical::context_identity(ctx).map(Some),
             Self::Null => Ok(None),
-            Self::Custom { f, .. } => Ok(Some(f(ctx))),
+            Self::Custom { f, .. } => {
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(ctx)))
+                    .map(Some)
+                    .map_err(|_| {
+                        (
+                            HostError::ContextInvalid,
+                            "identity provider failed (see spec §10.1)".into(),
+                        )
+                    })
+            }
         }
     }
 }
@@ -186,10 +214,18 @@ impl InterceptionEmitter {
         self
     }
 
-    /// Declare the identity provider (§10.1).
-    pub fn set_identity_provider(&mut self, provider: IdentityProvider) -> &mut Self {
+    /// Declare the identity provider (§10.1). A `Custom` provider
+    /// whose name violates the §10.1 rules is rejected — prefer
+    /// [`IdentityProvider::custom`], which validates at construction.
+    pub fn set_identity_provider(
+        &mut self,
+        provider: IdentityProvider,
+    ) -> Result<&mut Self, (HostError, String)> {
+        if let IdentityProvider::Custom { name, .. } = &provider {
+            crate::types::validate_provider_name(name)?;
+        }
         self.identity = provider;
-        self
+        Ok(self)
     }
 
     /// All interception records emitted so far in this session, in order.
@@ -223,17 +259,30 @@ impl InterceptionEmitter {
     /// The caller MUST inspect [`InterceptionRecord::proceeds`] and halt
     /// the guarded action itself; prefer [`Self::emit`].
     pub async fn emit_unchecked(&mut self, ctx: &mut AgentContext) -> InterceptionRecord {
+        // §4/§6.3: an invalid envelope is denied before any interceptor
+        // or identity provider sees it — no dispatch, no identities, no
+        // plausible record over a partial preimage.
+        let outcome = if let Err((e, detail)) = canonical::validate_envelope(ctx) {
+            Some(DispatchOutcome::synthesized(e, Some(detail)))
+        } else {
+            None
+        };
+        let envelope_invalid = outcome.is_some();
         // §10.3: input identity binds to the context BEFORE dispatch, so
         // neither interceptor mutation nor fold-through can retroactively
         // alter what the record claims was evaluated.
-        let (input_identity, outcome) = match self.identity.compute(ctx) {
-            Ok(id) => (id, None),
-            // §10.2: the default provider rejected the value domain.
-            // Fail closed before any interceptor runs.
-            Err((e, detail)) => (
-                None,
-                Some(DispatchOutcome::synthesized(e, Some(detail))),
-            ),
+        let (input_identity, outcome) = if envelope_invalid {
+            (None, outcome)
+        } else {
+            match self.identity.compute(ctx) {
+                Ok(id) => (id, None),
+                // §10.1/§10.2: the provider rejected the value domain,
+                // raised, or panicked. Fail closed before any
+                // interceptor runs.
+                Err((e, detail)) => {
+                    (None, Some(DispatchOutcome::synthesized(e, Some(detail))))
+                }
+            }
         };
         let outcome = match outcome {
             Some(o) => o,
@@ -244,7 +293,9 @@ impl InterceptionEmitter {
             input_identity,
             identity_provider: self.identity.name(),
             enforced_identity: match &self.identity {
-                IdentityProvider::Custom { f, .. } => Some(f(ctx)),
+                IdentityProvider::Custom { .. } if !envelope_invalid => {
+                    self.identity.compute(ctx).ok().flatten()
+                }
                 _ => None, // finalize computes (default) or leaves null
             },
             // Native hosts build in-memory Values, which cannot carry
@@ -256,6 +307,7 @@ impl InterceptionEmitter {
             verdicts: outcome.verdicts,
             fold_truncated: outcome.fold_truncated,
             resolved_by: outcome.resolved_by,
+            interceptors_registered: self.interceptors.len() as u32,
         };
         let record = finalize(ctx, outcome.combined, self.mode, meta);
         self.records.push(record.clone());
@@ -339,6 +391,10 @@ impl InterceptionEmitter {
                         }
                         Consultation::Substituted { verdict, permitted } => {
                             let verdict = *verdict;
+                            // §10.3: any consultation is recorded — permit
+                            // substitution as "approval", everything else as
+                            // "rejection".
+                            resolved_by = Some(if permitted { "approval" } else { "rejection" });
                             if !permitted {
                                 // Reject / unresolved / echo violation:
                                 // a deny stands (§9).
@@ -541,6 +597,10 @@ impl InterceptionEmitter {
                             },
                             Consultation::Substituted { verdict, permitted } => {
                                 let verdict = *verdict;
+                                // §10.3: any consultation is recorded — permit
+                                // substitution as "approval", everything else as
+                                // "rejection".
+                                resolved_by = Some(if permitted { "approval" } else { "rejection" });
                                 let synthesized = is_host_synthesized(&verdict);
                                 let combined = if permitted {
                                     resolved_by = Some("approval");
@@ -674,6 +734,10 @@ impl InterceptionEmitter {
                     Consultation::NotConsulted => with_unions(liftable, pool),
                     Consultation::Substituted { verdict, permitted } => {
                         let verdict = *verdict;
+                        // §10.3: any consultation is recorded — permit
+                        // substitution as "approval", everything else as
+                        // "rejection".
+                        *resolved_by = Some(if permitted { "approval" } else { "rejection" });
                         if permitted {
                             *resolved_by = Some("approval");
                             let sub = if verdict.decision == Decision::Transform {

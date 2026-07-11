@@ -231,9 +231,16 @@ pub async fn run_vector(harness: &mut dyn Harness, vector: &Value) -> VectorResu
         .get("composition")
         .and_then(|c| serde_json::from_value(c.clone()).ok())
         .unwrap_or_default();
-    // §10.1: absent → the default provider; explicit null → unbound.
+    // §10.1: absent → the default provider; explicit null → unbound;
+    // "ctk-fault" → a custom provider that panics (pins the §10.1
+    // provider-failure rule: deny context_invalid before dispatch).
     let identity_provider = match vector.get("identity_provider") {
         Some(Value::Null) => IdentityProvider::Null,
+        Some(Value::String(s)) if s == "ctk-fault" => IdentityProvider::custom(
+            "ctk-fault",
+            |_| panic!("ctk scripted provider fault"),
+        )
+        .expect("ctk-fault satisfies the name rules"),
         _ => IdentityProvider::JcsSha256,
     };
 
@@ -438,7 +445,9 @@ impl Harness for ReferenceHarness {
         self.session_counter += 1;
         let mut emitter = InterceptionEmitter::new(mode, resolver);
         emitter.set_composition(composition);
-        emitter.set_identity_provider(identity_provider);
+        emitter
+            .set_identity_provider(identity_provider)
+            .expect("CTK provider names are valid by construction");
         for interceptor in interceptors {
             emitter.register(interceptor);
         }

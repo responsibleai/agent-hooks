@@ -52,8 +52,20 @@ public sealed class IdentityProvider
 
     /// <summary>A host-supplied pure function. The echo and record rules
     /// (§10.1) still apply; the golden vectors do not.</summary>
-    public static IdentityProvider Custom(string name, Func<JsonObject, string> f) =>
-        new(name, f);
+    public static IdentityProvider Custom(string name, Func<JsonObject, string> f)
+    {
+        // §10.1 name rules: enforced, not advisory — the jcs prefix is
+        // reserved so a custom function can never claim golden-vector
+        // semantics on records.
+        if (!System.Text.RegularExpressions.Regex.IsMatch(name, "^[a-z][a-z0-9_-]*$")
+            || name.StartsWith("jcs", StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "identity provider name must match ^[a-z][a-z0-9_-]*$ and must not begin with 'jcs' (§10.1)",
+                nameof(name));
+        }
+        return new(name, f);
+    }
 
     internal bool IsCustom => _custom is not null;
 
@@ -77,6 +89,7 @@ public sealed class InterceptionEmitter
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromMilliseconds(5000);
 
     private readonly List<IInterceptor> _interceptors = [];
+    private readonly List<string?> _names = [];
     private readonly List<InterceptionRecord> _records = [];
     private readonly IApprovalResolver? _resolver;
     private readonly EnforcementMode _mode;
@@ -130,9 +143,13 @@ public sealed class InterceptionEmitter
         get { lock (_recordsLock) return _records.ToList(); }
     }
 
-    public InterceptionEmitter Register(IInterceptor interceptor)
+    /// <summary>Register an interceptor, optionally with a host-chosen
+    /// payload-free <paramref name="name"/> recorded on
+    /// <c>verdicts[].name</c> (§10.3).</summary>
+    public InterceptionEmitter Register(IInterceptor interceptor, string? name = null)
     {
         _interceptors.Add(interceptor);
+        _names.Add(name);
         return this;
     }
 
@@ -175,13 +192,24 @@ public sealed class InterceptionEmitter
         DispatchOutcome? outcome = null;
         try
         {
+            // §4/§6.3: an invalid envelope is denied before any
+            // interceptor or identity provider sees it.
+            Native.ValidateEnvelope(ctx.Json.ToJsonString(Compact));
             inputId = _identity.Compute(ctx);
         }
         catch (AgentHooksCoreException e)
         {
-            // §10.2: the default provider rejected the value domain.
+            // §4/§10.2: envelope invalid or value domain rejected.
             // Fail closed before any interceptor runs.
             outcome = DispatchOutcome.Synthesized(e.Code, e.Detail);
+        }
+        catch (Exception e)
+        {
+            // §10.1: a custom provider raised — fail closed, exception
+            // *type* only (§14/TM-09).
+            outcome = DispatchOutcome.Synthesized(
+                HostError.ContextInvalid,
+                $"identity provider failed: {e.GetType().Name} (see spec §10.1)");
         }
         outcome ??= await DispatchAsync(ctx, ct);
 
@@ -191,13 +219,14 @@ public sealed class InterceptionEmitter
             ["identity_provider"] = _identity.Name,
             // Custom providers only; ah_finalize computes the default
             // provider's enforced identity (and leaves null unbound).
-            ["enforced_identity"] = _identity.IsCustom ? _identity.Compute(ctx) : null,
+            ["enforced_identity"] = _identity.IsCustom ? TryCustomIdentity(ctx) : null,
             ["decided_by"] = outcome.DecidedBy,
             ["composition"] = _composition.ToWire(),
             ["verdicts"] = new JsonArray(
                 outcome.Verdicts.Select(s => (JsonNode)s.ToWire()).ToArray()),
             ["fold_truncated"] = outcome.FoldTruncated,
             ["resolved_by"] = outcome.ResolvedBy,
+            ["interceptors_registered"] = _interceptors.Count,
         };
         var recordJson = Native.Finalize(
             ctx.Json.ToJsonString(Compact),
@@ -234,8 +263,9 @@ public sealed class InterceptionEmitter
         v.Reason?.StartsWith("host_error:", StringComparison.Ordinal) == true;
 
     /// <summary>Payload-free per-interceptor summaries for the record (§10.3).</summary>
-    private static List<VerdictSummary> Summaries(IReadOnlyList<Verdict> verdicts) =>
-        verdicts.Select((v, i) => new VerdictSummary(i, v.Decision, v.Reason)).ToList();
+    private List<VerdictSummary> Summaries(IReadOnlyList<Verdict> verdicts) =>
+        verdicts.Select((v, i) => new VerdictSummary(
+            i, v.Decision, v.Reason, i < _names.Count ? _names[i] : null)).ToList();
 
     /// <summary>Apply the §7.3 metadata unions to a combined verdict:
     /// warnings from every verdict in the pool (first-seen order); labels
@@ -357,11 +387,12 @@ public sealed class InterceptionEmitter
                     if (!c.Permitted)
                     {
                         // Reject / unresolved / echo violation: a deny
-                        // stands (§9).
+                        // stands (§9); the consultation is still
+                        // recorded (§10.3 resolved_by).
                         return new DispatchOutcome(
                             WithUnions(c.Verdict, pool),
                             IsHostSynthesized(c.Verdict) ? null : i,
-                            Summaries(perInterceptor), Truncated(i), resolvedBy);
+                            Summaries(perInterceptor), Truncated(i), "rejection");
                     }
                     resolvedBy = "approval";
                     // §7.6: the permit resolution substitutes at this
@@ -478,7 +509,9 @@ public sealed class InterceptionEmitter
         var combined = Verdict.FromWire((JsonObject)agg["combined"]!);
         var decidedBy = agg["decided_by"] is null ? null : (int?)agg["decided_by"]!;
         var verdicts = ((JsonArray)agg["verdicts"]!)
-            .Select(s => VerdictSummary.FromWire((JsonObject)s!)).ToList();
+            .Select(s => VerdictSummary.FromWire((JsonObject)s!))
+            .Select(v => v with { Name = v.Index < _names.Count ? _names[v.Index] : null })
+            .ToList();
         string? resolvedBy = null;
 
         if ((bool)agg["apply_transform"]!)
@@ -508,7 +541,8 @@ public sealed class InterceptionEmitter
             }
             else
             {
-                // Reject / unresolved / echo violation: a deny stands (§9).
+                // §10.3: consultation without a permit substitution.
+                resolvedBy = "rejection";
                 combined = WithUnions(c.Verdict, all);
                 if (IsHostSynthesized(c.Verdict)) decidedBy = null;
             }
@@ -626,6 +660,15 @@ public sealed class InterceptionEmitter
         return new Consultation(rv, permitted);
     }
 
+    /// <summary>Custom-provider identity, or null when the provider
+    /// fails (honest absence, §10.1 — the emission was already decided
+    /// by the pre-dispatch path).</summary>
+    private string? TryCustomIdentity(AgentContext ctx)
+    {
+        try { return _identity.Compute(ctx); }
+        catch { return null; }
+    }
+
     private static InterceptionRecord RecordFromCore(JsonObject r)
     {
         return new InterceptionRecord(
@@ -643,6 +686,7 @@ public sealed class InterceptionEmitter
                 .Select(n => VerdictSummary.FromWire((JsonObject)n!)).ToList()
                 ?? (IReadOnlyList<VerdictSummary>)[],
             (bool?)r["fold_truncated"],
-            (string?)r["resolved_by"]);
+            (string?)r["resolved_by"],
+            (int?)r["interceptors_registered"] ?? 0);
     }
 }

@@ -138,14 +138,25 @@ pub fn compose_aggregate(
     if raw.is_empty() {
         return Err(err(HostError::NoInterceptor, "empty verdict list"));
     }
-    // Verdicts are deserialized permissively: the emitter may pass
-    // host-synthesized host_error:* denies (§6.3), which from_wire
-    // rejects by design.
+    // §5 gate at the FFI seam (a third-party binding must not be able
+    // to aggregate un-vetted verdicts): every entry either passes §5
+    // validation or is exactly the host-synthesized §6.3/§7.5 shape —
+    // a deny with a reserved host_error:* reason and no transform
+    // (optionally liftable). Anything else fails the aggregation.
     let all: Vec<Verdict> = raw
         .iter()
-        .map(|v| serde_json::from_value(v.clone()))
+        .map(|v| serde_json::from_value::<Verdict>(v.clone()))
         .collect::<Result<_, _>>()
         .map_err(|e| err(HostError::VerdictInvalid, format!("verdicts: {e}")))?;
+    for (i, v) in all.iter().enumerate() {
+        let synthesized_shape = v.decision == crate::Decision::Deny
+            && v.reason.as_deref().is_some_and(|r| r.starts_with("host_error:"))
+            && v.transform.is_none();
+        if !synthesized_shape {
+            v.validate()
+                .map_err(|e| err(e, format!("verdicts[{i}]: fails the §5 gate")))?;
+        }
+    }
 
     let sequential = cfg.profile.is_sequential();
     let (combined, decided_by, apply_transform) = match cfg.profile {
@@ -212,8 +223,9 @@ pub fn compose_aggregate(
 ///   "decided_by": 0 | null,
 ///   "composition": { "profile": "...", ... },   // REQUIRED
 ///   "verdicts": [ {"index", "decision", "reason"?}, ... ],
-///   "fold_truncated": true | false,     // sequential/first_deny only
-///   "resolved_by": "approval" | null
+///   "fold_truncated": true | false,     // sequential profiles only
+///   "resolved_by": "approval" | "rejection" | null,
+///   "interceptors_registered": 0
 /// }
 /// ```
 pub fn finalize(
@@ -268,11 +280,37 @@ pub fn finalize(
         fold_truncated: opts.get("fold_truncated").and_then(Value::as_bool),
         resolved_by: match opts.get("resolved_by").and_then(Value::as_str) {
             Some("approval") => Some("approval"),
+            Some("rejection") => Some("rejection"),
             _ => None,
         },
+        interceptors_registered: opts
+            .get("interceptors_registered")
+            .and_then(Value::as_u64)
+            .unwrap_or(0) as u32,
     };
+    // §10.1: a host-defined provider name must satisfy the name rules;
+    // a wrapper that lets "jcs-fake" through would let records claim
+    // golden-vector semantics.
+    if let Some(name) = meta.identity_provider.as_deref() {
+        if name != crate::types::JCS_SHA256 {
+            crate::types::validate_provider_name(name)
+                .map_err(|(e, d)| err(e, format!("options.identity_provider: {d}")))?;
+        }
+    }
     let record = enforce_mod::finalize(&ctx, v, mode, meta);
     Ok(serde_json::to_string(&record).expect("record serialize"))
+}
+
+/// §4 envelope validation (fail closed). Returns the empty string on a
+/// valid envelope; callers receive an `FfiError` with the value-free
+/// detail otherwise. Wrappers call this at the top of every emission
+/// (§6.3) and synthesize the `context_invalid` deny themselves so the
+/// fail-closed record still carries best-effort envelope fields.
+pub fn validate_envelope(ctx_json: &str) -> Result<String, FfiError> {
+    let ctx: AgentContext = serde_json::from_str(ctx_json)
+        .map_err(|e| err(HostError::ContextInvalid, format!("ctx: {e}")))?;
+    canonical::validate_envelope(&ctx).map_err(|(e, d)| err(e, d))?;
+    Ok(String::new())
 }
 
 /// Version stamp for binding sanity checks.

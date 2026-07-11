@@ -86,7 +86,8 @@
         "interception_point": "pre_tool_call",
         "assert": {
           "verdict.decision": "deny",
-          "verdict.reason": "host_error:approval_identity_mismatch"
+          "verdict.reason": "host_error:approval_identity_mismatch",
+          "resolved_by": "rejection"
         }
       }
     ],

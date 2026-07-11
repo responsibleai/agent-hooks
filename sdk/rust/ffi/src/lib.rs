@@ -168,6 +168,17 @@ pub unsafe extern "C" fn ah_validate_verdict(verdict_json: *const c_char) -> *mu
     guarded(move || core::validate_verdict(a?).map_err(core_err))
 }
 
+/// §4/§6.3: envelope validation. Ok(empty string) on a valid envelope;
+/// the error detail is value-free.
+///
+/// # Safety
+/// `ctx_json` must be null or a valid NUL-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn ah_validate_envelope(ctx_json: *const c_char) -> *mut AhResult {
+    let a = from_c(ctx_json, "ctx_json");
+    guarded(move || core::validate_envelope(a?).map_err(core_err))
+}
+
 /// §5.2
 ///
 /// # Safety

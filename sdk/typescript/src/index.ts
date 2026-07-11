@@ -250,6 +250,8 @@ export interface VerdictSummary {
   index: number;
   decision: Decision;
   reason?: string | null;
+  /** Host-chosen payload-free registration identifier (§10.3). */
+  name?: string;
 }
 
 /** Host-side record of one emission (§10.3).
@@ -286,11 +288,15 @@ export interface InterceptionRecord {
    * (`sequential/run_all`, `parallel/*`). */
   verdicts?: VerdictSummary[];
   /** `true` iff one or more registered interceptors were never invoked
-   * in this emission. Defined only for `sequential/first_deny` (§7.4). */
+   * in this emission (short-circuit, approval-stop, or a failed
+   * fold-transform). Defined for the sequential profiles (§7.4). */
   fold_truncated?: boolean;
-  /** `"approval"` iff an approval resolution substituted for a verdict
-   * in this emission (§7.6). */
-  resolved_by?: "approval" | null;
+  /** Consultation outcome (§7.6, §10.3): `"approval"` iff a permit
+   * resolution substituted; `"rejection"` iff consulted without a
+   * lift; absent iff never consulted. */
+  resolved_by?: "approval" | "rejection" | null;
+  /** Interceptors registered at emission time (§10.3). */
+  interceptors_registered: number;
 }
 
 /** Whether the guarded action executes (§6, §8). */
@@ -440,10 +446,12 @@ export interface FinalizeMeta {
   composition: CompositionConfig;
   /** Per-interceptor summaries (multi-verdict profiles, §10.3). */
   verdicts?: VerdictSummary[] | null;
-  /** `sequential/first_deny` only (§7.4). */
+  /** Sequential profiles (§7.4). */
   fold_truncated?: boolean | null;
-  /** `"approval"` iff a resolution substituted for a verdict (§7.6). */
-  resolved_by?: "approval" | null;
+  /** Consultation outcome: `"approval"` / `"rejection"` / none (§7.6). */
+  resolved_by?: "approval" | "rejection" | null;
+  /** Interceptors registered at emission time (§10.3). */
+  interceptors_registered?: number;
 }
 
 /** §10.3: build the `InterceptionRecord` for one completed emission.
@@ -470,6 +478,7 @@ export function finalize(
         verdicts: meta.verdicts ?? null,
         fold_truncated: meta.fold_truncated ?? null,
         resolved_by: meta.resolved_by ?? null,
+        interceptors_registered: meta.interceptors_registered ?? 0,
       }),
     ),
   );

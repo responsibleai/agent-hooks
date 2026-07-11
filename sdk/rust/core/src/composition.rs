@@ -86,6 +86,39 @@ pub struct CompositionConfig {
     pub on_transform_conflict: Option<SynthesisPolicy>,
 }
 
+impl CompositionConfig {
+    /// Fill the §7.2 normative knob defaults for the knobs this
+    /// profile consults (`on_approval: stop`, synthesis knobs: `deny`)
+    /// and clear knobs the profile never reads, so every record
+    /// carries the resolved configuration (§7.1, §10.3).
+    pub fn with_knob_defaults(mut self) -> Self {
+        use CompositionProfile as P;
+        match self.profile {
+            P::SequentialFirstDeny => {
+                self.on_approval.get_or_insert(OnApproval::Stop);
+                self.on_disagreement = None;
+                self.on_transform_conflict = None;
+            }
+            P::SequentialRunAll => {
+                self.on_approval = None;
+                self.on_disagreement = None;
+                self.on_transform_conflict = None;
+            }
+            P::ParallelStrictest => {
+                self.on_approval = None;
+                self.on_disagreement = None;
+                self.on_transform_conflict.get_or_insert(SynthesisPolicy::Deny);
+            }
+            P::ParallelUnanimous => {
+                self.on_approval = None;
+                self.on_disagreement.get_or_insert(SynthesisPolicy::Deny);
+                self.on_transform_conflict = None;
+            }
+        }
+        self
+    }
+}
+
 impl Default for CompositionConfig {
     /// Today's pre-P-003 behaviour: `sequential/first_deny` with
     /// `on_approval: stop`. A default, not a conformance baseline —
@@ -240,8 +273,21 @@ pub fn summaries(verdicts: &[Verdict]) -> Vec<VerdictSummary> {
             index: i as u32,
             decision: v.decision,
             reason: v.reason.clone(),
+            name: None,
         })
         .collect()
+}
+
+/// [`summaries`] with the hosts' payload-free interceptor names
+/// attached positionally (§10.3).
+pub fn summaries_named(verdicts: &[Verdict], names: &[Option<String>]) -> Vec<VerdictSummary> {
+    let mut out = summaries(verdicts);
+    for s in &mut out {
+        if let Some(n) = names.get(s.index as usize) {
+            s.name = n.clone();
+        }
+    }
+    out
 }
 
 /// Apply the §7.3 metadata unions to a combined verdict: warnings from

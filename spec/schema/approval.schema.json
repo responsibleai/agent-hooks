@@ -7,13 +7,32 @@
     "request": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["context_identity", "interception_point", "verdict"],
+      "required": [
+        "context_identity",
+        "interception_point",
+        "verdict"
+      ],
       "properties": {
-        "context_identity": { "type": ["string", "null"] },
-        "interception_point": { "$ref": "interception-point.schema.json" },
+        "context_identity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "interception_point": {
+          "$ref": "interception-point.schema.json"
+        },
         "verdict": {
-          "description": "The liftable deny (deny with an approval block) being consulted, or the host-synthesized liftable deny (§7.5).",
-          "$ref": "verdict.schema.json"
+          "description": "The liftable deny being consulted: an interceptor's (passes §5, verdict.schema.json) or the host-synthesized §7.5 shape, whose reason is a reserved host_error:* string that §5 forbids interceptors to emit — so this member is validated against the §5 schema only when its reason is not host_error:*.",
+          "type": "object",
+          "required": [
+            "decision"
+          ],
+          "properties": {
+            "decision": {
+              "const": "deny"
+            }
+          }
         },
         "context": {
           "description": "The AgentContext as presented to the resolver. MAY be redacted per host policy.",
@@ -24,37 +43,91 @@
     "resolution": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["outcome", "context_identity"],
+      "required": [
+        "outcome",
+        "context_identity"
+      ],
       "properties": {
-        "outcome": { "type": "string", "enum": ["approve", "reject", "unresolved"] },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "approve",
+            "reject",
+            "unresolved"
+          ]
+        },
         "context_identity": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "MUST equal the request's context_identity byte for byte (echo rule, §9); null echoes as null."
         },
-        "verdict": { "$ref": "verdict.schema.json" }
+        "verdict": {
+          "$ref": "verdict.schema.json"
+        }
       },
       "allOf": [
         {
-          "if": { "properties": { "outcome": { "const": "unresolved" } } },
-          "then": { "not": { "required": ["verdict"] } },
-          "else": { "required": ["verdict"] }
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "unresolved"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "verdict"
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "verdict"
+            ]
+          }
         },
         {
-          "if": { "properties": { "outcome": { "const": "approve" } } },
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "approve"
+              }
+            }
+          },
           "then": {
             "properties": {
               "verdict": {
-                "properties": { "decision": { "enum": ["allow", "transform"] } }
+                "properties": {
+                  "decision": {
+                    "enum": [
+                      "allow",
+                      "transform"
+                    ]
+                  }
+                }
               }
             }
           }
         },
         {
-          "if": { "properties": { "outcome": { "const": "reject" } } },
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "reject"
+              }
+            }
+          },
           "then": {
             "properties": {
               "verdict": {
-                "properties": { "decision": { "const": "deny" } }
+                "properties": {
+                  "decision": {
+                    "const": "deny"
+                  }
+                }
               }
             }
           }

@@ -41,6 +41,12 @@ pub fn validate_verdict(verdict_json: String) -> Result<String> {
     core::validate_verdict(&verdict_json).map_err(map_err)
 }
 
+/// §4/§6.3: envelope validation (fail closed, value-free detail).
+#[napi]
+pub fn validate_envelope(ctx_json: String) -> Result<String> {
+    core::validate_envelope(&ctx_json).map_err(map_err)
+}
+
 #[napi]
 pub fn apply_transform(target_json: String, path: String, value_json: String) -> Result<String> {
     core::apply_transform(&target_json, &path, &value_json).map_err(map_err)

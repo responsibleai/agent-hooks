@@ -575,11 +575,27 @@ unless the host's own semantics terminate the turn.
 
 ### 6.3 Failure handling
 
-A host that fails to construct a valid `AgentContext` for an interception point MUST
-treat the verdict as `{"decision": "deny", "reason": "host_error:context_invalid"}`.
-A host whose registered interceptor raises, times out, or returns a non-conformant
-value MUST treat the verdict as `deny` with `host_error:interceptor_failed` or
-`host_error:interceptor_timeout` respectively.
+A host that fails to construct a valid `AgentContext` for an
+interception point — including a context that fails the §4 envelope
+check — MUST treat the emission as
+`{"decision": "deny", "reason": "host_error:context_invalid"}` without
+dispatching to any interceptor. Interceptor failures map one-to-one:
+
+| Failure | Substituted verdict |
+| --- | --- |
+| The interceptor raises (or panics) | `deny` `host_error:interceptor_failed` |
+| The interceptor exceeds the host's timeout | `deny` `host_error:interceptor_timeout` |
+| The returned value fails §5 validation | `deny` `host_error:verdict_invalid` |
+
+The substituted deny takes the failing interceptor's **slot**: it
+occupies that interceptor's position in the profile's composition
+(§7.3–§7.5), appears at that index in the record's `verdicts` summary,
+and carries that index as `decided_by` when it wins (§10.3). In
+`sequential/run_all` and the parallel profiles, other interceptors'
+verdicts are unaffected — a single failure does not abort the
+emission, it composes as a deny. Host-synthesized messages MUST NOT
+include target-derived content (§14): an exception type name is
+acceptable, an exception string is not.
 
 ---
 
@@ -629,6 +645,14 @@ assessed against exactly the profiles a host declares.
 Knobs for parallel-mode transform conflicts:
 `on_transform_conflict: "deny" | "approval"` (§7.5).
 
+**Knob defaults are normative.** When the host does not set a knob the
+profile consults, its value is: `on_approval: "stop"`,
+`on_disagreement: "deny"`, `on_transform_conflict: "deny"` — the
+fail-closed choice in each case. The record's `composition` block
+carries the **resolved** values (§10.3), so two hosts with identical
+records behaved identically regardless of how their configuration
+spelled the defaults.
+
 **"Parallel" names isolation semantics, not scheduling.** In a parallel
 profile every interceptor receives its own copy of the **same,
 untransformed** context snapshot; no interceptor observes another's
@@ -659,7 +683,9 @@ Aggregation selects **one winning verdict** and unions the metadata:
 2. The combined verdict is the winner (or the approval resolution that
    substitutes for it, §7.6), with:
    - `warnings`: the first-seen-ordered union of `warnings` from
-     **every** verdict returned in the emission;
+     **every** verdict returned in the emission. Two warnings are
+     equal iff both their `reason` and `message` members are equal;
+     duplicates by that test appear once, at first position;
    - `result_labels`: the first-seen-ordered union of labels from every
      **permit** verdict returned in the emission (labels are dropped
      entirely when the emission does not proceed, per §5.4).
@@ -676,7 +702,10 @@ already transformed by its predecessors. In `evaluate_only` mode the
 transform is validated but not applied (§8), so later interceptors
 observe the untransformed context. A transform that fails to apply
 (§5.2) becomes a `deny` with the corresponding `host_error:*` reason
-and — in both sequential profiles — short-circuits.
+and — in both sequential profiles — short-circuits. When that
+short-circuit (or any other) leaves registered interceptors uninvoked,
+the record sets `fold_truncated: true` (§10.3) in **either** sequential
+profile.
 
 **`sequential/first_deny`.** The first `deny` (liftable or not)
 short-circuits: remaining interceptors are NOT invoked. If the deny is
@@ -835,6 +864,19 @@ composition profile in effect says to (§7.4–§7.6), and never at
   shows no resolution was obtained.
 - A resolver that raises or times out MUST yield
   `deny` with `host_error:approval_resolver_failed`.
+- **Resolution validation order.** A host MUST validate a resolution
+  in this order, substituting the named deny at the first failure:
+  1. echo rule (above) → `host_error:approval_identity_mismatch`;
+  2. `outcome` is one of the three values, and `verdict` is present
+     exactly when `outcome != "unresolved"` →
+     `host_error:approval_resolver_failed`;
+  3. the carried `verdict` passes §5 validation →
+     `host_error:verdict_invalid`;
+  4. outcome/verdict consistency (`approve` carries a permit,
+     `reject` carries a deny) → `host_error:verdict_invalid`.
+
+  The order is normative so that independently implemented hosts
+  report the same reason for the same malformed resolution.
 
 The `context_identity` presented in the request is computed by the
 identity provider from the context **as presented to the resolver** —
@@ -869,6 +911,28 @@ A host declares one of:
 | `"jcs-sha256"` | The default provider defined in §10.2. Shipped by every SDK; in effect unless the host configures otherwise. |
 | `"<host-defined>"` (matching `^[a-z][a-z0-9_-]*$`, not starting with `jcs`) | A host-supplied function. The CTK verifies the echo and record rules against it; the golden identity vectors do not apply. |
 | `null` | No identity. Approvals bind only by request/response correlation; records carry `null` identities and self-describe as **unbound**. Permitted, but the record and any conformance claim (§13.3) MUST state it — honest absence over pretend presence. |
+
+**Name rules are enforced, not advisory.** A host (and every SDK
+constructor) MUST reject a host-defined provider name that does not
+match `^[a-z][a-z0-9_-]*$` or that begins with `jcs` — the `jcs`
+prefix is reserved so a custom function can never claim golden-vector
+semantics on records.
+
+**Failure semantics.** A declared provider that raises, panics, or
+returns a non-string MUST fail the emission closed as `deny`
+`host_error:context_invalid` before any interceptor runs — a provider
+that cannot compute MUST NOT silently unbind the emission (null
+identities under a declared provider are reserved for the §10.2/§4
+rejection shape, where the combined verdict says so).
+
+**Determinism.** A provider SHOULD be a pure function of the context;
+a non-deterministic provider breaks approval binding (§9) and audit
+correlation across records. A conformance claim (§13.3) MUST disclose
+whether the declared provider is content-derived.
+
+The identity provider is inside the host process and fully trusted
+(§1.4): it receives the raw context and produces the sole value the
+approval seam binds to.
 
 ### 10.2 The `jcs-sha256` provider
 
@@ -908,6 +972,17 @@ projection contains:
   and SDK marshalling guards reject them uniformly per §4.4).
 
 The provider never rewrites a value to make it canonicalizable.
+
+**No identity over a guessed preimage.** The provider MUST reject a
+context whose `interception_point` is absent or outside the closed §3
+set — a preimage assembled for a guessed point would produce a
+real-looking identity for a context the schema forbids. More broadly,
+a host MUST validate the §4 envelope (required core and per-point
+conditional fields, presence and JSON type) **before** dispatching any
+emission; an invalid envelope is the §6.3 `context_invalid` deny — no
+interceptor runs, no identity is computed, and the record carries
+best-effort envelope fields with `null` identities and the fail-closed
+verdict, never a plausible one.
 
 ### 10.3 The interception record
 
@@ -955,23 +1030,25 @@ of the record.
     "on_disagreement": "deny" | "approval",        // parallel/unanimous only
     "on_transform_conflict": "deny" | "approval"   // parallel profiles only
   },
-  "verdicts": [ { "index": 0, "decision": "allow", "reason": "string" }, ... ],
+  "verdicts": [ { "index": 0, "decision": "allow", "reason": "string", "name": "string" }, ... ],
   "fold_truncated": false,
-  "resolved_by": "approval" | null
+  "resolved_by": "approval" | "rejection" | null,
+  "interceptors_registered": 0
 }
 ```
 
 | Field | Definition |
 | --- | --- |
-| `input_identity` | Provider output on the context **before** dispatch. `null` iff `identity_provider` is `null`. |
+| `input_identity` | Provider output on the context **before** dispatch. `null` iff `identity_provider` is `null` **or the emission was rejected before dispatch** (the envelope failed §4 validation, or the provider rejected/failed per §10.1–§10.2) — in the rejection case the combined verdict is the corresponding `host_error:context_invalid` deny, so a null identity under a declared provider is never ambiguous. |
 | `enforced_identity` | Provider output after composition completes (post-fold in sequential profiles). Equal to `input_identity` when no transform was applied, and always equal in `evaluate_only` mode. |
 | `identity_provider` | The declared provider (§10.1). |
 | `session_id`, `sequence` | Copied from the context; records are totally ordered within a session. |
 | `decided_by` | Registration index of the interceptor whose verdict won the aggregation (§7.3) or whose liftable deny was consulted (§7.6). A §6.3 failure deny (`interceptor_failed`, `interceptor_timeout`, `verdict_invalid`) carries the **failing interceptor's** index, in every profile. `null` is reserved for pure-allow combinations, §5.2 transform-application failures, and profile-synthesized verdicts (`transform_conflict`, `composition_disagreement`, `no_interceptor`, identity-provider rejection). |
-| `composition` | The profile and knobs in effect (§7.1). REQUIRED. |
-| `verdicts` | Payload-free per-interceptor summary `{index, decision, reason?}`. REQUIRED in multi-verdict profiles (`sequential/run_all`, `parallel/*`); OPTIONAL in `sequential/first_deny`. |
-| `fold_truncated` | `true` iff one or more registered interceptors were never invoked in this emission (short-circuit or approval-stop). Defined only for `sequential/first_deny`. |
-| `resolved_by` | `"approval"` iff an approval resolution substituted for a verdict in this emission (§7.6); else `null`/absent. |
+| `composition` | The profile and knobs in effect (§7.1). REQUIRED. Knob members the profile consults MUST be present with their **resolved** values (the §7.2 defaults filled in when the host left them unset); knobs the profile never consults MUST be absent. |
+| `verdicts` | Payload-free per-interceptor summary `{index, decision, reason?, name?}`. REQUIRED in multi-verdict profiles (`sequential/run_all`, `parallel/*`); OPTIONAL in `sequential/first_deny`. `name` is the host-chosen registration identifier for the interceptor at `index` (§7); it MUST be payload-free. |
+| `fold_truncated` | `true` iff one or more registered interceptors were never invoked in this emission — a first-deny short-circuit, an approval-stop, or a failed fold-transform (§7.4). Defined for the sequential profiles. |
+| `resolved_by` | Consultation outcome (§7.6): `"approval"` iff a permit resolution substituted for a verdict; `"rejection"` iff the seam was consulted and did **not** lift the deny (reject, unresolved, resolver failure, or echo violation); absent iff the seam was never consulted. A record reader can therefore always answer "was a human consulted, and did they permit?". |
+| `interceptors_registered` | Number of interceptors registered at emission time. Together with `verdicts`/`fold_truncated` this makes skipped interceptors detectable from the record alone. |
 
 ---
 

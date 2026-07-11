@@ -7,6 +7,8 @@ export declare function specVersion(): string
 export declare function canonicalJson(valueJson: string): string
 export declare function contextIdentity(ctxJson: string): string
 export declare function validateVerdict(verdictJson: string): string
+/** §4/§6.3: envelope validation (fail closed, value-free detail). */
+export declare function validateEnvelope(ctxJson: string): string
 export declare function applyTransform(targetJson: string, path: string, valueJson: string): string
 export declare function applyTransformCtx(ctxJson: string, path: string, valueJson: string): string
 export declare function validateTransformCtx(ctxJson: string, path: string, valueJson: string): string

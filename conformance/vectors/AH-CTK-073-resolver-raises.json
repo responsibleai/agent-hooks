@@ -81,7 +81,8 @@
       {
         "interception_point": "pre_tool_call",
         "assert": {
-          "verdict.decision": "deny"
+          "verdict.decision": "deny",
+          "resolved_by": "rejection"
         }
       }
     ],

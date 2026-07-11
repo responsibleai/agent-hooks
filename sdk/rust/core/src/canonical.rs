@@ -107,12 +107,13 @@ pub fn scan_raw_integer_domain(text: &str) -> Result<(), (HostError, String)> {
                     let over = digits.len() > LIMIT.len()
                         || (digits.len() == LIMIT.len() && digits > LIMIT);
                     if over {
-                        let tok = std::str::from_utf8(&b[start..i]).unwrap_or("<number>");
+                        // §14/TM-09: the detail names the constraint,
+                        // never the offending value (it may be a key).
                         return Err((
                             HostError::ContextInvalid,
-                            format!(
-                                "integer {tok} exceeds 2^53; string-encode 64-bit identifiers, see spec §4.4"
-                            ),
+                            "integer token exceeds 2^53; string-encode 64-bit identifiers, \
+                             see spec §4.4"
+                                .into(),
                         ));
                     }
                 }
@@ -177,11 +178,11 @@ fn filter_obj(v: &Value, keep: &[&str]) -> Value {
 }
 
 /// The closed required+conditional projection of `ctx` (§10.2).
-fn project_preimage(ctx: &AgentContext) -> Value {
-    let ip = ctx
-        .get("interception_point")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
+/// Rejects an absent or unknown `interception_point` — a preimage over
+/// a guessed point would produce a real-looking identity for a context
+/// the schema forbids (§10.2).
+fn project_preimage(ctx: &AgentContext) -> Result<Value, (HostError, String)> {
+    let ip = interception_point_str(ctx)?;
     let mut out = serde_json::Map::new();
     for (key, sub) in REQUIRED.iter().chain(conditional_for(ip)) {
         if let Some(v) = ctx.get(*key) {
@@ -192,7 +193,33 @@ fn project_preimage(ctx: &AgentContext) -> Value {
             out.insert((*key).to_owned(), v);
         }
     }
-    Value::Object(out)
+    Ok(Value::Object(out))
+}
+
+/// The context's `interception_point`, or a fail-closed error when it
+/// is absent or outside the closed §3 set.
+fn interception_point_str(ctx: &AgentContext) -> Result<&str, (HostError, String)> {
+    const POINTS: &[&str] = &[
+        "agent_startup",
+        "input",
+        "pre_model_call",
+        "post_model_call",
+        "pre_tool_call",
+        "post_tool_call",
+        "output",
+        "agent_shutdown",
+    ];
+    match ctx.get("interception_point").and_then(Value::as_str) {
+        Some(ip) if POINTS.contains(&ip) => Ok(ip),
+        Some(_) => Err((
+            HostError::ContextInvalid,
+            "$.interception_point: not one of the eight closed values (see spec §3)".into(),
+        )),
+        None => Err((
+            HostError::ContextInvalid,
+            "$.interception_point: missing or not a string (see spec §4.1)".into(),
+        )),
+    }
 }
 
 /// §10.2 input domain, in-memory half: reject integral values outside
@@ -211,10 +238,11 @@ fn check_i_json(v: &Value, path: &str) -> Result<(), (HostError, String)> {
                 _ => false, // f64: parse already made it a double
             };
             if out_of_range {
+                // §14/TM-09: path + constraint only, never the value.
                 return Err((
                     HostError::ContextInvalid,
                     format!(
-                        "{path}: integer {n} exceeds 2^53; string-encode 64-bit identifiers, see spec §4.4"
+                        "{path}: integer exceeds 2^53; string-encode 64-bit identifiers, see spec §4.4"
                     ),
                 ));
             }
@@ -247,6 +275,9 @@ pub fn scan_projection_raw(ctx_json: &str) -> Result<(), (HostError, String)> {
     type RawMap<'a> = std::collections::HashMap<&'a str, &'a RawValue>;
     let top: RawMap = serde_json::from_str(ctx_json)
         .map_err(|e| (HostError::ContextInvalid, format!("ctx: {e}")))?;
+    // Unknown/absent point: an empty ip yields the empty conditional
+    // set, so only the required core is scanned; envelope validation
+    // rejects the context itself (§10.2).
     let ip: &str = top
         .get("interception_point")
         .and_then(|rv| serde_json::from_str::<&str>(rv.get()).ok())
@@ -273,11 +304,98 @@ pub fn scan_projection_raw(ctx_json: &str) -> Result<(), (HostError, String)> {
     Ok(())
 }
 
+/// §4.1/§4.2 envelope validation (fail closed, value-free details).
+/// Checks the required core and the per-point conditional fields —
+/// presence and JSON type only; full schema validation is the CTK's
+/// job. Run at the top of every emission (§6.3) so an invalid context
+/// is denied `host_error:context_invalid` instead of dispatching and
+/// earning a real-looking record over a partial preimage.
+pub fn validate_envelope(ctx: &AgentContext) -> Result<(), (HostError, String)> {
+    fn err(path: &str, want: &str) -> Result<(), (HostError, String)> {
+        Err((
+            HostError::ContextInvalid,
+            format!("$.{path}: missing or not {want} (see spec §4)"),
+        ))
+    }
+    let spec_ok = ctx.get("spec").and_then(Value::as_str).is_some_and(|v| {
+        v.strip_prefix("agent-hooks/").is_some_and(|ver| {
+            let mut it = ver.splitn(2, '.');
+            let major = it.next().unwrap_or("");
+            let minor = it.next().unwrap_or("");
+            !major.is_empty()
+                && !minor.is_empty()
+                && major.bytes().all(|b| b.is_ascii_digit())
+                && minor.bytes().all(|b| b.is_ascii_digit())
+        })
+    });
+    if !spec_ok {
+        return err("spec", "an agent-hooks/<maj>.<min> string");
+    }
+    let ip = interception_point_str(ctx)?;
+    if ctx.get("timestamp").and_then(Value::as_str).is_none() {
+        return err("timestamp", "a string");
+    }
+    if !ctx.get("sequence").and_then(Value::as_i64).is_some_and(|n| n >= 0) {
+        return err("sequence", "an integer >= 0");
+    }
+    let agent = ctx.get("agent").and_then(Value::as_object);
+    match agent {
+        Some(a) => {
+            if !a.get("id").and_then(Value::as_str).is_some_and(|v| !v.is_empty()) {
+                return err("agent.id", "a non-empty string");
+            }
+            let fw_ok = a.get("framework").and_then(Value::as_str).is_some_and(|v| {
+                !v.is_empty()
+                    && v.bytes().all(|b| {
+                        b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-'
+                    })
+            });
+            if !fw_ok {
+                return err("agent.framework", "a ^[a-z0-9_-]+$ string");
+            }
+        }
+        None => return err("agent", "an object"),
+    }
+    let session_ok = ctx
+        .get("session")
+        .and_then(Value::as_object)
+        .and_then(|o| o.get("id"))
+        .and_then(Value::as_str)
+        .is_some_and(|v| !v.is_empty());
+    if !session_ok {
+        return err("session.id", "a non-empty string");
+    }
+    if ctx.get("target").is_none() {
+        return err("target", "present");
+    }
+    // Conditional (§4.2): presence of each per-point field and its
+    // required subfields.
+    for (key, sub) in conditional_for(ip) {
+        let Some(v) = ctx.get(*key) else {
+            return err(key, "present at this interception point");
+        };
+        if let Some(keep) = sub {
+            let Some(obj) = v.as_object() else {
+                return err(key, "an object");
+            };
+            for k in *keep {
+                if !obj.contains_key(*k) {
+                    return Err((
+                        HostError::ContextInvalid,
+                        format!("$.{key}.{k}: missing (see spec §4.2)"),
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The `jcs-sha256` provider (§10.2):
 /// `"sha256:" + hex(SHA-256(canonical_json(projection)))`, failing
 /// closed (`host_error:context_invalid`) on a non-I-JSON projection.
 pub fn context_identity(ctx: &AgentContext) -> Result<String, (HostError, String)> {
-    let preimage = project_preimage(ctx);
+    let preimage = project_preimage(ctx)?;
     check_depth(&preimage)?;
     check_i_json(&preimage, "$")?;
     let json = canonical_json(&preimage);
@@ -397,7 +515,9 @@ mod tests {
         let ctx = r#"{"spec":"agent-hooks/0.1","interception_point":"pre_tool_call","timestamp":"t","sequence":0,"agent":{"id":"a","framework":"x"},"session":{"id":"s"},"target":{"id":18446744073709551616},"tool_call":{"id":"tc","name":"t","args":{"id":18446744073709551616}}}"#;
         let (e, d) = scan_projection_raw(ctx).unwrap_err();
         assert_eq!(e, HostError::ContextInvalid);
-        assert!(d.contains("18446744073709551616"), "{d}");
+        // §14/TM-09: the detail must NOT echo the offending value.
+        assert!(!d.contains("18446744073709551616"), "{d}");
+        assert!(d.contains("string-encode"), "{d}");
 
         // The two byte-distinct literals that motivated the fix.
         assert!(scan_raw_integer_domain(r#"{"id":18446744073709551616}"#).is_err());
@@ -459,4 +579,60 @@ mod tests {
         // Lone surrogate escape: rejected by serde_json's parser.
         assert!(serde_json::from_str::<Value>("{\"x\": \"\\ud800\"}").is_err());
     }
+    #[test]
+    fn envelope_valid_and_invalid() {
+        let good = ctx(json!({"ok": 1}));
+        assert!(validate_envelope(&good).is_ok());
+
+        // Missing conditional field for the point.
+        let mut c = good.clone();
+        c.remove("tool_call");
+        let (e, d) = validate_envelope(&c).unwrap_err();
+        assert_eq!(e, HostError::ContextInvalid);
+        assert!(d.contains("tool_call"), "{d}");
+
+        // Missing required subfield.
+        let mut c = good.clone();
+        c.get_mut("tool_call").unwrap().as_object_mut().unwrap().remove("name");
+        assert!(validate_envelope(&c).unwrap_err().1.contains("tool_call.name"));
+
+        // Unknown interception point.
+        let mut c = good.clone();
+        c.insert("interception_point".into(), json!("model_call"));
+        assert!(validate_envelope(&c).is_err());
+
+        // Bad sequence / missing session / bad framework / bad spec.
+        let mut c = good.clone();
+        c.insert("sequence".into(), json!(-1));
+        assert!(validate_envelope(&c).is_err());
+        let mut c = good.clone();
+        c.remove("session");
+        assert!(validate_envelope(&c).is_err());
+        let mut c = good.clone();
+        c.get_mut("agent").unwrap().as_object_mut().unwrap().insert("framework".into(), json!("Bad Framework"));
+        assert!(validate_envelope(&c).is_err());
+        let mut c = good.clone();
+        c.insert("spec".into(), json!("agent-hooks/x.1"));
+        assert!(validate_envelope(&c).is_err());
+    }
+
+    #[test]
+    fn envelope_details_are_value_free() {
+        // §14/TM-09: details name paths and constraints, never values.
+        let mut c = ctx(json!({"k": "SENSITIVE-VALUE"}));
+        c.insert("interception_point".into(), json!("SENSITIVE-POINT"));
+        let (_, d) = validate_envelope(&c).unwrap_err();
+        assert!(!d.contains("SENSITIVE"), "{d}");
+    }
+
+    #[test]
+    fn identity_rejects_unknown_point() {
+        // A guessed preimage must never earn a real-looking identity.
+        let mut c = ctx(json!({}));
+        c.insert("interception_point".into(), json!("nonsense"));
+        assert!(context_identity(&c).is_err());
+        c.remove("interception_point");
+        assert!(context_identity(&c).is_err());
+    }
+
 }

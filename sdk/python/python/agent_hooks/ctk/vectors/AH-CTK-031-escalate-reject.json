@@ -86,7 +86,8 @@
         "interception_point": "pre_tool_call",
         "assert": {
           "verdict.decision": "deny",
-          "verdict.reason": "ctk:rejected"
+          "verdict.reason": "ctk:rejected",
+          "resolved_by": "rejection"
         }
       }
     ],

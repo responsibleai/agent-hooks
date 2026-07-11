@@ -9,6 +9,7 @@ agent-hooks is a **cooperative contract**, not a security boundary.
 | Host (agent framework) | **Fully trusted.** Every guarantee in the spec (§6 host obligations, §1.3 no-silent-bypass) is a MUST on the host. A non-cooperative or buggy host can skip interception points, ignore verdicts, or run in `evaluate_only`, and nothing in agent-hooks detects it. |
 | Interceptors | **Fully trusted by the host.** They run in-process, receive raw `AgentContext` (which may contain user PII, secrets in tool arguments, and model output), and any registered interceptor can `deny` or `transform` any target. Registering an interceptor grants it write access to every action the agent takes. |
 | Approval resolver | **Fully trusted by the host.** Same process, same data access. |
+| Identity provider | **Fully trusted by the host.** Receives the raw `AgentContext` and produces the sole value approval binding (§9) and audit correlation rest on. A malicious or non-deterministic provider breaks both silently; the spec's only guards are the §10.1 name rules, the fail-closed failure rule, and the claim disclosure (§13.3). |
 | Model, tools, external inputs | **Untrusted.** This is the adversary the contract targets: an interceptor makes control decisions about untrusted data flowing through a trusted host. |
 
 ## What agent-hooks is not

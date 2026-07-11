@@ -10,7 +10,7 @@
 //! build the [`InterceptionRecord`]. Both are pure; everything that
 //! calls back into user code stays in the wrapper.
 
-use crate::canonical::context_identity;
+use crate::canonical::{context_identity, validate_envelope};
 use crate::composition::CompositionConfig;
 use crate::path;
 use crate::types::{
@@ -101,10 +101,13 @@ pub struct FinalizeMeta {
     pub composition: CompositionConfig,
     /// Per-interceptor summaries (multi-verdict profiles, §10.3).
     pub verdicts: Vec<VerdictSummary>,
-    /// `sequential/first_deny` only (§7.4).
+    /// Sequential profiles (§7.4).
     pub fold_truncated: Option<bool>,
-    /// `"approval"` iff a resolution substituted for a verdict (§7.6).
+    /// Consultation outcome: `"approval"` / `"rejection"` / none
+    /// (§7.6, §10.3).
     pub resolved_by: Option<&'static str>,
+    /// Interceptors registered at emission time (§10.3).
+    pub interceptors_registered: u32,
 }
 
 /// Truncate to at most 256 UTF-8 bytes on a character boundary,
@@ -155,7 +158,28 @@ pub fn payload_free_projection(v: &Verdict) -> Verdict {
 /// two differ exactly when a transform was applied. The record carries
 /// the [`payload_free_projection`] of the combined verdict, never the
 /// verdict verbatim.
-pub fn finalize(ctx: &AgentContext, verdict: Verdict, mode: EnforcementMode, meta: FinalizeMeta) -> InterceptionRecord {
+pub fn finalize(
+    ctx: &AgentContext,
+    verdict: Verdict,
+    mode: EnforcementMode,
+    meta: FinalizeMeta,
+) -> InterceptionRecord {
+    let mut verdict = verdict;
+    let mut decided_by = meta.decided_by;
+    // §10.2/§10.3 defense in depth: an envelope the §4 check rejects
+    // MUST NOT earn a record with a normal verdict — emitters validate
+    // before dispatch, but finalize re-checks so no third-party
+    // binding can produce a plausible record over a partial preimage.
+    // The record then carries best-effort envelope fields (`""`/`-1`),
+    // null identities, and the fail-closed deny: the §10.3 rejection
+    // shape, never a plausible one.
+    let envelope_invalid = validate_envelope(ctx).err();
+    if let Some((e, detail)) = &envelope_invalid {
+        if !is_context_invalid(&verdict) {
+            verdict = Verdict::host_error(*e, Some(detail.clone()));
+            decided_by = None;
+        }
+    }
     let ip = interception_point_of(ctx).unwrap_or(InterceptionPoint::AgentStartup);
     let session_id = ctx
         .get("session")
@@ -165,26 +189,69 @@ pub fn finalize(ctx: &AgentContext, verdict: Verdict, mode: EnforcementMode, met
         .to_owned();
     let sequence = ctx.get("sequence").and_then(Value::as_i64).unwrap_or(-1);
     let enforced_identity = match meta.identity_provider.as_deref() {
-        Some(JCS_SHA256) if meta.jcs_input_rejected => None,
-        Some(JCS_SHA256) => context_identity(ctx).ok(),
+        _ if envelope_invalid.is_some() => None,
+        Some(JCS_SHA256) if meta.jcs_input_rejected => {
+            // The raw-text scan rejected the (FFI-marshalled) context.
+            // With a null input_identity this is the pre-dispatch
+            // rejection — the emitter already denied. With a present
+            // input_identity the *input* was clean, so a fold-applied
+            // transform introduced the violation: same §10.3 post-fold
+            // rule as the in-memory arm below — fail closed.
+            if meta.input_identity.is_some() && verdict.decision.permits() {
+                verdict = Verdict::host_error(
+                    HostError::ContextInvalid,
+                    Some(
+                        "post-fold context left the I-JSON domain; \
+                         string-encode 64-bit identifiers, see spec §4.4"
+                            .into(),
+                    ),
+                );
+                decided_by = None;
+            }
+            None
+        }
+        Some(JCS_SHA256) => match context_identity(ctx) {
+            Ok(id) => Some(id),
+            // §10.2/§10.3: the post-fold context left the provider's
+            // domain (a transform introduced a non-I-JSON value). The
+            // identity chain is broken exactly where a transform
+            // changed the action, so the emission fails closed instead
+            // of proceeding with a null enforced identity.
+            Err((e, detail)) => {
+                if verdict.decision.permits() {
+                    verdict = Verdict::host_error(e, Some(detail));
+                    decided_by = None;
+                }
+                None
+            }
+        },
         Some(_) => meta.enforced_identity,
         None => None,
     };
+    let input_identity = if envelope_invalid.is_some() { None } else { meta.input_identity };
     InterceptionRecord {
         interception_point: ip,
         mode,
         verdict: payload_free_projection(&verdict),
-        input_identity: meta.input_identity,
+        input_identity,
         enforced_identity,
         identity_provider: meta.identity_provider,
         session_id,
         sequence,
-        decided_by: meta.decided_by,
-        composition: meta.composition,
+        decided_by,
+        composition: meta.composition.with_knob_defaults(),
         verdicts: meta.verdicts,
         fold_truncated: meta.fold_truncated,
         resolved_by: meta.resolved_by,
+        interceptors_registered: meta.interceptors_registered,
     }
+}
+
+/// Whether a verdict is already the fail-closed `context_invalid`
+/// deny (avoids double-substitution in [`finalize`]).
+fn is_context_invalid(v: &Verdict) -> bool {
+    v.decision == crate::types::Decision::Deny
+        && v.reason.as_deref() == Some("host_error:context_invalid")
 }
 
 /// Mirror the transformed target back into the conditional field it
@@ -399,4 +466,56 @@ mod tests {
         let rt = r.verdict.transform.expect("path kept on record");
         assert!(rt.value.is_null());
     }
+    #[test]
+    fn post_fold_rejection_fails_closed() {
+        // NEXT-02/§10.3: a transform that pushed the context outside
+        // the I-JSON domain must convert the emission to a deny, not
+        // proceed with a null enforced identity.
+        let mut c = ctx("pre_tool_call", json!({"id": 1}));
+        let input_id = context_identity(&c).ok();
+        // Simulate a folded transform introducing a beyond-2^53 int.
+        c.insert("target".into(), json!({"id": 9_007_199_254_740_993_i64}));
+        let meta = FinalizeMeta {
+            input_identity: input_id,
+            identity_provider: Some(JCS_SHA256.to_owned()),
+            ..FinalizeMeta::default()
+        };
+        let r = finalize(&c, Verdict::allow(), EnforcementMode::Enforce, meta);
+        assert!(!r.proceeds());
+        assert_eq!(r.verdict.reason.as_deref(), Some("host_error:context_invalid"));
+        assert!(r.enforced_identity.is_none());
+        assert!(r.input_identity.is_some());
+    }
+
+    #[test]
+    fn envelope_invalid_never_plausible() {
+        // NEXT-01/§10.3: an invalid envelope cannot earn a normal
+        // verdict or identities, whatever the caller passed.
+        let mut c = ctx("pre_tool_call", json!({}));
+        c.remove("session");
+        let meta = FinalizeMeta {
+            input_identity: Some("sha256:beef".into()),
+            identity_provider: Some(JCS_SHA256.to_owned()),
+            ..FinalizeMeta::default()
+        };
+        let r = finalize(&c, Verdict::allow(), EnforcementMode::Enforce, meta);
+        assert!(!r.proceeds());
+        assert_eq!(r.verdict.reason.as_deref(), Some("host_error:context_invalid"));
+        assert!(r.input_identity.is_none() && r.enforced_identity.is_none());
+        assert_eq!(r.session_id, "");
+    }
+
+    #[test]
+    fn knob_defaults_recorded() {
+        // §7.2/§10.3: records carry resolved knobs even when the host
+        // left them unset.
+        let c = ctx("pre_tool_call", json!({}));
+        let r = finalize(&c, Verdict::allow(), EnforcementMode::Enforce, default_meta(&c));
+        assert_eq!(
+            r.composition.on_approval,
+            Some(crate::composition::OnApproval::Stop)
+        );
+        assert!(r.composition.on_disagreement.is_none());
+    }
+
 }

@@ -451,3 +451,63 @@ test("evidence beyond 10240 canonical bytes fails the §5 gate (D5)", async () =
   assert.equal(r.verdict.decision, Decision.Deny);
   assert.equal(r.verdict.reason, HostError.VerdictInvalid);
 });
+
+// ---- NEXT-01/04/05/06 record semantics ------------------------------------
+
+test("envelope: missing conditional field fails closed pre-dispatch", async () => {
+  const em = new InterceptionEmitter();
+  let ran = false;
+  em.register({ intercept: () => { ran = true; return { decision: "allow" }; } });
+  const c = ctx();
+  delete c.tool_call;
+  const r = await em.emitUnchecked(c);
+  assert.equal(r.verdict.reason, "host_error:context_invalid");
+  assert.equal(ran, false);
+  assert.equal(r.input_identity, null);
+  assert.equal(r.interceptors_registered, 1);
+});
+
+test("provider name rules enforced (§10.1)", () => {
+  const em = new InterceptionEmitter();
+  assert.throws(() => em.setIdentityProvider({ name: "jcs-fake", fn: () => "x" }));
+  assert.throws(() => em.setIdentityProvider({ name: "Bad", fn: () => "x" }));
+  em.setIdentityProvider({ name: "myco-hash", fn: () => "x" });
+});
+
+test("custom provider failure fails closed, type-name-only detail", async () => {
+  const em = new InterceptionEmitter();
+  em.setIdentityProvider({
+    name: "myco-hash",
+    fn: () => { throw new Error("SECRET-PAYLOAD"); },
+  });
+  em.register({ intercept: () => ({ decision: "allow" }) });
+  const r = await em.emitUnchecked(ctx());
+  assert.equal(r.verdict.reason, "host_error:context_invalid");
+  assert.ok(!(r.verdict.message ?? "").includes("SECRET-PAYLOAD"));
+  assert.equal(r.identity_provider, "myco-hash");
+});
+
+test("rejected consultation records resolved_by rejection (§10.3)", async () => {
+  const em = new InterceptionEmitter("enforce", {
+    resolve: (req) => ({
+      outcome: "reject",
+      context_identity: req.context_identity,
+      verdict: { decision: "deny", reason: "no" },
+    }),
+  });
+  em.register({ intercept: () => Verdict.escalate("check") });
+  const r = await em.emitUnchecked(ctx());
+  assert.equal(r.resolved_by, "rejection");
+  assert.equal(r.verdict.reason, "no");
+});
+
+test("verdicts[].name carries registration names (§10.3)", async () => {
+  const em = new InterceptionEmitter();
+  em.setComposition(Composition.runAll());
+  em.register({ intercept: () => ({ decision: "allow" }) }, "pii-scan");
+  em.register({ intercept: () => ({ decision: "allow" }) });
+  const r = await em.emitUnchecked(ctx());
+  assert.equal(r.verdicts[0].name, "pii-scan");
+  assert.equal(r.verdicts[1].name, undefined);
+  assert.equal(r.interceptors_registered, 2);
+});

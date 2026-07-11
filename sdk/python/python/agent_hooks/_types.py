@@ -362,17 +362,24 @@ class VerdictSummary:
     index: int
     decision: Decision
     reason: str | None = None
+    #: Host-chosen payload-free registration identifier (§10.3).
+    name: str | None = None
 
     def to_wire(self) -> dict[str, Any]:
         out: dict[str, Any] = {"index": self.index, "decision": self.decision.value}
         if self.reason is not None:
             out["reason"] = self.reason
+        if self.name is not None:
+            out["name"] = self.name
         return out
 
     @classmethod
     def from_wire(cls, obj: dict[str, Any]) -> VerdictSummary:
         return cls(
-            index=obj["index"], decision=Decision(obj["decision"]), reason=obj.get("reason")
+            index=obj["index"],
+            decision=Decision(obj["decision"]),
+            reason=obj.get("reason"),
+            name=obj.get("name"),
         )
 
 
@@ -413,12 +420,16 @@ class InterceptionRecord:
     #: (``sequential/run_all``, ``parallel/*``).
     verdicts: tuple[VerdictSummary, ...] = ()
     #: ``True`` iff one or more registered interceptors were never
-    #: invoked in this emission. Defined only for
-    #: ``sequential/first_deny`` (§7.4).
+    #: invoked in this emission (short-circuit, approval-stop, or a
+    #: failed fold-transform). Defined for the sequential profiles
+    #: (§7.4).
     fold_truncated: bool | None = None
-    #: ``"approval"`` iff an approval resolution substituted for a
-    #: verdict in this emission (§7.6).
+    #: Consultation outcome (§7.6, §10.3): ``"approval"`` iff a permit
+    #: resolution substituted; ``"rejection"`` iff consulted without a
+    #: lift; ``None`` iff never consulted.
     resolved_by: str | None = None
+    #: Interceptors registered at emission time (§10.3).
+    interceptors_registered: int = 0
 
     @property
     def proceeds(self) -> bool:
@@ -451,6 +462,7 @@ class InterceptionRecord:
             out["fold_truncated"] = self.fold_truncated
         if self.resolved_by is not None:
             out["resolved_by"] = self.resolved_by
+        out["interceptors_registered"] = self.interceptors_registered
         return out
 
     @classmethod
@@ -472,4 +484,5 @@ class InterceptionRecord:
             ),
             fold_truncated=obj.get("fold_truncated"),
             resolved_by=obj.get("resolved_by"),
+            interceptors_registered=obj.get("interceptors_registered", 0),
         )

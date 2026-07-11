@@ -30,6 +30,10 @@ const char *ah_spec_version(void);
 
 AhResult *ah_canonical_json(const char *value_json);
 AhResult *ah_context_identity(const char *ctx_json);
+
+/* Section 4/6.3: envelope validation (fail closed, value-free detail).
+ * Ok value is the empty string. */
+AhResult *ah_validate_envelope(const char *ctx_json);
 AhResult *ah_validate_verdict(const char *verdict_json);
 AhResult *ah_apply_transform(const char *target_json, const char *path,
                              const char *value_json);

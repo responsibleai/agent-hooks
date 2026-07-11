@@ -77,7 +77,7 @@ export interface Harness {
     resolver: ApprovalResolver | null,
     mode: EnforcementMode,
     composition: CompositionConfig,
-    identityProvider: 'jcs-sha256' | null,
+    identityProvider: 'jcs-sha256' | 'ctk-fault' | null,
   ): void;
 
   run(): Promise<RunRecord>;

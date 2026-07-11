@@ -14,7 +14,8 @@
     "identity_provider",
     "session_id",
     "sequence",
-    "composition"
+    "composition",
+    "interceptors_registered"
   ],
   "properties": {
     "interception_point": {
@@ -69,8 +70,28 @@
         "string",
         "null"
       ],
-      "pattern": "^[a-z][a-z0-9_-]*$",
-      "description": "The declared identity provider (§10.1): \"jcs-sha256\", a host-defined id, or null (identity-unbound)."
+      "description": "The declared identity provider (§10.1): \"jcs-sha256\", a host-defined id (name rules enforced: ^[a-z][a-z0-9_-]*$ and never a jcs prefix), or null (identity-unbound).",
+      "anyOf": [
+        {
+          "const": null
+        },
+        {
+          "const": "jcs-sha256"
+        },
+        {
+          "allOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            },
+            {
+              "not": {
+                "pattern": "^jcs"
+              }
+            }
+          ]
+        }
+      ]
     },
     "session_id": {
       "type": "string",
@@ -155,6 +176,10 @@
               "string",
               "null"
             ]
+          },
+          "name": {
+            "type": "string",
+            "description": "Host-chosen payload-free registration identifier for the interceptor at index (§10.3)."
           }
         }
       },
@@ -162,7 +187,7 @@
     },
     "fold_truncated": {
       "type": "boolean",
-      "description": "true iff one or more registered interceptors were never invoked in this emission (short-circuit or approval-stop). Defined only for sequential/first_deny."
+      "description": "true iff one or more registered interceptors were never invoked in this emission (short-circuit, approval-stop, or a failed fold-transform). Defined for the sequential profiles (§7.4)."
     },
     "resolved_by": {
       "type": [
@@ -171,9 +196,15 @@
       ],
       "enum": [
         "approval",
+        "rejection",
         null
       ],
-      "description": "\"approval\" iff an approval resolution substituted for a verdict in this emission (§7.6)."
+      "description": "Consultation outcome (§7.6, §10.3): \"approval\" iff a permit resolution substituted for a verdict; \"rejection\" iff the seam was consulted and did not lift the deny; absent/null iff never consulted."
+    },
+    "interceptors_registered": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of interceptors registered at emission time (§10.3)."
     }
   },
   "allOf": [
@@ -198,6 +229,26 @@
         "required": [
           "verdicts"
         ]
+      }
+    },
+    {
+      "description": "§10.3: identities are null when identity_provider is null.",
+      "if": {
+        "properties": {
+          "identity_provider": {
+            "const": null
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "input_identity": {
+            "const": null
+          },
+          "enforced_identity": {
+            "const": null
+          }
+        }
       }
     }
   ]

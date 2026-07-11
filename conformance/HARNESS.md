@@ -123,3 +123,19 @@ pytest --agent-hooks-harness=my_pkg.MyFrameworkHarness \
 ```
 
 See per-language `sdk/<lang>/README.md` for the equivalent invocation.
+
+## Provider faults and envelope validation
+
+- `identity_provider: "ctk-fault"` in a vector means the harness MUST
+  declare a custom provider named `ctk-fault` whose compute function
+  fails on every call. It pins the §10.1 provider-failure rule: the
+  emission is denied `host_error:context_invalid` before any
+  interceptor runs, with null identities and the declared provider
+  name on the record.
+- Hosts validate the §4 envelope before dispatch (§10.2). The CTK
+  cannot express an invalid envelope through a scenario (harnesses
+  construct valid contexts by design), so envelope rejection is pinned
+  by core and per-SDK emitter tests rather than vectors.
+- `resolved_by` on asserted records distinguishes `"approval"`
+  (permit substitution) from `"rejection"` (consulted, not lifted);
+  absent means the seam was never consulted (§10.3).

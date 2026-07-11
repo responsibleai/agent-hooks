@@ -17,7 +17,11 @@ or baseline profiles — the claim attaches the CTK's **per-part report**
 communicates *what was exercised*, not a tier name.
 
 A claim with `identity_provider: null` MUST state that its records and
-approvals are identity-unbound (§10.1). A claim with
+approvals are identity-unbound (§10.1). A claim with a host-defined
+provider MUST disclose whether the provider is **content-derived**
+(a pure function of the projected context, like `jcs-sha256`) or not —
+approval binding and record correlation are only as strong as that
+property (§10.1). A claim with
 `buffered_output: false` MUST state that a `deny` at `output` cannot
 retract already-streamed content (§12.1a).
 

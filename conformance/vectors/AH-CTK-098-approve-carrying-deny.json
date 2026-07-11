@@ -1,7 +1,7 @@
 {
-  "id": "AH-CTK-031",
-  "title": "liftable deny at pre_tool_call: reject leaves the deny standing",
-  "spec_clause": "5.1, 9",
+  "id": "AH-CTK-098",
+  "title": "§9 resolution validation: approve carrying a deny is verdict_invalid (consistency step), consultation recorded as rejection",
+  "spec_clause": "9, 10.3",
   "part": "approval_seam",
   "capabilities": [
     "model_calls",
@@ -60,10 +60,10 @@
   "approval_script": [
     {
       "resolve": {
-        "outcome": "reject",
+        "outcome": "approve",
         "verdict": {
           "decision": "deny",
-          "reason": "ctk:rejected"
+          "reason": "ctk:not-a-permit"
         }
       }
     }
@@ -86,7 +86,7 @@
         "interception_point": "pre_tool_call",
         "assert": {
           "verdict.decision": "deny",
-          "verdict.reason": "ctk:rejected",
+          "verdict.reason": "host_error:verdict_invalid",
           "resolved_by": "rejection"
         }
       }
