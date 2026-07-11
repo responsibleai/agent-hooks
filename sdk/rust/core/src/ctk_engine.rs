@@ -386,6 +386,15 @@ fn assert_records(expect: &Value, rr: &RunRecord, failures: &mut Vec<String>) {
                 }
             }
         }
+        if let Some(absent) = e.get("absent").and_then(Value::as_array) {
+            for path in absent.iter().filter_map(Value::as_str) {
+                if let Some(got) = lookup(rec, path) {
+                    failures.push(format!(
+                        "record[{ri}] {want_ip}: {path} present ({got}), want absent"
+                    ));
+                }
+            }
+        }
         ri += 1;
     }
 }

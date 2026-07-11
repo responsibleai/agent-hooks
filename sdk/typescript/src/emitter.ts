@@ -368,10 +368,12 @@ export class InterceptionEmitter {
       pool.push(v);
       if (isHostSynthesized(v)) {
         // §6.3: malformed verdict fails closed and — in this profile —
-        // short-circuits like any deny.
+        // short-circuits like any deny. The failure deny is attributed
+        // to the failing interceptor (§10.3 decided_by), matching the
+        // aggregation profiles.
         return {
           combined: withUnions(v, pool),
-          decidedBy: null,
+          decidedBy: i,
           verdicts: summaries(perInterceptor),
           foldTruncated: truncated(i),
           resolvedBy,

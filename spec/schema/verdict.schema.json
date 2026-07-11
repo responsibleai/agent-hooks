@@ -5,29 +5,55 @@
   "description": "Interceptor return value (AGENT-HOOKS-0.1 §5). Three decisions: allow (absorbs warn via warnings[]), deny (absorbs escalate via the approval block), transform. A verdict carries decision content only; composition is host configuration (§7.1).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["decision"],
+  "required": [
+    "decision"
+  ],
   "properties": {
     "decision": {
       "type": "string",
-      "enum": ["allow", "deny", "transform"]
+      "enum": [
+        "allow",
+        "deny",
+        "transform"
+      ]
     },
     "reason": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "pattern": "^(?!host_error:).*",
       "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved for host-synthesized failures (§11)."
     },
     "message": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Human-readable text for the caller."
     },
     "warnings": {
-      "type": ["array", "null"],
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "reason": { "type": ["string", "null"], "pattern": "^(?!host_error:).*" },
-          "message": { "type": ["string", "null"] }
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?!host_error:).*"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         }
       },
       "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any decision; unioned across an emission's verdicts (§7.3)."
@@ -43,36 +69,71 @@
       "$ref": "#/$defs/evidence"
     },
     "result_labels": {
-      "type": ["array", "null"],
-      "items": { "type": "string" },
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
       "description": "Interceptor-supplied labels the host MUST persist with the produced data and resurface on later interception points (§5.4)."
     }
   },
   "allOf": [
     {
       "description": "transform body REQUIRED iff decision == transform (§5).",
-      "if": { "properties": { "decision": { "const": "transform" } } },
-      "then": { "required": ["transform"] },
-      "else": { "not": { "required": ["transform"] } }
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "transform"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "transform"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "transform"
+          ]
+        }
+      }
     },
     {
       "description": "approval block permitted only on deny (§5.1).",
-      "if": { "required": ["approval"] },
-      "then": { "properties": { "decision": { "const": "deny" } } }
+      "if": {
+        "required": [
+          "approval"
+        ]
+      },
+      "then": {
+        "properties": {
+          "decision": {
+            "const": "deny"
+          }
+        }
+      }
     }
   ],
   "$defs": {
     "transform": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["path", "value"],
+      "required": [
+        "path"
+      ],
       "properties": {
         "path": {
           "type": "string",
           "pattern": "^\\$(target|policy_target)(\\.|\\[|$)",
           "description": "JSONPath rooted at $target (§5.2). $policy_target is a deprecated alias accepted through agent-hooks v0.2."
         },
-        "value": true
+        "value": {
+          "description": "Any JSON value, including null. An absent member is equivalent to null (§5.2)."
+        }
       }
     },
     "evidence": {
@@ -80,12 +141,17 @@
       "additionalProperties": false,
       "properties": {
         "artefact": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof."
         },
         "verification_pointers": {
           "type": "object",
-          "additionalProperties": { "type": "string" },
+          "additionalProperties": {
+            "type": "string"
+          },
           "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14)."
         }
       }

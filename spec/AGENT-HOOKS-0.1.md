@@ -438,7 +438,7 @@ An interceptor MUST return a JSON object conforming to
 | `warnings` | no | Array of `{reason?, message?}` objects. Permitted on any decision. See §5.1. |
 | `approval` | no; only valid when `decision == "deny"` | JSON object (MAY be empty). Marks the deny as liftable by the approval seam (§9). MUST be absent for `allow` and `transform`. |
 | `transform` | iff `decision == "transform"` | See §5.2. MUST be absent for all other decisions. |
-| `evidence` | no | See §5.3. Serialized size MUST NOT exceed 4096 bytes. |
+| `evidence` | no | See §5.3. Serialized size MUST NOT exceed 10240 bytes. |
 | `result_labels` | no | Array of strings. See §5.4. |
 
 A host that receives a verdict that is not a JSON object, whose `decision` is
@@ -493,7 +493,9 @@ unconditionally denies, consulting an approver is pointless.
 - `path` segments follow the subset of JSONPath defined in
   `spec/schema/path-grammar.abnf`: dot-member (`.foo`), bracket-index (`[0]`),
   and bracket-member (`["foo"]`) only.
-- `value` is any JSON value, including `null`.
+- `value` is any JSON value, including `null`. An absent `value`
+  member is equivalent to `null` (the §10.3 record projection and SDK
+  marshalling layers omit null values, so the two forms MUST agree).
 - A host MUST resolve `path` against the context's `target` value and replace
   the addressed location with `value`. The replacement MUST NOT modify any
   other part of the `AgentContext`.
@@ -507,6 +509,14 @@ unconditionally denies, consulting an approver is pointless.
 `evidence` is an opaque pointer to an offline-verifiable artefact supporting
 the verdict. A host MUST NOT dereference `verification_pointers`. A host MUST
 propagate `evidence` to its audit sink unchanged when present.
+
+The size cap is measured as the UTF-8 byte length of the RFC 8785
+canonical JSON serialization (§10.2) of the `evidence` member. A
+verdict whose `evidence` exceeds 10240 bytes fails §5 validation: the
+host MUST treat the whole verdict as
+`{"decision": "deny", "reason": "host_error:verdict_invalid"}`. The
+bound keeps the interception record (§10.3), which carries `evidence`
+through, itself bounded.
 
 ### 5.4 Result labels
 
@@ -902,14 +912,36 @@ The provider never rewrites a value to make it canonicalizable.
 ### 10.3 The interception record
 
 A host MUST produce one **InterceptionRecord** per emission. The record
-is payload-free (it carries no context or target content) and MUST
-contain:
+is payload-free: it carries no context or target content. Because the
+combined verdict itself can carry target content (a `transform.value`
+is by definition a replacement for part of the target), the record
+MUST carry the **payload-free projection** of the combined verdict,
+not the verdict verbatim:
+
+- `decision`, `reason`, `result_labels`, and warning/message `reason`
+  fields are kept as-is;
+- `message` and each `warnings[].message` are truncated to at most
+  256 UTF-8 bytes (on a character boundary, with a trailing `…` when
+  truncated);
+- `approval` presence is kept but its members are stripped (an empty
+  object);
+- `transform.path` is kept; `transform.value` is DROPPED;
+- `evidence` is kept — it is an opaque offline pointer by design
+  (§5.3) and is bounded by the §5.3 size cap.
+
+The projection guarantees: a record never contains target-derived
+content beyond what an interceptor deliberately placed in a bounded
+`reason`/truncated `message`, and its size is bounded by the §5.3
+evidence cap plus fixed-size members. The full combined verdict
+remains available to the host in-process; only the record is
+projected. A host MUST NOT persist the unprojected verdict in place
+of the record.
 
 ```jsonc
 {
   "interception_point": "<§3>",
   "mode": "enforce" | "evaluate_only",
-  "verdict": <the combined verdict, §7.3>,
+  "verdict": <payload-free projection of the combined verdict, §7.3>,
   "input_identity": "<string>" | null,
   "enforced_identity": "<string>" | null,
   "identity_provider": "jcs-sha256" | "<host-defined>" | null,
@@ -935,7 +967,7 @@ contain:
 | `enforced_identity` | Provider output after composition completes (post-fold in sequential profiles). Equal to `input_identity` when no transform was applied, and always equal in `evaluate_only` mode. |
 | `identity_provider` | The declared provider (§10.1). |
 | `session_id`, `sequence` | Copied from the context; records are totally ordered within a session. |
-| `decided_by` | Registration index of the interceptor whose verdict won the aggregation (§7.3) or whose liftable deny was consulted (§7.6); `null` for a pure-allow combination or a host-synthesized verdict. |
+| `decided_by` | Registration index of the interceptor whose verdict won the aggregation (§7.3) or whose liftable deny was consulted (§7.6). A §6.3 failure deny (`interceptor_failed`, `interceptor_timeout`, `verdict_invalid`) carries the **failing interceptor's** index, in every profile. `null` is reserved for pure-allow combinations, §5.2 transform-application failures, and profile-synthesized verdicts (`transform_conflict`, `composition_disagreement`, `no_interceptor`, identity-provider rejection). |
 | `composition` | The profile and knobs in effect (§7.1). REQUIRED. |
 | `verdicts` | Payload-free per-interceptor summary `{index, decision, reason?}`. REQUIRED in multi-verdict profiles (`sequential/run_all`, `parallel/*`); OPTIONAL in `sequential/first_deny`. |
 | `fold_truncated` | `true` iff one or more registered interceptors were never invoked in this emission (short-circuit or approval-stop). Defined only for `sequential/first_deny`. |
@@ -989,6 +1021,20 @@ emitting `post_model_call`. A host that cannot assemble MUST emit
 `deny` self-verdict with `host_error:streaming_unsupported`, and MUST NOT
 incorporate the partial response.
 
+### 12.1a Streaming to the caller
+
+A host that streams output to its caller MUST buffer the stream and
+MUST NOT release any part of it to the caller until the `output`
+emission's combined verdict permits, UNLESS the host declares the
+capability `buffered_output: false` in its conformance surface (§13.1).
+
+A host declaring `buffered_output: false` remains conformant, but a
+`deny` at `output` then cannot retract content already streamed; the
+declaration makes that limitation visible in the conformance claim
+(§13.3) rather than leaving it implied. The CTK drives hosts with
+mocked I/O and therefore cannot exercise streaming egress; this
+capability is declaration-only.
+
 ### 12.2 Parallel tool calls
 
 When a model response carries N tool calls, the host MAY invoke the
@@ -1028,9 +1074,11 @@ fail closed (`host_error:context_invalid`) on breach:
   the parser's recursion limit).
 
 These are operational defaults, not conformance-gated limits; a host
-that declares different bounds remains conformant. Normative fixed
-limits are an open design question (the CTK cannot pin host-tunable
-values).
+that declares different bounds remains conformant (the CTK cannot pin
+host-tunable values). What is normative is the failure mode: breach of
+whatever size or depth limit the host or the shipped core enforces
+MUST yield `deny` with `host_error:context_invalid`, and MUST NOT
+crash the process or silently truncate the context.
 
 ---
 
@@ -1043,7 +1091,9 @@ There are no conformance tiers, levels, or baseline profiles. A host
 
 - its capability subset (§3.2), including value-domain capabilities
   the CTK defines (e.g. `int64_json`: the language can observe a JSON
-  integer beyond ±(2⁵³−1) without rounding — JavaScript hosts cannot),
+  integer beyond ±(2⁵³−1) without rounding — JavaScript hosts cannot)
+  and the egress capability `buffered_output` (§12.1a; defaults to
+  `true`, and `false` MUST be declared explicitly),
 - the composition profiles and knob values it supports (§7.2),
 - its identity provider (§10.1).
 
@@ -1080,7 +1130,9 @@ A conformance claim is the tuple
 `(<framework>, <adapter-version>, agent-hooks/<spec-version>, <capabilities>, <profiles>, <identity-provider>, <sdk-lang>@<sdk-version>)`
 plus the CTK report, recorded in `conformance/CLAIMS.md`. A claim with
 `identity_provider: null` MUST state that its approvals and records are
-identity-unbound.
+identity-unbound. A claim with `buffered_output: false` MUST state
+that a `deny` at `output` cannot retract already-streamed content
+(§12.1a).
 
 ---
 

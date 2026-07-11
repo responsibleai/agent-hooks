@@ -114,10 +114,10 @@ pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
                     format!("transform.path must be rooted at $target (got {path:?})"),
                 ));
             }
-            let value = t
-                .get("value")
-                .cloned()
-                .ok_or((HostError::VerdictInvalid, "transform.value missing".into()))?;
+            // §5.2: value is any JSON value including null; an absent
+            // member is equivalent to null (the record projection and
+            // SDK marshalling drop nulls, so the two forms MUST agree).
+            let value = t.get("value").cloned().unwrap_or(Value::Null);
             Some(Transform {
                 path: path.to_string(),
                 value,
@@ -160,6 +160,22 @@ pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
             ))
         }
     };
+    if let Some(e) = &evidence {
+        // §5.3 size cap: UTF-8 bytes of the canonical serialization of
+        // the evidence member (as it propagates to the record).
+        let v = serde_json::to_value(e)
+            .map_err(|e| (HostError::VerdictInvalid, format!("evidence: {e}")))?;
+        let n = crate::canonical::canonical_json(&v).len();
+        if n > crate::types::EVIDENCE_MAX_BYTES {
+            return Err((
+                HostError::VerdictInvalid,
+                format!(
+                    "evidence canonical size {n} exceeds {} bytes (\u{00a7}5.3)",
+                    crate::types::EVIDENCE_MAX_BYTES
+                ),
+            ));
+        }
+    }
 
     let result_labels = match obj.get("result_labels") {
         None | Some(Value::Null) => Vec::new(),
@@ -293,5 +309,40 @@ mod tests {
             "transform": {"path": "$target.x", "value": 1}
         }))
         .is_err());
+    }
+
+    #[test]
+    fn evidence_over_cap_fails_wire_gate() {
+        let big = "x".repeat(crate::types::EVIDENCE_MAX_BYTES + 1);
+        let raw = serde_json::json!({
+            "decision": "allow",
+            "evidence": {"artefact": big}
+        });
+        let (e, d) = from_wire(&raw).unwrap_err();
+        assert_eq!(e, HostError::VerdictInvalid);
+        assert!(d.contains("exceeds 10240"));
+    }
+
+    #[test]
+    fn evidence_at_cap_passes() {
+        // canonical form: {"artefact":"<pad>"} — 15 bytes of framing.
+        let pad = "x".repeat(crate::types::EVIDENCE_MAX_BYTES - 15);
+        let raw = serde_json::json!({
+            "decision": "allow",
+            "evidence": {"artefact": pad}
+        });
+        assert!(from_wire(&raw).is_ok());
+    }
+
+    #[test]
+    fn evidence_cap_enforced_by_struct_validate() {
+        let v = crate::types::Verdict {
+            evidence: Some(crate::types::Evidence {
+                artefact: Some("x".repeat(crate::types::EVIDENCE_MAX_BYTES + 1)),
+                verification_pointers: Default::default(),
+            }),
+            ..crate::types::Verdict::allow()
+        };
+        assert_eq!(v.validate(), Err(HostError::VerdictInvalid));
     }
 }

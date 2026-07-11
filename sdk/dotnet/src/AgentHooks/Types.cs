@@ -326,11 +326,14 @@ public sealed record Verdict(
             }).ToArray());
         if (Approval is not null) o["approval"] = Approval.DeepClone();
         if (Transform is not null)
-            o["transform"] = new JsonObject
-            {
-                ["path"] = Transform.Path,
-                ["value"] = Transform.Value?.DeepClone(),
-            };
+        {
+            // Mirrors the core: value serialized only when non-null —
+            // the §10.3 record projection drops it. The §5 wire gate
+            // checks presence for interceptor verdicts in the core.
+            var to = new JsonObject { ["path"] = Transform.Path };
+            if (Transform.Value is not null) to["value"] = Transform.Value.DeepClone();
+            o["transform"] = to;
+        }
         if (Evidence is not null)
         {
             var e = new JsonObject();

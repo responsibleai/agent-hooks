@@ -33,6 +33,7 @@
 
 mod builder;
 mod canonical;
+mod jcs;
 pub mod composition;
 mod emitter;
 mod enforce;

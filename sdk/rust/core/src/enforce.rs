@@ -107,11 +107,54 @@ pub struct FinalizeMeta {
     pub resolved_by: Option<&'static str>,
 }
 
+/// Truncate to at most 256 UTF-8 bytes on a character boundary,
+/// appending `…` when truncated (§10.3 projection).
+fn truncate_message(s: &str) -> String {
+    const MAX: usize = 256;
+    if s.len() <= MAX {
+        return s.to_owned();
+    }
+    let mut end = MAX;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}…", &s[..end])
+}
+
+/// §10.3: the payload-free projection of a combined verdict. Drops
+/// `transform.value` (target content by definition), strips `approval`
+/// members, and truncates free-form messages; everything else — the
+/// bounded, non-target-derived members — passes through.
+pub fn payload_free_projection(v: &Verdict) -> Verdict {
+    Verdict {
+        decision: v.decision,
+        reason: v.reason.clone(),
+        message: v.message.as_deref().map(truncate_message),
+        warnings: v
+            .warnings
+            .iter()
+            .map(|w| crate::types::Warning {
+                reason: w.reason.clone(),
+                message: w.message.as_deref().map(truncate_message),
+            })
+            .collect(),
+        approval: v.approval.as_ref().map(|_| serde_json::Map::new()),
+        transform: v.transform.as_ref().map(|t| Transform {
+            path: t.path.clone(),
+            value: Value::Null,
+        }),
+        evidence: v.evidence.clone(),
+        result_labels: v.result_labels.clone(),
+    }
+}
+
 /// Build the [`InterceptionRecord`] for one completed emission (§10.3).
 /// `meta.input_identity` MUST have been computed from the context
 /// **before** interceptor dispatch; `enforced_identity` is computed
 /// here (default provider) from the post-composition context, so the
-/// two differ exactly when a transform was applied.
+/// two differ exactly when a transform was applied. The record carries
+/// the [`payload_free_projection`] of the combined verdict, never the
+/// verdict verbatim.
 pub fn finalize(ctx: &AgentContext, verdict: Verdict, mode: EnforcementMode, meta: FinalizeMeta) -> InterceptionRecord {
     let ip = interception_point_of(ctx).unwrap_or(InterceptionPoint::AgentStartup);
     let session_id = ctx
@@ -130,7 +173,7 @@ pub fn finalize(ctx: &AgentContext, verdict: Verdict, mode: EnforcementMode, met
     InterceptionRecord {
         interception_point: ip,
         mode,
-        verdict,
+        verdict: payload_free_projection(&verdict),
         input_identity: meta.input_identity,
         enforced_identity,
         identity_provider: meta.identity_provider,
@@ -293,5 +336,67 @@ mod tests {
             validate_transform(&c, &Transform { path: "$target.missing.x".into(), value: json!(0) }),
             Err(HostError::TransformInvalid)
         );
+    }
+
+    #[test]
+    fn projection_drops_transform_value_and_strips_approval() {
+        let mut approval = serde_json::Map::new();
+        approval.insert("ticket".into(), json!("T-1"));
+        let v = Verdict {
+            decision: crate::types::Decision::Transform,
+            transform: Some(Transform {
+                path: "$target.url".into(),
+                value: json!({"secret": "payload"}),
+            }),
+            approval: None,
+            message: Some("x".repeat(300)),
+            ..Verdict::allow()
+        };
+        let p = payload_free_projection(&v);
+        // The projected transform serializes without a value member.
+        let wire = serde_json::to_value(&p).unwrap();
+        assert!(wire["transform"].get("value").is_none());
+        let t = p.transform.expect("path kept");
+        assert_eq!(t.path, "$target.url");
+        assert!(t.value.is_null());
+        let msg = p.message.expect("message kept");
+        assert!(msg.ends_with('…') && msg.len() <= 256 + '…'.len_utf8());
+
+        let d = Verdict {
+            approval: Some(approval),
+            ..Verdict::escalate(Some("r".into()), None)
+        };
+        let pd = payload_free_projection(&d);
+        assert_eq!(pd.approval, Some(serde_json::Map::new()));
+    }
+
+    #[test]
+    fn projection_truncates_on_char_boundary() {
+        let v = Verdict {
+            message: Some("é".repeat(200)), // 400 UTF-8 bytes
+            ..Verdict::allow()
+        };
+        let m = payload_free_projection(&v).message.unwrap();
+        assert!(m.len() <= 256 + '…'.len_utf8());
+        assert!(m.ends_with('…'));
+        assert!(m.chars().all(|c| c == 'é' || c == '…'));
+    }
+
+    #[test]
+    fn finalize_records_projected_verdict() {
+        let mut c = ctx("pre_tool_call", json!({"url": "evil"}));
+        let t = Transform {
+            path: "$target.url".into(),
+            value: json!("safe"),
+        };
+        apply_transform_to_ctx(&mut c, &t).unwrap();
+        let v = Verdict {
+            decision: crate::types::Decision::Transform,
+            transform: Some(t),
+            ..Verdict::allow()
+        };
+        let r = finalize(&c, v, EnforcementMode::Enforce, FinalizeMeta::default());
+        let rt = r.verdict.transform.expect("path kept on record");
+        assert!(rt.value.is_null());
     }
 }

@@ -47,3 +47,19 @@ def test_decided_by_none_on_host_synthesized() -> None:
     record = asyncio.run(em.emit_unchecked(_ctx()))
     assert record.verdict.reason == "host_error:no_interceptor"
     assert record.decided_by is None
+
+
+class _Raises:
+    def intercept(self, context):
+        raise RuntimeError("boom")
+
+
+def test_failure_deny_attributed_to_failing_interceptor() -> None:
+    # §10.3: a §6.3 failure deny carries the FAILING interceptor's
+    # index, in every profile (D3, decisions/2026-07-11).
+    em = InterceptionEmitter()
+    em.register(_Allow()).register(_Raises()).register(_Allow())
+    record = asyncio.run(em.emit_unchecked(_ctx()))
+    assert record.verdict.reason == "host_error:interceptor_failed"
+    assert record.decided_by == 1
+    assert record.fold_truncated is True

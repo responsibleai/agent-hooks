@@ -421,3 +421,33 @@ test("Infinity in an interceptor's verdict fails the §5 gate", async () => {
   assert.match(r.verdict.message, /non-finite/);
   assert.equal(c.target.url, "evil", "corrupted transform never applied");
 });
+
+test("first_deny: failure deny attributed to failing interceptor (§10.3 D3)", async () => {
+  const e = new InterceptionEmitter(EnforcementMode.Enforce, null);
+  e.register(scripted(Verdict.allow()));
+  e.register({ intercept: () => { throw new Error("boom"); } });
+  e.register(scripted(Verdict.allow()));
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.reason, HostError.InterceptorFailed);
+  assert.equal(r.decided_by, 1);
+  assert.equal(r.fold_truncated, true);
+});
+
+test("record verdict is the payload-free projection (§10.3 D2)", async () => {
+  const e = new InterceptionEmitter(EnforcementMode.Enforce, null);
+  e.register(scripted(transform("$target.url", "safe")));
+  const c = ctx();
+  const r = await e.emitUnchecked(c);
+  assert.equal(r.verdict.decision, Decision.Transform);
+  assert.equal(r.verdict.transform.path, "$target.url");
+  assert.equal("value" in r.verdict.transform, false, "record drops transform.value");
+  assert.equal(c.target.url, "safe", "in-process enforcement unaffected");
+});
+
+test("evidence beyond 10240 canonical bytes fails the §5 gate (D5)", async () => {
+  const e = new InterceptionEmitter(EnforcementMode.Enforce, null);
+  e.register(scripted({ decision: "allow", evidence: { artefact: "x".repeat(10300) } }));
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.equal(r.verdict.reason, HostError.VerdictInvalid);
+});

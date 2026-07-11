@@ -3,7 +3,7 @@
 //! The `jcs-sha256` identity provider (§10.1–§10.2).
 //!
 //! §10.2's canonical form is RFC 8785 (JSON Canonicalization Scheme),
-//! delegated to the `serde_jcs` crate: object members sorted by UTF-16
+//! performed by the vendored JCS serializer (`jcs.rs`): object members sorted by UTF-16
 //! code units, numbers per ECMA-262 `Number::toString`, minimal string
 //! escapes.
 //!
@@ -21,6 +21,7 @@
 //! before this module runs.
 
 use crate::types::{AgentContext, HostError};
+use crate::jcs;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fmt::Write;
@@ -124,7 +125,7 @@ pub fn scan_raw_integer_domain(text: &str) -> Result<(), (HostError, String)> {
 
 /// Serialize `v` per §10.2 (RFC 8785 / JCS).
 pub fn canonical_json(v: &Value) -> String {
-    serde_jcs::to_string(v).expect("JCS serialization of in-memory Value cannot fail")
+    jcs::to_string(v).expect("JCS serialization of in-memory Value cannot fail")
 }
 
 /// Field whitelist: `(key, allowed_subfields)`. `None` = keep value whole.

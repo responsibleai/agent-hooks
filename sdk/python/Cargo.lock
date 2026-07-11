@@ -16,8 +16,8 @@ name = "agent-hooks-sdk"
 version = "0.1.0-alpha.2"
 dependencies = [
  "async-trait",
+ "ryu-js",
  "serde",
- "serde_jcs",
  "serde_json",
  "sha2",
  "thiserror",
@@ -233,17 +233,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "serde_jcs"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3a60f3fda61525e439ef6d67422118f11e986566997d9021c56867ad814a0aa"
-dependencies = [
- "ryu-js",
- "serde",
- "serde_json",
 ]
 
 [[package]]

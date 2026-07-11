@@ -312,10 +312,13 @@ impl InterceptionEmitter {
             pool.push(v.clone());
             if is_host_synthesized(&v) {
                 // §6.3: malformed verdict fails closed and — in this
-                // profile — short-circuits like any deny.
+                // profile — short-circuits like any deny. The failure
+                // deny is attributed to the failing interceptor
+                // (§10.3 decided_by), matching the aggregation
+                // profiles.
                 return DispatchOutcome {
                     combined: with_unions(v, &pool),
-                    decided_by: None,
+                    decided_by: Some(idx),
                     verdicts: summaries(&per_interceptor),
                     fold_truncated: truncated(i),
                     resolved_by,
@@ -1026,5 +1029,36 @@ mod tests {
         // §6.1a: the liftable deny is recorded, the seam untouched.
         assert!(r.verdict.is_liftable());
         assert_eq!(r.resolved_by, None);
+    }
+
+    /// Returns a §5-invalid value so the host synthesizes the §6.3
+    /// failure deny in the interceptor's slot.
+    struct Malformed;
+    #[async_trait]
+    impl Interceptor for Malformed {
+        async fn intercept(&self, _ctx: &AgentContext) -> Verdict {
+            Verdict {
+                reason: Some("host_error:forged".into()),
+                ..Verdict::allow()
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn first_deny_attributes_failure_deny_to_failing_interceptor() {
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.register(Box::new(Scripted(Verdict::allow())));
+        e.register(Box::new(Malformed));
+        e.register(Box::new(Scripted(Verdict::allow())));
+        let mut c = ctx();
+        let r = e.emit_unchecked(&mut c).await;
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:verdict_invalid")
+        );
+        // §10.3: the §6.3 failure deny carries the FAILING
+        // interceptor's index in every profile.
+        assert_eq!(r.decided_by, Some(1));
+        assert_eq!(r.fold_truncated, Some(true));
     }
 }

@@ -450,9 +450,11 @@ class InterceptionEmitter:
             pool.append(v)
             if _is_host_synthesized(v):
                 # §6.3: malformed verdict fails closed and — in this
-                # profile — short-circuits like any deny.
+                # profile — short-circuits like any deny. The failure
+                # deny is attributed to the failing interceptor (§10.3
+                # decided_by), matching the aggregation profiles.
                 return _Outcome(
-                    _with_unions(v, pool), None, _summaries(per), truncated(i), resolved_by
+                    _with_unions(v, pool), i, _summaries(per), truncated(i), resolved_by
                 )
 
             if v.decision is Decision.DENY:

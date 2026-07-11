@@ -393,9 +393,13 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 		pool = append(pool, v)
 		if isHostSynthesized(v) {
 			// §6.3: a malformed verdict fails closed and — in this
-			// profile — short-circuits like any deny.
+			// profile — short-circuits like any deny. The failure deny
+			// is attributed to the failing interceptor (§10.3
+			// decided_by), matching the aggregation profiles.
+			idx := i
 			return dispatchOutcome{
 				combined:      withUnions(v, pool),
+				decidedBy:     &idx,
 				verdicts:      summaries(perInterceptor),
 				foldTruncated: truncated(i),
 				resolvedBy:    resolvedBy,

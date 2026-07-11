@@ -37,6 +37,7 @@ env:
 jobs:
   python:
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: read
       id-token: write # PyPI trusted publishing + provenance attestation
@@ -70,6 +71,7 @@ jobs:
 
   rust:
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: read
       id-token: write
@@ -99,6 +101,7 @@ jobs:
 
   typescript:
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: read
       id-token: write # npm --provenance + attestation
@@ -129,6 +132,7 @@ jobs:
 
   dotnet:
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: read
       id-token: write

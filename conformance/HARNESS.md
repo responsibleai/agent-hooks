@@ -102,6 +102,14 @@ coerces such literals to a double at load — which is exactly the
 coercion class the core's raw-text scan (§10.2) exists to reject; see
 `AH-CTK-091`.
 
+`buffered_output` (§12.1a) is **declaration-only**: it defaults to
+`true` (the host buffers caller-bound output until the `output`
+combined verdict permits), and a host that streams to its caller
+without buffering declares `buffered_output: false` in its surface and
+claim. The CTK drives hosts with mocked I/O and cannot exercise
+streaming egress, so no vector carries this capability — the
+declaration exists to make the retraction limitation visible (§13.3).
+
 Non-finite floats (NaN/Infinity) and lone surrogates cannot be
 expressed in a JSON vector at all — those §4.4 marshalling guards are
 pinned by per-SDK unit tests, not vectors.
