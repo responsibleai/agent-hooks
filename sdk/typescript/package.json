@@ -33,9 +33,9 @@
     "test": "npm run build && node --test test/*.mjs"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^2.18.0",
-    "@types/node": "^22.0.0",
-    "typescript": "^5.5.0"
+    "@napi-rs/cli": "^3.7.2",
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2"
   },
   "engines": {
     "node": ">=20"
