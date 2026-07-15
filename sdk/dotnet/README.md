@@ -41,3 +41,32 @@ if (!record.Proceeds) return ToolError(record.Verdict.Reason);
 `Verdict.Warn(..)` / `Verdict.Escalate(..)` are the §5 constructor
 shortcuts. Run the conformance tests with
 `LD_LIBRARY_PATH=../rust/target/release dotnet test`.
+
+## Native library deployment
+
+`ResponsibleAI.AgentHooks` P/Invokes `libagent_hooks_ffi`; the current
+NuGet package does **not** bundle it. Build it once per target platform
+(`cargo build --release -p agent-hooks-ffi` under `sdk/rust`) and make
+it resolvable at process start:
+
+| OS | Artifact | Resolution |
+| --- | --- | --- |
+| Linux | `libagent_hooks_ffi.so` | `LD_LIBRARY_PATH`, or place next to the app binary |
+| macOS | `libagent_hooks_ffi.dylib` | `DYLD_LIBRARY_PATH`, or next to the app binary |
+| Windows | `agent_hooks_ffi.dll` | `PATH`, or next to the app binary |
+
+For self-contained deployment, ship the library app-local using the
+standard RID layout — add to your **application** csproj:
+
+```xml
+<ItemGroup>
+  <None Include="path/to/libagent_hooks_ffi.so"
+        Link="runtimes/linux-x64/native/libagent_hooks_ffi.so"
+        CopyToOutputDirectory="PreserveNewest" />
+</ItemGroup>
+```
+
+A missing library fails at first native call with `DllNotFoundException`
+naming `agent_hooks_ffi` — it is a deployment error, not a package bug.
+Per-RID bundling inside the NuGet package (`runtimes/<rid>/native/`) is
+planned but not yet shipped.

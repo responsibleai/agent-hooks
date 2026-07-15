@@ -75,3 +75,12 @@ abi3 stable ABI (Python) and napi (Node) minimize the matrix. Go via cgo
 loses `CGO_ENABLED=0` cross-compilation and pure-static binaries; hosts
 that require pure-Go should vendor the golden vectors and treat the Rust
 core as the reference oracle. This is documented, not hidden.
+Per-OS deployment of the native artefact is covered in each SDK's
+README ("Native library deployment").
+
+## Design decisions
+
+Contract-level decisions are made through written proposals under
+[`docs/proposals/`](docs/proposals/README.md) (P-001..P-004 to date:
+verdict algebra, composition profiles, identity provider seam). The
+proposal README defines which change classes require one.

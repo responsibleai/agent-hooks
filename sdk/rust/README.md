@@ -45,3 +45,12 @@ feature; timeouts are host-owned (see the `emitter` module docs).
 
 Golden identity vectors pin byte-identical canonicalization across all
 five SDKs: `cargo test --workspace --all-features`.
+
+## Native artifact notes
+
+Rust hosts consume the `agent-hooks-sdk` crate directly — no dynamic
+library involved. The `ffi/` crate (cdylib `libagent_hooks_ffi`) exists
+for the other four SDKs; build it with
+`cargo build --release -p agent-hooks-ffi` when developing against
+Python/TypeScript/.NET/Go locally (their READMEs cover per-OS
+placement).

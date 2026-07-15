@@ -7,8 +7,10 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Native library resolved at runtime via NativeLibrary search paths.
-         Packaging: the release workflow bundles libagent_hooks_ffi per RID
-         under runtimes/<rid>/native/. For local dev, set
+         Packaging: the current NuGet package does NOT bundle
+         libagent_hooks_ffi; consumers make it resolvable per OS (see
+         README "Native library deployment"). Per-RID bundling under
+         runtimes/<rid>/native/ is planned. For local dev, set
          LD_LIBRARY_PATH / DYLD_LIBRARY_PATH / PATH to sdk/rust/target/release. -->
   </ItemGroup>
 </Project>

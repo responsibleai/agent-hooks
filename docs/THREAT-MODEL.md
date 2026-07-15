@@ -1,8 +1,9 @@
 # Threat model
 
-> **Status:** Draft, refreshed 2026-07-11 against the P-003/P-004
+> **Status:** Draft, refreshed 2026-07-15 against the P-003/P-004
 > contract (three-verdict model, composition profiles, identity
-> provider seam). Companion to [`SECURITY.md`](../SECURITY.md) and
+> provider seam) including the approval-redaction and record-sink
+> mechanisms. Companion to [`SECURITY.md`](../SECURITY.md) and
 > [spec §1.4](../spec/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
 > Every threat row names its mitigation (spec clause) and how that
 > mitigation is verified today. Rows marked **GAP** are known-untested;
@@ -64,6 +65,8 @@ SDKs; **GAP** = no automated verification exists.
 | TM-19 | Control skipping after approval: under `sequential/first_deny` + `on_approval: "stop"`, interceptors after the escalating one never run for that emission | E | In | §7.4: the skip is never silent — `fold_truncated: true` + `resolved_by: "approval"` MUST appear on the record; §14 RECOMMENDS registering must-run controls before escalation-capable ones; `run_all`/parallel profiles avoid the skip structurally | AH-CTK-030 (asserts `fold_truncated`/`resolved_by`), AH-CTK-080 (resume variant). Residual (accepted for 0.1, P-003): a must-run control needing *post-transform* context cannot be ordered before an escalating interceptor |
 | TM-20 | Synthesized-deny approval routing: with `on_transform_conflict`/`on_disagreement: "approval"`, the host manufactures a liftable deny (`decided_by: null`) and a resolver — possibly automated — can lift a conflict no interceptor chose to permit | E, T | In | §7.5: synthesis policies are host configuration from a closed set; the synthesized deny crosses the same §9 seam (echo rule, §5 gate on the resolution); reason is a reserved `host_error:*` string so the approver sees it is host-synthesized | AH-CTK-085/086 (conflict, both knobs), AH-CTK-087/088 (disagreement, both knobs) |
 | TM-21 | Control-plane crash as denial of service: malformed or adversarial content panics the core and kills the host process through the C ABI, or a panicking interceptor kills a Go host | D | In | Every `ah_*` entry point runs under `catch_unwind` (panic → error result, process survives); marshalling failures are explicit errors, never silent coercions; Go emitter `recover()`s interceptor/resolver panics into §6.3 denies | `sdk/rust/ffi/src/lib.rs` tests (invalid UTF-8, null pointer, big-int through the ABI); `sdk/go/agenthooks/emitter_test.go` panic tests |
+| TM-22 | Approval-channel payload exposure: the `ApprovalRequest` ships the full context to the resolver (and its UI/transport) by default, and a broken redactor could leak or bind the approval to content the approver never saw | I | In | §9: `request.context` MAY be redacted; the emitter redaction seam computes the request identity over the **redacted** context, so the echo-rule binding covers exactly what the approver saw; a raising/panicking redactor fails closed (`host_error:approval_resolver_failed`) | AH-CTK-099 (redaction + recomputed echo) + per-SDK seam tests. Residual: redaction policy content is host-defined; `extensions.<host>.redacted` disclosure is a SHOULD (§14) |
+| TM-23 | Audit-record loss: retention overflow or a failing record sink silently truncates the trail the payload-free design exists to preserve | R | In | Emitter retention is drop-oldest with a monotonic `records_dropped` counter (never silent); sink callback failures are swallowed **by design** — audit transport must not alter control flow (§6) — so sink health is a host monitoring obligation; `sequence` totality (§12.2) makes any loss detectable downstream | Per-SDK sink/retention tests (PR2 suite). Residual: a host that neither drains the sink nor watches `records_dropped` loses records knowingly — alerting guidance in docs/OPERATIONS.md §3 |
 
 ## 3. Out of scope
 

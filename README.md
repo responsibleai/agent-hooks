@@ -39,6 +39,11 @@ the normative statement.
 | [`conformance/HARNESS.md`](conformance/HARNESS.md) | How to write a harness for your framework |
 | [`sdk/python/`](sdk/python/) | Reference SDK: types + emitter + **complete CTK runner** |
 | [`sdk/{rust,typescript,dotnet,go}/`](sdk/) | Bindings over the Rust core: types, emitter, CTK runner, ReferenceHarness |
+| [`docs/PRODUCTION.md`](docs/PRODUCTION.md) / [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Production checklist and operations runbook for host operators |
+| [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md) | Threat catalog with mitigation→verification traceability |
+| [`docs/CONTROLS-MAPPING.md`](docs/CONTROLS-MAPPING.md) / [`docs/INTEROP.md`](docs/INTEROP.md) | OWASP/NIST mapping; MCP and A2A interop guidance |
+| [`docs/proposals/`](docs/proposals/) | Design proposals (process in [`docs/proposals/README.md`](docs/proposals/README.md)) |
+| [`GOVERNANCE.md`](GOVERNANCE.md) / [`CONTRIBUTING.md`](CONTRIBUTING.md) / [`CHANGELOG.md`](CHANGELOG.md) | Project governance, contribution rules, change history |
 
 ## The contract in one diagram
 
@@ -77,6 +82,10 @@ and [`conformance/HARNESS.md`](conformance/HARNESS.md).
 
 **Interceptor:** implement `Interceptor.intercept(AgentContext) -> Verdict`
 in any SDK; register with the host.
+
+**Running it in production:** read [`docs/PRODUCTION.md`](docs/PRODUCTION.md)
+(the decisions to make consciously) and [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
+(failure reasons, rollout, alerting) first.
 
 **Prove conformance:**
 
