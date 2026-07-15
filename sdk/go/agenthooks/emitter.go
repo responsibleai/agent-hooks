@@ -393,13 +393,13 @@ func (e *InterceptionEmitter) EmitUnchecked(ctx context.Context, actx AgentConte
 	}
 
 	opts := map[string]any{
-		"input_identity":    inputID,
-		"identity_provider": e.identity.name(),
-		"decided_by":        outcome.decidedBy,
-		"composition":       e.composition,
-		"verdicts":          outcome.verdicts,
-		"fold_truncated":    outcome.foldTruncated,
-		"resolved_by":       outcome.resolvedBy,
+		"input_identity":          inputID,
+		"identity_provider":       e.identity.name(),
+		"decided_by":              outcome.decidedBy,
+		"composition":             e.composition,
+		"verdicts":                outcome.verdicts,
+		"fold_truncated":          outcome.foldTruncated,
+		"resolved_by":             outcome.resolvedBy,
 		"interceptors_registered": len(e.interceptors),
 	}
 	if e.identity != nil && e.identity.Compute != nil {
