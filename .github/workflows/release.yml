@@ -115,7 +115,7 @@ jobs:
         if: env.DRY_RUN != 'true' && github.ref_type == 'tag'
         # Idempotent: skip when this version already exists (sparse index).
         run: |
-          V=$(cargo pkgid -p agent-hooks-sdk | sed 's/.*#//')
+          V=$(cargo pkgid -p agent-hooks-sdk | sed 's/.*[#@]//')
           if curl -sf https://index.crates.io/ag/en/agent-hooks-sdk | grep -q "\"vers\":\"$V\""; then
             echo "agent-hooks-sdk $V already on crates.io — skipping"
           else
