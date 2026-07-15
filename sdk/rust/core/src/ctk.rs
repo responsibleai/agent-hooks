@@ -79,6 +79,16 @@ impl Interceptor for ScriptedInterceptor {
             rec.lock().expect("recorder poisoned").push(ctx_value.clone());
         }
         let wire = scripted_intercept(&self.rules, &ctx_value);
+        // §7 isolation fault (TM-05): the trait takes &AgentContext, so
+        // in-place mutation is statically impossible in Rust — the
+        // isolation the vector probes is the type system itself. Return
+        // the same allow the mutating wrappers return.
+        if wire.get("__ctk_fault__").and_then(Value::as_str) == Some("mutate") {
+            return crate::verdict_from_wire(
+                &serde_json::json!({"decision": "allow", "reason": "ctk:mutated"}),
+            )
+            .expect("static allow shape");
+        }
         // The Rust Interceptor trait is infallible (§7), so a scripted
         // fault — "raise" or a §5-malformed shape — maps to the nearest
         // analogue: a verdict that fails the emitter's §5 gate and

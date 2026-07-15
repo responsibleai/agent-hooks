@@ -20,6 +20,9 @@ fn load() -> Vec<Value> {
 #[test]
 fn golden_canonical_json() {
     for f in load() {
+        if f["expect"].get("error").is_some() {
+            continue; // negative fixture: asserted via identity below
+        }
         let got = canonical_json(&f["ctx"]);
         assert_eq!(
             got,
@@ -34,6 +37,14 @@ fn golden_canonical_json() {
 fn golden_context_identity() {
     for f in load() {
         let ctx: AgentContext = serde_json::from_value(f["ctx"].clone()).unwrap();
+        if f["expect"].get("error").is_some() {
+            // §10.2: out-of-domain contexts fail closed — never a
+            // real-looking identity.
+            let (e, _) = context_identity(&ctx)
+                .expect_err("negative fixture must be rejected");
+            assert_eq!(e.to_string(), "host_error:context_invalid", "{}", f["id"]);
+            continue;
+        }
         let got = context_identity(&ctx).expect("golden fixtures are valid I-JSON");
         assert_eq!(
             got,

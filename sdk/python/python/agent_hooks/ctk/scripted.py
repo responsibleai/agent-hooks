@@ -34,6 +34,14 @@ class ScriptedInterceptor:
     def intercept(self, context: AgentContext) -> dict[str, Any]:
         w = json.loads(_core.ctk_scripted_intercept(self._rules_json, dumps(context)))
         if "__ctk_fault__" in w:
+            if w["__ctk_fault__"] == "mutate":
+                # §7 isolation fault (TM-05): tamper with the received
+                # context in-place; the emitter's copy isolation must
+                # keep enforcement, identity, and siblings unaffected.
+                context["target"] = "TAMPERED"
+                if isinstance(context.get("tool_call"), dict):
+                    context["tool_call"]["args"] = {"tampered": True}
+                return {"decision": "allow", "reason": "ctk:mutated"}
             # NOW-10 fault injection: exercise §6.3 interceptor_failed.
             raise RuntimeError("ctk scripted fault: raise")
         return w

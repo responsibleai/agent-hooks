@@ -19,6 +19,13 @@ const golden = JSON.parse(
 );
 
 for (const f of golden.fixtures) {
+  if (f.expect.error) {
+    test(`golden rejects out-of-domain ${f.id}`, () => {
+      // §10.2: fail closed, never a real-looking identity.
+      assert.throws(() => contextIdentity(f.ctx), /context_invalid/);
+    });
+    continue;
+  }
   test(`golden canonical_json ${f.id}`, () => {
     assert.equal(canonicalJson(f.ctx), f.expect.canonical_json);
   });

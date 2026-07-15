@@ -391,6 +391,240 @@
         "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":4,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{},\"id\":\"tc-1\",\"name\":\"noop\"}}",
         "context_identity": "sha256:e87b3e17630a9701eec5d2915dab68a870daecbdc3ba4f4790abd4c901e02750"
       }
+    },
+    {
+      "id": "G-11-utf16-key-order",
+      "note": "RFC 8785 sorts by UTF-16 code units: U+10000 (surrogate pair, first unit 0xD800) MUST sort before U+E000 despite the higher code point — the exact case where code-point sorters diverge. Empty key sorts first.",
+      "ctx": {
+        "spec": "agent-hooks/0.1",
+        "interception_point": "pre_tool_call",
+        "timestamp": "2026-01-01T00:00:00.000Z",
+        "sequence": 8,
+        "agent": {
+          "id": "agent-1",
+          "framework": "reference"
+        },
+        "session": {
+          "id": "sess-1"
+        },
+        "tool_call": {
+          "id": "tc-2",
+          "name": "k",
+          "args": {
+            "": 1,
+            "": 2,
+            "𐀀": 3,
+            "z": 4,
+            "é": 5
+          }
+        },
+        "target": {
+          "": 1,
+          "": 2,
+          "𐀀": 3,
+          "z": 4,
+          "é": 5
+        }
+      },
+      "expect": {
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":8,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"\":1,\"z\":4,\"é\":5,\"𐀀\":3,\"\":2},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"\":1,\"z\":4,\"é\":5,\"𐀀\":3,\"\":2},\"id\":\"tc-2\",\"name\":\"k\"}}",
+        "context_identity": "sha256:c29e0bd9b733b7c703e16ee6e84a60870637162d7adf814a9a4904e771071513"
+      }
+    },
+    {
+      "id": "G-12-non-ascii-keys",
+      "note": "non-ASCII member names (accented, CJK, emoji) survive canonicalization unescaped and sort by UTF-16 units",
+      "ctx": {
+        "spec": "agent-hooks/0.1",
+        "interception_point": "pre_tool_call",
+        "timestamp": "2026-01-01T00:00:00.000Z",
+        "sequence": 9,
+        "agent": {
+          "id": "agent-1",
+          "framework": "reference"
+        },
+        "session": {
+          "id": "sess-1"
+        },
+        "tool_call": {
+          "id": "tc-3",
+          "name": "k",
+          "args": {
+            "中文": 1,
+            "émoji🎯": 2,
+            "ascii": 3
+          }
+        },
+        "target": {
+          "中文": 1,
+          "émoji🎯": 2,
+          "ascii": 3
+        }
+      },
+      "expect": {
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":9,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"ascii\":3,\"émoji🎯\":2,\"中文\":1},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"ascii\":3,\"émoji🎯\":2,\"中文\":1},\"id\":\"tc-3\",\"name\":\"k\"}}",
+        "context_identity": "sha256:b5a9de47d33bf3d47e21a7046069fe5e6ad2a9c4e44c348bbbd1a34fe2a8b767"
+      }
+    },
+    {
+      "id": "G-13-int53-boundaries",
+      "note": "±(2^53−1) are the largest integral values inside the I-JSON domain (§10.2); one past either bound is rejected (see the negative fixtures)",
+      "ctx": {
+        "spec": "agent-hooks/0.1",
+        "interception_point": "pre_tool_call",
+        "timestamp": "2026-01-01T00:00:00.000Z",
+        "sequence": 10,
+        "agent": {
+          "id": "agent-1",
+          "framework": "reference"
+        },
+        "session": {
+          "id": "sess-1"
+        },
+        "tool_call": {
+          "id": "tc-4",
+          "name": "k",
+          "args": {
+            "max": 9007199254740991,
+            "min": -9007199254740991
+          }
+        },
+        "target": {
+          "max": 9007199254740991,
+          "min": -9007199254740991
+        }
+      },
+      "expect": {
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":10,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"max\":9007199254740991,\"min\":-9007199254740991},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"max\":9007199254740991,\"min\":-9007199254740991},\"id\":\"tc-4\",\"name\":\"k\"}}",
+        "context_identity": "sha256:a243dd5905681dfbb0f274028ab516326defb498ed9f462f8022fe39190e470a"
+      }
+    },
+    {
+      "id": "G-14-string-encoded-int64",
+      "note": "the §4.4 convention: 64-bit identifiers as decimal strings pass through byte-faithfully and never collide with numeric siblings",
+      "ctx": {
+        "spec": "agent-hooks/0.1",
+        "interception_point": "pre_tool_call",
+        "timestamp": "2026-01-01T00:00:00.000Z",
+        "sequence": 11,
+        "agent": {
+          "id": "agent-1",
+          "framework": "reference"
+        },
+        "session": {
+          "id": "sess-1"
+        },
+        "tool_call": {
+          "id": "tc-5",
+          "name": "k",
+          "args": {
+            "id": "9223372036854775807",
+            "small": 42
+          }
+        },
+        "target": {
+          "id": "9223372036854775807",
+          "small": 42
+        }
+      },
+      "expect": {
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":11,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"id\":\"9223372036854775807\",\"small\":42},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"id\":\"9223372036854775807\",\"small\":42},\"id\":\"tc-5\",\"name\":\"k\"}}",
+        "context_identity": "sha256:3a78e0666b997220076415b95b9e32a51041547123028e62fe4175b0faed7308"
+      }
+    },
+    {
+      "id": "G-15-rfc8785-numbers",
+      "note": "ECMA-262 Number::toString forms from the RFC 8785 test corpus (in-domain subset): trailing-zero drop, exponent thresholds, shortest round-trip",
+      "ctx": {
+        "spec": "agent-hooks/0.1",
+        "interception_point": "pre_tool_call",
+        "timestamp": "2026-01-01T00:00:00.000Z",
+        "sequence": 12,
+        "agent": {
+          "id": "agent-1",
+          "framework": "reference"
+        },
+        "session": {
+          "id": "sess-1"
+        },
+        "tool_call": {
+          "id": "tc-6",
+          "name": "k",
+          "args": {
+            "a": 56.0,
+            "b": 1e-06,
+            "c": 1e-07,
+            "d": 333333333.3333333,
+            "e": 1e+21,
+            "f": 9.999999999999997e+22,
+            "g": 0.1
+          }
+        },
+        "target": {
+          "a": 56.0,
+          "b": 1e-06,
+          "c": 1e-07,
+          "d": 333333333.3333333,
+          "e": 1e+21,
+          "f": 9.999999999999997e+22,
+          "g": 0.1
+        }
+      },
+      "expect": {
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":12,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"a\":56,\"b\":0.000001,\"c\":1e-7,\"d\":333333333.3333333,\"e\":1e+21,\"f\":9.999999999999996e+22,\"g\":0.1},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"a\":56,\"b\":0.000001,\"c\":1e-7,\"d\":333333333.3333333,\"e\":1e+21,\"f\":9.999999999999996e+22,\"g\":0.1},\"id\":\"tc-6\",\"name\":\"k\"}}",
+        "context_identity": "sha256:0147bdf34ae0be12583b51a42b3d7cf9dff6adf8e1bfc0b9d9fdb8353a14c7cf"
+      }
+    },
+    {
+      "id": "G-N01-integral-beyond-2-53",
+      "note": "2^53 itself is out of domain: canonicalization would round",
+      "ctx": {
+        "spec": "agent-hooks/0.1",
+        "interception_point": "pre_tool_call",
+        "timestamp": "2026-01-01T00:00:00.000Z",
+        "sequence": 13,
+        "agent": {
+          "id": "agent-1",
+          "framework": "reference"
+        },
+        "session": {
+          "id": "sess-1"
+        },
+        "tool_call": {
+          "id": "tc-7",
+          "name": "k",
+          "args": {
+            "id": 9007199254740992
+          }
+        },
+        "target": {
+          "id": 9007199254740992
+        }
+      },
+      "expect": {
+        "error": "host_error:context_invalid"
+      }
+    },
+    {
+      "id": "G-N02-missing-conditional",
+      "note": "pre_tool_call without tool_call fails §4.2 structural validation",
+      "ctx": {
+        "spec": "agent-hooks/0.1",
+        "interception_point": "pre_tool_call",
+        "timestamp": "2026-01-01T00:00:00.000Z",
+        "sequence": 14,
+        "agent": {
+          "id": "agent-1",
+          "framework": "reference"
+        },
+        "session": {
+          "id": "sess-1"
+        },
+        "target": {}
+      },
+      "expect": {
+        "error": "host_error:context_invalid"
+      }
     }
   ]
 }

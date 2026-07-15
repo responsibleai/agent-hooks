@@ -34,6 +34,7 @@ public sealed class GoldenIdentityTests
     public void CanonicalJson(string id, JsonNode f)
     {
         _ = id;
+        if (f["expect"]!["error"] is not null) return; // asserted via identity
         var got = Canonical.Json(f["ctx"]);
         Assert.Equal((string)f["expect"]!["canonical_json"]!, got);
     }
@@ -44,6 +45,15 @@ public sealed class GoldenIdentityTests
     {
         _ = id;
         var ctx = new AgentContext((JsonObject)f["ctx"]!.DeepClone());
+        if (f["expect"]!["error"] is not null)
+        {
+            // §10.2: out-of-domain contexts fail closed — never a
+            // real-looking identity.
+            var ex = Assert.Throws<AgentHooksCoreException>(
+                () => Canonical.ContextIdentity(ctx));
+            Assert.Contains("context_invalid", ex.Code);
+            return;
+        }
         var got = Canonical.ContextIdentity(ctx);
         Assert.Equal((string)f["expect"]!["context_identity"]!, got);
     }

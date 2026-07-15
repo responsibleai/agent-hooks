@@ -521,3 +521,29 @@ def test_composition_recorded_on_every_record() -> None:
     # knowledge of host configuration.
     assert r.composition == CompositionConfig.run_all()
     assert r.identity_provider == "jcs-sha256"
+
+
+def test_sequence_unique_under_concurrent_emissions() -> None:
+    """§12.2.3: sequence values are unique and totally ordered when
+    emissions for different tool calls race across threads."""
+    import threading
+
+    from agent_hooks.context import AgentContextBuilder
+
+    builder = AgentContextBuilder(agent_id="a", framework="x", session_id="s")
+    seen: list[int] = []
+    lock = threading.Lock()
+
+    def emit_some() -> None:
+        for _ in range(200):
+            ctx = builder.pre_tool_call(call_id="tc", name="t", args={})
+            with lock:
+                seen.append(ctx["sequence"])
+
+    threads = [threading.Thread(target=emit_some) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(seen) == 1600
+    assert len(set(seen)) == 1600, "sequence values must be unique (§12.2.3)"

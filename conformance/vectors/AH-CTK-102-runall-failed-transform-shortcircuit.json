@@ -1,0 +1,101 @@
+{
+  "id": "AH-CTK-102",
+  "title": "run_all: a transform that fails to apply denies with host_error:transform_invalid and short-circuits the fold (§7.4)",
+  "spec_clause": "5.2, 7.4",
+  "part": "composition/sequential_run_all",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "composition": {
+    "profile": "sequential/run_all"
+  },
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "SECRET-RESULT"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "transform",
+          "transform": {
+            "path": "$target.missing.deep.path",
+            "value": "x"
+          }
+        }
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow",
+          "reason": "ctk:should-not-run"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      }
+    ],
+    "interceptions_absent": [
+      "post_tool_call"
+    ],
+    "tool_not_invoked": [
+      "http_get"
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "verdict.decision": "deny",
+          "verdict.reason": "host_error:transform_invalid",
+          "composition.profile": "sequential/run_all"
+        }
+      }
+    ],
+    "run_outcome": "completed"
+  }
+}

@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""CTK self-test: run all Level≤2 vectors against the in-tree ReferenceHarness."""
+"""CTK self-test: run all vectors against the in-tree ReferenceHarness."""
 from __future__ import annotations
 
+import asyncio
 import pathlib
 
 import pytest
@@ -11,6 +12,12 @@ from agent_hooks.ctk.reference import ReferenceHarness
 
 _VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vectors"
 
+# Pinned skip set (NEXT-15): Python ints are arbitrary precision, so the
+# reference harness declares every value-domain capability — nothing may
+# skip. A skip here means a capability regressed or a vector was
+# quietly excluded; both must fail the suite.
+EXPECTED_SKIPS: frozenset[str] = frozenset()
+
 
 @pytest.mark.parametrize(
     "vector",
@@ -18,11 +25,24 @@ _VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vector
     ids=lambda v: v["id"],
 )
 def test_reference_harness_conformance(vector: dict) -> None:
-    import asyncio
-
     result = asyncio.run(run_vector(ReferenceHarness(), vector))
     if result.status == "skip":
+        assert result.id in EXPECTED_SKIPS, (
+            f"unexpected skip: {result.id} ({result.detail}) — update "
+            "EXPECTED_SKIPS only with a capability rationale"
+        )
         pytest.skip(result.detail)
     assert result.status == "pass", "\n" + "\n".join(
         f"  - {f}" for f in result.failures
+    )
+
+
+def test_skip_set_matches_manifest() -> None:
+    skipped = set()
+    for vector in load_vectors(_VECTORS):
+        result = asyncio.run(run_vector(ReferenceHarness(), vector))
+        if result.status == "skip":
+            skipped.add(result.id)
+    assert skipped == set(EXPECTED_SKIPS), (
+        "expected-but-not-skipped vectors mean the manifest is stale"
     )

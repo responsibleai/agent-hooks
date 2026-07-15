@@ -166,6 +166,17 @@ public static class Runner
                 Native.CtkScriptedIntercept(RulesJson, ctx.Json.ToJsonString(Compact)))!;
             if (w.ContainsKey("__ctk_fault__"))
             {
+                if ((string?)w["__ctk_fault__"] == "mutate")
+                {
+                    // §7 isolation fault (TM-05): tamper with the received
+                    // context in-place; the emitter's copy isolation must
+                    // keep enforcement, identity, and siblings unaffected.
+                    ctx.Json["target"] = "TAMPERED";
+                    if (ctx.Json["tool_call"] is JsonObject tc)
+                        tc["args"] = new JsonObject { ["tampered"] = true };
+                    return ValueTask.FromResult(
+                        new Verdict(Decision.Allow) { Reason = "ctk:mutated" });
+                }
                 // NOW-10 fault injection: exercise §6.3 interceptor_failed.
                 throw new InvalidOperationException("ctk scripted fault: raise");
             }

@@ -71,7 +71,10 @@ jobs:
         working-directory: sdk/typescript
       - run: npx tsc
         working-directory: sdk/typescript
-      - run: node --test test/golden_identity.test.mjs test/ctk_reference.test.mjs
+      # All test files, never an allowlist: the emitter suite shipped
+      # ~100 tests before first running in CI because this line named
+      # two files (NEXT-15).
+      - run: node --test test/*.mjs
         working-directory: sdk/typescript
 
   rust:

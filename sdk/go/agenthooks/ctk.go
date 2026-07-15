@@ -24,7 +24,17 @@ func CtkScriptedIntercept(rulesJSON string, ctx AgentContext) (Verdict, error) {
 	if err != nil {
 		return Verdict{}, err
 	}
-	if faulted(out) {
+	switch faultKind(out) {
+	case "mutate":
+		// §7 isolation fault (TM-05): tamper with the received context
+		// in-place; the emitter's copy isolation must keep enforcement,
+		// identity, and siblings unaffected.
+		ctx["target"] = "TAMPERED"
+		if tc, ok := ctx["tool_call"].(map[string]any); ok {
+			tc["args"] = map[string]any{"tampered": true}
+		}
+		return Verdict{Decision: Allow, Reason: "ctk:mutated"}, nil
+	case "raise":
 		// NOW-10 fault injection: exercise §6.3 interceptor_failed.
 		return Verdict{}, errors.New("ctk scripted fault: raise")
 	}
@@ -144,13 +154,16 @@ func DeepCopyContext(ctx AgentContext) (AgentContext, error) {
 	return AgentContext(out), nil
 }
 
-// faulted reports whether the CTK engine returned the NOW-10 fault
-// sentinel {"__ctk_fault__": ...}.
-func faulted(out string) bool {
-	var probe map[string]json.RawMessage
+// faultKind returns the CTK engine's fault sentinel value
+// ({"__ctk_fault__": "raise"|"mutate"}), or "" when the output is a
+// plain verdict.
+func faultKind(out string) string {
+	var probe map[string]string
 	if err := json.Unmarshal([]byte(out), &probe); err != nil {
-		return false
+		return ""
 	}
-	_, ok := probe["__ctk_fault__"]
-	return ok
+	return probe["__ctk_fault__"]
 }
+
+// faulted reports whether the CTK engine returned a fault sentinel.
+func faulted(out string) bool { return faultKind(out) != "" }

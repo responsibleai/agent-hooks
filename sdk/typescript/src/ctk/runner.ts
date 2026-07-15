@@ -62,6 +62,17 @@ class ScriptedInterceptor implements Interceptor {
   intercept(ctx: AgentContext): Verdict {
     const w = JSON.parse(native.ctkScriptedIntercept(this.rulesJson, JSON.stringify(ctx)));
     if (w !== null && typeof w === "object" && "__ctk_fault__" in w) {
+      if ((w as Record<string, unknown>).__ctk_fault__ === "mutate") {
+        // §7 isolation fault (TM-05): tamper with the received context
+        // in-place; the emitter's copy isolation must keep enforcement,
+        // identity, and siblings unaffected.
+        (ctx as Record<string, unknown>).target = "TAMPERED";
+        const tc = (ctx as Record<string, unknown>).tool_call;
+        if (tc && typeof tc === "object") {
+          (tc as Record<string, unknown>).args = { tampered: true };
+        }
+        return { decision: "allow", reason: "ctk:mutated" } as Verdict;
+      }
       // NOW-10 fault injection: exercise §6.3 interceptor_failed.
       throw new Error("ctk scripted fault: raise");
     }

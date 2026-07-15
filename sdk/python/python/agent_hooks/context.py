@@ -9,6 +9,7 @@ interception point that fills L1 and sets ``target``.
 """
 from __future__ import annotations
 
+import itertools
 from datetime import datetime, timezone
 from typing import Any, TypeAlias
 
@@ -32,6 +33,10 @@ class AgentContextBuilder:
 
     __slots__ = ("_agent", "_l2", "_seq", "_session")
 
+    # §12.2.3: sequence assignment MUST be atomic under concurrent
+    # emissions. itertools.count consumes one value per __next__ under a
+    # single bytecode op, safe on GIL and free-threaded builds alike.
+
     def __init__(
         self,
         *,
@@ -50,7 +55,7 @@ class AgentContextBuilder:
         self._session: dict[str, Any] = {"id": session_id}
         if session_started_at:
             self._session["started_at"] = session_started_at
-        self._seq = 0
+        self._seq = itertools.count()
         self._l2: dict[str, Any] = {}
 
     def with_l2(self, **fields: Any) -> AgentContextBuilder:
@@ -64,13 +69,12 @@ class AgentContextBuilder:
             "spec": SPEC_VERSION,
             "interception_point": hp.value,
             "timestamp": _now(),
-            "sequence": self._seq,
+            "sequence": next(self._seq),
             "agent": dict(self._agent),
             "session": dict(self._session),
             "target": target,
         }
         ctx.update(self._l2)
-        self._seq += 1
         return ctx
 
     # ---- per-hook L1 builders ------------------------------------------------

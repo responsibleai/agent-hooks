@@ -94,6 +94,11 @@ pub fn scripted_intercept(rules: &[Value], ctx: &Value) -> Value {
                 Some("malformed_verdict") => {
                     return serde_json::json!({"decision": "transform"})
                 }
+                // §7 isolation (TM-05): the wrapper mutates the context
+                // object it received in-place, then returns allow; the
+                // vector asserts enforcement, identity, and sibling
+                // interceptors are unaffected.
+                Some("mutate") => return serde_json::json!({"__ctk_fault__": "mutate"}),
                 _ => {}
             }
             return rule
@@ -209,6 +214,13 @@ fn validate_required(ctx: &Value, failures: &mut Vec<String>) {
         if !obj.contains_key(*k) {
             failures.push(format!("{ip}: missing required field {k:?}"));
         }
+    }
+    // §4.1/§4.2 structural validation (NEXT-16): the full envelope
+    // check the emitters use — required-core types plus per-point
+    // conditional fields — so RUNNER.md's "schema-validates recorded
+    // contexts" claim is true, not a 7-key presence probe.
+    if let Err((_, detail)) = crate::canonical::validate_envelope(obj) {
+        failures.push(format!("{ip}: context fails §4 validation: {detail}"));
     }
 }
 
@@ -567,7 +579,8 @@ mod tests {
             "spec": "agent-hooks/0.1", "interception_point": "input",
             "timestamp": "t", "sequence": 0,
             "agent": {"id":"a","framework":"x"}, "session": {"id":"s"},
-            "target": {}
+            "input": {"content": "hi", "role": "user"},
+            "target": {"content": "hi", "role": "user"}
         })];
         let rr = RunRecord {
             outcome: "completed".into(),

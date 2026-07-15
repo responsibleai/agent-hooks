@@ -60,6 +60,26 @@ if liftable deny (per profile):
 raise/return InterceptionRecord
 ```
 
+## TCB surface (what is single-implementation and what is not)
+
+The security primitives that are implemented **once** in the Rust core
+and inherited by every binding: canonical JSON + context identity
+(§10), the §5 verdict gate (`validate_verdict`/`from_wire`), severity
+aggregation (`compose_aggregate`), transform application (§5.2), record
+assembly and the payload-free projection (`finalize`, §10.3), and the
+CTK engine.
+
+Duplicated per language, by necessity (they call back into user code):
+the per-profile dispatch loops (§7.4–§7.5 fold, short-circuit, snapshot
+isolation), approval-seam consultation and substitution (§7.6, §9),
+timeout enforcement, and the §7.3 union application on substitution
+paths. These five implementations CAN drift; the pin is the CTK — the
+composition vectors assert wire-shaped records (combined verdict,
+`decided_by`, `verdicts[]`, `fold_truncated`, `resolved_by`) that are
+byte-comparable across SDKs, so a divergence in any duplicated surface
+fails that SDK's self-test. (AH-CTK-104's `verdicts[]` assertions
+caught exactly such a drift during development.)
+
 ## Golden vectors
 
 `conformance/golden/identity.json` is generated from the Rust core by

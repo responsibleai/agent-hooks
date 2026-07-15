@@ -277,9 +277,10 @@
           "type": "string",
           "enum": [
             "raise",
-            "malformed_verdict"
+            "malformed_verdict",
+            "mutate"
           ],
-          "description": "Fault injection (NOW-10): 'raise' makes the scripted interceptor raise/throw natively (exercises §6.3 host_error:interceptor_failed); 'malformed_verdict' returns a §5-invalid shape (transform decision with no body; exercises host_error:verdict_invalid). Mutually exclusive with 'return'."
+          "description": "Fault injection: 'raise' makes the scripted interceptor raise/throw natively (exercises §6.3 host_error:interceptor_failed); 'malformed_verdict' returns a §5-invalid shape (transform decision with no body; exercises host_error:verdict_invalid); 'mutate' makes the wrapper mutate the received context in-place and return allow (exercises §7 copy isolation, TM-05). Mutually exclusive with 'return'."
         }
       },
       "oneOf": [

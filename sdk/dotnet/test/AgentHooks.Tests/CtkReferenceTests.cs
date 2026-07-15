@@ -23,6 +23,12 @@ public sealed class CtkReferenceTests
         Runner.LoadVectors(VectorsDir())
               .Select(v => new object[] { (string)v["id"]!, v });
 
+    // Pinned skip set (NEXT-15): JsonNode preserves raw numeric tokens,
+    // so the .NET reference harness declares every value-domain
+    // capability — nothing may skip. An unexpected skip fails; a stale
+    // manifest (expected-but-not-skipped) fails the aggregate test.
+    private static readonly IReadOnlySet<string> ExpectedSkips = new HashSet<string>();
+
     [Theory]
     [MemberData(nameof(Vectors))]
     public async Task ReferenceHarnessConformance(string id, JsonObject vector)
@@ -31,13 +37,30 @@ public sealed class CtkReferenceTests
         Assert.Equal(id, result.Id);
         if (result.Status == "skip")
         {
-            // xUnit has no runtime Skip; assert-pass with a diagnostic instead.
-            Assert.True(true, $"skipped: {result.Detail}");
+            Assert.True(
+                ExpectedSkips.Contains(result.Id),
+                $"unexpected skip: {result.Id} ({result.Detail}) — update " +
+                "ExpectedSkips only with a capability rationale");
             return;
         }
         Assert.True(
             result.Status == "pass",
             $"[{result.Id}] {result.Title}\n" +
             string.Join("\n", result.Failures.Select(f => $"  - {f}")));
+    }
+
+    [Fact]
+    public async Task SkipSetMatchesManifest()
+    {
+        var skipped = new HashSet<string>();
+        foreach (var v in Runner.LoadVectors(VectorsDir()))
+        {
+            var result = await Runner.RunVectorAsync(new ReferenceHarness(), v);
+            if (result.Status == "skip") skipped.Add(result.Id);
+        }
+        Assert.True(
+            skipped.SetEquals(ExpectedSkips),
+            "expected-but-not-skipped vectors mean the manifest is stale: " +
+            $"actual=[{string.Join(",", skipped)}]");
     }
 }

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -21,6 +22,7 @@ type goldenFixture struct {
 	Expect struct {
 		CanonicalJSON   string `json:"canonical_json"`
 		ContextIdentity string `json:"context_identity"`
+		Error           string `json:"error"`
 	} `json:"expect"`
 }
 
@@ -44,6 +46,9 @@ func loadGolden(t *testing.T) []goldenFixture {
 func TestGoldenCanonicalJSON(t *testing.T) {
 	for _, f := range loadGolden(t) {
 		t.Run(f.ID, func(t *testing.T) {
+			if f.Expect.Error != "" {
+				t.Skip("negative fixture: asserted via identity")
+			}
 			got, err := CanonicalJSON(f.Ctx)
 			if err != nil {
 				t.Fatalf("CanonicalJSON: %v", err)
@@ -59,6 +64,17 @@ func TestGoldenContextIdentity(t *testing.T) {
 	for _, f := range loadGolden(t) {
 		t.Run(f.ID, func(t *testing.T) {
 			got, err := ContextIdentity(AgentContext(f.Ctx))
+			if f.Expect.Error != "" {
+				// §10.2: out-of-domain contexts fail closed — never a
+				// real-looking identity.
+				if err == nil {
+					t.Fatalf("expected rejection, got identity %s", got)
+				}
+				if !strings.Contains(err.Error(), "context_invalid") {
+					t.Fatalf("expected context_invalid, got: %v", err)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("ContextIdentity: %v", err)
 			}

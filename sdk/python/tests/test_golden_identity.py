@@ -22,11 +22,19 @@ _FIXTURES = json.loads(_GOLDEN.read_text())["fixtures"]
 
 @pytest.mark.parametrize("f", _FIXTURES, ids=[f["id"] for f in _FIXTURES])
 def test_golden_canonical_json(f: dict) -> None:
+    if "error" in f["expect"]:
+        pytest.skip("negative fixture: canonicalization asserted via identity")
     assert canonical_json(f["ctx"]) == f["expect"]["canonical_json"]
 
 
 @pytest.mark.parametrize("f", _FIXTURES, ids=[f["id"] for f in _FIXTURES])
 def test_golden_context_identity(f: dict) -> None:
+    if "error" in f["expect"]:
+        # Out-of-domain context: the jcs-sha256 provider MUST reject,
+        # never produce a real-looking identity (§10.2).
+        with pytest.raises(Exception, match="context_invalid"):
+            context_identity(f["ctx"])
+        return
     assert context_identity(f["ctx"]) == f["expect"]["context_identity"]
 
 

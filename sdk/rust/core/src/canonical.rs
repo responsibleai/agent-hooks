@@ -393,8 +393,14 @@ pub fn validate_envelope(ctx: &AgentContext) -> Result<(), (HostError, String)> 
 
 /// The `jcs-sha256` provider (§10.2):
 /// `"sha256:" + hex(SHA-256(canonical_json(projection)))`, failing
-/// closed (`host_error:context_invalid`) on a non-I-JSON projection.
+/// closed (`host_error:context_invalid`) on a non-I-JSON projection
+/// or a §4-invalid context. Structural validation is part of the
+/// provider's input domain: an identity computed over a context whose
+/// conditional fields are absent would be a real-looking hash of a
+/// schema-forbidden shape — approvals and records must never bind to
+/// one (NEXT-16).
 pub fn context_identity(ctx: &AgentContext) -> Result<String, (HostError, String)> {
+    validate_envelope(ctx)?;
     let preimage = project_preimage(ctx)?;
     check_depth(&preimage)?;
     check_i_json(&preimage, "$")?;

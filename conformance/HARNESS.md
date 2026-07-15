@@ -14,7 +14,7 @@ harness owns three responsibilities:
    describing what happened.
 
 The CTK runner handles everything else: loading vectors, building the
-scripted interceptor/resolver, schema-validating recorded contexts, and asserting
+scripted interceptor/resolver, validating every recorded context against the full §4 envelope (required-core types plus per-point conditional fields — the same check the emitters run), and asserting
 `expect`.
 
 ## Interface (per language)
@@ -139,3 +139,21 @@ See per-language `sdk/<lang>/README.md` for the equivalent invocation.
 - `resolved_by` on asserted records distinguishes `"approval"`
   (permit substitution) from `"rejection"` (consulted, not lifted);
   absent means the seam was never consulted (§10.3).
+
+## Coverage boundaries
+
+Some normative behavior cannot be expressed in the vector grammar and
+is pinned by per-SDK unit tests instead:
+
+- **NaN/Infinity marshalling guards (§4.4)** — not representable in a
+  JSON vector file.
+- **§12.1 streaming assembly** — the scenario grammar has no partial-
+  stream form; the fail-closed `host_error:streaming_unsupported` path
+  is a host obligation the mocked model cannot exercise.
+- **§12.2 concurrent emissions** — vectors run single-threaded;
+  sequence-uniqueness under concurrency is a per-SDK unit test.
+- **Multi-turn sessions (§3.1)** — the scenario grammar carries one
+  `input`; multi-turn ordering is pinned by emitter unit tests.
+- **§5.4 result_labels persistence/resurfacing** — requires label
+  storage in the harness agent; not yet implemented in the reference
+  harnesses.
