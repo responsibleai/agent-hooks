@@ -1,0 +1,87 @@
+{
+  "id": "AH-CTK-100",
+  "title": "deny at post_tool_call: the tool result is discarded, not incorporated into agent state (§6.1)",
+  "spec_clause": "6.1, 6.2",
+  "part": "enforcement/post_action_deny",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "SECRET-RESULT"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "post_tool_call",
+      "match": {
+        "tool_result.value": "SECRET-RESULT"
+      },
+      "return": {
+        "decision": "deny",
+        "reason": "ctk:tainted-result"
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "post_tool_call"
+      },
+      {
+        "interception_point": "pre_model_call",
+        "context": {
+          "messages[1].role": "tool",
+          "messages[1].content": "blocked: ctk:tainted-result"
+        }
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "post_tool_call",
+        "assert": {
+          "verdict.decision": "deny",
+          "verdict.reason": "ctk:tainted-result"
+        }
+      }
+    ],
+    "run_outcome": "completed"
+  }
+}
