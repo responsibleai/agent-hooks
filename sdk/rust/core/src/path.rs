@@ -135,12 +135,8 @@ pub fn apply(mut target: Value, path: &str, value: Value) -> Result<Value, HostE
 
 fn step_mut<'a>(cur: &'a mut Value, seg: &Segment) -> Result<&'a mut Value, HostError> {
     match (cur, seg) {
-        (Value::Object(m), Segment::Member(k)) => {
-            m.get_mut(k).ok_or(HostError::TransformInvalid)
-        }
-        (Value::Array(a), Segment::Index(i)) => {
-            a.get_mut(*i).ok_or(HostError::TransformInvalid)
-        }
+        (Value::Object(m), Segment::Member(k)) => m.get_mut(k).ok_or(HostError::TransformInvalid),
+        (Value::Array(a), Segment::Index(i)) => a.get_mut(*i).ok_or(HostError::TransformInvalid),
         _ => Err(HostError::TransformInvalid),
     }
 }

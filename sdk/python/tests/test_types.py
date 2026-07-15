@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 """Unit tests for §5 verdict validation and §3 interception-point properties."""
+
 from __future__ import annotations
 
 import pytest
@@ -109,9 +110,7 @@ class TestVerdict:
         with pytest.raises(ValueError):
             Verdict.from_wire({"decision": "allow", "warnings": ["x"]})
         with pytest.raises(ValueError):
-            Verdict.from_wire(
-                {"decision": "allow", "warnings": [{"reason": "host_error:x"}]}
-            )
+            Verdict.from_wire({"decision": "allow", "warnings": [{"reason": "host_error:x"}]})
 
     def test_from_wire_rejects_approval_on_permit(self) -> None:
         with pytest.raises(ValueError):

@@ -18,6 +18,7 @@ text. This package provides:
 - :class:`IdentityProvider`, :func:`canonical_json`, :func:`context_identity` — §10
 - :mod:`agent_hooks.ctk` — Conformance Test Kit (§13)
 """
+
 from __future__ import annotations
 
 from agent_hooks._types import (

@@ -20,8 +20,8 @@
 //! Non-finite numbers and lone surrogates fail at the parse funnel
 //! before this module runs.
 
-use crate::types::{AgentContext, HostError};
 use crate::jcs;
+use crate::types::{AgentContext, HostError};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fmt::Write;
@@ -103,7 +103,11 @@ pub fn scan_raw_integer_domain(text: &str) -> Result<(), (HostError, String)> {
                 }
                 if integer_syntax {
                     let digits = &b[start..i];
-                    let digits = if digits.first() == Some(&b'-') { &digits[1..] } else { digits };
+                    let digits = if digits.first() == Some(&b'-') {
+                        &digits[1..]
+                    } else {
+                        digits
+                    };
                     let over = digits.len() > LIMIT.len()
                         || (digits.len() == LIMIT.len() && digits > LIMIT);
                     if over {
@@ -152,7 +156,10 @@ fn conditional_for(ip: &str) -> &'static [Keep] {
         "pre_model_call" => &[("model", Some(&["id"])), ("messages", None)],
         "post_model_call" => &[
             ("model", Some(&["id"])),
-            ("response", Some(&["content", "tool_calls", "finish_reason"])),
+            (
+                "response",
+                Some(&["content", "tool_calls", "finish_reason"]),
+            ),
         ],
         "pre_tool_call" => &[("tool_call", Some(&["id", "name", "args"]))],
         "post_tool_call" => &[
@@ -335,13 +342,21 @@ pub fn validate_envelope(ctx: &AgentContext) -> Result<(), (HostError, String)> 
     if ctx.get("timestamp").and_then(Value::as_str).is_none() {
         return err("timestamp", "a string");
     }
-    if !ctx.get("sequence").and_then(Value::as_i64).is_some_and(|n| n >= 0) {
+    if !ctx
+        .get("sequence")
+        .and_then(Value::as_i64)
+        .is_some_and(|n| n >= 0)
+    {
         return err("sequence", "an integer >= 0");
     }
     let agent = ctx.get("agent").and_then(Value::as_object);
     match agent {
         Some(a) => {
-            if !a.get("id").and_then(Value::as_str).is_some_and(|v| !v.is_empty()) {
+            if !a
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|v| !v.is_empty())
+            {
                 return err("agent.id", "a non-empty string");
             }
             let fw_ok = a.get("framework").and_then(Value::as_str).is_some_and(|v| {
@@ -469,10 +484,26 @@ mod tests {
         .clone();
         let mut bare = ctx.clone();
         // Remove every nested optional field; identity must be unchanged.
-        bare.get_mut("tool_result").unwrap().as_object_mut().unwrap().remove("duration_ms");
-        bare.get_mut("tool_call").unwrap().as_object_mut().unwrap().remove("content_hash");
-        bare.get_mut("agent").unwrap().as_object_mut().unwrap().remove("name");
-        bare.get_mut("session").unwrap().as_object_mut().unwrap().remove("turn");
+        bare.get_mut("tool_result")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove("duration_ms");
+        bare.get_mut("tool_call")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove("content_hash");
+        bare.get_mut("agent")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove("name");
+        bare.get_mut("session")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove("turn");
         assert_eq!(
             context_identity(&ctx).unwrap(),
             context_identity(&bare).unwrap()
@@ -485,7 +516,10 @@ mod tests {
         let c = ctx(json!({"id": 9_007_199_254_740_993_i64}));
         let (e, detail) = context_identity(&c).unwrap_err();
         assert_eq!(e, HostError::ContextInvalid);
-        assert!(detail.contains("string-encode 64-bit identifiers"), "{detail}");
+        assert!(
+            detail.contains("string-encode 64-bit identifiers"),
+            "{detail}"
+        );
 
         let c = ctx(json!({"id": -9_007_199_254_740_993_i64}));
         assert!(context_identity(&c).is_err());
@@ -510,7 +544,10 @@ mod tests {
         // big integer in an optional field never reaches JCS, so it
         // must not reject.
         let mut c = ctx(json!({"ok": 1}));
-        c.insert("extensions".into(), json!({"host": {"big": 9_007_199_254_740_993_i64}}));
+        c.insert(
+            "extensions".into(),
+            json!({"host": {"big": 9_007_199_254_740_993_i64}}),
+        );
         assert!(context_identity(&c).is_ok());
     }
 
@@ -541,7 +578,10 @@ mod tests {
         assert!(scan_raw_integer_domain(r#"{"x":9007199254740993}"#).is_err());
         assert!(scan_raw_integer_domain(r#"{"x":-9007199254740991}"#).is_ok());
         // Digits inside strings (including escapes) are not numbers.
-        assert!(scan_raw_integer_domain(r#"{"x":"18446744073709551616","y":"a\"18446744073709551616"}"#).is_ok());
+        assert!(scan_raw_integer_domain(
+            r#"{"x":"18446744073709551616","y":"a\"18446744073709551616"}"#
+        )
+        .is_ok());
     }
 
     #[test]
@@ -599,8 +639,15 @@ mod tests {
 
         // Missing required subfield.
         let mut c = good.clone();
-        c.get_mut("tool_call").unwrap().as_object_mut().unwrap().remove("name");
-        assert!(validate_envelope(&c).unwrap_err().1.contains("tool_call.name"));
+        c.get_mut("tool_call")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .remove("name");
+        assert!(validate_envelope(&c)
+            .unwrap_err()
+            .1
+            .contains("tool_call.name"));
 
         // Unknown interception point.
         let mut c = good.clone();
@@ -615,7 +662,11 @@ mod tests {
         c.remove("session");
         assert!(validate_envelope(&c).is_err());
         let mut c = good.clone();
-        c.get_mut("agent").unwrap().as_object_mut().unwrap().insert("framework".into(), json!("Bad Framework"));
+        c.get_mut("agent")
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert("framework".into(), json!("Bad Framework"));
         assert!(validate_envelope(&c).is_err());
         let mut c = good.clone();
         c.insert("spec".into(), json!("agent-hooks/x.1"));
@@ -640,5 +691,4 @@ mod tests {
         c.remove("interception_point");
         assert!(context_identity(&c).is_err());
     }
-
 }

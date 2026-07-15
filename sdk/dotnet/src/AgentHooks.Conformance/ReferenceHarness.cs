@@ -179,7 +179,8 @@ public sealed class ReferenceHarness : IHarness
         var (value, isError) = s.Tools[name].Invoke(postArgs);
         _toolLog.Add(new JsonObject
         {
-            ["name"] = name, ["args"] = postArgs.DeepClone(),
+            ["name"] = name,
+            ["args"] = postArgs.DeepClone(),
         });
 
         await em.EmitAsync(
@@ -188,7 +189,8 @@ public sealed class ReferenceHarness : IHarness
 
         messages.Add(new JsonObject
         {
-            ["role"] = "tool", ["content"] = value?.DeepClone(),
+            ["role"] = "tool",
+            ["content"] = value?.DeepClone(),
         });
     }
 }

@@ -1,0 +1,54 @@
+# Change-class enforcement (GOVERNANCE.md).
+#
+# - PRs labeled `spec:breaking` must bump a version surface (the spec
+#   header or an SDK manifest) in the same PR.
+# - PRs that touch the normative surface (spec/, conformance vectors/
+#   schema) must carry one of the change-class labels so reviewers and
+#   the CHANGELOG see the classification.
+#
+# Required-check rule: this workflow has NO paths filter and reports on
+# every PR (a path-filtered required check deadlocks the queue — see
+# CONTRIBUTING.md).
+name: change-class
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  change-class:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Enforce label/version-bump coupling
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -eu
+          changed=$(git diff --name-only "$BASE"...HEAD)
+          echo "labels: ${LABELS:-<none>}"
+
+          normative=$(echo "$changed" | grep -E \
+            '^(spec/|conformance/vectors|conformance/vectors\.schema\.json)' || true)
+          if [ -n "$normative" ] && ! echo "$LABELS" | grep -qE 'spec:(breaking|additive)'; then
+            echo "::error::PR touches the normative surface but carries no spec:breaking/spec:additive label:"
+            echo "$normative"
+            exit 1
+          fi
+
+          if echo "$LABELS" | grep -q 'spec:breaking'; then
+            bump=$(echo "$changed" | grep -E \
+              '^(spec/AGENT-HOOKS|sdk/rust/core/Cargo\.toml|sdk/python/pyproject\.toml|sdk/typescript/package\.json|sdk/dotnet/src/AgentHooks/.*\.csproj|CHANGELOG\.md)' || true)
+            if [ -z "$bump" ]; then
+              echo "::error::spec:breaking PR must change a version surface (spec header, an SDK manifest, or CHANGELOG.md)"
+              exit 1
+            fi
+          fi
+          echo "change-class ok"

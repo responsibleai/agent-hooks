@@ -7,6 +7,7 @@ helpers remain pure-Python for callers that need segment introspection
 without a JSON round-trip; ``apply`` — the security-relevant path — goes
 through the core so behaviour is identical across SDKs.
 """
+
 from __future__ import annotations
 
 import json

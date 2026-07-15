@@ -208,7 +208,15 @@ mod tests {
         let c1 = b.input(serde_json::json!("hi"), "user");
         assert_eq!(c0["sequence"], 0);
         assert_eq!(c1["sequence"], 1);
-        for k in ["spec", "interception_point", "timestamp", "sequence", "agent", "session", "target"] {
+        for k in [
+            "spec",
+            "interception_point",
+            "timestamp",
+            "sequence",
+            "agent",
+            "session",
+            "target",
+        ] {
             assert!(c1.contains_key(k), "missing {k}");
         }
         assert_eq!(c1["input"]["role"], "user");

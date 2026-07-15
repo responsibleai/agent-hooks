@@ -486,5 +486,4 @@ mod verdict_validate_tests {
         assert!(validate_provider_name("1abc").is_err());
         assert!(validate_provider_name("").is_err());
     }
-
 }

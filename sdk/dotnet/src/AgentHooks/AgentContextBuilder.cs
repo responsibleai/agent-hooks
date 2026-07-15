@@ -118,7 +118,9 @@ public sealed class AgentContextBuilder
     {
         var tc = new JsonObject
         {
-            ["id"] = callId, ["name"] = name, ["args"] = args.DeepClone(),
+            ["id"] = callId,
+            ["name"] = name,
+            ["args"] = args.DeepClone(),
         };
         var ctx = Envelope(InterceptionPoint.PreToolCall, args);
         ctx["tool_call"] = tc;
@@ -133,7 +135,9 @@ public sealed class AgentContextBuilder
         var ctx = Envelope(InterceptionPoint.PostToolCall, value);
         ctx["tool_call"] = new JsonObject
         {
-            ["id"] = callId, ["name"] = name, ["args"] = args.DeepClone(),
+            ["id"] = callId,
+            ["name"] = name,
+            ["args"] = args.DeepClone(),
         };
         ctx["tool_result"] = tr;
         return ctx;

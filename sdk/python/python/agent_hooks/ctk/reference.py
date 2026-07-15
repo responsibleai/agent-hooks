@@ -5,6 +5,7 @@
 This is the simplest possible conformant agent loop: it exists so the
 CTK can self-test without depending on any real framework.
 """
+
 from __future__ import annotations
 
 import json
@@ -95,9 +96,7 @@ class ReferenceHarness:
         final: Any | None = None
         try:
             await em.emit(b.agent_startup(tools_registered=sorted(s.tools)))
-            await em.emit(
-                b.input(content=s.input["content"], role=s.input["role"])
-            )
+            await em.emit(b.input(content=s.input["content"], role=s.input["role"]))
             messages: list[dict[str, Any]] = [
                 {"role": s.input["role"], "content": s.input["content"]}
             ]
@@ -136,17 +135,13 @@ class ReferenceHarness:
             outcome = RunOutcome.BLOCKED
             final = None
         await em.emit_unchecked(
-            b.agent_shutdown(
-                reason="completed" if outcome is RunOutcome.COMPLETED else "error"
-            )
+            b.agent_shutdown(reason="completed" if outcome is RunOutcome.COMPLETED else "error")
         )
         return RunRecord(
             outcome=outcome,
             final_output=final,
             tool_invocations=list(self._tool_log),
-            identities=[
-                (r.input_identity, r.enforced_identity) for r in em.results
-            ],
+            identities=[(r.input_identity, r.enforced_identity) for r in em.results],
             records=[r.to_wire() for r in em.results],
         )
 
@@ -155,9 +150,7 @@ class ReferenceHarness:
 
     # ---- internals ----------------------------------------------------------
 
-    async def _do_tool_call(
-        self, tc: dict[str, Any], messages: list[dict[str, Any]]
-    ) -> None:
+    async def _do_tool_call(self, tc: dict[str, Any], messages: list[dict[str, Any]]) -> None:
         assert self._scenario and self._emitter and self._builder
         s, em, b = self._scenario, self._emitter, self._builder
         ctx = b.pre_tool_call(call_id=tc["id"], name=tc["name"], args=dict(tc["args"]))
@@ -179,6 +172,7 @@ def _provider_of(declared: str | None):
     (§13.2): "ctk-fault" is a custom provider that raises, pinning the
     §10.1 provider-failure rule."""
     if declared == "ctk-fault":
+
         def _boom(_ctx: object) -> str:
             raise RuntimeError("ctk scripted provider fault")
 

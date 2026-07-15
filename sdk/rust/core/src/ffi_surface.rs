@@ -18,9 +18,7 @@ use crate::composition::{
 };
 use crate::enforce::FinalizeMeta;
 use crate::types::{EnforcementMode, Verdict};
-use crate::{
-    canonical, enforce as enforce_mod, path, verdict, AgentContext, HostError, Transform,
-};
+use crate::{canonical, enforce as enforce_mod, path, verdict, AgentContext, HostError, Transform};
 use serde_json::Value;
 
 /// `(host_error_code, detail_message)`
@@ -88,7 +86,10 @@ pub fn apply_transform_ctx(
     let mut ctx: AgentContext = serde_json::from_str(ctx_json)
         .map_err(|e| err(HostError::ContextInvalid, format!("ctx: {e}")))?;
     let value = parse_json(value_json, "value")?;
-    let t = Transform { path: path_str.to_owned(), value };
+    let t = Transform {
+        path: path_str.to_owned(),
+        value,
+    };
     enforce_mod::apply_transform_to_ctx(&mut ctx, &t).map_err(|e| err(e, path_str))?;
     Ok(serde_json::to_string(&ctx).expect("ctx serialize"))
 }
@@ -103,7 +104,10 @@ pub fn validate_transform_ctx(
     let ctx: AgentContext = serde_json::from_str(ctx_json)
         .map_err(|e| err(HostError::ContextInvalid, format!("ctx: {e}")))?;
     let value = parse_json(value_json, "value")?;
-    let t = Transform { path: path_str.to_owned(), value };
+    let t = Transform {
+        path: path_str.to_owned(),
+        value,
+    };
     enforce_mod::validate_transform(&ctx, &t).map_err(|e| err(e, path_str))?;
     Ok("null".to_owned())
 }
@@ -127,10 +131,7 @@ pub fn validate_transform_ctx(
 ///                                 // winning transform, not yet applied
 /// }
 /// ```
-pub fn compose_aggregate(
-    composition_json: &str,
-    verdicts_json: &str,
-) -> Result<String, FfiError> {
+pub fn compose_aggregate(composition_json: &str, verdicts_json: &str) -> Result<String, FfiError> {
     let cfg: CompositionConfig = serde_json::from_str(composition_json)
         .map_err(|e| err(HostError::ContextInvalid, format!("composition: {e}")))?;
     let raw: Vec<Value> = serde_json::from_str(verdicts_json)
@@ -150,7 +151,9 @@ pub fn compose_aggregate(
         .map_err(|e| err(HostError::VerdictInvalid, format!("verdicts: {e}")))?;
     for (i, v) in all.iter().enumerate() {
         let synthesized_shape = v.decision == crate::Decision::Deny
-            && v.reason.as_deref().is_some_and(|r| r.starts_with("host_error:"))
+            && v.reason
+                .as_deref()
+                .is_some_and(|r| r.starts_with("host_error:"))
             && v.transform.is_none();
         if !synthesized_shape {
             v.validate()
@@ -247,17 +250,18 @@ pub fn finalize(
     let composition: CompositionConfig = serde_json::from_value(
         opts.get("composition").cloned().unwrap_or(Value::Null),
     )
-    .map_err(|e| err(HostError::ContextInvalid, format!("options.composition: {e}")))?;
+    .map_err(|e| {
+        err(
+            HostError::ContextInvalid,
+            format!("options.composition: {e}"),
+        )
+    })?;
     let verdicts = match opts.get("verdicts") {
         None | Some(Value::Null) => Vec::new(),
         Some(v) => serde_json::from_value(v.clone())
             .map_err(|e| err(HostError::ContextInvalid, format!("options.verdicts: {e}")))?,
     };
-    let opt_str = |k: &str| {
-        opts.get(k)
-            .and_then(Value::as_str)
-            .map(str::to_owned)
-    };
+    let opt_str = |k: &str| opts.get(k).and_then(Value::as_str).map(str::to_owned);
     // jcs-sha256 computes enforced_identity core-side from this ctx,
     // but the parse above already coerced any beyond-u64 literal — so
     // when the raw-text scan rejects, identity computation is
@@ -266,11 +270,16 @@ pub fn finalize(
     // the fail-closed record for exactly these contexts.
     let jcs_input_rejected = opt_str("identity_provider").as_deref() == Some("jcs-sha256")
         && canonical::scan_projection_raw(ctx_json).is_err();
+    let unchanged_since_input = opts
+        .get("unchanged_since_input")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
     let meta = FinalizeMeta {
         input_identity: opt_str("input_identity"),
         identity_provider: opt_str("identity_provider"),
         enforced_identity: opt_str("enforced_identity"),
         jcs_input_rejected,
+        unchanged_since_input,
         decided_by: opts
             .get("decided_by")
             .and_then(Value::as_u64)

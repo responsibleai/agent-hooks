@@ -4,6 +4,7 @@
 approval redaction (§9), record sink + retention bound (§10.3), and the
 effective-target return from ``emit`` (§4.3).
 """
+
 from __future__ import annotations
 
 import asyncio

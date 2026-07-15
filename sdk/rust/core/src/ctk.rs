@@ -76,7 +76,9 @@ impl Interceptor for ScriptedInterceptor {
     async fn intercept(&self, context: &AgentContext) -> Verdict {
         let ctx_value = Value::Object(context.clone());
         if let Some(rec) = &self.recorded {
-            rec.lock().expect("recorder poisoned").push(ctx_value.clone());
+            rec.lock()
+                .expect("recorder poisoned")
+                .push(ctx_value.clone());
         }
         let wire = scripted_intercept(&self.rules, &ctx_value);
         // §7 isolation fault (TM-05): the trait takes &AgentContext, so
@@ -127,9 +129,9 @@ impl ApprovalResolver for ScriptedResolver {
             Some("reject") => crate::ApprovalOutcome::Reject,
             _ => crate::ApprovalOutcome::Unresolved,
         };
-        let verdict = out.get("verdict").map(|v| {
-            crate::verdict_from_wire(v).expect("malformed approval_script verdict")
-        });
+        let verdict = out
+            .get("verdict")
+            .map(|v| crate::verdict_from_wire(v).expect("malformed approval_script verdict"));
         let echoed = out["context_identity"].as_str().unwrap_or_default();
         ApprovalResolution {
             outcome,
@@ -254,11 +256,10 @@ pub async fn run_vector(harness: &mut dyn Harness, vector: &Value) -> VectorResu
     // provider-failure rule: deny context_invalid before dispatch).
     let identity_provider = match vector.get("identity_provider") {
         Some(Value::Null) => IdentityProvider::Null,
-        Some(Value::String(s)) if s == "ctk-fault" => IdentityProvider::custom(
-            "ctk-fault",
-            |_| panic!("ctk scripted provider fault"),
-        )
-        .expect("ctk-fault satisfies the name rules"),
+        Some(Value::String(s)) if s == "ctk-fault" => {
+            IdentityProvider::custom("ctk-fault", |_| panic!("ctk scripted provider fault"))
+                .expect("ctk-fault satisfies the name rules")
+        }
         _ => IdentityProvider::JcsSha256,
     };
 
@@ -307,7 +308,10 @@ impl ReferenceHarness {
     }
 
     fn invoke_tool(&self, name: &str, args: &Value) -> (Value, bool) {
-        let tools = self.scenario["tools"].as_array().cloned().unwrap_or_default();
+        let tools = self.scenario["tools"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
         let spec = tools
             .iter()
             .find(|t| t["name"].as_str() == Some(name))
@@ -408,11 +412,7 @@ impl ReferenceHarness {
         }
 
         if !final_output.is_null() {
-            let mut ctx = self
-                .builder
-                .as_mut()
-                .expect("setup")
-                .output(final_output);
+            let mut ctx = self.builder.as_mut().expect("setup").output(final_output);
             self.emitter.as_mut().expect("setup").emit(&mut ctx).await?;
             final_output = ctx["output"]["content"].clone();
         }
@@ -422,11 +422,11 @@ impl ReferenceHarness {
     async fn do_tool_call(&mut self, tc: &Value) -> Result<Value, InterceptionBlocked> {
         let id = tc["id"].as_str().unwrap_or("").to_owned();
         let name = tc["name"].as_str().unwrap_or("").to_owned();
-        let mut ctx = self
-            .builder
-            .as_mut()
-            .expect("setup")
-            .pre_tool_call(&id, &name, tc["args"].clone());
+        let mut ctx =
+            self.builder
+                .as_mut()
+                .expect("setup")
+                .pre_tool_call(&id, &name, tc["args"].clone());
         self.emitter.as_mut().expect("setup").emit(&mut ctx).await?;
         let args = ctx["tool_call"]["args"].clone(); // post-transform (§4.3)
 
@@ -458,7 +458,11 @@ impl Harness for ReferenceHarness {
         // is exercised by unit tests instead).
         // int64_json: Rust holds i64, so vectors carrying >2^53
         // integers load losslessly (§4.4; JS harnesses omit this).
-        vec!["model_calls".into(), "tool_calls".into(), "int64_json".into()]
+        vec![
+            "model_calls".into(),
+            "tool_calls".into(),
+            "int64_json".into(),
+        ]
     }
 
     fn setup(&mut self, setup: VectorSetup) {
@@ -505,13 +509,15 @@ impl Harness for ReferenceHarness {
             Err(_) => ("blocked", Value::Null),
         };
 
-        let mut ctx = self.builder.as_mut().expect("setup").agent_shutdown(
-            if outcome == "completed" {
-                "completed"
-            } else {
-                "error"
-            },
-        );
+        let mut ctx =
+            self.builder
+                .as_mut()
+                .expect("setup")
+                .agent_shutdown(if outcome == "completed" {
+                    "completed"
+                } else {
+                    "error"
+                });
         let emitter = self.emitter.as_mut().expect("setup");
         emitter.emit_unchecked(&mut ctx).await;
 

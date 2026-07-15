@@ -132,7 +132,8 @@ public static class Runner
         foreach (var (i, e) in rr.Identities ?? [])
             identities.Add(new JsonObject
             {
-                ["input_identity"] = i, ["enforced_identity"] = e,
+                ["input_identity"] = i,
+                ["enforced_identity"] = e,
             });
         var records = new JsonArray(
             (rr.Records ?? []).Select(r => (JsonNode)r.DeepClone()).ToArray());

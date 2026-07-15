@@ -16,16 +16,15 @@ fn arb_json() -> impl Strategy<Value = serde_json::Value> {
         Just(serde_json::Value::Null),
         any::<bool>().prop_map(serde_json::Value::from),
         // In-domain numbers only here; out-of-domain is its own test.
-        (-9_007_199_254_740_991_i64..=9_007_199_254_740_991_i64)
-            .prop_map(serde_json::Value::from),
-        any::<f64>().prop_filter("finite", |f| f.is_finite())
+        (-9_007_199_254_740_991_i64..=9_007_199_254_740_991_i64).prop_map(serde_json::Value::from),
+        any::<f64>()
+            .prop_filter("finite", |f| f.is_finite())
             .prop_map(serde_json::Value::from),
         "\\PC{0,12}".prop_map(serde_json::Value::from),
     ];
     leaf.prop_recursive(4, 32, 6, |inner| {
         prop_oneof![
-            prop::collection::vec(inner.clone(), 0..6)
-                .prop_map(serde_json::Value::from),
+            prop::collection::vec(inner.clone(), 0..6).prop_map(serde_json::Value::from),
             prop::collection::btree_map("\\PC{0,8}", inner, 0..6)
                 .prop_map(|m| serde_json::Value::Object(m.into_iter().collect())),
         ]

@@ -11,6 +11,7 @@ Aggregation itself (severity-max winner, §7.3 metadata unions) delegates
 to the Rust core (``_core.compose_aggregate``) so all SDKs agree byte
 for byte; this module carries only the configuration value type.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -79,9 +80,7 @@ class CompositionConfig:
 
     @classmethod
     def first_deny(cls, on_approval: OnApproval = OnApproval.STOP) -> CompositionConfig:
-        return cls(
-            profile=CompositionProfile.SEQUENTIAL_FIRST_DENY, on_approval=on_approval
-        )
+        return cls(profile=CompositionProfile.SEQUENTIAL_FIRST_DENY, on_approval=on_approval)
 
     @classmethod
     def run_all(cls) -> CompositionConfig:

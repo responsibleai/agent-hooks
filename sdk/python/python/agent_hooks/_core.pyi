@@ -6,6 +6,7 @@ SPEC_VERSION: str
 class AgentHooksCoreError(ValueError):
     """Raised by every _core function on failure. ``.code`` is the §11
     ``host_error:*`` wire string."""
+
     code: str
 
 def spec_version() -> str: ...

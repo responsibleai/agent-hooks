@@ -32,6 +32,7 @@ on the event loop; ``sequence`` assignment and record append are atomic
 under a single-threaded asyncio runtime. Sharing one emitter across OS
 threads is not supported.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -282,8 +283,7 @@ class InterceptionEmitter:
         # reserved so a custom function can never claim golden-vector
         # semantics on records.
         if isinstance(provider, IdentityProvider) and (
-            not re.fullmatch(r"[a-z][a-z0-9_-]*", provider.name)
-            or provider.name.startswith("jcs")
+            not re.fullmatch(r"[a-z][a-z0-9_-]*", provider.name) or provider.name.startswith("jcs")
         ):
             raise ValueError(
                 "identity provider name must match ^[a-z][a-z0-9_-]*$ "
@@ -304,9 +304,7 @@ class InterceptionEmitter:
         """All interception records emitted so far in this session, in order."""
         return list(self._records)
 
-    def register(
-        self, interceptor: Interceptor, name: str | None = None
-    ) -> InterceptionEmitter:
+    def register(self, interceptor: Interceptor, name: str | None = None) -> InterceptionEmitter:
         """Register an interceptor, optionally with a host-chosen
         payload-free ``name`` recorded on ``verdicts[].name`` (§10.3)."""
         self._interceptors.append(interceptor)
@@ -314,13 +312,19 @@ class InterceptionEmitter:
         return self
 
     def set_composition(self, composition: CompositionConfig) -> InterceptionEmitter:
-        """Declare the composition profile for subsequent emissions (§7.1)."""
+        """Declare the composition profile for subsequent emissions (§7.1).
+
+        The default (``sequential/first_deny``, ``on_approval: stop``)
+        is the configuration §14 warns about: after an approval lifts a
+        liftable deny, interceptors registered after the escalating one
+        never run for that emission (``fold_truncated`` on the record).
+        Register must-run controls first, or use ``sequential/run_all``
+        / a parallel profile. See docs/PRODUCTION.md.
+        """
         self._composition = composition
         return self
 
-    def set_identity_provider(
-        self, provider: str | IdentityProvider | None
-    ) -> InterceptionEmitter:
+    def set_identity_provider(self, provider: str | IdentityProvider | None) -> InterceptionEmitter:
         """Declare the identity provider (§10.1)."""
         self._identity = self._check_provider(provider)
         return self
@@ -337,9 +341,7 @@ class InterceptionEmitter:
         self._approval_redactor = redactor
         return self
 
-    def set_record_sink(
-        self, sink: Callable[[InterceptionRecord], None]
-    ) -> InterceptionEmitter:
+    def set_record_sink(self, sink: Callable[[InterceptionRecord], None]) -> InterceptionEmitter:
         """Register a per-emission record callback (§10.3), invoked
         synchronously after every emission before buffering; a sink
         exception is swallowed (audit delivery is the host's liveness
@@ -407,14 +409,10 @@ class InterceptionEmitter:
             )
         except ValueError as e:
             outcome = _Outcome(
-                Verdict.host_error(
-                    HostError.CONTEXT_INVALID, f"context is not RFC 8259 JSON: {e}"
-                )
+                Verdict.host_error(HostError.CONTEXT_INVALID, f"context is not RFC 8259 JSON: {e}")
             )
         except Exception as e:  # noqa: BLE001 — custom provider raised; fail closed
-            outcome = _Outcome(
-                Verdict.host_error(HostError.CONTEXT_INVALID, type(e).__name__)
-            )
+            outcome = _Outcome(Verdict.host_error(HostError.CONTEXT_INVALID, type(e).__name__))
         if outcome is None:
             outcome = await self._dispatch(ctx)
 
@@ -475,9 +473,7 @@ class InterceptionEmitter:
                 options["enforced_identity"] = None
         verdict_json = dumps(outcome.combined.to_wire())
         try:
-            record_json = _core.finalize(
-                dumps(ctx), verdict_json, self._mode.value, dumps(options)
-            )
+            record_json = _core.finalize(dumps(ctx), verdict_json, self._mode.value, dumps(options))
         except ValueError:
             # The context cannot cross the FFI boundary intact (the
             # emission already failed closed above); record the envelope
@@ -691,22 +687,14 @@ class InterceptionEmitter:
                 rv, permitted = consultation
                 if permitted:
                     resolved_by = "approval"
-                    sub = (
-                        self._fold_transform(ctx, rv)
-                        if rv.decision is Decision.TRANSFORM
-                        else rv
-                    )
+                    sub = self._fold_transform(ctx, rv) if rv.decision is Decision.TRANSFORM else rv
                     # §7.3 step 2: the substituting resolution carries
                     # the emission's unions — uniformly, including for a
                     # §7.5-synthesized trigger (whose `decided_by` is
                     # already None from the aggregation).
                     # (falls back bare when a substituted transform
                     # failed closed)
-                    combined = (
-                        _with_unions(sub, [*all_v, sub])
-                        if sub.decision.permits
-                        else sub
-                    )
+                    combined = _with_unions(sub, [*all_v, sub]) if sub.decision.permits else sub
                 else:
                     # §10.3: consultation without a permit substitution.
                     resolved_by = "rejection"
@@ -731,18 +719,14 @@ class InterceptionEmitter:
                 ctx.clear()
                 ctx.update(new_ctx)
             else:
-                _core.validate_transform_ctx(
-                    dumps(ctx), v.transform.path, dumps(v.transform.value)
-                )
+                _core.validate_transform_ctx(dumps(ctx), v.transform.path, dumps(v.transform.value))
         except _core.AgentHooksCoreError as e:
             return Verdict.host_error(_host_error_of(e, HostError.TRANSFORM_INVALID), str(e))
         except ValueError as e:
             return Verdict.host_error(HostError.TRANSFORM_INVALID, str(e))
         return v
 
-    async def _consult(
-        self, ctx: AgentContext, verdict: Verdict
-    ) -> tuple[Verdict, bool] | None:
+    async def _consult(self, ctx: AgentContext, verdict: Verdict) -> tuple[Verdict, bool] | None:
         """Consult the approval seam for a liftable deny (§9), when the
         profile conditions allow it: ``enforce`` mode, not
         ``agent_shutdown``, a resolver registered, and the verdict
@@ -771,9 +755,7 @@ class InterceptionEmitter:
                 presented = self._approval_redactor(ctx)
             except Exception as e:  # noqa: BLE001
                 return (
-                    Verdict.host_error(
-                        HostError.APPROVAL_RESOLVER_FAILED, type(e).__name__
-                    ),
+                    Verdict.host_error(HostError.APPROVAL_RESOLVER_FAILED, type(e).__name__),
                     False,
                 )
 
@@ -828,9 +810,7 @@ class InterceptionEmitter:
         try:
             # §9: the resolver's verdict crosses the same §5 gate as an
             # interceptor's.
-            rv = Verdict.from_wire(
-                json.loads(_core.validate_verdict(dumps(res.verdict.to_wire())))
-            )
+            rv = Verdict.from_wire(json.loads(_core.validate_verdict(dumps(res.verdict.to_wire()))))
         except Exception as e:  # noqa: BLE001
             return Verdict.host_error(HostError.VERDICT_INVALID, str(e)), False
         # §9: outcome/decision must agree — approve MUST carry a permit,

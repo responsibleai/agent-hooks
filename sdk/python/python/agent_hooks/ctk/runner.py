@@ -13,6 +13,7 @@ interceptor/resolver evaluation live in the Rust core
 
 Every other language SDK's runner has the same shape.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -75,9 +76,7 @@ def _run_record_to_wire(rr: RunRecord) -> str:
             "final_output": rr.final_output,
             "tool_invocations": rr.tool_invocations,
             "error": rr.error,
-            "identities": [
-                {"input_identity": i, "enforced_identity": e} for i, e in rr.identities
-            ],
+            "identities": [{"input_identity": i, "enforced_identity": e} for i, e in rr.identities],
             "records": rr.records,
         }
     )

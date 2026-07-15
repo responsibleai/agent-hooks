@@ -10,6 +10,7 @@ wire JSON. The emitter maps that failure to a fail-closed
 ``host_error:context_invalid`` deny (§10.2: fail closed, never
 normalize).
 """
+
 from __future__ import annotations
 
 import json

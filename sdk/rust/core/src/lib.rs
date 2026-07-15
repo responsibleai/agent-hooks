@@ -33,10 +33,10 @@
 
 mod builder;
 mod canonical;
-mod jcs;
 pub mod composition;
 mod emitter;
 mod enforce;
+mod jcs;
 mod path;
 mod types;
 mod verdict;
@@ -57,8 +57,8 @@ pub use emitter::{IdentityProvider, InterceptionBlocked, InterceptionEmitter};
 pub use enforce::{apply_transform_to_ctx, finalize, validate_transform, FinalizeMeta};
 pub use path::{apply as apply_transform_path, parse as parse_transform_path, resolve, Segment};
 pub use types::{
-    AgentContext, ApprovalOutcome, ApprovalRequest, ApprovalResolution, ApprovalResolver,
-    Decision, EnforcementMode, Evidence, HostError, Interceptor, InterceptionPoint,
-    InterceptionRecord, Transform, Verdict, VerdictSummary, Warning, JCS_SHA256, SPEC_VERSION,
+    AgentContext, ApprovalOutcome, ApprovalRequest, ApprovalResolution, ApprovalResolver, Decision,
+    EnforcementMode, Evidence, HostError, InterceptionPoint, InterceptionRecord, Interceptor,
+    Transform, Verdict, VerdictSummary, Warning, JCS_SHA256, SPEC_VERSION,
 };
 pub use verdict::from_wire as verdict_from_wire;

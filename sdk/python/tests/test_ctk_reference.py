@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 """CTK self-test: run all vectors against the in-tree ReferenceHarness."""
+
 from __future__ import annotations
 
 import asyncio
@@ -32,9 +33,7 @@ def test_reference_harness_conformance(vector: dict) -> None:
             "EXPECTED_SKIPS only with a capability rationale"
         )
         pytest.skip(result.detail)
-    assert result.status == "pass", "\n" + "\n".join(
-        f"  - {f}" for f in result.failures
-    )
+    assert result.status == "pass", "\n" + "\n".join(f"  - {f}" for f in result.failures)
 
 
 def test_skip_set_matches_manifest() -> None:

@@ -91,9 +91,7 @@ pub fn scripted_intercept(rules: &[Value], ctx: &Value) -> Value {
             match rule.get("fault").and_then(Value::as_str) {
                 Some("raise") => return serde_json::json!({"__ctk_fault__": "raise"}),
                 // §5-invalid shape: transform decision with no body.
-                Some("malformed_verdict") => {
-                    return serde_json::json!({"decision": "transform"})
-                }
+                Some("malformed_verdict") => return serde_json::json!({"decision": "transform"}),
                 // §7 isolation (TM-05): the wrapper mutates the context
                 // object it received in-place, then returns allow; the
                 // vector asserts enforcement, identity, and sibling
@@ -225,7 +223,10 @@ fn validate_required(ctx: &Value, failures: &mut Vec<String>) {
 }
 
 fn assert_interceptions(expect: &Value, recorded: &[Value], failures: &mut Vec<String>) {
-    let expected = expect["interceptions"].as_array().cloned().unwrap_or_default();
+    let expected = expect["interceptions"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
     let strict = expect
         .get("sequence_strict")
         .and_then(Value::as_bool)
@@ -252,8 +253,7 @@ fn assert_interceptions(expect: &Value, recorded: &[Value], failures: &mut Vec<S
         let mut ri = 0usize;
         for e in &expected {
             let want = e.get(IP).and_then(Value::as_str).unwrap_or("");
-            while ri < recorded.len()
-                && recorded[ri].get(IP).and_then(Value::as_str) != Some(want)
+            while ri < recorded.len() && recorded[ri].get(IP).and_then(Value::as_str) != Some(want)
             {
                 ri += 1;
             }
@@ -345,9 +345,8 @@ fn assert_identities(expect: &Value, rr: &RunRecord, failures: &mut Vec<String>)
         return;
     };
     if rr.identities.is_empty() {
-        failures.push(
-            "expect.identities_equal is set but harness did not report identities".into(),
-        );
+        failures
+            .push("expect.identities_equal is set but harness did not report identities".into());
         return;
     }
     let all_equal = rr
@@ -395,7 +394,9 @@ fn assert_records(expect: &Value, rr: &RunRecord, failures: &mut Vec<String>) {
             ri += 1;
         }
         if ri >= rr.records.len() {
-            failures.push(format!("expected record for {want_ip:?} not found in order"));
+            failures.push(format!(
+                "expected record for {want_ip:?} not found in order"
+            ));
             return;
         }
         let rec = &rr.records[ri];

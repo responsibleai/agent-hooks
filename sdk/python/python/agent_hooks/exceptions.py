@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 """Exceptions a host raises to its caller when a hook blocks (§6)."""
+
 from __future__ import annotations
 
 from agent_hooks._types import InterceptionPoint, InterceptionRecord

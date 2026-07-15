@@ -157,7 +157,13 @@ public sealed class InterceptionEmitter
         return this;
     }
 
-    /// <summary>Declare the composition profile for subsequent emissions (§7.1).</summary>
+    /// <summary>Declare the composition profile for subsequent emissions (§7.1).
+    /// The default (<c>sequential/first_deny</c>, <c>on_approval: stop</c>) is the
+    /// configuration §14 warns about: after an approval lifts a liftable deny,
+    /// interceptors registered after the escalating one never run for that
+    /// emission (<c>fold_truncated</c> on the record). Register must-run controls
+    /// first, or use <c>sequential/run_all</c> / a parallel profile.
+    /// See docs/PRODUCTION.md.</summary>
     public InterceptionEmitter SetComposition(CompositionConfig composition)
     {
         _composition = composition;
@@ -448,64 +454,64 @@ public sealed class InterceptionEmitter
             switch (v.Decision)
             {
                 case Decision.Deny:
-                {
-                    var c = await ConsultAsync(ctx, v, ct);
-                    if (c is null)
                     {
-                        return new DispatchOutcome(
-                            WithUnions(v, pool), i, Summaries(perInterceptor),
-                            Truncated(i), resolvedBy);
+                        var c = await ConsultAsync(ctx, v, ct);
+                        if (c is null)
+                        {
+                            return new DispatchOutcome(
+                                WithUnions(v, pool), i, Summaries(perInterceptor),
+                                Truncated(i), resolvedBy);
+                        }
+                        if (!c.Permitted)
+                        {
+                            // Reject / unresolved / echo violation: a deny
+                            // stands (§9); the consultation is still
+                            // recorded (§10.3 resolved_by).
+                            return new DispatchOutcome(
+                                WithUnions(c.Verdict, pool),
+                                IsHostSynthesized(c.Verdict) ? null : i,
+                                Summaries(perInterceptor), Truncated(i), "rejection");
+                        }
+                        resolvedBy = "approval";
+                        // §7.6: the permit resolution substitutes at this
+                        // position; its transform folds like an interceptor's
+                        // (§7.4).
+                        var sub = c.Verdict.Decision == Decision.Transform
+                            ? FoldTransform(ctx, c.Verdict)
+                            : c.Verdict;
+                        if (!sub.Decision.Permits())
+                        {
+                            return new DispatchOutcome(
+                                sub, null, Summaries(perInterceptor),
+                                Truncated(i), resolvedBy);
+                        }
+                        pool.Add(sub);
+                        if (onApproval == OnApproval.Stop)
+                        {
+                            // §7.4 stop: the resolution is the combined
+                            // verdict; the emission ends. fold_truncated makes
+                            // the skip legible.
+                            return new DispatchOutcome(
+                                WithUnions(sub, pool), i, Summaries(perInterceptor),
+                                Truncated(i), resolvedBy);
+                        }
+                        if (sub.Decision == Decision.Transform)
+                            lastTransform = (i, sub);
+                        break; // resume: fold continues at i+1
                     }
-                    if (!c.Permitted)
-                    {
-                        // Reject / unresolved / echo violation: a deny
-                        // stands (§9); the consultation is still
-                        // recorded (§10.3 resolved_by).
-                        return new DispatchOutcome(
-                            WithUnions(c.Verdict, pool),
-                            IsHostSynthesized(c.Verdict) ? null : i,
-                            Summaries(perInterceptor), Truncated(i), "rejection");
-                    }
-                    resolvedBy = "approval";
-                    // §7.6: the permit resolution substitutes at this
-                    // position; its transform folds like an interceptor's
-                    // (§7.4).
-                    var sub = c.Verdict.Decision == Decision.Transform
-                        ? FoldTransform(ctx, c.Verdict)
-                        : c.Verdict;
-                    if (!sub.Decision.Permits())
-                    {
-                        return new DispatchOutcome(
-                            sub, null, Summaries(perInterceptor),
-                            Truncated(i), resolvedBy);
-                    }
-                    pool.Add(sub);
-                    if (onApproval == OnApproval.Stop)
-                    {
-                        // §7.4 stop: the resolution is the combined
-                        // verdict; the emission ends. fold_truncated makes
-                        // the skip legible.
-                        return new DispatchOutcome(
-                            WithUnions(sub, pool), i, Summaries(perInterceptor),
-                            Truncated(i), resolvedBy);
-                    }
-                    if (sub.Decision == Decision.Transform)
-                        lastTransform = (i, sub);
-                    break; // resume: fold continues at i+1
-                }
                 case Decision.Transform:
-                {
-                    var folded = FoldTransform(ctx, v);
-                    if (!folded.Decision.Permits())
                     {
-                        // Transform failed closed (host-synthesized §5.2).
-                        return new DispatchOutcome(
-                            folded, null, Summaries(perInterceptor),
-                            Truncated(i), resolvedBy);
+                        var folded = FoldTransform(ctx, v);
+                        if (!folded.Decision.Permits())
+                        {
+                            // Transform failed closed (host-synthesized §5.2).
+                            return new DispatchOutcome(
+                                folded, null, Summaries(perInterceptor),
+                                Truncated(i), resolvedBy);
+                        }
+                        lastTransform = (i, folded);
+                        break;
                     }
-                    lastTransform = (i, folded);
-                    break;
-                }
             }
         }
 

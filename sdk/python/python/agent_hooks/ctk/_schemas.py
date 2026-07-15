@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 """Lazy loader for the vendored JSON schemas under ``agent_hooks/schema/``."""
+
 from __future__ import annotations
 
 import functools

@@ -105,7 +105,10 @@ impl IdentityProvider {
     ) -> Result<Self, (HostError, String)> {
         let name = name.into();
         crate::types::validate_provider_name(&name)?;
-        Ok(Self::Custom { name, f: Box::new(f) })
+        Ok(Self::Custom {
+            name,
+            f: Box::new(f),
+        })
     }
 }
 
@@ -140,8 +143,6 @@ impl IdentityProvider {
         }
     }
 }
-
-
 
 /// §6.3/§7: invoke one interceptor with panic isolation and (with the
 /// `tokio-timeout` feature) the emitter-owned timeout. `Err` carries a
@@ -265,6 +266,13 @@ impl InterceptionEmitter {
     }
 
     /// Declare the composition profile for subsequent emissions (§7.1).
+    ///
+    /// The default (`sequential/first_deny`, `on_approval: stop`) is
+    /// the configuration §14 warns about: after an approval lifts a
+    /// liftable deny, interceptors registered after the escalating one
+    /// never run for that emission (`fold_truncated` on the record).
+    /// Register must-run controls first, or use `sequential/run_all` /
+    /// a parallel profile. See docs/PRODUCTION.md.
     pub fn set_composition(&mut self, composition: CompositionConfig) -> &mut Self {
         self.composition = composition;
         self
@@ -398,9 +406,7 @@ impl InterceptionEmitter {
                 // §10.1/§10.2: the provider rejected the value domain,
                 // raised, or panicked. Fail closed before any
                 // interceptor runs.
-                Err((e, detail)) => {
-                    (None, Some(DispatchOutcome::synthesized(e, Some(detail))))
-                }
+                Err((e, detail)) => (None, Some(DispatchOutcome::synthesized(e, Some(detail)))),
             }
         };
         let outcome = match outcome {
@@ -421,6 +427,19 @@ impl InterceptionEmitter {
             // the raw-text coercion class (Number has no beyond-u64
             // form); the in-memory check inside finalize is complete.
             jcs_input_rejected: false,
+            // §10.3/NEXT-19: reuse input_identity when the context
+            // bytes cannot have changed — evaluate_only never applies
+            // transforms (§8); in enforce mode, no transform anywhere
+            // in the dispatch (including a substituted resolution)
+            // means no fold mutated the context. Conservative: any
+            // transform or substitution forces a fresh computation.
+            unchanged_since_input: self.mode == EnforcementMode::EvaluateOnly
+                || (outcome.resolved_by.is_none()
+                    && outcome.combined.decision != Decision::Transform
+                    && outcome
+                        .verdicts
+                        .iter()
+                        .all(|v| v.decision != Decision::Transform)),
             decided_by: outcome.decided_by,
             composition: self.composition,
             verdicts: outcome.verdicts,
@@ -481,12 +500,14 @@ impl InterceptionEmitter {
 
         for (i, interceptor) in self.interceptors.iter().enumerate() {
             let idx = i as u32;
-            // §7: each interceptor gets its own copy — in-place mutation
-            // of the copy cannot alter enforcement.
+            // §7: isolation is the `&AgentContext` borrow itself — the
+            // interceptor cannot mutate through it, so no defensive
+            // clone is needed (NEXT-19: this was one full deep copy per
+            // interceptor per emission).
             // §5 gate on the interceptor's own return; host-synthesized
             // failure substitutions (Err) bypass it (TM-02 is about
             // interceptor spoofing, not host substitution).
-            let v = match call_isolated(interceptor.as_ref(), &ctx.clone(), self.timeout).await {
+            let v = match call_isolated(interceptor.as_ref(), &*ctx, self.timeout).await {
                 Ok(v) if v.validate().is_err() => {
                     Verdict::host_error(HostError::VerdictInvalid, None)
                 }
@@ -624,7 +645,7 @@ impl InterceptionEmitter {
             // §6.3 per-interceptor: a malformed verdict becomes that
             // interceptor's synthesized deny; the rest still run.
             // Host-synthesized substitutions (Err) bypass the §5 gate.
-            let v = match call_isolated(interceptor.as_ref(), &ctx.clone(), self.timeout).await {
+            let v = match call_isolated(interceptor.as_ref(), &*ctx, self.timeout).await {
                 Ok(v) if v.validate().is_err() => {
                     Verdict::host_error(HostError::VerdictInvalid, None)
                 }
@@ -723,9 +744,7 @@ impl InterceptionEmitter {
                         // A liftable winner implies no plain deny exists
                         // (severity), so the §7.4 "every deny is
                         // liftable" consult precondition holds.
-                        debug_assert!(
-                            !winner.is_liftable() || all_denies_liftable(&all)
-                        );
+                        debug_assert!(!winner.is_liftable() || all_denies_liftable(&all));
                         match self.consult(ctx, &winner).await {
                             Consultation::NotConsulted => DispatchOutcome {
                                 combined: with_unions(winner, &all),
@@ -739,7 +758,8 @@ impl InterceptionEmitter {
                                 // §10.3: any consultation is recorded — permit
                                 // substitution as "approval", everything else as
                                 // "rejection".
-                                resolved_by = Some(if permitted { "approval" } else { "rejection" });
+                                resolved_by =
+                                    Some(if permitted { "approval" } else { "rejection" });
                                 let synthesized = is_host_synthesized(&verdict);
                                 let combined = if permitted {
                                     resolved_by = Some("approval");
@@ -864,9 +884,7 @@ impl InterceptionEmitter {
         resolved_by: &mut Option<&'static str>,
     ) -> Verdict {
         match policy {
-            SynthesisPolicy::Deny => {
-                with_unions(Verdict::host_error(err, Some(detail)), pool)
-            }
+            SynthesisPolicy::Deny => with_unions(Verdict::host_error(err, Some(detail)), pool),
             SynthesisPolicy::Approval => {
                 let liftable = Verdict::host_error_liftable(err, Some(detail));
                 match self.consult(ctx, &liftable).await {
@@ -942,8 +960,7 @@ impl InterceptionEmitter {
         let redacted;
         let presented: &AgentContext = match &self.approval_redactor {
             Some(f) => {
-                redacted = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(ctx)))
-                {
+                redacted = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(ctx))) {
                     Ok(c) => c,
                     Err(_) => {
                         return Consultation::Substituted {
@@ -1088,13 +1105,19 @@ mod tests {
     fn transform(path: &str, value: serde_json::Value) -> Verdict {
         Verdict {
             decision: Decision::Transform,
-            transform: Some(Transform { path: path.into(), value }),
+            transform: Some(Transform {
+                path: path.into(),
+                value,
+            }),
             ..Verdict::allow()
         }
     }
 
     fn deny() -> Verdict {
-        Verdict { decision: Decision::Deny, ..Verdict::allow() }
+        Verdict {
+            decision: Decision::Deny,
+            ..Verdict::allow()
+        }
     }
 
     #[tokio::test]
@@ -1165,7 +1188,10 @@ mod tests {
     #[tokio::test]
     async fn first_deny_no_resolver_deny_stands_without_error() {
         let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
-        e.register(Box::new(Scripted(Verdict::escalate(Some("check".into()), None))));
+        e.register(Box::new(Scripted(Verdict::escalate(
+            Some("check".into()),
+            None,
+        ))));
         let mut c = ctx();
         let r = e.emit_unchecked(&mut c).await;
         // §9: no resolver → the liftable deny stands, NOT an error.
@@ -1179,7 +1205,10 @@ mod tests {
     async fn first_deny_stop_truncates_and_records_substitution() {
         let mut e = InterceptionEmitter::new(
             EnforcementMode::Enforce,
-            Some(Box::new(Approver(ApprovalOutcome::Approve, Verdict::allow()))),
+            Some(Box::new(Approver(
+                ApprovalOutcome::Approve,
+                Verdict::allow(),
+            ))),
         );
         e.set_composition(CompositionConfig::first_deny(OnApproval::Stop));
         e.register(Box::new(Scripted(Verdict::escalate(None, None))));
@@ -1196,7 +1225,10 @@ mod tests {
     async fn first_deny_resume_continues_the_fold() {
         let mut e = InterceptionEmitter::new(
             EnforcementMode::Enforce,
-            Some(Box::new(Approver(ApprovalOutcome::Approve, Verdict::allow()))),
+            Some(Box::new(Approver(
+                ApprovalOutcome::Approve,
+                Verdict::allow(),
+            ))),
         );
         e.set_composition(CompositionConfig::first_deny(OnApproval::Resume));
         e.register(Box::new(Scripted(Verdict::escalate(None, None))));
@@ -1255,7 +1287,12 @@ mod tests {
             r.verdict.reason.as_deref(),
             Some("host_error:context_invalid")
         );
-        assert!(r.verdict.message.as_deref().unwrap().contains("string-encode"));
+        assert!(r
+            .verdict
+            .message
+            .as_deref()
+            .unwrap()
+            .contains("string-encode"));
         assert!(r.verdicts.is_empty(), "no interceptor ran");
     }
 
@@ -1263,7 +1300,10 @@ mod tests {
     async fn shutdown_never_consults() {
         let mut e = InterceptionEmitter::new(
             EnforcementMode::Enforce,
-            Some(Box::new(Approver(ApprovalOutcome::Approve, Verdict::allow()))),
+            Some(Box::new(Approver(
+                ApprovalOutcome::Approve,
+                Verdict::allow(),
+            ))),
         );
         e.register(Box::new(Scripted(Verdict::escalate(None, None))));
         let mut c = ctx();
@@ -1320,8 +1360,16 @@ mod tests {
         e.register(Box::new(Panics));
         let r = e.emit_unchecked(&mut ctx()).await;
         assert!(!r.proceeds());
-        assert_eq!(r.verdict.reason.as_deref(), Some("host_error:interceptor_failed"));
-        assert!(!r.verdict.message.as_deref().unwrap_or("").contains("SECRET"));
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:interceptor_failed")
+        );
+        assert!(!r
+            .verdict
+            .message
+            .as_deref()
+            .unwrap_or("")
+            .contains("SECRET"));
     }
 
     #[cfg(feature = "tokio-timeout")]
@@ -1339,7 +1387,10 @@ mod tests {
         e.set_timeout(std::time::Duration::from_millis(20));
         e.register(Box::new(Slow));
         let r = e.emit_unchecked(&mut ctx()).await;
-        assert_eq!(r.verdict.reason.as_deref(), Some("host_error:interceptor_timeout"));
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:interceptor_timeout")
+        );
         assert_eq!(r.verdict.decision, Decision::Deny);
     }
 
@@ -1399,8 +1450,10 @@ mod tests {
                 self.0.resolve(req).await
             }
         }
-        let mut e =
-            InterceptionEmitter::new(EnforcementMode::Enforce, Some(Box::new(Shared(captured.clone()))));
+        let mut e = InterceptionEmitter::new(
+            EnforcementMode::Enforce,
+            Some(Box::new(Shared(captured.clone()))),
+        );
         e.register(Box::new(Escalates));
         e.set_approval_redactor(|ctx| {
             let mut c = ctx.clone();
@@ -1413,11 +1466,13 @@ mod tests {
         let r = e.emit_unchecked(&mut ctx()).await;
         assert!(r.proceeds());
         let (identity, presented) = captured.0.lock().unwrap().clone().unwrap();
-        assert!(!presented.contains("evil"), "unredacted content egressed: {presented}");
+        assert!(
+            !presented.contains("evil"),
+            "unredacted content egressed: {presented}"
+        );
         // The echoed identity matched what the emitter computed over
         // the redacted context (approve succeeded), and differs from
         // the record's own (unredacted) identities.
         assert_ne!(Some(identity.as_str()), r.input_identity.as_deref());
     }
-
 }

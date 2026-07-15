@@ -7,6 +7,7 @@ this module keeps only the recording wrapper (which must capture what
 the *native* harness passed, so it stays per-language) and the
 Approval type marshalling.
 """
+
 from __future__ import annotations
 
 import copy
@@ -78,9 +79,7 @@ class ScriptedResolver:
         # engine works in strings; "" round-trips to None below.
         request_identity = request.context_identity or ""
         r = json.loads(
-            _core.ctk_scripted_resolve(
-                self._rules_json, dumps(request.context), request_identity
-            )
+            _core.ctk_scripted_resolve(self._rules_json, dumps(request.context), request_identity)
         )
         if "__ctk_fault__" in r:
             # NOW-10 fault injection: exercise §9 approval_resolver_failed.

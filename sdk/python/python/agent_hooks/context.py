@@ -7,6 +7,7 @@ JSON without translation. :class:`AgentContextBuilder` is the host-side helper
 that owns the L0 envelope (agent/session/sequence) and exposes one method per
 interception point that fills L1 and sets ``target``.
 """
+
 from __future__ import annotations
 
 import itertools

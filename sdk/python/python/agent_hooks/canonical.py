@@ -6,6 +6,7 @@ Delegates to the Rust core (``agent_hooks._core``) so every SDK produces
 byte-identical output. The pure-Python implementation was removed once the
 core became canonical (see ``sdk/rust/core/src/canonical.rs``).
 """
+
 from __future__ import annotations
 
 from typing import Any

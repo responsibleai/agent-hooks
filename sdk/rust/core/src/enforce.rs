@@ -97,6 +97,13 @@ pub struct FinalizeMeta {
     /// declared provider name with `null` identities — the §10.3
     /// rejection shape.
     pub jcs_input_rejected: bool,
+    /// True when no transform was applied to the context after
+    /// `input_identity` was computed (allow paths, evaluate_only): the
+    /// bytes are unchanged, so the JCS arm reuses `input_identity`
+    /// instead of re-canonicalizing and re-hashing the full payload
+    /// (NEXT-19). Defaults to `false` (compute — the safe direction);
+    /// only set by emitters that track fold state.
+    pub unchanged_since_input: bool,
     pub decided_by: Option<u32>,
     pub composition: CompositionConfig,
     /// Per-interceptor summaries (multi-verdict profiles, §10.3).
@@ -210,6 +217,14 @@ pub fn finalize(
             }
             None
         }
+        // §10.3: with no fold-applied transform the post-composition
+        // bytes are the pre-dispatch bytes — reuse the already-computed
+        // input identity (skips a full canonicalize+hash on the
+        // allow path). Only when the input identity exists: a None
+        // input with a declared jcs provider is the rejection shape.
+        Some(JCS_SHA256) if meta.unchanged_since_input && meta.input_identity.is_some() => {
+            meta.input_identity.clone()
+        }
         Some(JCS_SHA256) => match context_identity(ctx) {
             Ok(id) => Some(id),
             // §10.2/§10.3: the post-fold context left the provider's
@@ -228,7 +243,11 @@ pub fn finalize(
         Some(_) => meta.enforced_identity,
         None => None,
     };
-    let input_identity = if envelope_invalid.is_some() { None } else { meta.input_identity };
+    let input_identity = if envelope_invalid.is_some() {
+        None
+    } else {
+        meta.input_identity
+    };
     InterceptionRecord {
         interception_point: ip,
         mode,
@@ -317,7 +336,12 @@ mod tests {
     #[test]
     fn allow_identities_equal() {
         let c = ctx("pre_tool_call", json!({"url": "x"}));
-        let r = finalize(&c, Verdict::allow(), EnforcementMode::Enforce, default_meta(&c));
+        let r = finalize(
+            &c,
+            Verdict::allow(),
+            EnforcementMode::Enforce,
+            default_meta(&c),
+        );
         assert_eq!(r.input_identity, r.enforced_identity);
         assert!(r.input_identity.is_some());
         assert_eq!(r.identity_provider.as_deref(), Some(JCS_SHA256));
@@ -400,7 +424,13 @@ mod tests {
         validate_transform(&c, &t).unwrap();
         assert_eq!(c["target"]["url"], json!("evil"));
         assert_eq!(
-            validate_transform(&c, &Transform { path: "$target.missing.x".into(), value: json!(0) }),
+            validate_transform(
+                &c,
+                &Transform {
+                    path: "$target.missing.x".into(),
+                    value: json!(0)
+                }
+            ),
             Err(HostError::TransformInvalid)
         );
     }
@@ -482,7 +512,10 @@ mod tests {
         };
         let r = finalize(&c, Verdict::allow(), EnforcementMode::Enforce, meta);
         assert!(!r.proceeds());
-        assert_eq!(r.verdict.reason.as_deref(), Some("host_error:context_invalid"));
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:context_invalid")
+        );
         assert!(r.enforced_identity.is_none());
         assert!(r.input_identity.is_some());
     }
@@ -500,7 +533,10 @@ mod tests {
         };
         let r = finalize(&c, Verdict::allow(), EnforcementMode::Enforce, meta);
         assert!(!r.proceeds());
-        assert_eq!(r.verdict.reason.as_deref(), Some("host_error:context_invalid"));
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:context_invalid")
+        );
         assert!(r.input_identity.is_none() && r.enforced_identity.is_none());
         assert_eq!(r.session_id, "");
     }
@@ -510,12 +546,16 @@ mod tests {
         // §7.2/§10.3: records carry resolved knobs even when the host
         // left them unset.
         let c = ctx("pre_tool_call", json!({}));
-        let r = finalize(&c, Verdict::allow(), EnforcementMode::Enforce, default_meta(&c));
+        let r = finalize(
+            &c,
+            Verdict::allow(),
+            EnforcementMode::Enforce,
+            default_meta(&c),
+        );
         assert_eq!(
             r.composition.on_approval,
             Some(crate::composition::OnApproval::Stop)
         );
         assert!(r.composition.on_disagreement.is_none());
     }
-
 }

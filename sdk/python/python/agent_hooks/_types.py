@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 """Core enums and value types for AGENT-HOOKS-0.1 (§3, §5, §8, §10.3, §11)."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -101,9 +102,7 @@ class Transform:
 
     def __post_init__(self) -> None:
         if not (self.path.startswith("$target") or self.path.startswith("$policy_target")):
-            raise ValueError(
-                f"transform.path must be rooted at $target (got {self.path!r})"
-            )
+            raise ValueError(f"transform.path must be rooted at $target (got {self.path!r})")
 
     def to_wire(self) -> dict[str, Any]:
         # Mirrors the core: value serialized only when non-null; the
@@ -161,9 +160,7 @@ class Warning:
         if not isinstance(obj, dict):
             raise ValueError("warnings must be an array of objects (§5)")
         reason = obj.get("reason")
-        if reason is not None and (
-            not isinstance(reason, str) or reason.startswith("host_error:")
-        ):
+        if reason is not None and (not isinstance(reason, str) or reason.startswith("host_error:")):
             raise ValueError("warnings[].reason must be a non-reserved string")
         message = obj.get("message")
         if message is not None and not isinstance(message, str):
@@ -479,9 +476,7 @@ class InterceptionRecord:
             sequence=obj.get("sequence", -1),
             decided_by=obj.get("decided_by"),
             composition=CompositionConfig.from_wire(obj.get("composition")),
-            verdicts=tuple(
-                VerdictSummary.from_wire(v) for v in obj.get("verdicts") or ()
-            ),
+            verdicts=tuple(VerdictSummary.from_wire(v) for v in obj.get("verdicts") or ()),
             fold_truncated=obj.get("fold_truncated"),
             resolved_by=obj.get("resolved_by"),
             interceptors_registered=obj.get("interceptors_registered", 0),

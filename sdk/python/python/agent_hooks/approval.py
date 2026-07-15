@@ -13,6 +13,7 @@ conformant behaviour, not an error.
 (§10.1) — the approval is then identity-unbound and the echo rule
 applies to ``None`` itself.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

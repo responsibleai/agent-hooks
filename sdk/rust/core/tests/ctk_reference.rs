@@ -9,7 +9,11 @@ use agent_hooks::ctk::{load_vectors, run_vector, ReferenceHarness};
 async fn ctk_reference_all_vectors() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../conformance/vectors");
     let vectors = load_vectors(dir).expect("load vectors");
-    assert!(vectors.len() >= 30, "expected >=30 vectors, got {}", vectors.len());
+    assert!(
+        vectors.len() >= 30,
+        "expected >=30 vectors, got {}",
+        vectors.len()
+    );
     let mut unexpected: Vec<String> = Vec::new();
     let mut skipped: Vec<String> = Vec::new();
     for vector in &vectors {

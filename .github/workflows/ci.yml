@@ -51,7 +51,7 @@ jobs:
         run: |
           uv pip install --system -r sdk/python/requirements-dev.lock
           uv pip install --system --no-deps --no-build-isolation -e ./sdk/python
-      - run: ruff check sdk/python
+      - run: ruff format --check sdk/python scripts && ruff check sdk/python scripts
       - run: pytest sdk/python/tests -p no:agent_hooks_ctk -v
 
   typescript:
@@ -69,6 +69,9 @@ jobs:
         working-directory: sdk/typescript
       - run: npm run build:native:debug
         working-directory: sdk/typescript
+      - name: Generated-binding drift (mirrors schema-drift)
+        run: git diff --exit-code -- binding.js binding.d.ts
+        working-directory: sdk/typescript
       - run: npx tsc
         working-directory: sdk/typescript
       # All test files, never an allowlist: the emitter suite shipped
@@ -82,7 +85,9 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-        with: { components: clippy }
+        with: { components: "clippy, rustfmt" }
+      - run: cargo fmt --all --check
+        working-directory: sdk/rust
       - run: cargo clippy --locked --workspace --all-features -- -D warnings
         working-directory: sdk/rust
       - run: cargo test --locked --workspace --all-features
@@ -99,6 +104,8 @@ jobs:
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore --locked-mode
+        working-directory: sdk/dotnet
+      - run: dotnet format --no-restore --verify-no-changes
         working-directory: sdk/dotnet
       - run: dotnet build --no-restore -warnaserror
         working-directory: sdk/dotnet
@@ -120,6 +127,7 @@ jobs:
         with: { go-version: "1.22" }
       - name: Build and test
         run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; echo "::error::gofmt violations"; exit 1; }
           go build ./...
           go vet ./...
           go test ./... -v
@@ -127,3 +135,42 @@ jobs:
         env:
           CGO_LDFLAGS: -L${{ github.workspace }}/sdk/rust/target/release -lagent_hooks_ffi
           LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
+
+  # Cross-platform build+test of the core and one FFI consumer
+  # (NEXT-23). Advisory: not in the required-check set yet — required
+  # names must be stable and always-reporting (see CONTRIBUTING.md).
+  rust-xplat:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+      - run: cargo test --locked --workspace --all-features
+        working-directory: sdk/rust
+
+  dotnet-xplat:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+      - name: Build ffi cdylib
+        run: cargo build --locked -p agent-hooks-ffi --release
+        working-directory: sdk/rust
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+        with: { dotnet-version: "8.0.x" }
+      - run: dotnet restore --locked-mode
+        working-directory: sdk/dotnet
+      - name: Test (native library via per-OS loader path)
+        run: dotnet test test/AgentHooks.Tests/ --nologo
+        working-directory: sdk/dotnet
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
+          AGENT_HOOKS_FFI_DIR: ${{ github.workspace }}/sdk/rust/target/release

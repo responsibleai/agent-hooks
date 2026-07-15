@@ -80,6 +80,27 @@ byte-comparable across SDKs, so a divergence in any duplicated surface
 fails that SDK's self-test. (AH-CTK-104's `verdicts[]` assertions
 caught exactly such a drift during development.)
 
+## Latency budget
+
+The emitter sits on the critical path of every model and tool call.
+Budget (allow path, `sequential/first_deny`, jcs-sha256 provider, per
+emission, excluding interceptor bodies):
+
+| Context size | Interceptors | Budget |
+| --- | --- | --- |
+| ≤1 KiB | 1 | < 50 µs |
+| ≤100 KiB | 5 | < 2 ms |
+| ≤1 MiB | 10 | < 20 ms |
+
+Dominated by canonicalization+hash of the payload (once per emission on
+the allow path: `finalize` reuses the pre-dispatch identity when no
+transform folded). Verify with `cargo bench -p agent-hooks-sdk` —
+`benches/emission.rs` covers `context_identity`, `compose_aggregate`,
+and the full emit path at these sizes. Numbers are targets on
+commodity x86-64; CI does not gate on them (shared-runner variance
+makes threshold gates flaky) — regressions are caught by running the
+bench suite before release tags.
+
 ## Golden vectors
 
 `conformance/golden/identity.json` is generated from the Rust core by

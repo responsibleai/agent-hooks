@@ -107,7 +107,8 @@ impl CompositionConfig {
             P::ParallelStrictest => {
                 self.on_approval = None;
                 self.on_disagreement = None;
-                self.on_transform_conflict.get_or_insert(SynthesisPolicy::Deny);
+                self.on_transform_conflict
+                    .get_or_insert(SynthesisPolicy::Deny);
             }
             P::ParallelUnanimous => {
                 self.on_approval = None;
@@ -374,7 +375,10 @@ mod tests {
             Verdict::escalate(None, None),
             Verdict::allow()
         ]));
-        assert!(!all_denies_liftable(&[Verdict::escalate(None, None), deny()]));
+        assert!(!all_denies_liftable(&[
+            Verdict::escalate(None, None),
+            deny()
+        ]));
     }
 
     #[test]

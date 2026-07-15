@@ -6,6 +6,7 @@ Loads ``conformance/golden/identity.json`` (generated from the Rust core)
 and asserts the Python SDK — which delegates to the same core via PyO3 —
 produces identical output. This is the RM-N01/RM-N02 closure test.
 """
+
 from __future__ import annotations
 
 import json
@@ -14,9 +15,7 @@ import pathlib
 import pytest
 from agent_hooks import canonical_json, context_identity
 
-_GOLDEN = (
-    pathlib.Path(__file__).resolve().parents[3] / "conformance" / "golden" / "identity.json"
-)
+_GOLDEN = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "golden" / "identity.json"
 _FIXTURES = json.loads(_GOLDEN.read_text())["fixtures"]
 
 

@@ -40,8 +40,7 @@ fn golden_context_identity() {
         if f["expect"].get("error").is_some() {
             // §10.2: out-of-domain contexts fail closed — never a
             // real-looking identity.
-            let (e, _) = context_identity(&ctx)
-                .expect_err("negative fixture must be rejected");
+            let (e, _) = context_identity(&ctx).expect_err("negative fixture must be rejected");
             assert_eq!(e.to_string(), "host_error:context_invalid", "{}", f["id"]);
             continue;
         }
@@ -64,14 +63,23 @@ fn golden_provider_rejects_beyond_2_53() {
     let ctx: AgentContext = serde_json::from_value(f["ctx"].clone()).unwrap();
     let (e, detail) = context_identity(&ctx).unwrap_err();
     assert_eq!(e.to_string(), "host_error:context_invalid");
-    assert!(detail.contains("string-encode 64-bit identifiers"), "{detail}");
+    assert!(
+        detail.contains("string-encode 64-bit identifiers"),
+        "{detail}"
+    );
 }
 
 #[test]
 fn golden_l2_l3_stripped() {
     let fs = load();
-    let g05 = fs.iter().find(|f| f["id"] == "G-05-l2-l3-stripped").unwrap();
-    let g05b = fs.iter().find(|f| f["id"] == "G-05b-l2-l3-baseline").unwrap();
+    let g05 = fs
+        .iter()
+        .find(|f| f["id"] == "G-05-l2-l3-stripped")
+        .unwrap();
+    let g05b = fs
+        .iter()
+        .find(|f| f["id"] == "G-05b-l2-l3-baseline")
+        .unwrap();
     assert_eq!(
         g05["expect"]["context_identity"], g05b["expect"]["context_identity"],
         "L2/L3 fields must not affect context_identity (§10.2)"

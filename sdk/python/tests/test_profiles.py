@@ -7,6 +7,7 @@ run_all single-consult rule, parallel transform conflict, unanimous
 disagreement, the §4.4 NaN marshalling guard, the §10.1 provider seam
 (None/custom), and the §10.2 big-int rejection.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -201,9 +202,7 @@ def test_first_deny_resume_allows_multiple_consultations() -> None:
 
 
 def test_first_deny_reject_leaves_deny_standing() -> None:
-    approver = Approver(
-        ApprovalOutcome.REJECT, Verdict(decision=Decision.DENY, reason="rejected")
-    )
+    approver = Approver(ApprovalOutcome.REJECT, Verdict(decision=Decision.DENY, reason="rejected"))
     em = InterceptionEmitter(resolver=approver)
     em.register(Scripted(Verdict.escalate(reason="check")))
     r = _emit(em, _ctx())
@@ -294,9 +293,7 @@ def test_evaluate_only_never_consults_and_proceeds() -> None:
 
 
 def test_parallel_strictest_transform_conflict_fails_closed() -> None:
-    em = InterceptionEmitter(
-        composition=CompositionConfig.strictest(SynthesisPolicy.DENY)
-    )
+    em = InterceptionEmitter(composition=CompositionConfig.strictest(SynthesisPolicy.DENY))
     em.register(Scripted(_transform("$target.url", "a")))
     em.register(Scripted(_transform("$target.url", "b")))
     ctx = _ctx()
@@ -309,9 +306,7 @@ def test_parallel_strictest_transform_conflict_fails_closed() -> None:
 
 
 def test_parallel_strictest_conflict_approval_consults_seam() -> None:
-    approver = Approver(
-        ApprovalOutcome.APPROVE, _transform("$target.url", "resolved")
-    )
+    approver = Approver(ApprovalOutcome.APPROVE, _transform("$target.url", "resolved"))
     em = InterceptionEmitter(
         resolver=approver,
         composition=CompositionConfig.strictest(SynthesisPolicy.APPROVAL),
@@ -330,9 +325,7 @@ def test_parallel_strictest_conflict_approval_consults_seam() -> None:
 
 
 def test_parallel_strictest_single_transform_applies() -> None:
-    em = InterceptionEmitter(
-        composition=CompositionConfig.strictest(SynthesisPolicy.DENY)
-    )
+    em = InterceptionEmitter(composition=CompositionConfig.strictest(SynthesisPolicy.DENY))
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     em.register(Scripted(_transform("$target.url", "safe")))
     ctx = _ctx()
@@ -367,9 +360,7 @@ def test_parallel_strictest_isolated_snapshots() -> None:
 
 def test_parallel_strictest_liftable_winner_consults() -> None:
     approver = Approver(ApprovalOutcome.APPROVE, Verdict(decision=Decision.ALLOW))
-    em = InterceptionEmitter(
-        resolver=approver, composition=CompositionConfig.strictest()
-    )
+    em = InterceptionEmitter(resolver=approver, composition=CompositionConfig.strictest())
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     em.register(Scripted(Verdict.escalate(reason="check")))
     r = _emit(em, _ctx())
@@ -395,9 +386,7 @@ def test_unanimous_allow_passes_with_unions() -> None:
 
 def test_unanimous_disagreement_synthesizes_deny() -> None:
     em = InterceptionEmitter(
-        composition=CompositionConfig.unanimous(
-            SynthesisPolicy.DENY, SynthesisPolicy.DENY
-        )
+        composition=CompositionConfig.unanimous(SynthesisPolicy.DENY, SynthesisPolicy.DENY)
     )
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     em.register(Scripted(_transform("$target.url", "x")))
@@ -413,9 +402,7 @@ def test_unanimous_disagreement_approval_consults_seam() -> None:
     approver = Approver(ApprovalOutcome.APPROVE, Verdict(decision=Decision.ALLOW))
     em = InterceptionEmitter(
         resolver=approver,
-        composition=CompositionConfig.unanimous(
-            SynthesisPolicy.APPROVAL, SynthesisPolicy.DENY
-        ),
+        composition=CompositionConfig.unanimous(SynthesisPolicy.APPROVAL, SynthesisPolicy.DENY),
     )
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     em.register(Scripted(_deny()))
@@ -428,9 +415,7 @@ def test_unanimous_disagreement_approval_consults_seam() -> None:
 
 def test_unanimous_disagreement_approval_without_resolver_stands() -> None:
     em = InterceptionEmitter(
-        composition=CompositionConfig.unanimous(
-            SynthesisPolicy.APPROVAL, SynthesisPolicy.DENY
-        )
+        composition=CompositionConfig.unanimous(SynthesisPolicy.APPROVAL, SynthesisPolicy.DENY)
     )
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     em.register(Scripted(_deny()))
@@ -460,9 +445,7 @@ def test_custom_provider_identities_and_name() -> None:
         calls.append(ctx["interception_point"])
         return f"host:{ctx['sequence']}"
 
-    em = InterceptionEmitter(
-        identity_provider=IdentityProvider("host-hash", fingerprint)
-    )
+    em = InterceptionEmitter(identity_provider=IdentityProvider("host-hash", fingerprint))
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     r = _emit(em, _ctx())
     assert r.identity_provider == "host-hash"

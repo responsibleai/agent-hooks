@@ -335,7 +335,9 @@ mod tests {
         let code = if (*r).error_code.is_null() {
             String::new()
         } else {
-            CStr::from_ptr((*r).error_code).to_string_lossy().into_owned()
+            CStr::from_ptr((*r).error_code)
+                .to_string_lossy()
+                .into_owned()
         };
         ah_free_result(r);
         (ok, value, code)
@@ -377,7 +379,10 @@ mod tests {
             let (ok, detail, code) = call1(ah_context_identity, ctx);
             assert_eq!(ok, 0);
             assert_eq!(code, "host_error:context_invalid");
-            assert!(detail.contains("string-encode 64-bit identifiers"), "{detail}");
+            assert!(
+                detail.contains("string-encode 64-bit identifiers"),
+                "{detail}"
+            );
         }
     }
 

@@ -228,6 +228,13 @@ func (e *InterceptionEmitter) Mode() EnforcementMode { return e.mode }
 
 // SetComposition declares the composition profile for subsequent
 // emissions (§7.1). An empty profile resets to the default.
+//
+// The default (sequential/first_deny, on_approval: stop) is the
+// configuration §14 warns about: after an approval lifts a liftable
+// deny, interceptors registered after the escalating one never run for
+// that emission (fold_truncated on the record). Register must-run
+// controls first, or use sequential/run_all / a parallel profile.
+// See docs/PRODUCTION.md.
 func (e *InterceptionEmitter) SetComposition(c CompositionConfig) *InterceptionEmitter {
 	if c.Profile == "" {
 		c = DefaultComposition()

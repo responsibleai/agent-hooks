@@ -8,13 +8,16 @@ Expected outputs are computed by the Rust core via the Python FFI
 binding, so any language binding that agrees with these values agrees
 with Rust.
 """
+
 from __future__ import annotations
 
 import json
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "sdk" / "python" / "python"))
+sys.path.insert(
+    0, str(pathlib.Path(__file__).resolve().parents[1] / "sdk" / "python" / "python")
+)
 from agent_hooks import _core  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -38,112 +41,179 @@ FIXTURES: list[tuple[str, str, dict]] = [
     (
         "G-01-startup",
         "agent_startup baseline",
-        ctx("agent_startup", 0, {
-            "agent_init": {"tools_registered": ["a", "b"]},
-            "target": {"tools_registered": ["a", "b"]},
-        }),
+        ctx(
+            "agent_startup",
+            0,
+            {
+                "agent_init": {"tools_registered": ["a", "b"]},
+                "target": {"tools_registered": ["a", "b"]},
+            },
+        ),
     ),
     (
         "G-02-input-unicode",
         "input with non-ASCII content and emoji",
-        ctx("input", 1, {
-            "input": {"content": "héllo 🌍", "role": "user"},
-            "target": {"content": "héllo 🌍", "role": "user"},
-        }),
+        ctx(
+            "input",
+            1,
+            {
+                "input": {"content": "héllo 🌍", "role": "user"},
+                "target": {"content": "héllo 🌍", "role": "user"},
+            },
+        ),
     ),
     (
         "G-03-pre-tool-numbers",
         "pre_tool_call with number edge cases in args",
-        ctx("pre_tool_call", 4, {
-            "tool_call": {
-                "id": "tc-1", "name": "calc",
-                "args": {"i": 1, "f": 1.0, "neg0": -0.0, "big": 1e21,
-                         "small": 1e-7, "pi": 3.141592653589793},
+        ctx(
+            "pre_tool_call",
+            4,
+            {
+                "tool_call": {
+                    "id": "tc-1",
+                    "name": "calc",
+                    "args": {
+                        "i": 1,
+                        "f": 1.0,
+                        "neg0": -0.0,
+                        "big": 1e21,
+                        "small": 1e-7,
+                        "pi": 3.141592653589793,
+                    },
+                },
+                "target": {
+                    "i": 1,
+                    "f": 1.0,
+                    "neg0": -0.0,
+                    "big": 1e21,
+                    "small": 1e-7,
+                    "pi": 3.141592653589793,
+                },
             },
-            "target": {"i": 1, "f": 1.0, "neg0": -0.0, "big": 1e21,
-                       "small": 1e-7, "pi": 3.141592653589793},
-        }),
+        ),
     ),
     (
         "G-04-key-order",
         "post_model_call with keys supplied in reverse order",
-        ctx("post_model_call", 3, {
-            "model": {"id": "m"},
-            "response": {"finish_reason": "stop", "tool_calls": [],
-                         "content": {"z": 1, "a": 2, "m": 3}},
-            "target": {"finish_reason": "stop", "tool_calls": [],
-                       "content": {"z": 1, "a": 2, "m": 3}},
-        }),
+        ctx(
+            "post_model_call",
+            3,
+            {
+                "model": {"id": "m"},
+                "response": {
+                    "finish_reason": "stop",
+                    "tool_calls": [],
+                    "content": {"z": 1, "a": 2, "m": 3},
+                },
+                "target": {
+                    "finish_reason": "stop",
+                    "tool_calls": [],
+                    "content": {"z": 1, "a": 2, "m": 3},
+                },
+            },
+        ),
     ),
     (
         "G-05-l2-l3-stripped",
         "L2 (trace, budgets, agent.name) and L3 (extensions) MUST NOT affect identity",
-        ctx("input", 1, {
-            "input": {"content": "hi", "role": "user"},
-            "target": {"content": "hi", "role": "user"},
-            "agent": {"id": "agent-1", "framework": "reference",
-                      "name": "IGNORED", "version": "IGNORED"},
-            "session": {"id": "sess-1", "started_at": "IGNORED", "turn": 99},
-            "trace": {"trace_id": "IGNORED"},
-            "budgets": {"tool_call_count": 999},
-            "extensions": {"acs": {"anything": True}},
-        }),
+        ctx(
+            "input",
+            1,
+            {
+                "input": {"content": "hi", "role": "user"},
+                "target": {"content": "hi", "role": "user"},
+                "agent": {
+                    "id": "agent-1",
+                    "framework": "reference",
+                    "name": "IGNORED",
+                    "version": "IGNORED",
+                },
+                "session": {"id": "sess-1", "started_at": "IGNORED", "turn": 99},
+                "trace": {"trace_id": "IGNORED"},
+                "budgets": {"tool_call_count": 999},
+                "extensions": {"acs": {"anything": True}},
+            },
+        ),
     ),
     (
         "G-05b-l2-l3-baseline",
         "same required+conditional fields as G-05 without optional/namespaced ones; identity MUST equal G-05",
-        ctx("input", 1, {
-            "input": {"content": "hi", "role": "user"},
-            "target": {"content": "hi", "role": "user"},
-        }),
+        ctx(
+            "input",
+            1,
+            {
+                "input": {"content": "hi", "role": "user"},
+                "target": {"content": "hi", "role": "user"},
+            },
+        ),
     ),
     (
         "G-06-nested-array",
         "pre_model_call with nested message array",
-        ctx("pre_model_call", 2, {
-            "model": {"id": "gpt-x"},
-            "messages": [
-                {"role": "system", "content": "a"},
-                {"role": "user", "content": {"parts": [1, 2, {"k": "v"}]}},
-            ],
-            "target": [
-                {"role": "system", "content": "a"},
-                {"role": "user", "content": {"parts": [1, 2, {"k": "v"}]}},
-            ],
-        }),
+        ctx(
+            "pre_model_call",
+            2,
+            {
+                "model": {"id": "gpt-x"},
+                "messages": [
+                    {"role": "system", "content": "a"},
+                    {"role": "user", "content": {"parts": [1, 2, {"k": "v"}]}},
+                ],
+                "target": [
+                    {"role": "system", "content": "a"},
+                    {"role": "user", "content": {"parts": [1, 2, {"k": "v"}]}},
+                ],
+            },
+        ),
     ),
     (
         "G-07-post-tool-null",
         "post_tool_call with null result value",
-        ctx("post_tool_call", 5, {
-            "tool_call": {"id": "tc-1", "name": "t", "args": {}},
-            "tool_result": {"value": None, "is_error": False},
-            "target": None,
-        }),
+        ctx(
+            "post_tool_call",
+            5,
+            {
+                "tool_call": {"id": "tc-1", "name": "t", "args": {}},
+                "tool_result": {"value": None, "is_error": False},
+                "target": None,
+            },
+        ),
     ),
     (
         "G-08-output-escapes",
         "output with control chars requiring escape",
-        ctx("output", 6, {
-            "output": {"content": "line1\nline2\t\"q\"\\end"},
-            "target": {"content": "line1\nline2\t\"q\"\\end"},
-        }),
+        ctx(
+            "output",
+            6,
+            {
+                "output": {"content": 'line1\nline2\t"q"\\end'},
+                "target": {"content": 'line1\nline2\t"q"\\end'},
+            },
+        ),
     ),
     (
         "G-09-shutdown",
         "agent_shutdown baseline",
-        ctx("agent_shutdown", 7, {
-            "summary": {"reason": "completed"},
-            "target": {"reason": "completed"},
-        }),
+        ctx(
+            "agent_shutdown",
+            7,
+            {
+                "summary": {"reason": "completed"},
+                "target": {"reason": "completed"},
+            },
+        ),
     ),
     (
         "G-10-empty-target",
         "pre_tool_call with empty args object",
-        ctx("pre_tool_call", 4, {
-            "tool_call": {"id": "tc-1", "name": "noop", "args": {}},
-            "target": {},
-        }),
+        ctx(
+            "pre_tool_call",
+            4,
+            {
+                "tool_call": {"id": "tc-1", "name": "noop", "args": {}},
+                "target": {},
+            },
+        ),
     ),
     (
         "G-11-utf16-key-order",
@@ -151,63 +221,126 @@ FIXTURES: list[tuple[str, str, dict]] = [
         "first unit 0xD800) MUST sort before U+E000 despite the higher "
         "code point — the exact case where code-point sorters diverge. "
         "Empty key sorts first.",
-        ctx("pre_tool_call", 8, {
-            "tool_call": {"id": "tc-2", "name": "k", "args": {
-                "": 1, "\ue000": 2, "\U00010000": 3, "z": 4, "\u00e9": 5,
-            }},
-            "target": {
-                "": 1, "\ue000": 2, "\U00010000": 3, "z": 4, "\u00e9": 5,
+        ctx(
+            "pre_tool_call",
+            8,
+            {
+                "tool_call": {
+                    "id": "tc-2",
+                    "name": "k",
+                    "args": {
+                        "": 1,
+                        "\ue000": 2,
+                        "\U00010000": 3,
+                        "z": 4,
+                        "\u00e9": 5,
+                    },
+                },
+                "target": {
+                    "": 1,
+                    "\ue000": 2,
+                    "\U00010000": 3,
+                    "z": 4,
+                    "\u00e9": 5,
+                },
             },
-        }),
+        ),
     ),
     (
         "G-12-non-ascii-keys",
         "non-ASCII member names (accented, CJK, emoji) survive "
         "canonicalization unescaped and sort by UTF-16 units",
-        ctx("pre_tool_call", 9, {
-            "tool_call": {"id": "tc-3", "name": "k", "args": {
-                "中文": 1, "émoji🎯": 2, "ascii": 3,
-            }},
-            "target": {"中文": 1, "émoji🎯": 2, "ascii": 3},
-        }),
+        ctx(
+            "pre_tool_call",
+            9,
+            {
+                "tool_call": {
+                    "id": "tc-3",
+                    "name": "k",
+                    "args": {
+                        "中文": 1,
+                        "émoji🎯": 2,
+                        "ascii": 3,
+                    },
+                },
+                "target": {"中文": 1, "émoji🎯": 2, "ascii": 3},
+            },
+        ),
     ),
     (
         "G-13-int53-boundaries",
         "±(2^53−1) are the largest integral values inside the I-JSON "
         "domain (§10.2); one past either bound is rejected (see the "
         "negative fixtures)",
-        ctx("pre_tool_call", 10, {
-            "tool_call": {"id": "tc-4", "name": "k", "args": {
-                "max": 9007199254740991, "min": -9007199254740991,
-            }},
-            "target": {"max": 9007199254740991, "min": -9007199254740991},
-        }),
+        ctx(
+            "pre_tool_call",
+            10,
+            {
+                "tool_call": {
+                    "id": "tc-4",
+                    "name": "k",
+                    "args": {
+                        "max": 9007199254740991,
+                        "min": -9007199254740991,
+                    },
+                },
+                "target": {"max": 9007199254740991, "min": -9007199254740991},
+            },
+        ),
     ),
     (
         "G-14-string-encoded-int64",
         "the §4.4 convention: 64-bit identifiers as decimal strings pass "
         "through byte-faithfully and never collide with numeric siblings",
-        ctx("pre_tool_call", 11, {
-            "tool_call": {"id": "tc-5", "name": "k", "args": {
-                "id": "9223372036854775807", "small": 42,
-            }},
-            "target": {"id": "9223372036854775807", "small": 42},
-        }),
+        ctx(
+            "pre_tool_call",
+            11,
+            {
+                "tool_call": {
+                    "id": "tc-5",
+                    "name": "k",
+                    "args": {
+                        "id": "9223372036854775807",
+                        "small": 42,
+                    },
+                },
+                "target": {"id": "9223372036854775807", "small": 42},
+            },
+        ),
     ),
     (
         "G-15-rfc8785-numbers",
         "ECMA-262 Number::toString forms from the RFC 8785 test corpus "
         "(in-domain subset): trailing-zero drop, exponent thresholds, "
         "shortest round-trip",
-        ctx("pre_tool_call", 12, {
-            "tool_call": {"id": "tc-6", "name": "k", "args": {
-                "a": 56.0, "b": 0.000001, "c": 1e-7, "d": 333333333.33333329,
-                "e": 1e21, "f": 9.999999999999997e22, "g": 0.1,
-            }},
-            "target": {"a": 56.0, "b": 0.000001, "c": 1e-7,
-                       "d": 333333333.33333329, "e": 1e21,
-                       "f": 9.999999999999997e22, "g": 0.1},
-        }),
+        ctx(
+            "pre_tool_call",
+            12,
+            {
+                "tool_call": {
+                    "id": "tc-6",
+                    "name": "k",
+                    "args": {
+                        "a": 56.0,
+                        "b": 0.000001,
+                        "c": 1e-7,
+                        "d": 333333333.33333329,
+                        "e": 1e21,
+                        "f": 9.999999999999997e22,
+                        "g": 0.1,
+                    },
+                },
+                "target": {
+                    "a": 56.0,
+                    "b": 0.000001,
+                    "c": 1e-7,
+                    "d": 333333333.33333329,
+                    "e": 1e21,
+                    "f": 9.999999999999997e22,
+                    "g": 0.1,
+                },
+            },
+        ),
     ),
 ]
 
@@ -217,11 +350,18 @@ NEGATIVE_FIXTURES: list[tuple[str, str, dict]] = [
     (
         "G-N01-integral-beyond-2-53",
         "2^53 itself is out of domain: canonicalization would round",
-        ctx("pre_tool_call", 13, {
-            "tool_call": {"id": "tc-7", "name": "k",
-                          "args": {"id": 9007199254740992}},
-            "target": {"id": 9007199254740992},
-        }),
+        ctx(
+            "pre_tool_call",
+            13,
+            {
+                "tool_call": {
+                    "id": "tc-7",
+                    "name": "k",
+                    "args": {"id": 9007199254740992},
+                },
+                "target": {"id": 9007199254740992},
+            },
+        ),
     ),
     (
         "G-N02-missing-conditional",
@@ -237,12 +377,14 @@ def main() -> None:
         ctx_json = json.dumps(c, ensure_ascii=False)
         canon = _core.canonical_json(ctx_json)
         ident = _core.context_identity(ctx_json)
-        out.append({
-            "id": fid,
-            "note": note,
-            "ctx": c,
-            "expect": {"canonical_json": canon, "context_identity": ident},
-        })
+        out.append(
+            {
+                "id": fid,
+                "note": note,
+                "ctx": c,
+                "expect": {"canonical_json": canon, "context_identity": ident},
+            }
+        )
     for fid, note, c in NEGATIVE_FIXTURES:
         ctx_json = json.dumps(c, ensure_ascii=False)
         try:
@@ -250,12 +392,14 @@ def main() -> None:
             raise SystemExit(f"{fid}: expected rejection, got an identity")
         except Exception:
             pass
-        out.append({
-            "id": fid,
-            "note": note,
-            "ctx": c,
-            "expect": {"error": "host_error:context_invalid"},
-        })
+        out.append(
+            {
+                "id": fid,
+                "note": note,
+                "ctx": c,
+                "expect": {"error": "host_error:context_invalid"},
+            }
+        )
     # G-05 and G-05b MUST have identical identity (L2/L3 stripped).
     g05 = next(f for f in out if f["id"] == "G-05-l2-l3-stripped")
     g05b = next(f for f in out if f["id"] == "G-05b-l2-l3-baseline")

@@ -459,3 +459,4 @@ sdk/go/**/*.test
 .vscode/
 .idea/
 .DS_Store
+.claude/

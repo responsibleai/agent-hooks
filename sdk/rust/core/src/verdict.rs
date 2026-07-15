@@ -9,9 +9,10 @@ use serde_json::Value;
 /// per §5. Any violation yields `HostError::VerdictInvalid` with a detail
 /// message; the caller synthesizes the `deny` verdict.
 pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
-    let obj = raw
-        .as_object()
-        .ok_or((HostError::VerdictInvalid, "verdict must be a JSON object".into()))?;
+    let obj = raw.as_object().ok_or((
+        HostError::VerdictInvalid,
+        "verdict must be a JSON object".into(),
+    ))?;
 
     let decision = match obj.get("decision").and_then(Value::as_str) {
         Some("allow") => Decision::Allow,
@@ -46,9 +47,7 @@ pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
                 Value::Object(m) => {
                     let reason = match m.get("reason") {
                         None | Some(Value::Null) => None,
-                        Some(Value::String(s)) if !s.starts_with("host_error:") => {
-                            Some(s.clone())
-                        }
+                        Some(Value::String(s)) if !s.starts_with("host_error:") => Some(s.clone()),
                         _ => {
                             return Err((
                                 HostError::VerdictInvalid,
@@ -221,7 +220,6 @@ fn opt_string(
         )),
     }
 }
-
 
 #[cfg(test)]
 mod tests {

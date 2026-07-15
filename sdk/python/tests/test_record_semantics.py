@@ -39,8 +39,8 @@ class Allow:
 
 
 def _emit(em: InterceptionEmitter, ctx: dict[str, Any]):
-    return asyncio.get_event_loop_policy().new_event_loop().run_until_complete(
-        em.emit_unchecked(ctx)
+    return (
+        asyncio.get_event_loop_policy().new_event_loop().run_until_complete(em.emit_unchecked(ctx))
     )
 
 

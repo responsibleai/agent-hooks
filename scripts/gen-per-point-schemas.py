@@ -5,6 +5,7 @@ Each per-point schema is a closed (additionalProperties: false on the L1
 payload object) variant of agent-context.schema.json restricted to one
 interception_point value, used by the CTK for strict validation.
 """
+
 from __future__ import annotations
 
 import json
@@ -26,7 +27,15 @@ L1: dict[str, tuple[list[str], list[str]]] = {
     "agent_shutdown": (["summary"], ["summary"]),
 }
 
-CORE_REQUIRED = ["spec", "interception_point", "timestamp", "sequence", "agent", "session", "target"]
+CORE_REQUIRED = [
+    "spec",
+    "interception_point",
+    "timestamp",
+    "sequence",
+    "agent",
+    "session",
+    "target",
+]
 
 
 def main() -> None:
