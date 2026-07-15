@@ -187,7 +187,7 @@ jobs:
       - name: Authenticate to NuGet (trusted publishing)
         if: env.DRY_RUN != 'true' && github.ref_type == 'tag'
         id: nuget-login
-        uses: NuGet/login@d2e63aec27eb60a1d40f4c1c9440059cbf27d19a # v1
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         with:
           user: ${{ secrets.NUGET_USER }}
       - name: Publish to NuGet
