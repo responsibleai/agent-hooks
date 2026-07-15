@@ -167,10 +167,15 @@ jobs:
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore --locked-mode
         working-directory: sdk/dotnet
-      - name: Test (native library via per-OS loader path)
+      - name: Expose native library to the per-OS loader
+        # GITHUB_PATH covers the Windows DLL search path; the *_LIBRARY_PATH
+        # vars cover the ELF/Mach-O loaders. Native.cs has no custom
+        # resolver, so these are the only search knobs.
+        shell: bash
+        run: echo "${{ github.workspace }}/sdk/rust/target/release" >> "$GITHUB_PATH"
+      - name: Test
         run: dotnet test test/AgentHooks.Tests/ --nologo
         working-directory: sdk/dotnet
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
-          AGENT_HOOKS_FFI_DIR: ${{ github.workspace }}/sdk/rust/target/release
