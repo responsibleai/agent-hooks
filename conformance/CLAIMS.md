@@ -29,6 +29,30 @@ retract already-streamed content (§12.1a).
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | reference-agent | 0.1.0 | agent-hooks/0.1 | model_calls, tool_calls, int64_json (not typescript) | all four (§7.2), all knobs | jcs-sha256 (+ null, vector-scoped) | python, typescript, dotnet, go, rust | (CI: CTK self-test, all parts) | In-tree reference |
 
-To file a claim, open a PR adding a row with a link to a passing CTK
-run, and confirm in the PR description that the harness drives the
-framework's production dispatch path with only model/tool I/O mocked.
+## Filing and acceptance
+
+A claim is filed as a PR adding one row to the table above. Required
+artefacts, in the PR:
+
+1. **The per-part CTK report** (runner output grouped by `part`) from
+   a run against the claimed adapter version, linked or attached —
+   100% pass on the declared surface, skips only from undeclared
+   capabilities.
+2. **Harness description**: which SDK runner, and how the harness
+   wires the framework — specifically confirming it drives the
+   framework's **production dispatch path** with only model/tool I/O
+   mocked (a harness that re-implements dispatch attests nothing).
+3. **Disclosure flags** where applicable: `identity_provider: null` →
+   the claim states records/approvals are identity-unbound;
+   custom provider → content-derived or not; `buffered_output: false`
+   → the claim states a deny at `output` cannot retract streamed
+   content.
+
+Acceptance is by CODEOWNERS review (`conformance/` owner). The
+reviewer checks: the report matches the declared surface tuple; the
+report's vector inventory matches the spec version claimed; the
+production-path confirmation is present; disclosure flags are
+consistent. Where the adapter is open source, the reviewer MAY re-run
+the CTK before accepting. Acceptance records the claim; it is not an
+endorsement, and rows may be removed if a claim is later found not to
+reproduce.

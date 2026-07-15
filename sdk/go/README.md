@@ -43,3 +43,27 @@ constructor shortcuts. Interceptor/resolver panics are recovered and
 fail closed (§6.3). **Value-domain note (spec §4.4):** decode JSON
 carrying 64-bit integers with `json.Number` — default `any`
 decoding rounds beyond 2^53 exactly like JavaScript.
+
+## Native library deployment
+
+The Go SDK links `libagent_hooks_ffi` via cgo. Build-time and run-time
+are separate concerns:
+
+```bash
+# Build time (compile + link)
+export CGO_ENABLED=1
+export CGO_LDFLAGS="-L/path/to/agent-hooks/sdk/rust/target/release -lagent_hooks_ffi"
+go build ./...
+
+# Run time (dynamic loader must find the library)
+# Linux:   export LD_LIBRARY_PATH=/path/to/sdk/rust/target/release
+# macOS:   export DYLD_LIBRARY_PATH=/path/to/sdk/rust/target/release
+# Windows: add the directory to PATH
+```
+
+To avoid the run-time variable on Linux, bake an rpath at link time:
+`CGO_LDFLAGS="-L... -lagent_hooks_ffi -Wl,-rpath,/opt/agent-hooks/lib"`.
+A missing library fails at process start with a loader error naming
+`libagent_hooks_ffi` — deployment, not code. Cross-compiling requires a
+Rust target + C toolchain for the same triple; build the cdylib with
+`cargo build --release --target <triple> -p agent-hooks-ffi` first.

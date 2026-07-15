@@ -45,3 +45,13 @@ integers beyond 2^53 before any guard can run, so this SDK cannot claim
 the `int64_json`/`bigint_json` CTK capabilities — string-encode
 64-bit identifiers at the adapter boundary. Non-finite numbers are
 rejected fail-closed by a pre-serialization scan.
+
+## Native module deployment
+
+The npm package bundles the napi-rs native module (`*.node`) **for the
+platform it was built on** — the published alpha ships `linux-x64-gnu`
+only. On other platforms, install from source (needs a Rust toolchain):
+`npm run build` produces the module for your host platform. Per-platform
+`optionalDependencies` packages (the standard napi-rs multi-platform
+layout) are planned. A platform mismatch fails at `require` time with a
+module-load error naming the missing `.node` binary.
