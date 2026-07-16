@@ -8,6 +8,7 @@ package agenthooks
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -284,6 +285,36 @@ type CompositionConfig struct {
 	OnDisagreement SynthesisPolicy `json:"on_disagreement,omitempty"`
 	// OnTransformConflict applies to parallel profiles only.
 	OnTransformConflict SynthesisPolicy `json:"on_transform_conflict,omitempty"`
+}
+
+// Validate checks the profile and every knob value against the closed
+// §7.2 sets, so no emission can start under an undeclared profile: a
+// typo'd string would otherwise dispatch under semantics the operator
+// did not declare, and the record's composition block would fail
+// core-side validation after interceptors (and possibly an approver)
+// already ran.
+func (c CompositionConfig) Validate() error {
+	switch c.Profile {
+	case SequentialFirstDeny, SequentialRunAll, ParallelStrictest, ParallelUnanimous:
+	default:
+		return fmt.Errorf("unknown composition profile %q: the profile set is closed (see spec 7.2)", c.Profile)
+	}
+	switch c.OnApproval {
+	case "", OnApprovalStop, OnApprovalResume:
+	default:
+		return fmt.Errorf("unknown on_approval value %q: \"stop\" or \"resume\" (see spec 7.4)", c.OnApproval)
+	}
+	switch c.OnDisagreement {
+	case "", SynthesizeDeny, SynthesizeApproval:
+	default:
+		return fmt.Errorf("unknown on_disagreement value %q: \"deny\" or \"approval\" (see spec 7.5)", c.OnDisagreement)
+	}
+	switch c.OnTransformConflict {
+	case "", SynthesizeDeny, SynthesizeApproval:
+	default:
+		return fmt.Errorf("unknown on_transform_conflict value %q: \"deny\" or \"approval\" (see spec 7.5)", c.OnTransformConflict)
+	}
+	return nil
 }
 
 // DefaultComposition is the pre-P-003 behaviour: sequential/first_deny

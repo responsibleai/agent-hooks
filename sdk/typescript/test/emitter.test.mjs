@@ -562,7 +562,7 @@ test("throwing redactor fails the consultation closed", async () => {
 test("record sink and ring buffer", async () => {
   const seen = [];
   const e = new InterceptionEmitter(EnforcementMode.Enforce, null);
-  e.register({ intercept: () => Verdict.allow() });
+  e.register(scripted(Verdict.allow()));
   e.setRecordSink((r) => seen.push(r.sequence));
   e.setMaxRecords(2);
   for (let i = 0; i < 5; i++) await e.emitUnchecked(ctx());
@@ -575,7 +575,7 @@ test("record sink and ring buffer", async () => {
 
 test("sink exception is swallowed", async () => {
   const e = new InterceptionEmitter(EnforcementMode.Enforce, null);
-  e.register({ intercept: () => Verdict.allow() });
+  e.register(scripted(Verdict.allow()));
   e.setRecordSink(() => {
     throw new Error("sink down");
   });
@@ -594,4 +594,48 @@ test("emit returns the effective (post-transform) target", async () => {
   const out = await e.emit(ctx());
   assert.equal(out.target.url, "clean");
   assert.equal(out.record.verdict.decision, Decision.Transform);
+});
+
+// ---- LATER-05: closed §7.2 profile set enforced at configuration time ----
+
+test("setComposition rejects an unknown profile at call time", () => {
+  const e = new InterceptionEmitter(EnforcementMode.Enforce);
+  assert.throws(
+    () => e.setComposition({ profile: "sequential/frist_deny" }),
+    RangeError,
+    "typo'd profile must be rejected before any emission",
+  );
+});
+
+test("setComposition rejects knob values outside the closed set", () => {
+  const e = new InterceptionEmitter(EnforcementMode.Enforce);
+  assert.throws(
+    () => e.setComposition({ profile: "sequential/first_deny", on_approval: "pause" }),
+    RangeError,
+  );
+  assert.throws(
+    () => e.setComposition({ profile: "parallel/unanimous", on_disagreement: "escalate" }),
+    RangeError,
+  );
+  assert.throws(
+    () => e.setComposition({ profile: "parallel/strictest", on_transform_conflict: "merge" }),
+    RangeError,
+  );
+});
+
+test("setComposition accepts every declared §7.2 profile", async () => {
+  const e = new InterceptionEmitter(EnforcementMode.Enforce);
+  for (const c of [
+    Composition.default(),
+    Composition.firstDeny("resume"),
+    Composition.runAll(),
+    Composition.strictest("approval"),
+    Composition.unanimous("deny", "approval"),
+  ]) {
+    e.setComposition(c); // must not throw
+  }
+  // The last declared profile is the one recorded on the emission.
+  e.register(scripted(Verdict.allow()));
+  const rec = await e.emitUnchecked(ctx());
+  assert.equal(rec.composition.profile, "parallel/unanimous");
 });

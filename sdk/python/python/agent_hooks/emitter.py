@@ -389,6 +389,18 @@ class InterceptionEmitter:
 
         The caller MUST inspect :attr:`InterceptionRecord.proceeds` and
         halt the guarded action itself; prefer :meth:`emit`.
+
+        **Cancellation** (§6.3, §12.2): if the surrounding task is
+        cancelled while interceptors or the approval resolver are in
+        flight, the emitter appends a fail-closed record
+        (``deny host_error:interceptor_failed``, message
+        ``CancelledError``) so the record trail carries no sequence gap,
+        then re-raises :class:`asyncio.CancelledError`. The guarded
+        action MUST NOT proceed. ``ctx`` may already be partially folded
+        (§7.4) — the record's ``enforced_identity`` binds to that state,
+        which is exactly what any invoked interceptor observed. A host
+        terminating the session on cancellation SHOULD still emit
+        ``agent_shutdown`` with ``summary.reason: "cancelled"`` (§3).
         """
         # §10.3: input identity binds to the context BEFORE dispatch, so
         # neither interceptor mutation nor fold-through can retroactively
@@ -414,9 +426,24 @@ class InterceptionEmitter:
         except Exception as e:  # noqa: BLE001 — custom provider raised; fail closed
             outcome = _Outcome(Verdict.host_error(HostError.CONTEXT_INVALID, type(e).__name__))
         if outcome is None:
-            outcome = await self._dispatch(ctx)
+            try:
+                outcome = await self._dispatch(ctx)
+            except asyncio.CancelledError:
+                # Cancellation mid-dispatch (see the docstring): append
+                # a fail-closed record so the trail has no sequence
+                # gap, then propagate — correct asyncio behaviour is to
+                # re-raise, and the action must not proceed either way.
+                cancelled = _Outcome(
+                    Verdict.host_error(HostError.INTERCEPTOR_FAILED, "CancelledError")
+                )
+                self._append(self._finalize(ctx, cancelled, input_identity))
+                raise
 
         record = self._finalize(ctx, outcome, input_identity)
+        return self._append(record)
+
+    def _append(self, record: InterceptionRecord) -> InterceptionRecord:
+        """Deliver ``record`` to the sink and the bounded buffer (§10.3)."""
         if self._record_sink is not None:
             # Audit delivery must not take down the control plane
             # (§10.3): a sink failure is swallowed — the emission
