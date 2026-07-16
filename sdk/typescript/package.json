@@ -12,8 +12,7 @@
   "files": [
     "dist",
     "binding.js",
-    "binding.d.ts",
-    "*.node"
+    "binding.d.ts"
   ],
   "repository": {
     "type": "git",
@@ -21,10 +20,13 @@
     "directory": "sdk/typescript"
   },
   "napi": {
-    "name": "agent-hooks",
-    "triples": {
-      "defaults": true
-    }
+    "binaryName": "agent-hooks",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc"
+    ]
   },
   "scripts": {
     "build:native": "napi build --release --platform --js binding.js --dts binding.d.ts",
@@ -39,5 +41,11 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "optionalDependencies": {
+    "@responsibleai/agent-hooks-linux-x64-gnu": "0.1.0-alpha.2",
+    "@responsibleai/agent-hooks-darwin-x64": "0.1.0-alpha.2",
+    "@responsibleai/agent-hooks-darwin-arm64": "0.1.0-alpha.2",
+    "@responsibleai/agent-hooks-win32-x64-msvc": "0.1.0-alpha.2"
   }
 }
