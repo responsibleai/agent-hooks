@@ -1,0 +1,27 @@
+{
+  "name": "@responsibleai/agent-hooks-linux-x64-gnu",
+  "version": "0.1.0-alpha.2",
+  "cpu": [
+    "x64"
+  ],
+  "main": "agent-hooks.linux-x64-gnu.node",
+  "files": [
+    "agent-hooks.linux-x64-gnu.node"
+  ],
+  "description": "Framework-neutral agent control contract (AGENT-HOOKS-0.1). TypeScript wrapper over the canonical Rust core. Cooperative contract, not a security boundary: the host is fully trusted (see SECURITY.md).",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/responsibleai/agent-hooks.git",
+    "directory": "sdk/typescript"
+  },
+  "os": [
+    "linux"
+  ],
+  "libc": [
+    "glibc"
+  ]
+}
