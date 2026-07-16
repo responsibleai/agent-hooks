@@ -177,8 +177,10 @@ Within a single session a host MUST emit interception points such that:
 2. `agent_shutdown` follows every other interception point.
 3. Each `input` precedes the `pre_model_call`, `pre_tool_call`, and `output`
    hooks that result from it.
-4. Each `pre_model_call` is followed by exactly one `post_model_call` for the
-   same `request_id` unless the model call is blocked per §6.
+4. Each `pre_model_call` is followed by exactly one corresponding
+   `post_model_call` unless the model call is blocked per §6.
+   `request_id` (§4.5), when present, is the pairing key; a host that
+   emits concurrent model calls SHOULD populate it.
 5. Each `pre_tool_call` is followed by exactly one `post_tool_call` for the
    same `tool_call.id` unless the tool call is blocked per §6.
 6. `sequence` (§4.1) is strictly increasing across all interception points in a
@@ -386,7 +388,7 @@ exposes the data. Absence is conformant.
 | `tools` | `pre_model_call` | array of `{name, description?, schema?}` |
 | `usage.prompt_tokens`, `usage.completion_tokens` | `post_model_call` | integer |
 | `tool_result.duration_ms` | `post_tool_call` | number |
-| `tool_call.content_hash` | `pre_tool_call` | string `sha256:<hex>` |
+| `tool_call.content_hash` | `pre_tool_call` | string `sha256:<hex>`. **Host-opaque**: the preimage is host-defined, so values are comparable only within one host and carry no cross-host meaning. Portable content binding is what `context_identity` (§10) provides. |
 | `messages` | any | full message chain |
 | `trace.trace_id`, `trace.span_id` | all | W3C Trace Context hex strings |
 | `tenant.id`, `tenant.name` | all | string |
@@ -721,8 +723,9 @@ seam (§9). Then, per the `on_approval` knob:
   interceptor's verdict (an `allow` continues with the context
   unchanged; a `transform` is applied per §7.4) and the fold continues
   with the next interceptor. Each subsequently encountered liftable
-  deny MAY be consulted in turn (consultations are bounded by the
-  number of registered interceptors). The record sets
+  deny MUST be consulted in turn (consultations are bounded by the
+  number of registered interceptors), so two conformant hosts never
+  diverge on which denies were offered to the resolver. The record sets
   `resolved_by: "approval"`; `fold_truncated` is `true` only if the
   emission still ended before every interceptor ran (e.g., a later
   plain deny).
@@ -927,6 +930,11 @@ A host declares one of:
 | --- | --- |
 | `"jcs-sha256"` | The default provider defined in §10.2. Shipped by every SDK; in effect unless the host configures otherwise. |
 | `"<host-defined>"` (matching `^[a-z][a-z0-9_-]*$`, not starting with `jcs`) | A host-supplied function. The CTK verifies the echo and record rules against it; the golden identity vectors do not apply. |
+
+Content-derived identities are unsalted deterministic hashes (see §14);
+deployments that need non-linkable records SHOULD declare a keyed
+custom provider and are RECOMMENDED to name it `hmac-sha256-<key-id>`
+so conformance claims remain comparable.
 | `null` | No identity. Approvals bind only by request/response correlation; records carry `null` identities and self-describe as **unbound**. Permitted, but the record and any conformance claim (§13.3) MUST state it — honest absence over pretend presence. |
 
 **Name rules are enforced, not advisory.** A host (and every SDK
@@ -1039,6 +1047,8 @@ of the record.
   "identity_provider": "jcs-sha256" | "<host-defined>" | null,
   "session_id": "string",
   "sequence": 0,
+  "timestamp": "2026-06-19T14:03:11.123Z",             // absent when the context lacked it
+  "trace": { "trace_id": "<hex>", "span_id": "<hex>" }, // absent when the context carried none
   "decided_by": 0 | null,
   "composition": {
     "profile": "sequential/first_deny" | "sequential/run_all"
@@ -1060,12 +1070,22 @@ of the record.
 | `enforced_identity` | Provider output after composition completes (post-fold in sequential profiles). Equal to `input_identity` when no transform was applied, and always equal in `evaluate_only` mode. |
 | `identity_provider` | The declared provider (§10.1). |
 | `session_id`, `sequence` | Copied from the context; records are totally ordered within a session. |
+| `timestamp` | OPTIONAL. The context's RFC 3339 `timestamp`, copied verbatim — the event time audit/SIEM sinks index on. Absent when the context lacked the field. |
+| `trace` | OPTIONAL. `{trace_id?, span_id?}` echoed from the context's optional `trace` block (§4.5, W3C Trace Context). Payload-free identifiers only; absent when the context carried neither member. Lets a record join the host's distributed trace without out-of-band stitching. |
 | `decided_by` | Registration index of the interceptor whose verdict won the aggregation (§7.3) or whose liftable deny was consulted (§7.6). A §6.3 failure deny (`interceptor_failed`, `interceptor_timeout`, `verdict_invalid`) carries the **failing interceptor's** index, in every profile. `null` is reserved for pure-allow combinations, §5.2 transform-application failures, and profile-synthesized verdicts (`transform_conflict`, `composition_disagreement`, `no_interceptor`, identity-provider rejection). |
 | `composition` | The profile and knobs in effect (§7.1). REQUIRED. Knob members the profile consults MUST be present with their **resolved** values (the §7.2 defaults filled in when the host left them unset); knobs the profile never consults MUST be absent. |
 | `verdicts` | Payload-free per-interceptor summary `{index, decision, reason?, name?}`. REQUIRED in multi-verdict profiles (`sequential/run_all`, `parallel/*`); OPTIONAL in `sequential/first_deny`. `name` is the host-chosen registration identifier for the interceptor at `index` (§7); it MUST be payload-free. |
 | `fold_truncated` | `true` iff one or more registered interceptors were never invoked in this emission — a first-deny short-circuit, an approval-stop, or a failed fold-transform (§7.4). Defined for the sequential profiles. |
 | `resolved_by` | Consultation outcome (§7.6): `"approval"` iff a permit resolution substituted for a verdict; `"rejection"` iff the seam was consulted and did **not** lift the deny (reject, unresolved, resolver failure, or echo violation); absent iff the seam was never consulted. A record reader can therefore always answer "was a human consulted, and did they permit?". |
 | `interceptors_registered` | Number of interceptors registered at emission time. Together with `verdicts`/`fold_truncated` this makes skipped interceptors detectable from the record alone. |
+
+*Informative — OpenTelemetry alignment.* The optional context fields
+`usage.prompt_tokens`/`usage.completion_tokens` (§4.5) correspond to
+the OTel GenAI semantic-convention attributes `gen_ai.usage.input_tokens`/
+`gen_ai.usage.output_tokens`, and the record's `trace` block carries
+W3C Trace Context identifiers as used by OTel spans. Hosts emitting
+both planes SHOULD map these pairs directly rather than inventing a
+divergent naming.
 
 ---
 
@@ -1232,7 +1252,8 @@ that a `deny` at `output` cannot retract already-streamed content
 
 ## 14. Security considerations
 
-This section is informative except where marked. The trust boundary
+This section is informative, except that statements using RFC 2119
+keywords in all capitals (§1.2) are normative. The trust boundary
 itself is normative in §1.4: agent-hooks is not a security boundary,
 does not sandbox, does not claim complete mediation, and conformance is
 not a certification. The companion threat model with
@@ -1263,6 +1284,12 @@ threat→mitigation→test traceability is `docs/THREAT-MODEL.md`.
   request event", not "these bytes". Deployments whose approvers or
   auditors rely on content binding should keep `jcs-sha256` (or a
   content-derived custom provider).
+- `jcs-sha256` identities are unsalted deterministic hashes of the
+  required+conditional projection: anyone holding a candidate context
+  can confirm whether it produced a recorded identity, and hashes of
+  personal data generally remain personal data under GDPR-style
+  regimes. Deployments needing non-linkable records should use a keyed
+  custom provider via the §10.1 seam (see docs/THREAT-MODEL.md TM-24).
 - `evaluate_only` mode MUST NOT be presented to downstream systems as
   enforcement; doing so is a compliance hazard.
 
@@ -1276,5 +1303,9 @@ threat→mitigation→test traceability is `docs/THREAT-MODEL.md`.
 - [RFC 3339] Date and Time on the Internet: Timestamps.
 - [RFC 7493] The I-JSON Message Format.
 - [RFC 8785] JSON Canonicalization Scheme (JCS).
-- Agent Control Specification v0.3.1-beta. `policy-engine/spec/SPECIFICATION.md`.
-- AGT-SNAPSHOT-1.0. `policy-engine/spec/agt/AGT-SNAPSHOT-1.0.md`.
+- Agent Control Specification v0.3.1-beta.
+  <https://github.com/microsoft/agent-governance-toolkit> (`agent-policy-spec/policy-engine/spec/SPECIFICATION.md`).
+- AGT-SNAPSHOT-1.0 (informative; private provenance — an internal
+  profile document of the Agent Governance Toolkit, cited for
+  historical derivation only; no normative statement in this
+  specification depends on it).

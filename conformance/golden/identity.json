@@ -149,7 +149,7 @@
     },
     {
       "id": "G-05-l2-l3-stripped",
-      "note": "L2 (trace, budgets, agent.name) and L3 (extensions) MUST NOT affect identity",
+      "note": "optional fields (trace, budgets, agent.name) and namespaced extensions MUST NOT affect identity",
       "ctx": {
         "spec": "agent-hooks/0.1",
         "interception_point": "input",

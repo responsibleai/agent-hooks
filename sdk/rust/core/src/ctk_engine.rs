@@ -376,7 +376,9 @@ fn assert_identities(expect: &Value, rr: &RunRecord, failures: &mut Vec<String>)
 /// dotted-path assertions against the wire-shaped record (§10.3). A
 /// path that does not resolve is a failure — assert only fields the
 /// record is expected to carry (absent-when-None fields like
-/// `fold_truncated` are simply not asserted when absent).
+/// `fold_truncated` are simply not asserted when absent). `present`
+/// asserts a path resolves without pinning its (possibly dynamic)
+/// value — e.g. the record `timestamp`.
 fn assert_records(expect: &Value, rr: &RunRecord, failures: &mut Vec<String>) {
     let Some(expected) = expect.get("records").and_then(Value::as_array) else {
         return;
@@ -418,6 +420,15 @@ fn assert_records(expect: &Value, rr: &RunRecord, failures: &mut Vec<String>) {
                 if let Some(got) = lookup(rec, path) {
                     failures.push(format!(
                         "record[{ri}] {want_ip}: {path} present ({got}), want absent"
+                    ));
+                }
+            }
+        }
+        if let Some(present) = e.get("present").and_then(Value::as_array) {
+            for path in present.iter().filter_map(Value::as_str) {
+                if lookup(rec, path).is_none() {
+                    failures.push(format!(
+                        "record[{ri}] {want_ip}: {path} absent, want present"
                     ));
                 }
             }
