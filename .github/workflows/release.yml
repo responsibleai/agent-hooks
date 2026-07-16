@@ -125,7 +125,41 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.cratesio-auth.outputs.token }}
 
+  typescript-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu }
+          - { os: macos-latest,   target: aarch64-apple-darwin }
+          - { os: macos-latest,   target: x86_64-apple-darwin }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # pinned via sdk/rust/rust-toolchain.toml
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with: { node-version: "22" }
+      - name: Build native binding for ${{ matrix.target }}
+        shell: bash
+        run: |
+          npm ci
+          cargo fetch --locked
+          npx napi build --release --platform --target ${{ matrix.target }} \
+            --js binding.js --dts binding.d.ts
+        working-directory: sdk/typescript
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binding-${{ matrix.target }}
+          path: sdk/typescript/*.node
+          if-no-files-found: error
+
   typescript:
+    needs: typescript-build
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -134,10 +168,19 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # pinned via sdk/rust/rust-toolchain.toml
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with: { node-version: "22", registry-url: "https://registry.npmjs.org" }
-      - run: npm ci && cargo fetch --locked && npm run build && npm pack
+      - uses: actions/download-artifact@d8a25596c31467f6dbf29b78082a2ecba9834b45 # v7.0.0
+        with:
+          path: sdk/typescript/artifacts
+      - name: Distribute binaries into platform packages
+        # napi artifacts copies each downloaded *.node into the matching
+        # committed npm/<platform>/ package dir (napi create-npm-dirs).
+        run: |
+          npm ci
+          npx napi artifacts -d artifacts
+          npx tsc
+          npm pack
         working-directory: sdk/typescript
       - name: SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
@@ -148,26 +191,48 @@ jobs:
         if: env.DRY_RUN != 'true' && github.ref_type == 'tag'
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v2
         with:
-          subject-path: sdk/typescript/*.tgz
-      - name: Publish to npm (trusted publishing)
+          subject-path: |
+            sdk/typescript/*.tgz
+            sdk/typescript/npm/**/*.node
+      - name: Publish to npm (platform packages, then the loader package)
         if: env.DRY_RUN != 'true' && github.ref_type == 'tag'
-        # OIDC trusted publishing: no token. Requires npm >= 11.5.1 and a
-        # trusted publisher configured on the package (repo
-        # responsibleai/agent-hooks, workflow release.yml, environment
-        # release). Provenance is generated automatically; note npm
-        # provenance requires a PUBLIC source repo — while this repo is
-        # private, expect the publish step to fail on the provenance leg.
-        # Prerelease versions publish under the `alpha` dist-tag (npm
-        # requires an explicit tag for prereleases); stable under latest.
+        # OIDC trusted publishing: no token. Each PACKAGE (the four
+        # platform packages and the main one) needs its own trusted
+        # publisher on npmjs.com (repo responsibleai/agent-hooks,
+        # workflow release.yml, environment release). A package's FIRST
+        # publish cannot use trusted publishing — bootstrap once with a
+        # granular token exposed as NPM_TOKEN, then configure the
+        # publisher and drop the secret. npm provenance requires a
+        # PUBLIC source repo; while this repo is private the provenance
+        # leg fails — see the bootstrap note above.
+        # Prerelease versions publish under the `alpha` dist-tag;
+        # stable under latest. Idempotent: existing versions skip.
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm install -g npm@latest
           V=$(node -p "require('./package.json').version")
           case "$V" in *-*) T=alpha;; *) T=latest;; esac
-          if npm view "@responsibleai/agent-hooks@$V" version >/dev/null 2>&1; then
-            echo "@responsibleai/agent-hooks@$V already on npm — skipping"
-          else
-            npm publish --access public --tag "$T"
-          fi
+          # Platform-package versions and the loader's optionalDependencies
+          # pins must both equal the main version (npx napi version syncs
+          # the dirs; the pins are updated in the same commit as a bump).
+          npx napi version
+          node -e '
+            const p = require("./package.json");
+            for (const [n, v] of Object.entries(p.optionalDependencies))
+              if (v !== p.version) { console.error(`optionalDependencies pin ${n}@${v} != ${p.version}`); process.exit(1); }
+          '
+          for dir in npm/linux-x64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc .; do
+            name=$(node -p "require('./$dir/package.json').name")
+            if [ "$dir" != "." ] && ! ls "$dir"/*.node >/dev/null 2>&1; then
+              echo "::error::$name has no native artifact"; exit 1
+            fi
+            if npm view "$name@$V" version >/dev/null 2>&1; then
+              echo "$name@$V already on npm — skipping"
+            else
+              (cd "$dir" && npm publish --access public --tag "$T")
+            fi
+          done
         working-directory: sdk/typescript
 
   dotnet:
