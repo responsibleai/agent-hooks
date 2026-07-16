@@ -246,56 +246,67 @@ pub fn finalize(
         "evaluate_only" => EnforcementMode::EvaluateOnly,
         _ => return Err(err(HostError::ContextInvalid, format!("mode: {mode}"))),
     };
-    let opts: Value = parse_json(options_json, "options")?;
-    let composition: CompositionConfig = serde_json::from_value(
-        opts.get("composition").cloned().unwrap_or(Value::Null),
-    )
-    .map_err(|e| {
-        err(
-            HostError::ContextInvalid,
-            format!("options.composition: {e}"),
-        )
-    })?;
-    let verdicts = match opts.get("verdicts") {
-        None | Some(Value::Null) => Vec::new(),
-        Some(v) => serde_json::from_value(v.clone())
-            .map_err(|e| err(HostError::ContextInvalid, format!("options.verdicts: {e}")))?,
+    // Typed, strict options parsing (LATER-07 / AR-09-005): a value
+    // above u32::MAX, a negative index, or a mistyped identity field
+    // fails loudly at the boundary instead of truncating or dropping
+    // silently into the audit record. Unknown members remain ignored
+    // (forward compatibility); known members must have their exact
+    // types.
+    #[derive(serde::Deserialize)]
+    struct FinalizeOptions {
+        #[serde(default)]
+        input_identity: Option<String>,
+        #[serde(default)]
+        identity_provider: Option<String>,
+        #[serde(default)]
+        enforced_identity: Option<String>,
+        #[serde(default)]
+        decided_by: Option<u32>,
+        composition: CompositionConfig,
+        #[serde(default)]
+        verdicts: Option<Vec<crate::types::VerdictSummary>>,
+        #[serde(default)]
+        fold_truncated: Option<bool>,
+        #[serde(default)]
+        resolved_by: Option<String>,
+        #[serde(default)]
+        unchanged_since_input: bool,
+        #[serde(default)]
+        interceptors_registered: u32,
+    }
+    let opts: FinalizeOptions = serde_json::from_str(options_json)
+        .map_err(|e| err(HostError::ContextInvalid, format!("options: {e}")))?;
+    let resolved_by = match opts.resolved_by.as_deref() {
+        None => None,
+        Some("approval") => Some("approval"),
+        Some("rejection") => Some("rejection"),
+        Some(other) => {
+            return Err(err(
+                HostError::ContextInvalid,
+                format!("options.resolved_by: {other:?} (want \"approval\" | \"rejection\" | null)"),
+            ))
+        }
     };
-    let opt_str = |k: &str| opts.get(k).and_then(Value::as_str).map(str::to_owned);
     // jcs-sha256 computes enforced_identity core-side from this ctx,
     // but the parse above already coerced any beyond-u64 literal — so
     // when the raw-text scan rejects, identity computation is
     // suppressed (null identities, §10.3 rejection shape) rather than
     // hashing the rounded bytes. Never an error here: finalize builds
     // the fail-closed record for exactly these contexts.
-    let jcs_input_rejected = opt_str("identity_provider").as_deref() == Some("jcs-sha256")
+    let jcs_input_rejected = opts.identity_provider.as_deref() == Some("jcs-sha256")
         && canonical::scan_projection_raw(ctx_json).is_err();
-    let unchanged_since_input = opts
-        .get("unchanged_since_input")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
     let meta = FinalizeMeta {
-        input_identity: opt_str("input_identity"),
-        identity_provider: opt_str("identity_provider"),
-        enforced_identity: opt_str("enforced_identity"),
+        input_identity: opts.input_identity,
+        identity_provider: opts.identity_provider,
+        enforced_identity: opts.enforced_identity,
         jcs_input_rejected,
-        unchanged_since_input,
-        decided_by: opts
-            .get("decided_by")
-            .and_then(Value::as_u64)
-            .map(|d| d as u32),
-        composition,
-        verdicts,
-        fold_truncated: opts.get("fold_truncated").and_then(Value::as_bool),
-        resolved_by: match opts.get("resolved_by").and_then(Value::as_str) {
-            Some("approval") => Some("approval"),
-            Some("rejection") => Some("rejection"),
-            _ => None,
-        },
-        interceptors_registered: opts
-            .get("interceptors_registered")
-            .and_then(Value::as_u64)
-            .unwrap_or(0) as u32,
+        unchanged_since_input: opts.unchanged_since_input,
+        decided_by: opts.decided_by,
+        composition: opts.composition,
+        verdicts: opts.verdicts.unwrap_or_default(),
+        fold_truncated: opts.fold_truncated,
+        resolved_by,
+        interceptors_registered: opts.interceptors_registered,
     };
     // §10.1: a host-defined provider name must satisfy the name rules;
     // a wrapper that lets "jcs-fake" through would let records claim
@@ -506,6 +517,64 @@ mod tests {
         assert_eq!(r["identity_provider"], "jcs-sha256");
         assert_eq!(r["composition"]["profile"], "sequential/first_deny");
         assert_eq!(r["fold_truncated"], false);
+    }
+
+    #[test]
+    fn finalize_options_strict_types() {
+        let ctx = json!({
+            "spec": "agent-hooks/0.1", "interception_point": "input",
+            "timestamp": "t", "sequence": 0,
+            "agent": {"id": "a", "framework": "x"}, "session": {"id": "s"},
+            "target": {"content": "hi", "role": "user"},
+            "input": {"content": "hi", "role": "user"}
+        })
+        .to_string();
+        let base = json!({"composition": {"profile": "sequential/first_deny"}});
+        // LATER-07 / AR-09-005: each of these previously truncated or
+        // silently dropped; all must now fail loudly at the boundary.
+        for (k, v) in [
+            ("decided_by", json!(4294967296_u64)),   // > u32::MAX: was wrapping
+            ("decided_by", json!(-1)),               // negative: was None
+            ("decided_by", json!("2")),              // string: was None
+            ("input_identity", json!(42)),           // non-string: was dropped
+            ("identity_provider", json!(7)),         // non-string: was dropped
+            ("resolved_by", json!("bogus")),         // unknown value: was None
+            ("fold_truncated", json!("yes")),        // non-bool: was None
+        ] {
+            let mut o = base.clone();
+            o[k] = v.clone();
+            let e = finalize(&ctx, r#"{"decision": "allow"}"#, "enforce", &o.to_string())
+                .expect_err(&format!("options.{k}={v} must be rejected"));
+            assert_eq!(e.0, "host_error:context_invalid", "options.{k}");
+        }
+        // valid u32 boundary still accepted
+        let mut o = base.clone();
+        o["decided_by"] = json!(u32::MAX);
+        finalize(&ctx, r#"{"decision": "allow"}"#, "enforce", &o.to_string()).unwrap();
+    }
+
+    #[test]
+    fn finalize_record_carries_timestamp_and_trace() {
+        let ctx = json!({
+            "spec": "agent-hooks/0.1", "interception_point": "input",
+            "timestamp": "2026-01-01T00:00:00Z", "sequence": 0,
+            "agent": {"id": "a", "framework": "x"}, "session": {"id": "s"},
+            "target": {"content": "hi", "role": "user"},
+            "input": {"content": "hi", "role": "user"},
+            "trace": {"trace_id": "0af7651916cd43dd8448eb211c80319c", "span_id": "b7ad6b7169203331"}
+        })
+        .to_string();
+        let out = finalize(
+            &ctx,
+            r#"{"decision": "allow"}"#,
+            "enforce",
+            &json!({"composition": {"profile": "sequential/first_deny"}}).to_string(),
+        )
+        .unwrap();
+        let r: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(r["timestamp"], "2026-01-01T00:00:00Z");
+        assert_eq!(r["trace"]["trace_id"], "0af7651916cd43dd8448eb211c80319c");
+        assert_eq!(r["trace"]["span_id"], "b7ad6b7169203331");
     }
 
     #[test]

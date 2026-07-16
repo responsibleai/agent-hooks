@@ -108,7 +108,13 @@
           "verdicts[0].decision": "transform",
           "verdicts[1].decision": "deny",
           "verdicts[2].decision": "allow"
-        }
+        },
+        "present": [
+          "timestamp"
+        ],
+        "absent": [
+          "trace"
+        ]
       }
     ],
     "run_outcome": "completed"

@@ -407,6 +407,13 @@ class InterceptionRecord:
     session_id: str = ""
     #: ``ctx.sequence`` — total order within the session (§12.2.3).
     sequence: int = -1
+    #: RFC 3339 instant copied from ``ctx.timestamp`` (§10.3); ``None``
+    #: when the context lacked the field.
+    timestamp: str | None = None
+    #: W3C Trace Context correlation echoed from the context's optional
+    #: ``trace`` block (§4.5): ``{"trace_id": ..., "span_id": ...}``;
+    #: ``None`` when the context carried none.
+    trace: dict[str, str] | None = None
     #: Registration index of the interceptor whose verdict won the
     #: aggregation or whose liftable deny was consulted (§7.6); ``None``
     #: for a pure-allow combination or a host-synthesized verdict.
@@ -453,6 +460,10 @@ class InterceptionRecord:
             "decided_by": self.decided_by,
             "composition": self.composition.to_wire(),
         }
+        if self.timestamp is not None:
+            out["timestamp"] = self.timestamp
+        if self.trace is not None:
+            out["trace"] = dict(self.trace)
         if self.verdicts:
             out["verdicts"] = [v.to_wire() for v in self.verdicts]
         if self.fold_truncated is not None:
@@ -474,6 +485,8 @@ class InterceptionRecord:
             identity_provider=obj.get("identity_provider"),
             session_id=obj.get("session_id", ""),
             sequence=obj.get("sequence", -1),
+            timestamp=obj.get("timestamp"),
+            trace=obj.get("trace"),
             decided_by=obj.get("decided_by"),
             composition=CompositionConfig.from_wire(obj.get("composition")),
             verdicts=tuple(VerdictSummary.from_wire(v) for v in obj.get("verdicts") or ()),

@@ -107,11 +107,18 @@ pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or((HostError::VerdictInvalid, "transform.path missing".into()))?;
-            if !(path.starts_with("$target") || path.starts_with("$policy_target")) {
-                return Err((
-                    HostError::TransformTargetForbidden,
-                    format!("transform.path must be rooted at $target (got {path:?})"),
-                ));
+            // §5 gate and §5.2 application MUST agree byte-for-byte
+            // on the accepted path language: validate with the same
+            // parser apply uses, mapping its error codes through
+            // unchanged (LATER-06 / AR-09-006).
+            if let Err(e) = crate::path::parse(path) {
+                let detail = match e {
+                    HostError::TransformTargetForbidden => {
+                        format!("transform.path must be rooted at $target (got {path:?})")
+                    }
+                    _ => format!("transform.path rejected by the §5.2 grammar (got {path:?})"),
+                };
+                return Err((e, detail));
             }
             // §5.2: value is any JSON value including null; an absent
             // member is equivalent to null (the record projection and
@@ -225,6 +232,35 @@ fn opt_string(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn gate_and_apply_agree_on_path_language() {
+        // near-miss roots the old prefix check accepted (AR-09-006)
+        for (path, want) in [
+            ("$targets.x", crate::types::HostError::TransformInvalid),
+            ("$targetfoo", crate::types::HostError::TransformInvalid),
+            ("$snapshot.x", crate::types::HostError::TransformTargetForbidden),
+            ("$target.", crate::types::HostError::TransformInvalid),
+        ] {
+            let w = serde_json::json!({
+                "decision": "transform",
+                "transform": {"path": path, "value": 1}
+            });
+            let gate = from_wire(&w).expect_err("gate must reject");
+            assert_eq!(gate.0, want, "gate error for {path}");
+            let apply = crate::path::parse(path).expect_err("parse must reject");
+            assert_eq!(gate.0, apply, "gate/apply divergence for {path}");
+        }
+        // the accepted language still passes both layers
+        for path in ["$target", "$target.a", "$target[0]", "$policy_target.a"] {
+            let w = serde_json::json!({
+                "decision": "transform",
+                "transform": {"path": path, "value": 1}
+            });
+            assert!(from_wire(&w).is_ok(), "gate rejects valid {path}");
+            assert!(crate::path::parse(path).is_ok());
+        }
+    }
 
     #[test]
     fn from_wire_allow() {

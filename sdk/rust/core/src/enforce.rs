@@ -195,6 +195,19 @@ pub fn finalize(
         .unwrap_or_default()
         .to_owned();
     let sequence = ctx.get("sequence").and_then(Value::as_i64).unwrap_or(-1);
+    // §10.3: payload-free copies for audit/SIEM correlation. String
+    // members only; a malformed envelope simply yields absence.
+    let timestamp = ctx
+        .get("timestamp")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let trace = ctx.get("trace").and_then(Value::as_object).and_then(|t| {
+        let tc = crate::types::TraceContext {
+            trace_id: t.get("trace_id").and_then(Value::as_str).map(str::to_owned),
+            span_id: t.get("span_id").and_then(Value::as_str).map(str::to_owned),
+        };
+        (tc.trace_id.is_some() || tc.span_id.is_some()).then_some(tc)
+    });
     let enforced_identity = match meta.identity_provider.as_deref() {
         _ if envelope_invalid.is_some() => None,
         Some(JCS_SHA256) if meta.jcs_input_rejected => {
@@ -257,6 +270,8 @@ pub fn finalize(
         identity_provider: meta.identity_provider,
         session_id,
         sequence,
+        timestamp,
+        trace,
         decided_by,
         composition: meta.composition.with_knob_defaults(),
         verdicts: meta.verdicts,
@@ -331,6 +346,51 @@ mod tests {
             identity_provider: Some(JCS_SHA256.to_owned()),
             ..FinalizeMeta::default()
         }
+    }
+
+    #[test]
+    fn record_copies_timestamp_and_echoes_trace() {
+        let mut c = ctx("pre_tool_call", json!({"url": "x"}));
+        c.insert(
+            "trace".into(),
+            json!({"trace_id": "0af7651916cd43dd8448eb211c80319c", "span_id": "b7ad6b7169203331"}),
+        );
+        let r = finalize(
+            &c,
+            Verdict::allow(),
+            EnforcementMode::Enforce,
+            default_meta(&c),
+        );
+        assert_eq!(r.timestamp.as_deref(), Some("2026-01-01T00:00:00Z"));
+        let t = r.trace.expect("trace echoed");
+        assert_eq!(
+            t.trace_id.as_deref(),
+            Some("0af7651916cd43dd8448eb211c80319c")
+        );
+        assert_eq!(t.span_id.as_deref(), Some("b7ad6b7169203331"));
+        // wire shape: absent-when-None members
+        let wire = serde_json::to_value(finalize(
+            &ctx("pre_tool_call", json!({"url": "x"})),
+            Verdict::allow(),
+            EnforcementMode::Enforce,
+            default_meta(&ctx("pre_tool_call", json!({"url": "x"}))),
+        ))
+        .unwrap();
+        assert!(wire.get("trace").is_none(), "trace absent without context trace");
+        assert!(wire.get("timestamp").is_some());
+    }
+
+    #[test]
+    fn trace_with_foreign_members_only_is_absent() {
+        let mut c = ctx("pre_tool_call", json!({"url": "x"}));
+        c.insert("trace".into(), json!({"vendor": "x"}));
+        let r = finalize(
+            &c,
+            Verdict::allow(),
+            EnforcementMode::Enforce,
+            default_meta(&c),
+        );
+        assert!(r.trace.is_none());
     }
 
     #[test]

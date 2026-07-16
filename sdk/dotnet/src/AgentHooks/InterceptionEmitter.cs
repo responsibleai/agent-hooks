@@ -783,6 +783,8 @@ public sealed class InterceptionEmitter
                 ?? (IReadOnlyList<VerdictSummary>)[],
             (bool?)r["fold_truncated"],
             (string?)r["resolved_by"],
-            (int?)r["interceptors_registered"] ?? 0);
+            (int?)r["interceptors_registered"] ?? 0,
+            (string?)r["timestamp"],
+            r["trace"] is JsonObject t ? TraceContext.FromWire(t) : null);
     }
 }
