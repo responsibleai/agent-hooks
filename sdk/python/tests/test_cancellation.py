@@ -38,9 +38,7 @@ class Hanging:
 
 class Transforming:
     def intercept(self, context: AgentContext) -> Verdict:
-        return Verdict(
-            decision=Decision.TRANSFORM, transform=Transform("$target.url", "clean")
-        )
+        return Verdict(decision=Decision.TRANSFORM, transform=Transform("$target.url", "clean"))
 
 
 def _ctx() -> AgentContext:
@@ -78,9 +76,7 @@ def test_cancelled_emission_appends_fail_closed_record_and_reraises() -> None:
 
 
 def test_cancelled_emission_after_partial_fold_records_folded_state() -> None:
-    em = InterceptionEmitter(
-        composition=CompositionConfig.first_deny()
-    )
+    em = InterceptionEmitter(composition=CompositionConfig.first_deny())
     hanging = Hanging()
     em.register(Transforming()).register(hanging)
     out = _cancel_mid_emission(em, hanging)
