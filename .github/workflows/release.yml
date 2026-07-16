@@ -217,6 +217,7 @@ jobs:
           # pins must both equal the main version (npx napi version syncs
           # the dirs; the pins are updated in the same commit as a bump).
           npx napi version
+          # shellcheck disable=SC2016 # ${n}@${v} are JS template literals, not shell
           node -e '
             const p = require("./package.json");
             for (const [n, v] of Object.entries(p.optionalDependencies))
