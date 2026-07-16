@@ -298,6 +298,18 @@ impl Verdict {
 /// the schema without translation; helpers in `canonical.rs` operate on it.
 pub type AgentContext = serde_json::Map<String, Value>;
 
+/// W3C Trace Context correlation echoed onto the record from the
+/// context's optional `trace` block (§4.5, §10.3). Payload-free:
+/// identifiers only. Lets audit/SIEM sinks join records to OTel
+/// spans without host-side stitching.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TraceContext {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trace_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub span_id: Option<String>,
+}
+
 /// Payload-free per-interceptor summary on the record (§10.3).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VerdictSummary {
@@ -338,6 +350,15 @@ pub struct InterceptionRecord {
     /// `ctx.sequence` — total order of records within the session
     /// (§12.2.3). `-1` when the context lacked the required field.
     pub sequence: i64,
+    /// RFC 3339 instant copied from `ctx.timestamp` (§10.3); absent
+    /// when the context lacked the field. Gives audit/SIEM sinks an
+    /// event time without payload duplication.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<String>,
+    /// Trace correlation echoed from the context's optional `trace`
+    /// block (§4.5); absent when the context carried none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trace: Option<TraceContext>,
     /// Registration index of the interceptor whose verdict won the
     /// aggregation or whose liftable deny was consulted (§7.6). `None`
     /// for a pure-allow combination or a host-synthesized verdict.

@@ -455,6 +455,13 @@
                   "type": "string"
                 },
                 "description": "Dotted paths that MUST NOT resolve on the matched record (e.g. verdict.transform.value under the §10.3 payload-free projection)."
+              },
+              "present": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Dotted paths that MUST resolve on the matched record without pinning the value (e.g. timestamp, whose value is host-dynamic)."
               }
             }
           },

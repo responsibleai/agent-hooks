@@ -101,6 +101,23 @@
       "type": "integer",
       "description": "ctx.sequence — total order of records within the session (§12.2.3)."
     },
+    "timestamp": {
+      "type": "string",
+      "description": "OPTIONAL. The context's RFC 3339 timestamp, copied verbatim (§10.3); absent when the context lacked the field."
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "trace_id": {
+          "type": "string"
+        },
+        "span_id": {
+          "type": "string"
+        }
+      },
+      "description": "OPTIONAL. W3C Trace Context identifiers echoed from the context's optional trace block (§4.5, §10.3); absent when the context carried neither member."
+    },
     "decided_by": {
       "type": [
         "integer",

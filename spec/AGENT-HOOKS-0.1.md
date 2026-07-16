@@ -1039,6 +1039,8 @@ of the record.
   "identity_provider": "jcs-sha256" | "<host-defined>" | null,
   "session_id": "string",
   "sequence": 0,
+  "timestamp": "2026-06-19T14:03:11.123Z",             // absent when the context lacked it
+  "trace": { "trace_id": "<hex>", "span_id": "<hex>" }, // absent when the context carried none
   "decided_by": 0 | null,
   "composition": {
     "profile": "sequential/first_deny" | "sequential/run_all"
@@ -1060,12 +1062,22 @@ of the record.
 | `enforced_identity` | Provider output after composition completes (post-fold in sequential profiles). Equal to `input_identity` when no transform was applied, and always equal in `evaluate_only` mode. |
 | `identity_provider` | The declared provider (§10.1). |
 | `session_id`, `sequence` | Copied from the context; records are totally ordered within a session. |
+| `timestamp` | OPTIONAL. The context's RFC 3339 `timestamp`, copied verbatim — the event time audit/SIEM sinks index on. Absent when the context lacked the field. |
+| `trace` | OPTIONAL. `{trace_id?, span_id?}` echoed from the context's optional `trace` block (§4.5, W3C Trace Context). Payload-free identifiers only; absent when the context carried neither member. Lets a record join the host's distributed trace without out-of-band stitching. |
 | `decided_by` | Registration index of the interceptor whose verdict won the aggregation (§7.3) or whose liftable deny was consulted (§7.6). A §6.3 failure deny (`interceptor_failed`, `interceptor_timeout`, `verdict_invalid`) carries the **failing interceptor's** index, in every profile. `null` is reserved for pure-allow combinations, §5.2 transform-application failures, and profile-synthesized verdicts (`transform_conflict`, `composition_disagreement`, `no_interceptor`, identity-provider rejection). |
 | `composition` | The profile and knobs in effect (§7.1). REQUIRED. Knob members the profile consults MUST be present with their **resolved** values (the §7.2 defaults filled in when the host left them unset); knobs the profile never consults MUST be absent. |
 | `verdicts` | Payload-free per-interceptor summary `{index, decision, reason?, name?}`. REQUIRED in multi-verdict profiles (`sequential/run_all`, `parallel/*`); OPTIONAL in `sequential/first_deny`. `name` is the host-chosen registration identifier for the interceptor at `index` (§7); it MUST be payload-free. |
 | `fold_truncated` | `true` iff one or more registered interceptors were never invoked in this emission — a first-deny short-circuit, an approval-stop, or a failed fold-transform (§7.4). Defined for the sequential profiles. |
 | `resolved_by` | Consultation outcome (§7.6): `"approval"` iff a permit resolution substituted for a verdict; `"rejection"` iff the seam was consulted and did **not** lift the deny (reject, unresolved, resolver failure, or echo violation); absent iff the seam was never consulted. A record reader can therefore always answer "was a human consulted, and did they permit?". |
 | `interceptors_registered` | Number of interceptors registered at emission time. Together with `verdicts`/`fold_truncated` this makes skipped interceptors detectable from the record alone. |
+
+*Informative — OpenTelemetry alignment.* The optional context fields
+`usage.prompt_tokens`/`usage.completion_tokens` (§4.5) correspond to
+the OTel GenAI semantic-convention attributes `gen_ai.usage.input_tokens`/
+`gen_ai.usage.output_tokens`, and the record's `trace` block carries
+W3C Trace Context identifiers as used by OTel spans. Hosts emitting
+both planes SHOULD map these pairs directly rather than inventing a
+divergent naming.
 
 ---
 

@@ -419,6 +419,23 @@ public sealed record VerdictSummary(
         (string?)o["name"]);
 }
 
+/// <summary>W3C Trace Context correlation echoed onto the record from
+/// the context's optional <c>trace</c> block (§4.5, §10.3).
+/// Payload-free: identifiers only.</summary>
+public sealed record TraceContext(string? TraceId, string? SpanId)
+{
+    public JsonObject ToWire()
+    {
+        var o = new JsonObject();
+        if (TraceId is not null) o["trace_id"] = TraceId;
+        if (SpanId is not null) o["span_id"] = SpanId;
+        return o;
+    }
+
+    public static TraceContext FromWire(JsonObject o) =>
+        new((string?)o["trace_id"], (string?)o["span_id"]);
+}
+
 /// <summary>Host-side record of one emission (§10.3).
 ///
 /// Payload-free by design: the identities (when a provider is declared)
@@ -441,7 +458,9 @@ public sealed record InterceptionRecord(
     IReadOnlyList<VerdictSummary> Verdicts,
     bool? FoldTruncated,
     string? ResolvedBy,
-    int InterceptorsRegistered = 0)
+    int InterceptorsRegistered = 0,
+    string? Timestamp = null,
+    TraceContext? Trace = null)
 {
     /// <summary>Whether the guarded action executes (§6, §8).</summary>
     public bool Proceeds => Mode == EnforcementMode.EvaluateOnly || Verdict.Decision.Permits();
@@ -466,6 +485,8 @@ public sealed record InterceptionRecord(
         };
         if (Verdicts.Count > 0)
             o["verdicts"] = new JsonArray(Verdicts.Select(v => (JsonNode)v.ToWire()).ToArray());
+        if (Timestamp is not null) o["timestamp"] = Timestamp;
+        if (Trace is not null) o["trace"] = Trace.ToWire();
         if (FoldTruncated is not null) o["fold_truncated"] = FoldTruncated;
         if (ResolvedBy is not null) o["resolved_by"] = ResolvedBy;
         o["interceptors_registered"] = InterceptorsRegistered;
