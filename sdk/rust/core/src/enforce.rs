@@ -376,7 +376,10 @@ mod tests {
             default_meta(&ctx("pre_tool_call", json!({"url": "x"}))),
         ))
         .unwrap();
-        assert!(wire.get("trace").is_none(), "trace absent without context trace");
+        assert!(
+            wire.get("trace").is_none(),
+            "trace absent without context trace"
+        );
         assert!(wire.get("timestamp").is_some());
     }
 

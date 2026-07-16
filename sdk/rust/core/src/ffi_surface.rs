@@ -283,7 +283,9 @@ pub fn finalize(
         Some(other) => {
             return Err(err(
                 HostError::ContextInvalid,
-                format!("options.resolved_by: {other:?} (want \"approval\" | \"rejection\" | null)"),
+                format!(
+                    "options.resolved_by: {other:?} (want \"approval\" | \"rejection\" | null)"
+                ),
             ))
         }
     };
@@ -533,13 +535,13 @@ mod tests {
         // LATER-07 / AR-09-005: each of these previously truncated or
         // silently dropped; all must now fail loudly at the boundary.
         for (k, v) in [
-            ("decided_by", json!(4294967296_u64)),   // > u32::MAX: was wrapping
-            ("decided_by", json!(-1)),               // negative: was None
-            ("decided_by", json!("2")),              // string: was None
-            ("input_identity", json!(42)),           // non-string: was dropped
-            ("identity_provider", json!(7)),         // non-string: was dropped
-            ("resolved_by", json!("bogus")),         // unknown value: was None
-            ("fold_truncated", json!("yes")),        // non-bool: was None
+            ("decided_by", json!(4294967296_u64)), // > u32::MAX: was wrapping
+            ("decided_by", json!(-1)),             // negative: was None
+            ("decided_by", json!("2")),            // string: was None
+            ("input_identity", json!(42)),         // non-string: was dropped
+            ("identity_provider", json!(7)),       // non-string: was dropped
+            ("resolved_by", json!("bogus")),       // unknown value: was None
+            ("fold_truncated", json!("yes")),      // non-bool: was None
         ] {
             let mut o = base.clone();
             o[k] = v.clone();

@@ -239,7 +239,10 @@ mod tests {
         for (path, want) in [
             ("$targets.x", crate::types::HostError::TransformInvalid),
             ("$targetfoo", crate::types::HostError::TransformInvalid),
-            ("$snapshot.x", crate::types::HostError::TransformTargetForbidden),
+            (
+                "$snapshot.x",
+                crate::types::HostError::TransformTargetForbidden,
+            ),
             ("$target.", crate::types::HostError::TransformInvalid),
         ] {
             let w = serde_json::json!({
