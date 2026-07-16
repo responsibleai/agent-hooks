@@ -2,24 +2,24 @@
 # Changes to any of these paths alter the wire contract or the
 # conformance definition and MUST NOT merge without review.
 
-/spec/                          @MohammadHaroonAbuomar
-/conformance/                   @MohammadHaroonAbuomar
-/SECURITY.md                    @MohammadHaroonAbuomar
-/ARCHITECTURE.md                @MohammadHaroonAbuomar
-/VERSIONING.md                  @MohammadHaroonAbuomar
+/spec/                          @MohammadHaroonAbuomar @CaitieM20
+/conformance/                   @MohammadHaroonAbuomar @CaitieM20
+/SECURITY.md                    @MohammadHaroonAbuomar @CaitieM20
+/ARCHITECTURE.md                @MohammadHaroonAbuomar @CaitieM20
+/VERSIONING.md                  @MohammadHaroonAbuomar @CaitieM20
 
 # The Rust core is the single implementation every SDK binds to.
-/sdk/rust/core/                 @MohammadHaroonAbuomar
-/sdk/rust/ffi/                  @MohammadHaroonAbuomar
+/sdk/rust/core/                 @MohammadHaroonAbuomar @CaitieM20
+/sdk/rust/ffi/                  @MohammadHaroonAbuomar @CaitieM20
 
 # Per-language SDK owners (bindings, packaging, CI for that language).
-/sdk/python/                    @MohammadHaroonAbuomar
-/sdk/typescript/                @MohammadHaroonAbuomar
-/sdk/dotnet/                    @MohammadHaroonAbuomar
-/sdk/go/                        @MohammadHaroonAbuomar
+/sdk/python/                    @MohammadHaroonAbuomar @CaitieM20
+/sdk/typescript/                @MohammadHaroonAbuomar @CaitieM20
+/sdk/dotnet/                    @MohammadHaroonAbuomar @CaitieM20
+/sdk/go/                        @MohammadHaroonAbuomar @CaitieM20
 
-/.github/                       @MohammadHaroonAbuomar
+/.github/                       @MohammadHaroonAbuomar @CaitieM20
 
 # Catch-all: everything not matched above (NOW-02).
-*                               @MohammadHaroonAbuomar
-/scripts/                       @MohammadHaroonAbuomar
+*                               @MohammadHaroonAbuomar @CaitieM20
+/scripts/                       @MohammadHaroonAbuomar @CaitieM20
