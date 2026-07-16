@@ -424,7 +424,6 @@
           "enum": [
             "completed",
             "blocked",
-            "suspended",
             "error"
           ]
         },

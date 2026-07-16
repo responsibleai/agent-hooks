@@ -3,7 +3,7 @@
 
 The fixtures exercise the corners that historically caused cross-SDK
 divergence (RM-N01/RM-N02): number forms, negative zero, key ordering,
-non-ASCII, L2/L3 stripping, and every interception point's L1 shape.
+non-ASCII, optional/namespaced-field stripping, and every interception point's conditional shape.
 Expected outputs are computed by the Rust core via the Python FFI
 binding, so any language binding that agrees with these values agrees
 with Rust.
@@ -115,7 +115,7 @@ FIXTURES: list[tuple[str, str, dict]] = [
     ),
     (
         "G-05-l2-l3-stripped",
-        "L2 (trace, budgets, agent.name) and L3 (extensions) MUST NOT affect identity",
+        "optional fields (trace, budgets, agent.name) and namespaced extensions MUST NOT affect identity",
         ctx(
             "input",
             1,
@@ -400,11 +400,11 @@ def main() -> None:
                 "expect": {"error": "host_error:context_invalid"},
             }
         )
-    # G-05 and G-05b MUST have identical identity (L2/L3 stripped).
+    # G-05 and G-05b MUST have identical identity (optional/namespaced stripped).
     g05 = next(f for f in out if f["id"] == "G-05-l2-l3-stripped")
     g05b = next(f for f in out if f["id"] == "G-05b-l2-l3-baseline")
     assert g05["expect"]["context_identity"] == g05b["expect"]["context_identity"], (
-        "L2/L3 stripping is broken in the core"
+        "optional/namespaced stripping is broken in the core"
     )
     # Independent RFC 8785 §3.2.3 oracle: UTF-16 unit order puts the
     # surrogate-pair key (U+10000, first unit 0xD800) BEFORE U+E000-
