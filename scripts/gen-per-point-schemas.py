@@ -39,7 +39,7 @@ CORE_REQUIRED = [
 
 
 def main() -> None:
-    master = json.loads(MASTER.read_text())
+    master = json.loads(MASTER.read_text(encoding="utf-8"))
     OUT.mkdir(parents=True, exist_ok=True)
     for hp, (extra_req, close_defs) in CONDITIONAL.items():
         # Start from master $defs but close the conditional payload objects.
@@ -64,7 +64,7 @@ def main() -> None:
             "$defs": defs,
         }
         out = OUT / f"{hp}.schema.json"
-        out.write_text(json.dumps(schema, indent=2) + "\n")
+        out.write_text(json.dumps(schema, indent=2) + "\n", encoding="utf-8")
         print(f"wrote {out.relative_to(ROOT)}")
 
 

@@ -431,7 +431,8 @@ def main() -> None:
             indent=2,
             ensure_ascii=False,
         )
-        + "\n"
+        + "\n",
+        encoding="utf-8",
     )
     print(f"wrote {OUT.relative_to(ROOT)} ({len(out)} fixtures)")
 

@@ -15,6 +15,7 @@ Go carries no manifest version: the module version is the git tag.
 PEP 440 spells SemVer pre-releases differently (0.1.0-alpha.2 ->
 0.1.0a2), so versions are compared after normalizing both spellings.
 """
+
 from __future__ import annotations
 
 import json
@@ -37,20 +38,20 @@ def normalize(version: str) -> str:
 
 
 def read_versions() -> dict[str, str]:
-    cargo = (ROOT / "sdk/rust/Cargo.toml").read_text()
+    cargo = (ROOT / "sdk/rust/Cargo.toml").read_text(encoding="utf-8")
     m = re.search(r'^version\s*=\s*"([^"]+)"', cargo, re.M)
     assert m, "no workspace version in sdk/rust/Cargo.toml"
     versions = {"sdk/rust/Cargo.toml": m.group(1)}
 
-    py = (ROOT / "sdk/python/pyproject.toml").read_text()
+    py = (ROOT / "sdk/python/pyproject.toml").read_text(encoding="utf-8")
     m = re.search(r'^version\s*=\s*"([^"]+)"', py, re.M)
     assert m, "no version in sdk/python/pyproject.toml"
     versions["sdk/python/pyproject.toml"] = m.group(1)
 
-    pkg = json.loads((ROOT / "sdk/typescript/package.json").read_text())
+    pkg = json.loads((ROOT / "sdk/typescript/package.json").read_text(encoding="utf-8"))
     versions["sdk/typescript/package.json"] = pkg["version"]
 
-    props = (ROOT / "sdk/dotnet/Directory.Build.props").read_text()
+    props = (ROOT / "sdk/dotnet/Directory.Build.props").read_text(encoding="utf-8")
     m = re.search(r"<Version>([^<]+)</Version>", props)
     assert m, "no <Version> in sdk/dotnet/Directory.Build.props"
     versions["sdk/dotnet/Directory.Build.props"] = m.group(1)

@@ -54,13 +54,15 @@ def load_vectors(directory: str | pathlib.Path | None = None) -> list[dict[str, 
 
         root = files("agent_hooks.ctk") / "vectors"
         vectors = [
-            json.loads(f.read_text())
+            json.loads(f.read_text(encoding="utf-8"))
             for f in sorted(root.iterdir(), key=lambda f: f.name)
             if f.name.startswith("AH-CTK-") and f.name.endswith(".json")
         ]
     else:
         d = pathlib.Path(directory)
-        vectors = [json.loads(f.read_text()) for f in sorted(d.glob("AH-CTK-*.json"))]
+        vectors = [
+            json.loads(f.read_text(encoding="utf-8")) for f in sorted(d.glob("AH-CTK-*.json"))
+        ]
     if not vectors:
         raise FileNotFoundError(
             f"no AH-CTK-*.json vectors found in {directory or 'the packaged set'} — "

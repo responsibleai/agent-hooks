@@ -14,7 +14,7 @@ _SCHEMA_DIR = pathlib.Path(__file__).resolve().parents[1] / "schema"
 
 @functools.cache
 def _load(name: str) -> dict[str, Any]:
-    return json.loads((_SCHEMA_DIR / name).read_text())
+    return json.loads((_SCHEMA_DIR / name).read_text(encoding="utf-8"))
 
 
 def per_point_schema(interception_point: str) -> dict[str, Any]:
@@ -29,7 +29,7 @@ def per_point_registry() -> Any:
 
     resources = []
     for p in _SCHEMA_DIR.glob("*.schema.json"):
-        doc = json.loads(p.read_text())
+        doc = json.loads(p.read_text(encoding="utf-8"))
         resources.append((doc["$id"], Resource.from_contents(doc)))
         # Also register under the bare filename so relative $refs in the
         # generated per-hook schemas resolve.

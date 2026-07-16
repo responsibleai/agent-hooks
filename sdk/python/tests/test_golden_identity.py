@@ -16,7 +16,7 @@ import pytest
 from agent_hooks import canonical_json, context_identity
 
 _GOLDEN = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "golden" / "identity.json"
-_FIXTURES = json.loads(_GOLDEN.read_text())["fixtures"]
+_FIXTURES = json.loads(_GOLDEN.read_text(encoding="utf-8"))["fixtures"]
 
 
 @pytest.mark.parametrize("f", _FIXTURES, ids=[f["id"] for f in _FIXTURES])
