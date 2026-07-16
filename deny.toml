@@ -1,4 +1,4 @@
-# cargo-deny configuration (LATER-08) — applies to all three cargo
+# cargo-deny configuration — applies to all three cargo
 # roots (sdk/rust workspace, sdk/python, sdk/typescript), which resolve
 # this file from the repository root.
 #

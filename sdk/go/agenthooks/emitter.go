@@ -155,7 +155,7 @@ type InterceptionEmitter struct {
 // does not kill the host — and a panic in the emitter-spawned goroutine
 // below would otherwise crash the entire process). Only the panic
 // value's type is reported, never its message: panic payloads routinely
-// embed the content under evaluation (NOW-05 data-minimization rule).
+// embed the content under evaluation (data-minimization rule, §14).
 func callRecovered[T any](
 	ctx context.Context, fn func(context.Context) (T, error),
 ) (out T, err error) {
@@ -479,7 +479,7 @@ func (e *InterceptionEmitter) dispatch(ctx context.Context, actx AgentContext) d
 		// Unreachable through the public API: the constructor sets
 		// DefaultComposition and SetComposition validates against the
 		// closed §7.2 set. Fail closed rather than silently dispatch
-		// under undeclared semantics (LATER-05 / AR-03-004).
+		// under undeclared semantics.
 		return dispatchOutcome{combined: HostErrorVerdict(ErrContextInvalid,
 			"undeclared composition profile (see spec 7.2)")}
 	}

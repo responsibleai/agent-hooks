@@ -87,7 +87,7 @@ pub fn scripted_intercept(rules: &[Value], ctx: &Value) -> Value {
             continue;
         }
         if matches(ctx, rule.get("match").and_then(Value::as_object)) {
-            // NOW-10 fault injection: exercise the §6.3 fail-closed paths.
+            // Fault injection: exercise the §6.3 fail-closed paths.
             match rule.get("fault").and_then(Value::as_str) {
                 Some("raise") => return serde_json::json!({"__ctk_fault__": "raise"}),
                 // §5-invalid shape: transform decision with no body.
@@ -115,7 +115,7 @@ pub fn scripted_resolve(rules: &[Value], ctx: &Value, context_identity: &str) ->
     for rule in rules {
         if matches(ctx, rule.get("match").and_then(Value::as_object)) {
             let r = &rule["resolve"];
-            // NOW-10 fault injection.
+            // Fault injection.
             if r.get("fault").and_then(Value::as_str) == Some("raise") {
                 return serde_json::json!({"__ctk_fault__": "raise"});
             }
@@ -213,7 +213,7 @@ fn validate_required(ctx: &Value, failures: &mut Vec<String>) {
             failures.push(format!("{ip}: missing required field {k:?}"));
         }
     }
-    // §4.1/§4.2 structural validation (NEXT-16): the full envelope
+    // §4.1/§4.2 structural validation: the full envelope
     // check the emitters use — required-core types plus per-point
     // conditional fields — so RUNNER.md's "schema-validates recorded
     // contexts" claim is true, not a 7-key presence probe.

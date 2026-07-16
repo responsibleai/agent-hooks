@@ -549,7 +549,7 @@ func TestOversizedEvidenceFailsVerdictGate(t *testing.T) {
 	}
 }
 
-// ---- NEXT-01/04/05/06 record semantics (§4, §10.1, §10.3) ------------------
+// ---- record semantics (§4, §10.1, §10.3) -----------------------------------
 
 // tracking wraps a verdict and records whether it ran.
 type tracking struct {
@@ -626,7 +626,7 @@ func TestNamesAndCountOnRecord(t *testing.T) {
 	}
 }
 
-// ---- NEXT-08/13/14/20 seams (mirror sdk/python/tests/test_emitter_seams.py)
+// ---- emitter seams (mirror sdk/python/tests/test_emitter_seams.py)
 
 // capturingApprover approves, capturing what egressed through the seam.
 type capturingApprover struct {

@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""§7 interceptor/resolver timeout enforcement (NOW-09)."""
+"""§7 interceptor/resolver timeout enforcement."""
 
 from __future__ import annotations
 

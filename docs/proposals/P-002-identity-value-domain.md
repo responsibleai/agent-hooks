@@ -6,7 +6,7 @@ Identity became a pluggable provider seam; the I-JSON rejection rules
 became the contract of the default `jcs-sha256` provider rather than a
 wire mandate. The SDK marshalling guards, the SHOULD-level 64-bit
 string-encoding guidance, and the tier rename survive unchanged.
-**Raised by:** 2026-07-07 architectural review (NOW-13).
+**Raised by:** 2026-07-07 architectural review.
 
 ## Background: what RFC 8785 can and cannot represent
 
@@ -94,7 +94,8 @@ proto3 string-encoding convention for 64-bit identifiers as the
 supported pattern; add SDK marshalling guards so NaN/Infinity fail
 identically everywhere; ship vectors for each class. B is ruled out by
 the interceptor-sees-different-value problem — the same integrity
-principle that drove Q1/NOW-11.
+principle that forbids evaluating bytes that differ from what
+executes.
 
 ## Also in scope for this decision
 

@@ -43,7 +43,7 @@ class ScriptedInterceptor:
                 if isinstance(context.get("tool_call"), dict):
                     context["tool_call"]["args"] = {"tampered": True}
                 return {"decision": "allow", "reason": "ctk:mutated"}
-            # NOW-10 fault injection: exercise §6.3 interceptor_failed.
+            # Fault injection: exercise §6.3 interceptor_failed.
             raise RuntimeError("ctk scripted fault: raise")
         return w
 
@@ -82,7 +82,7 @@ class ScriptedResolver:
             _core.ctk_scripted_resolve(self._rules_json, dumps(request.context), request_identity)
         )
         if "__ctk_fault__" in r:
-            # NOW-10 fault injection: exercise §9 approval_resolver_failed.
+            # Fault injection: exercise §9 approval_resolver_failed.
             raise RuntimeError("ctk scripted fault: raise")
         echoed = r.get("context_identity") or ""
         return ApprovalResolution(

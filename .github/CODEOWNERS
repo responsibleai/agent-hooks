@@ -20,6 +20,6 @@
 
 /.github/                       @MohammadHaroonAbuomar @CaitieM20
 
-# Catch-all: everything not matched above (NOW-02).
+# Catch-all: everything not matched above.
 *                               @MohammadHaroonAbuomar @CaitieM20
 /scripts/                       @MohammadHaroonAbuomar @CaitieM20

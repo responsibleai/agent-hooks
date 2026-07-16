@@ -178,7 +178,7 @@ public static class Runner
                     return ValueTask.FromResult(
                         new Verdict(Decision.Allow) { Reason = "ctk:mutated" });
                 }
-                // NOW-10 fault injection: exercise §6.3 interceptor_failed.
+                // Fault injection: exercise §6.3 interceptor_failed.
                 throw new InvalidOperationException("ctk scripted fault: raise");
             }
             try
@@ -187,9 +187,9 @@ public static class Runner
             }
             catch (ArgumentOutOfRangeException)
             {
-                // TODO(stage-4): pre-P-003 vectors still script `warn` /
-                // `escalate`; the closed set is three (§5.1), so the
-                // stale shape fails the §5 gate (fail closed).
+                // A scripted verdict in the superseded five-verdict
+                // vocabulary (pre-P-003 `warn`/`escalate`) fails the §5
+                // gate (fail closed): the closed set is three (§5.1).
                 return ValueTask.FromResult(InvalidVerdict());
             }
         }
@@ -221,7 +221,7 @@ public static class Runner
                     req.ContextIdentity ?? ""))!;
             if (r.ContainsKey("__ctk_fault__"))
             {
-                // NOW-10 fault injection: exercise §9 approval_resolver_failed.
+                // Fault injection: exercise §9 approval_resolver_failed.
                 throw new InvalidOperationException("ctk scripted fault: raise");
             }
             var outcome = (string)r["outcome"]! switch
@@ -237,7 +237,7 @@ public static class Runner
             }
             catch (ArgumentOutOfRangeException)
             {
-                // TODO(stage-4): stale wire vocabulary fails the §5 gate.
+                // Superseded wire vocabulary fails the §5 gate (fail closed).
                 v = InvalidVerdict();
             }
             var echoed = (string?)r["context_identity"] ?? "";

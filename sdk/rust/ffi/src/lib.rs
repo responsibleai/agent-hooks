@@ -373,7 +373,8 @@ mod tests {
     #[test]
     fn bigint_rejected_through_c_abi() {
         // 2^64: serde coerces the literal to f64; the raw-text scan in
-        // the core must reject it (AR-09-001 regression).
+        // the core must reject it (regression: serde coerces
+        // beyond-u64 literals to f64 before any Value-level check).
         let ctx = br#"{"spec":"agent-hooks/0.1","interception_point":"pre_tool_call","timestamp":"t","sequence":0,"agent":{"id":"a","framework":"x"},"session":{"id":"s"},"target":{"id":18446744073709551616},"tool_call":{"id":"tc","name":"t","args":{"id":18446744073709551616}}}"#;
         unsafe {
             let (ok, detail, code) = call1(ah_context_identity, ctx);

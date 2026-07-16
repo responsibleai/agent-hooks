@@ -35,7 +35,7 @@ func CtkScriptedIntercept(rulesJSON string, ctx AgentContext) (Verdict, error) {
 		}
 		return Verdict{Decision: Allow, Reason: "ctk:mutated"}, nil
 	case "raise":
-		// NOW-10 fault injection: exercise §6.3 interceptor_failed.
+		// Fault injection: exercise §6.3 interceptor_failed.
 		return Verdict{}, errors.New("ctk scripted fault: raise")
 	}
 	var v Verdict
@@ -60,7 +60,7 @@ func CtkScriptedResolve(rulesJSON string, ctx AgentContext, identity *string) (A
 		return ApprovalResolution{}, err
 	}
 	if faulted(out) {
-		// NOW-10 fault injection: exercise §9 approval_resolver_failed.
+		// Fault injection: exercise §9 approval_resolver_failed.
 		return ApprovalResolution{}, errors.New("ctk scripted fault: raise")
 	}
 	var r struct {

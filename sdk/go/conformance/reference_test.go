@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-// expectedSkips pins the skip set (NEXT-15): Go decodes vector JSON via
+// expectedSkips pins the skip set: Go decodes vector JSON via
 // json.Number, so the reference harness declares every value-domain
 // capability — nothing may skip. An unexpected skip fails its subtest;
 // a stale manifest (expected-but-not-skipped) fails the aggregate.

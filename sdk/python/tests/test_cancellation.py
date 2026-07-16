@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Mid-emission cancellation semantics (LATER-11, §6.3/§12.2).
+"""Mid-emission cancellation semantics (§6.3/§12.2).
 
 A cancelled in-flight emission must not leave a sequence gap with no
 record: the emitter appends a fail-closed record

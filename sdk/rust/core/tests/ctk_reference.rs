@@ -28,7 +28,7 @@ async fn ctk_reference_all_vectors() {
         }
     }
     assert!(unexpected.is_empty(), "{unexpected:#?}");
-    // Pinned skip manifest (NEXT-15): Rust holds i64 (int64_json) but
+    // Pinned skip manifest: Rust holds i64 (int64_json) but
     // serde_json coerces beyond-u64 vector literals at load (no
     // bigint_json). Exact IDs, not a count: the parity gate must fail
     // when the skip set drifts in either direction.

@@ -4,13 +4,13 @@
 amendment: **no required baseline profile**. All profiles are
 equal-status declared capabilities; the spec has a single level and the
 CTK/conformance report simply enumerates which declared parts pass or
-fail (see §13 of the spec). Supersedes the P-001 committee verdict;
+fail (see §13 of the spec). Supersedes the P-001 recommendation;
 its `fold_truncated` / `resolved_by` record fields carry over.
-**Raised by:** design review of the P-001 debate outcome, 2026-07-08.
+**Raised by:** design review of the P-001 outcome, 2026-07-08.
 
 ## Why reopen this
 
-The P-001 committee debated *what happens after an approval* inside a
+The P-001 review debated *what happens after an approval* inside a
 fixed frame: interceptors run sequentially, first deny short-circuits.
 Every option (approval-final, fold-resume, `always_runs`) was a patch
 on that frame. The deeper question is that the frame itself is a host
@@ -119,7 +119,7 @@ Options:
 is no ordering, therefore no truncation, therefore no fold-resume
 question. Every interceptor has already evaluated the (single, shared)
 content by the time an approval is consulted; the approval resolves
-the *aggregate*, skipping no one. The entire P-001 debate — including
+the *aggregate*, skipping no one. The entire P-001 question — including
 its dissent about must-run guards — is an artifact of the sequential
 frame. There is also exactly one input identity per emission (no
 fold), which simplifies audit and approval binding.
@@ -135,7 +135,7 @@ Ordered chain; each interceptor sees the effect of prior transforms
 
 | Profile | Rule | Assessment |
 | --- | --- | --- |
-| **SEQ/FIRST-DENY** | First deny short-circuits (transforms fold through; allows continue). If the deny carries an `approval` block and the host has a resolver, consult it. Config bit `on_approval: stop \| resume` — *stop*: a permit ends the chain (the P-001 committee's "approval-final"); *resume*: a permit substitutes the resolution and the chain continues (the P-001 "fold-resume" option). | Baseline. Today's behavior is exactly `SEQ/FIRST-DENY, on_approval: stop`. |
+| **SEQ/FIRST-DENY** | First deny short-circuits (transforms fold through; allows continue). If the deny carries an `approval` block and the host has a resolver, consult it. Config bit `on_approval: stop \| resume` — *stop*: a permit ends the chain (P-001's "approval-final"); *resume*: a permit substitutes the resolution and the chain continues (the P-001 "fold-resume" option). | Baseline. Today's behavior is exactly `SEQ/FIRST-DENY, on_approval: stop`. |
 | **SEQ/RUN-ALL** | No short-circuit: every interceptor runs in order (transforms fold through for visibility); the aggregate is the highest-severity verdict; on an aggregate deny, folded transforms are discarded (nothing proceeds). | Recommended for 0.x. This is the principled answer to "must-run controls": *uniform for the whole chain*, so it composes with approval without per-interceptor flags — the fragmentation risk that killed `always_runs` doesn't arise. Cost: denied actions still pay for the full chain, and interceptors after a decisive deny evaluate content that will never execute (the record makes this legible). |
 | SEQ/FIRST-NON-ALLOW | Short-circuit on transform too. | Rejected: transform *proceeds* — halting on it conflates control with mutation and forbids transform chains for no benefit. |
 
@@ -146,7 +146,7 @@ architectural fork compresses into the single `on_approval` bit.
 
 ### Keeping conformance coherent (the real risk)
 
-The P-001 committee's legitimate fear was semantic fragmentation:
+P-001's legitimate fear was semantic fragmentation:
 hosts inventing incompatible composition behaviors. The control is:
 
 1. **Closed set of named profiles.** Hosts MUST NOT invent profiles;

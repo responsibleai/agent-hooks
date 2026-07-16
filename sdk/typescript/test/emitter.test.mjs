@@ -452,7 +452,7 @@ test("evidence beyond 10240 canonical bytes fails the §5 gate (D5)", async () =
   assert.equal(r.verdict.reason, HostError.VerdictInvalid);
 });
 
-// ---- NEXT-01/04/05/06 record semantics ------------------------------------
+// ---- record semantics (§4, §10.1, §10.3) ----------------------------------
 
 test("envelope: missing conditional field fails closed pre-dispatch", async () => {
   const em = new InterceptionEmitter();
@@ -512,7 +512,7 @@ test("verdicts[].name carries registration names (§10.3)", async () => {
   assert.equal(r.interceptors_registered, 2);
 });
 
-// ---- NEXT-08/13/14/20 seams (mirror sdk/python/tests/test_emitter_seams.py)
+// ---- emitter seams (mirror sdk/python/tests/test_emitter_seams.py)
 
 test("approval redactor binds identity to the presented context", async () => {
   let presented = null;
@@ -596,7 +596,7 @@ test("emit returns the effective (post-transform) target", async () => {
   assert.equal(out.record.verdict.decision, Decision.Transform);
 });
 
-// ---- LATER-05: closed §7.2 profile set enforced at configuration time ----
+// ---- closed §7.2 profile set enforced at configuration time --------------
 
 test("setComposition rejects an unknown profile at call time", () => {
   const e = new InterceptionEmitter(EnforcementMode.Enforce);

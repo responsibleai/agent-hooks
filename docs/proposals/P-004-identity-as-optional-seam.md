@@ -5,8 +5,8 @@ identity is a pluggable provider seam, default `jcs-sha256`, opt-out
 (`null`) permitted but must be stated in the record and any conformance
 claim. The three hash-independent survivors (SDK marshalling guards,
 SHOULD-level 64-bit string-encoding guidance, tier rename) proceed.
-Supersedes most of the P-002 committee verdict.
-**Raised by:** design review of the P-002 debate outcome, 2026-07-08.
+Supersedes most of the P-002 recommendation.
+**Raised by:** design review of the P-002 outcome, 2026-07-08.
 
 ## The structural observation
 
@@ -51,14 +51,14 @@ without losing the feature.
 
 ## Options
 
-### A. Status quo (the P-002 committee verdict)
+### A. Status quo (the P-002 recommendation)
 
 Normative JCS/SHA-256 identity over the closed required+per-point
 preimage; core rejects non-I-JSON values fail-closed; hosts
 string-encode 64-bit IDs per a normative convention.
 
 Keeps every guarantee; pays for it with deterministic denies on benign
-data (snowflake IDs) for **all** hosts — the committee's own recorded
+data (snowflake IDs) for **all** hosts — P-002's own recorded
 dissent (alarm-fatigue → hosts flip to `evaluate_only`, fail-closed
 becomes fail-open in practice).
 
@@ -149,7 +149,8 @@ transport-validity and evaluate-what-executes concerns:
 
 - Under P-003's parallel mode there is a single context snapshot per
   emission — one identity, no escalation-time-binding subtleties (the
-  NOW-14 machinery reduces to "hash the snapshot once").
+  escalation-time identity binding reduces to "hash the snapshot
+once").
 - Under the three-verdict model an approval resolution is itself a
   verdict; the echo rule stays exactly one line either way.
 

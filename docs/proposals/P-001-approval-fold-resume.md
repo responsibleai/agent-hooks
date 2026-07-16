@@ -2,12 +2,12 @@
 
 **Status:** Superseded by
 [P-003](P-003-verdict-algebra-and-composition.md) (decided 2026-07-09).
-The committee's "approval-final" outcome survives as the
+Its "approval-final" recommendation survives as the
 `sequential/first_deny` profile with `on_approval: stop`; fold-resume
 survives as `on_approval: resume`; the whole dilemma became a one-bit
 host configuration under the three-verdict model. The
 `fold_truncated` / `resolved_by` audit fields carry over.
-**Raised by:** 2026-07-07 architectural review (NOW-08); flagged as a
+**Raised by:** 2026-07-07 architectural review; flagged as a
 design gap in review discussion.
 
 ## The gap

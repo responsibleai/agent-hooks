@@ -26,12 +26,6 @@ import {
 import { native } from "../native";
 import type { Harness, RunRecord, Scenario } from "./index";
 
-/** TODO(stage-4): vectors still authored in the pre-P-003 five-verdict
- * wire vocabulary (`warn`, `escalate`, `approval_resolver_missing`).
- * Stage 4 rewrites them to the three-verdict shapes (§5.1); until then
- * their scripted verdicts fail the §5 gate by design (fail closed) and
- * no longer exercise the seam/warning semantics they were written for,
- * so they are skipped here. */
 export interface VectorResult {
   id: string;
   title: string;
@@ -73,7 +67,7 @@ class ScriptedInterceptor implements Interceptor {
         }
         return { decision: "allow", reason: "ctk:mutated" } as Verdict;
       }
-      // NOW-10 fault injection: exercise §6.3 interceptor_failed.
+      // Fault injection: exercise §6.3 interceptor_failed.
       throw new Error("ctk scripted fault: raise");
     }
     return w;
@@ -102,7 +96,7 @@ class ScriptedResolver {
       native.ctkScriptedResolve(this.rulesJson, JSON.stringify(req.context), requestIdentity),
     );
     if (r !== null && typeof r === "object" && "__ctk_fault__" in r) {
-      // NOW-10 fault injection: exercise §9 approval_resolver_failed.
+      // Fault injection: exercise §9 approval_resolver_failed.
       throw new Error("ctk scripted fault: raise");
     }
     if (r.context_identity === "" && req.context_identity === null) {

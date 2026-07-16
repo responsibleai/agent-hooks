@@ -467,7 +467,7 @@ def test_default_provider_rejects_big_int_before_dispatch() -> None:
 
 
 def test_default_provider_rejects_beyond_u64_literal() -> None:
-    # AR-09-001 regression: serde-class parsers coerce integer literals
+    # Regression: serde-class parsers coerce integer literals
     # beyond u64 to a double, so byte-distinct contexts would silently
     # share an identity without the core's raw-text scan. Python ints
     # are arbitrary precision, so the literal reaches the core intact.

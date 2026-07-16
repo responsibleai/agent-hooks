@@ -285,7 +285,8 @@ impl Verdict {
             }
         }
         // NB: an or-pattern guard applies to every alternative, so the
-        // two invalid shapes need separate arms (NOW-06).
+        // two invalid shapes need separate arms (an or-pattern guard
+        // once let transform-without-body through).
         match (self.decision, &self.transform) {
             (Decision::Transform, None) => Err(HostError::VerdictInvalid),
             (d, Some(_)) if d != Decision::Transform => Err(HostError::VerdictInvalid),

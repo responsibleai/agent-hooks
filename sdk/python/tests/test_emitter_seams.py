@@ -1,6 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
-"""Emitter seam tests (NEXT-08/13/14/20), mirroring the Rust emitter's:
+"""Emitter seam tests, mirroring the Rust emitter's:
 approval redaction (§9), record sink + retention bound (§10.3), and the
 effective-target return from ``emit`` (§4.3).
 """
@@ -55,7 +55,7 @@ def _ctx() -> AgentContext:
 
 
 def test_redactor_binds_identity_to_presented_context() -> None:
-    # §9/NEXT-08: the request identity covers the REDACTED context, and
+    # §9: the request identity covers the REDACTED context, and
     # the redacted value never reaches the resolver; record identities
     # are unaffected.
     approver = CapturingApprover()
@@ -123,7 +123,7 @@ def test_sink_exception_is_swallowed() -> None:
 
 
 def test_emit_returns_effective_target() -> None:
-    # §4.3/NEXT-14: the returned target reflects the fold's transforms.
+    # §4.3: the returned target reflects the fold's transforms.
     em = InterceptionEmitter()
     em.register(
         Scripted(

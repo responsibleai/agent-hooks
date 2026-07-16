@@ -429,7 +429,7 @@ export class InterceptionEmitter {
       default:
         // Unreachable through the public API: setComposition validates
         // against the closed §7.2 set. Fail closed rather than silently
-        // dispatch under undeclared semantics (LATER-05 / AR-03-004).
+        // dispatch under undeclared semantics.
         return synthesized(HostError.ContextInvalid, "undeclared composition profile (§7.2)");
     }
   }

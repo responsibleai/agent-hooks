@@ -413,7 +413,7 @@ pub fn validate_envelope(ctx: &AgentContext) -> Result<(), (HostError, String)> 
 /// provider's input domain: an identity computed over a context whose
 /// conditional fields are absent would be a real-looking hash of a
 /// schema-forbidden shape — approvals and records must never bind to
-/// one (NEXT-16).
+/// one.
 pub fn context_identity(ctx: &AgentContext) -> Result<String, (HostError, String)> {
     validate_envelope(ctx)?;
     let preimage = project_preimage(ctx)?;
@@ -553,7 +553,7 @@ mod tests {
 
     #[test]
     fn raw_scan_catches_beyond_u64_literals() {
-        // AR-09-001: serde coerces these to f64 before any Value-level
+        // serde coerces these to f64 before any Value-level
         // check can see them; the raw-text scan must reject.
         let ctx = r#"{"spec":"agent-hooks/0.1","interception_point":"pre_tool_call","timestamp":"t","sequence":0,"agent":{"id":"a","framework":"x"},"session":{"id":"s"},"target":{"id":18446744073709551616},"tool_call":{"id":"tc","name":"t","args":{"id":18446744073709551616}}}"#;
         let (e, d) = scan_projection_raw(ctx).unwrap_err();

@@ -13,7 +13,7 @@ from agent_hooks.ctk.reference import ReferenceHarness
 
 _VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vectors"
 
-# Pinned skip set (NEXT-15): Python ints are arbitrary precision, so the
+# Pinned skip set: Python ints are arbitrary precision, so the
 # reference harness declares every value-domain capability — nothing may
 # skip. A skip here means a capability regressed or a vector was
 # quietly excluded; both must fail the suite.

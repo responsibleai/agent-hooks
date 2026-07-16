@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-// Emitter seam tests (NEXT-08/13/14/20), mirroring the Rust emitter's:
+// Emitter seam tests, mirroring the Rust emitter's:
 // approval redaction (§9), record sink + retention bound (§10.3), and
 // the effective-target return from EmitAsync (§4.3).
 

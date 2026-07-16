@@ -110,7 +110,7 @@ pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
             // §5 gate and §5.2 application MUST agree byte-for-byte
             // on the accepted path language: validate with the same
             // parser apply uses, mapping its error codes through
-            // unchanged (LATER-06 / AR-09-006).
+            // unchanged.
             if let Err(e) = crate::path::parse(path) {
                 let detail = match e {
                     HostError::TransformTargetForbidden => {
@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn gate_and_apply_agree_on_path_language() {
-        // near-miss roots the old prefix check accepted (AR-09-006)
+        // near-miss roots the old prefix check accepted
         for (path, want) in [
             ("$targets.x", crate::types::HostError::TransformInvalid),
             ("$targetfoo", crate::types::HostError::TransformInvalid),

@@ -1,4 +1,4 @@
-# Tag-driven release pipeline (arch-review NOW-11).
+# Tag-driven release pipeline.
 #
 # Trigger: push a tag `v*` (e.g. v0.1.0-alpha.2) — one tag releases the
 # spec + all five SDKs together (VERSIONING.md). Or run manually with

@@ -79,7 +79,7 @@ jobs:
         working-directory: sdk/typescript
       # All test files, never an allowlist: the emitter suite shipped
       # ~100 tests before first running in CI because this line named
-      # two files (NEXT-15).
+      # two files.
       - run: node --test test/*.mjs
         working-directory: sdk/typescript
 
@@ -140,7 +140,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
 
   # Cross-platform build+test of the core and one FFI consumer
-  # (NEXT-23). Advisory: not in the required-check set yet — required
+  # Advisory: not in the required-check set yet — required
   # names must be stable and always-reporting (see CONTRIBUTING.md).
   rust-xplat:
     strategy:
@@ -202,7 +202,7 @@ jobs:
         run: python3 scripts/check-version-consistency.py
 
   # Dependency advisories, license allowlist, bans and source checks for
-  # every cargo root (LATER-08). deny.toml at the repository root governs
+  # every cargo root. deny.toml at the repository root governs
   # all three; the vendored JCS serializer's one retained dependency
   # (ryu-js) is covered like every other node.
   cargo-deny:

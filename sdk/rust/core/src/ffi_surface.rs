@@ -246,7 +246,7 @@ pub fn finalize(
         "evaluate_only" => EnforcementMode::EvaluateOnly,
         _ => return Err(err(HostError::ContextInvalid, format!("mode: {mode}"))),
     };
-    // Typed, strict options parsing (LATER-07 / AR-09-005): a value
+    // Typed, strict options parsing: a value
     // above u32::MAX, a negative index, or a mistyped identity field
     // fails loudly at the boundary instead of truncating or dropping
     // silently into the audit record. Unknown members remain ignored
@@ -532,7 +532,7 @@ mod tests {
         })
         .to_string();
         let base = json!({"composition": {"profile": "sequential/first_deny"}});
-        // LATER-07 / AR-09-005: each of these previously truncated or
+        // Each of these previously truncated or
         // silently dropped; all must now fail loudly at the boundary.
         for (k, v) in [
             ("decided_by", json!(4294967296_u64)), // > u32::MAX: was wrapping

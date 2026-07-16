@@ -23,7 +23,7 @@ public sealed class CtkReferenceTests
         Runner.LoadVectors(VectorsDir())
               .Select(v => new object[] { (string)v["id"]!, v });
 
-    // Pinned skip set (NEXT-15): JsonNode preserves raw numeric tokens,
+    // Pinned skip set: JsonNode preserves raw numeric tokens,
     // so the .NET reference harness declares every value-domain
     // capability — nothing may skip. An unexpected skip fails; a stale
     // manifest (expected-but-not-skipped) fails the aggregate test.

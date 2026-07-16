@@ -327,7 +327,7 @@
               "enum": [
                 "raise"
               ],
-              "description": "Fault injection (NOW-10): the scripted resolver raises/throws natively (exercises §6.3/§9 host_error:approval_resolver_failed). Mutually exclusive with 'outcome'."
+              "description": "Fault injection: the scripted resolver raises/throws natively (exercises §6.3/§9 host_error:approval_resolver_failed). Mutually exclusive with 'outcome'."
             },
             "identity_override": {
               "type": "string",

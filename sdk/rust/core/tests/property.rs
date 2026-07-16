@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 //! Property-based tests for the hand-rolled parsing and
-//! canonicalization surfaces (NEXT-17): these decide enforcement
+//! canonicalization surfaces: these decide enforcement
 //! outcomes, so the invariant is *never panic; fail closed with a
 //! documented `host_error:*`*.
 

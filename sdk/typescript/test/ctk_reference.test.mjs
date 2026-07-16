@@ -12,7 +12,7 @@ import { loadVectors, runVector, ReferenceHarness } from "../dist/ctk/index.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const vectorsDir = resolve(here, "../../../conformance/vectors");
 
-// Pinned skip set (NEXT-15): a skip outside this manifest fails the
+// Pinned skip set: a skip outside this manifest fails the
 // suite — the parity gate must not silently degrade to green when a
 // capability regresses or a new vector is quietly skipped.
 // JSON.parse rounds beyond-2^53 integers before any guard can see

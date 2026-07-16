@@ -427,7 +427,7 @@ impl InterceptionEmitter {
             // the raw-text coercion class (Number has no beyond-u64
             // form); the in-memory check inside finalize is complete.
             jcs_input_rejected: false,
-            // §10.3/NEXT-19: reuse input_identity when the context
+            // §10.3: reuse input_identity when the context
             // bytes cannot have changed — evaluate_only never applies
             // transforms (§8); in enforce mode, no transform anywhere
             // in the dispatch (including a substituted resolution)
@@ -502,7 +502,7 @@ impl InterceptionEmitter {
             let idx = i as u32;
             // §7: isolation is the `&AgentContext` borrow itself — the
             // interceptor cannot mutate through it, so no defensive
-            // clone is needed (NEXT-19: this was one full deep copy per
+            // clone is needed (previously one full deep copy per
             // interceptor per emission).
             // §5 gate on the interceptor's own return; host-synthesized
             // failure substitutions (Err) bypass it (TM-02 is about
@@ -1347,7 +1347,7 @@ mod tests {
     }
     #[tokio::test]
     async fn panicking_interceptor_fails_closed() {
-        // §6.3/NEXT-13: a panic is that interceptor's failure, not a
+        // §6.3: a panic is that interceptor's failure, not a
         // host crash.
         struct Panics;
         #[async_trait::async_trait]
@@ -1418,7 +1418,7 @@ mod tests {
 
     #[tokio::test]
     async fn approval_redactor_binds_identity_to_presented_context() {
-        // §9/NEXT-08: the request identity covers the REDACTED context,
+        // §9: the request identity covers the REDACTED context,
         // and the redacted field never reaches the resolver.
         use std::sync::Mutex;
         struct Capture(Mutex<Option<(String, String)>>);

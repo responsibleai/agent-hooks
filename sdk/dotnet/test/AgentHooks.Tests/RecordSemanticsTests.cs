@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
-// NEXT-01/04/05/06 record-semantics tests (§4, §10.1, §10.3).
+// Record-semantics tests (§4, §10.1, §10.3).
 
 using System.Text.Json.Nodes;
 using AgentHooks;

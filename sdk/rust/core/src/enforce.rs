@@ -101,7 +101,7 @@ pub struct FinalizeMeta {
     /// `input_identity` was computed (allow paths, evaluate_only): the
     /// bytes are unchanged, so the JCS arm reuses `input_identity`
     /// instead of re-canonicalizing and re-hashing the full payload
-    /// (NEXT-19). Defaults to `false` (compute — the safe direction);
+    /// Defaults to `false` (compute — the safe direction);
     /// only set by emitters that track fold state.
     pub unchanged_since_input: bool,
     pub decided_by: Option<u32>,
@@ -561,7 +561,7 @@ mod tests {
     }
     #[test]
     fn post_fold_rejection_fails_closed() {
-        // NEXT-02/§10.3: a transform that pushed the context outside
+        // §10.3: a transform that pushed the context outside
         // the I-JSON domain must convert the emission to a deny, not
         // proceed with a null enforced identity.
         let mut c = ctx("pre_tool_call", json!({"id": 1}));
@@ -585,7 +585,7 @@ mod tests {
 
     #[test]
     fn envelope_invalid_never_plausible() {
-        // NEXT-01/§10.3: an invalid envelope cannot earn a normal
+        // §10.3: an invalid envelope cannot earn a normal
         // verdict or identities, whatever the caller passed.
         let mut c = ctx("pre_tool_call", json!({}));
         c.remove("session");
