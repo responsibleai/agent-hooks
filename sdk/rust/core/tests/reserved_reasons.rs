@@ -32,10 +32,9 @@ fn host_error_variants_match_reserved_reasons_registry() {
     let emitted: BTreeSet<String> = variants.iter().map(|v| v.to_string()).collect();
     assert_eq!(emitted.len(), variants.len(), "duplicate reason strings");
 
-    let registry: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../spec/reserved-reasons.json"
-    ))
-    .expect("spec/reserved-reasons.json parses");
+    let registry: serde_json::Value =
+        serde_json::from_str(include_str!("../../../../spec/reserved-reasons.json"))
+            .expect("spec/reserved-reasons.json parses");
     let registered: BTreeSet<String> = registry["reasons"]
         .as_array()
         .expect("reasons array")
