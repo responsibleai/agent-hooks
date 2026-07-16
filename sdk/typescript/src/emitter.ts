@@ -215,6 +215,10 @@ export class InterceptionEmitter {
 
   /**
    * Declare the composition profile for subsequent emissions (§7.1).
+   * The profile and knob values are validated against the closed §7.2
+   * sets at call time (the compile-time types do not protect plain-JS
+   * callers): an undeclared value throws `RangeError` so no emission
+   * can start under semantics the operator did not declare.
    *
    * The default (`sequential/first_deny`, `on_approval: stop`) is the
    * configuration §14 warns about: after an approval lifts a liftable
@@ -224,6 +228,24 @@ export class InterceptionEmitter {
    * profile. See docs/PRODUCTION.md.
    */
   setComposition(composition: CompositionConfig): this {
+    const profiles: string[] = Object.values(CompositionProfile);
+    if (!profiles.includes(composition.profile)) {
+      throw new RangeError(
+        `unknown composition profile ${JSON.stringify(composition.profile)}: the profile set is closed (§7.2)`,
+      );
+    }
+    const knobs: ReadonlyArray<[string, string | undefined, readonly string[]]> = [
+      ["on_approval", composition.on_approval, ["stop", "resume"]],
+      ["on_disagreement", composition.on_disagreement, ["deny", "approval"]],
+      ["on_transform_conflict", composition.on_transform_conflict, ["deny", "approval"]],
+    ];
+    for (const [name, value, allowed] of knobs) {
+      if (value !== undefined && !allowed.includes(value)) {
+        throw new RangeError(
+          `unknown ${name} value ${JSON.stringify(value)}: ${allowed.map((a) => `"${a}"`).join(" | ")} (§7.4–§7.5)`,
+        );
+      }
+    }
     this.composition = composition;
     return this;
   }
@@ -401,8 +423,14 @@ export class InterceptionEmitter {
         return this.dispatchFirstDeny(ctx);
       case CompositionProfile.SequentialRunAll:
         return this.dispatchRunAll(ctx);
-      default:
+      case CompositionProfile.ParallelStrictest:
+      case CompositionProfile.ParallelUnanimous:
         return this.dispatchParallel(ctx);
+      default:
+        // Unreachable through the public API: setComposition validates
+        // against the closed §7.2 set. Fail closed rather than silently
+        // dispatch under undeclared semantics (LATER-05 / AR-03-004).
+        return synthesized(HostError.ContextInvalid, "undeclared composition profile (§7.2)");
     }
   }
 

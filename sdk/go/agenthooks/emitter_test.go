@@ -750,3 +750,46 @@ func TestEmitReturnsEffectiveTarget(t *testing.T) {
 		t.Fatalf("target.url = %v, want clean", target["url"])
 	}
 }
+
+func TestSetCompositionRejectsUnknownProfile(t *testing.T) {
+	e := NewInterceptionEmitter(Enforce, nil)
+	if _, err := e.SetComposition(CompositionConfig{Profile: "sequential/frist_deny"}); err == nil {
+		t.Fatal("typo'd profile must be rejected at configuration time (spec 7.2)")
+	}
+	// The emitter keeps its previous (default) composition after a
+	// rejected call: emissions stay under declared semantics.
+	e.Register(scripted{v: AllowVerdict})
+	rec := emit(t, e, testCtx())
+	if rec.Composition.Profile != SequentialFirstDeny {
+		t.Fatalf("composition after rejected set = %q, want default", rec.Composition.Profile)
+	}
+}
+
+func TestSetCompositionRejectsUnknownKnobValues(t *testing.T) {
+	e := NewInterceptionEmitter(Enforce, nil)
+	bad := []CompositionConfig{
+		{Profile: SequentialFirstDeny, OnApproval: "pause"},
+		{Profile: ParallelUnanimous, OnDisagreement: "escalate"},
+		{Profile: ParallelStrictest, OnTransformConflict: "merge"},
+	}
+	for _, c := range bad {
+		if _, err := e.SetComposition(c); err == nil {
+			t.Fatalf("knob values outside the closed set must be rejected: %+v", c)
+		}
+	}
+}
+
+func TestSetCompositionEmptyProfileResetsToDefault(t *testing.T) {
+	e := NewInterceptionEmitter(Enforce, nil)
+	if _, err := e.SetComposition(RunAllComposition()); err != nil {
+		t.Fatalf("SetComposition: %v", err)
+	}
+	if _, err := e.SetComposition(CompositionConfig{}); err != nil {
+		t.Fatalf("empty profile must reset to the default, got %v", err)
+	}
+	e.Register(scripted{v: AllowVerdict})
+	rec := emit(t, e, testCtx())
+	if rec.Composition.Profile != SequentialFirstDeny || rec.Composition.OnApproval != OnApprovalStop {
+		t.Fatalf("composition = %+v, want default", rec.Composition)
+	}
+}

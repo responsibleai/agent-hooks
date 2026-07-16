@@ -55,7 +55,9 @@ func (h *ReferenceHarness) Setup(
 	h.scenario = scenario
 	h.toolLog = nil
 	em := agenthooks.NewInterceptionEmitter(mode, resolver)
-	em.SetComposition(composition)
+	if _, err := em.SetComposition(composition); err != nil {
+		return err
+	}
 	if _, err := em.SetIdentityProvider(identityProvider); err != nil {
 		return err
 	}

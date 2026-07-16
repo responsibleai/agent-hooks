@@ -227,7 +227,11 @@ func NewInterceptionEmitter(mode EnforcementMode, resolver ApprovalResolver) *In
 func (e *InterceptionEmitter) Mode() EnforcementMode { return e.mode }
 
 // SetComposition declares the composition profile for subsequent
-// emissions (§7.1). An empty profile resets to the default.
+// emissions (§7.1). An empty profile resets to the default. The
+// profile and knob values are validated against the closed §7.2 sets
+// (CompositionConfig.Validate); an undeclared value is rejected with a
+// non-nil error so no emission can start under semantics the operator
+// did not declare.
 //
 // The default (sequential/first_deny, on_approval: stop) is the
 // configuration §14 warns about: after an approval lifts a liftable
@@ -235,12 +239,15 @@ func (e *InterceptionEmitter) Mode() EnforcementMode { return e.mode }
 // that emission (fold_truncated on the record). Register must-run
 // controls first, or use sequential/run_all / a parallel profile.
 // See docs/PRODUCTION.md.
-func (e *InterceptionEmitter) SetComposition(c CompositionConfig) *InterceptionEmitter {
+func (e *InterceptionEmitter) SetComposition(c CompositionConfig) (*InterceptionEmitter, error) {
 	if c.Profile == "" {
 		c = DefaultComposition()
 	}
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
 	e.composition = c
-	return e
+	return e, nil
 }
 
 // SetIdentityProvider declares the identity provider (§10.1); nil is
@@ -466,8 +473,15 @@ func (e *InterceptionEmitter) dispatch(ctx context.Context, actx AgentContext) d
 		return e.dispatchRunAll(ctx, actx)
 	case ParallelStrictest, ParallelUnanimous:
 		return e.dispatchParallel(ctx, actx)
-	default: // SequentialFirstDeny (and the zero value)
+	case SequentialFirstDeny:
 		return e.dispatchFirstDeny(ctx, actx)
+	default:
+		// Unreachable through the public API: the constructor sets
+		// DefaultComposition and SetComposition validates against the
+		// closed §7.2 set. Fail closed rather than silently dispatch
+		// under undeclared semantics (LATER-05 / AR-03-004).
+		return dispatchOutcome{combined: HostErrorVerdict(ErrContextInvalid,
+			"undeclared composition profile (see spec 7.2)")}
 	}
 }
 
