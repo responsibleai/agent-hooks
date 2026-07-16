@@ -337,6 +337,13 @@ type VerdictSummary struct {
 // duplicating the (possibly sensitive) payload into audit storage.
 // Composition makes the record interpretable without out-of-band
 // knowledge of host configuration.
+// TraceContext carries the W3C Trace Context identifiers echoed onto
+// the record (§10.3). Payload-free: identifiers only.
+type TraceContext struct {
+	TraceID *string `json:"trace_id,omitempty"`
+	SpanID  *string `json:"span_id,omitempty"`
+}
+
 type InterceptionRecord struct {
 	InterceptionPoint InterceptionPoint `json:"interception_point"`
 	Mode              EnforcementMode   `json:"mode"`
@@ -354,6 +361,13 @@ type InterceptionRecord struct {
 	SessionID string `json:"session_id"`
 	// Sequence is ctx.sequence — total order within the session (§12.2.3).
 	Sequence int64 `json:"sequence"`
+	// Timestamp is the RFC 3339 instant copied from ctx.timestamp
+	// (§10.3); nil when the context lacked the field.
+	Timestamp *string `json:"timestamp,omitempty"`
+	// Trace is the W3C Trace Context correlation echoed from the
+	// context's optional trace block (§4.5); nil when the context
+	// carried none.
+	Trace *TraceContext `json:"trace,omitempty"`
 	// DecidedBy is the registration index of the interceptor whose
 	// verdict won the aggregation or whose liftable deny was consulted
 	// (§7.6); nil for a pure-allow combination or a host-synthesized

@@ -278,6 +278,12 @@ export interface InterceptionRecord {
   session_id: string;
   /** `ctx.sequence` — total order within the session (§12.2.3). */
   sequence: number;
+  /** RFC 3339 instant copied from `ctx.timestamp` (§10.3); absent when
+   * the context lacked the field. */
+  timestamp?: string;
+  /** W3C Trace Context correlation echoed from the context's optional
+   * `trace` block (§4.5); absent when the context carried none. */
+  trace?: { trace_id?: string; span_id?: string };
   /** Registration index of the interceptor whose verdict won the
    * aggregation or whose liftable deny was consulted (§7.6); `null`
    * for a pure-allow combination or a host-synthesized verdict. */
