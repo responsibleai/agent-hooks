@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate spec/schema/agent-context/<interception_point>.schema.json from the master.
 
-Each per-point schema is a closed (additionalProperties: false on the L1
+Each per-point schema is a closed (additionalProperties: false on the conditional
 payload object) variant of agent-context.schema.json restricted to one
 interception_point value, used by the CTK for strict validation.
 """
@@ -16,7 +16,7 @@ MASTER = ROOT / "spec" / "schema" / "agent-context.schema.json"
 OUT = ROOT / "spec" / "schema" / "agent-context"
 
 # interception_point -> (extra conditional required fields beyond the required core, payload $defs to close)
-L1: dict[str, tuple[list[str], list[str]]] = {
+CONDITIONAL: dict[str, tuple[list[str], list[str]]] = {
     "agent_startup": (["agent_init"], ["agent_init"]),
     "input": (["input"], ["input"]),
     "pre_model_call": (["model", "messages"], ["model", "messages"]),
@@ -41,8 +41,8 @@ CORE_REQUIRED = [
 def main() -> None:
     master = json.loads(MASTER.read_text())
     OUT.mkdir(parents=True, exist_ok=True)
-    for hp, (extra_req, close_defs) in L1.items():
-        # Start from master $defs but close the L1 payload objects.
+    for hp, (extra_req, close_defs) in CONDITIONAL.items():
+        # Start from master $defs but close the conditional payload objects.
         defs = json.loads(json.dumps(master["$defs"]))  # deep copy
         for d in close_defs:
             if d in defs and defs[d].get("type") == "object":
