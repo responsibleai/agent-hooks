@@ -83,6 +83,13 @@ and [`conformance/HARNESS.md`](conformance/HARNESS.md).
 **Interceptor:** implement `Interceptor.intercept(AgentContext) -> Verdict`
 in any SDK; register with the host.
 
+**Decision runtime behind an interceptor** (a policy engine the
+interceptor delegates to): report engine-internal failures as ordinary
+fail-closed denies under your own reason namespace — the convention is
+`runtime_error:<code>` — never `host_error:*`, which is reserved for
+host-synthesized verdicts (§11) and rejected by §5 validation if an
+interceptor emits it.
+
 **Running it in production:** read [`docs/PRODUCTION.md`](docs/PRODUCTION.md)
 (the decisions to make consciously) and [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
 (failure reasons, rollout, alerting) first.

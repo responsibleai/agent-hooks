@@ -28,6 +28,25 @@
 //! certification. See
 //! [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
 //! and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
+//!
+//! # Decision runtimes behind an interceptor
+//!
+//! A policy engine (or any decision runtime) that sits *behind* an
+//! interceptor is neither a host nor the interceptor itself, and its
+//! internal failures need a reason namespace:
+//!
+//! - `host_error:*` is reserved for **host-synthesized** verdicts (§11).
+//!   An interceptor — including one that wraps an engine — MUST NOT
+//!   emit it; the §5 gate rejects such verdicts as `verdict_invalid`.
+//! - An engine therefore reports its own failures under its own
+//!   namespace (the convention consumers use is `runtime_error:*`),
+//!   returned as an ordinary fail-closed `deny` verdict:
+//!   `{"decision": "deny", "reason": "runtime_error:<code>"}`.
+//! - Engine failures are the interceptor's to convert. Only if the
+//!   interceptor itself raises or times out does the *host* synthesize
+//!   `host_error:interceptor_failed` / `host_error:interceptor_timeout`
+//!   (§6.3) — at which point the engine's detail is gone, so convert,
+//!   don't panic.
 
 #![warn(clippy::all)]
 

@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::fmt;
 
 /// Spec version this crate implements (§4.1 `spec` field).
 pub const SPEC_VERSION: &str = "agent-hooks/0.1";
@@ -37,7 +38,11 @@ pub fn validate_provider_name(name: &str) -> Result<(), (HostError, String)> {
 }
 
 /// The closed set of agent lifecycle interception points (§3).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// `Ord` follows declaration order, which is the §3 lifecycle order
+/// (`agent_startup` < `input` < … < `agent_shutdown`) — NOT
+/// lexicographic wire-name order. `Display` prints the wire name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum InterceptionPoint {
     AgentStartup,
@@ -68,6 +73,13 @@ impl InterceptionPoint {
     /// Whether a `transform` verdict is permitted at this point (§3, §4.3).
     pub fn transform_permitted(self) -> bool {
         !matches!(self, Self::AgentStartup | Self::AgentShutdown)
+    }
+}
+
+impl fmt::Display for InterceptionPoint {
+    /// The wire name (`pre_tool_call`, …).
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 

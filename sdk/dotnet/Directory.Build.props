@@ -8,7 +8,7 @@
     <Authors>Responsible AI</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/responsibleai/agent-hooks</RepositoryUrl>
-    <Version>0.1.0-alpha.2</Version>
+    <Version>0.1.0-alpha.3</Version>
     <!-- Supply chain: lock NuGet resolution; CI restores in locked mode. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>

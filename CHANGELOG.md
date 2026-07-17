@@ -3,7 +3,28 @@
 User-visible changes to the spec and SDKs. Versioning rules:
 [VERSIONING.md](VERSIONING.md).
 
-## 0.1.0-alpha.2 — unreleased (pending tag `v0.1.0-alpha.2`)
+## 0.1.0-alpha.3
+
+Additive; driven by the first external consumer of the contract (a
+policy decision runtime implementing the interceptor side).
+
+- **Rust: out-of-crate CTK harnesses.** `agent_hooks::ctk` re-exports
+  every type the `Harness` trait signatures reference (`RunRecord`,
+  `VectorResult`, `IdentityPair`) plus `async_trait`, so third-party
+  hosts can implement the trait and run the corpus under their own
+  adapter name. A compile-and-run test pins the seam.
+- **Rust: `InterceptionPoint` derives `Ord`/`PartialOrd`** (declaration
+  order = the §3 lifecycle order, documented on the enum) **and
+  implements `Display`** (wire name). The other SDKs already expose
+  wire-string point types and needed no change.
+- **Docs: decision runtimes behind an interceptor.** Crate-level
+  rustdoc and the README now state the reason-namespace convention:
+  engine-internal failures surface as fail-closed denies under the
+  engine's own namespace (`runtime_error:*` by convention), never
+  `host_error:*`, which is host-reserved (§11) and rejected by §5
+  validation.
+
+## 0.1.0-alpha.2 — tag `v0.1.0-alpha.2`
 
 Contract redesign relative to alpha.1 (breaking; the spec remains
 `agent-hooks/0.1` — pre-release drafts within the 0.1 window are not

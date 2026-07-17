@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "agent-hooks-node"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 dependencies = [
  "agent-hooks-sdk",
  "napi",
@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "agent-hooks-sdk"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 dependencies = [
  "async-trait",
  "futures-util",

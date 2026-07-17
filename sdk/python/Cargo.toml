@@ -1,6 +1,6 @@
 [package]
 name = "agent-hooks-python"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition = "2021"
 license = "MIT"
 description = "PyO3 bindings for the agent-hooks Rust core."

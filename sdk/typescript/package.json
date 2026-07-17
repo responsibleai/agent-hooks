@@ -1,6 +1,6 @@
 {
   "name": "@responsibleai/agent-hooks",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "description": "Framework-neutral agent control contract (AGENT-HOOKS-0.1). TypeScript wrapper over the canonical Rust core. Cooperative contract, not a security boundary: the host is fully trusted (see SECURITY.md).",
   "license": "MIT",
   "main": "./dist/index.js",
@@ -43,9 +43,9 @@
     "node": ">=20"
   },
   "optionalDependencies": {
-    "@responsibleai/agent-hooks-linux-x64-gnu": "0.1.0-alpha.2",
-    "@responsibleai/agent-hooks-darwin-x64": "0.1.0-alpha.2",
-    "@responsibleai/agent-hooks-darwin-arm64": "0.1.0-alpha.2",
-    "@responsibleai/agent-hooks-win32-x64-msvc": "0.1.0-alpha.2"
+    "@responsibleai/agent-hooks-linux-x64-gnu": "0.1.0-alpha.3",
+    "@responsibleai/agent-hooks-darwin-x64": "0.1.0-alpha.3",
+    "@responsibleai/agent-hooks-darwin-arm64": "0.1.0-alpha.3",
+    "@responsibleai/agent-hooks-win32-x64-msvc": "0.1.0-alpha.3"
   }
 }

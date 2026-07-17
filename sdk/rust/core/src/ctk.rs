@@ -10,17 +10,19 @@
 //! [`ReferenceHarness`] is the CTK self-test target.
 
 use crate::composition::CompositionConfig;
-use crate::ctk_engine::{
-    assert_vector, scripted_intercept, scripted_resolve, should_skip, IdentityPair, RunRecord,
-    VectorResult,
-};
+use crate::ctk_engine::{assert_vector, scripted_intercept, scripted_resolve, should_skip};
+// Public seam for out-of-crate `Harness` implementors: every type the
+// trait's signatures reference is importable from `agent_hooks::ctk`,
+// and `async_trait` is re-exported so implementors don't need the
+// dependency themselves.
+pub use crate::ctk_engine::{IdentityPair, RunRecord, VectorResult};
 use crate::emitter::{IdentityProvider, InterceptionBlocked, InterceptionEmitter};
 use crate::types::{
     AgentContext, ApprovalRequest, ApprovalResolution, ApprovalResolver, EnforcementMode,
     Interceptor, Verdict,
 };
 use crate::AgentContextBuilder;
-use async_trait::async_trait;
+pub use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
