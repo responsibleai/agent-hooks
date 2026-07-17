@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: "22" }
       - run: npm install -g ajv-cli@5.0.0 ajv-formats@3.0.1
       - name: Validate schemas are well-formed
@@ -62,7 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: "22" }
       - run: npm ci
         working-directory: sdk/typescript
@@ -104,7 +104,7 @@ jobs:
       - name: Build ffi cdylib
         run: cargo build --locked -p agent-hooks-ffi --release
         working-directory: sdk/rust
-      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore --locked-mode
         working-directory: sdk/dotnet
@@ -126,7 +126,7 @@ jobs:
       - name: Build ffi cdylib
         run: cargo build --locked -p agent-hooks-ffi --release
         working-directory: sdk/rust
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.22" }
       - name: Build and test
         run: |
@@ -166,7 +166,7 @@ jobs:
       - name: Build ffi cdylib
         run: cargo build --locked -p agent-hooks-ffi --release
         working-directory: sdk/rust
-      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5.4.0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore --locked-mode
         working-directory: sdk/dotnet
@@ -250,7 +250,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: "22" }
       - name: Build native binding and test
         # Mirrors the Linux typescript job minus the drift gate: napi
@@ -276,7 +276,7 @@ jobs:
       - name: Build ffi cdylib
         run: cargo build --locked -p agent-hooks-ffi --release
         working-directory: sdk/rust
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.22" }
       - name: Build and test
         run: |
