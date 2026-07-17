@@ -8,7 +8,7 @@
   "files": [
     "agent-hooks.win32-x64-msvc.node"
   ],
-  "description": "Framework-neutral agent control contract (AGENT-HOOKS-0.1). TypeScript wrapper over the canonical Rust core. Cooperative contract, not a security boundary: the host is fully trusted (see SECURITY.md).",
+  "description": "Prebuilt win32-x64-msvc native binary for @responsibleai/agent-hooks.",
   "license": "MIT",
   "engines": {
     "node": ">=20"
