@@ -41,6 +41,15 @@ on:
         description: Build and attest everything, skip all uploads
         type: boolean
         default: true
+      bootstrap_platform_packages:
+        description: >-
+          One-time bootstrap: publish the npm platform packages from a
+          dispatch run (they cannot use trusted publishing before their
+          first publish). Requires the NPM_TOKEN environment secret and
+          dry_run=false. Only the platform-package step is enabled;
+          every other publish remains tag-gated.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -170,7 +179,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with: { node-version: "22", registry-url: "https://registry.npmjs.org" }
-      - uses: actions/download-artifact@d8a25596c31467f6dbf29b78082a2ecba9834b45 # v7.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: sdk/typescript/artifacts
       - name: Distribute binaries into platform packages
@@ -195,7 +204,7 @@ jobs:
             sdk/typescript/*.tgz
             sdk/typescript/npm/**/*.node
       - name: Publish to npm (platform packages, then the loader package)
-        if: env.DRY_RUN != 'true' && github.ref_type == 'tag'
+        if: env.DRY_RUN != 'true' && (github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.bootstrap_platform_packages))
         # OIDC trusted publishing: no token. Each PACKAGE (the four
         # platform packages and the main one) needs its own trusted
         # publisher on npmjs.com (repo responsibleai/agent-hooks,
