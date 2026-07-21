@@ -28,7 +28,7 @@ cd sdk/go && CGO_ENABLED=1 go build ./...
 import "github.com/responsibleai/agent-hooks/sdk/go/agenthooks"
 
 e := agenthooks.NewInterceptionEmitter(agenthooks.Enforce, nil)
-e.Register(myPolicy{}) // implements OnHook(ctx, AgentContext) (Verdict, error)
+e.Register(myPolicy{}) // implements Intercept(ctx, AgentContext) (Verdict, error)
 b := agenthooks.NewAgentContextBuilder("my-agent", "my-fw", "s-1")
 
 ctx := b.PreToolCall("tc-1", "http_get", map[string]any{"url": url})

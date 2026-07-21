@@ -17,6 +17,16 @@ policy decision runtime implementing the interceptor side).
   order = the §3 lifecycle order, documented on the enum) **and
   implements `Display`** (wire name). The other SDKs already expose
   wire-string point types and needed no change.
+- **`deny` constructor sugar in every SDK.** A plain, final deny
+  (reason + optional message, no `approval` block) alongside the
+  existing `warn`/`escalate` sugar: Rust `Verdict::deny`, Python
+  `Verdict.deny`, TypeScript `Verdict.deny`, .NET `Verdict.Deny`, and
+  Go `DenyVerdict` (suffixed like `AllowVerdict` because `Deny` is the
+  `Decision` constant).
+- **Go: `Interceptor.OnHook` renamed to `Intercept`,** aligning the
+  interceptor protocol method with Python/TypeScript `intercept` and
+  .NET `InterceptAsync`. Clean rename, no alias (pre-release; drafts
+  within the 0.1 window are not compatibility-bound).
 - **Docs: decision runtimes behind an interceptor.** Crate-level
   rustdoc and the README now state the reason-namespace convention:
   engine-internal failures surface as fail-closed denies under the

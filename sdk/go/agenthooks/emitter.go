@@ -121,7 +121,7 @@ type InterceptionEmitter struct {
 	composition  CompositionConfig
 	identity     *IdentityProvider
 
-	// Timeout bounds each interceptor OnHook and resolver Resolve call
+	// Timeout bounds each interceptor Intercept and resolver Resolve call
 	// (§7, RECOMMENDED default 5000 ms); breach fails closed with
 	// host_error:interceptor_timeout / approval_resolver_failed. The
 	// callee receives a cancelled context on breach, but if it ignores
@@ -496,7 +496,7 @@ func (e *InterceptionEmitter) invoke(ctx context.Context, ic Interceptor, actx A
 		return HostErrorVerdict(ErrContextInvalid, err.Error())
 	}
 	v, err, timedOut := callWithTimeout(ctx, e.Timeout,
-		func(c context.Context) (Verdict, error) { return ic.OnHook(c, cp) })
+		func(c context.Context) (Verdict, error) { return ic.Intercept(c, cp) })
 	if timedOut {
 		return HostErrorVerdict(ErrInterceptorTimeout, "") // §7
 	}

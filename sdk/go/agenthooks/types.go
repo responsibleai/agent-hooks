@@ -437,7 +437,7 @@ func (r InterceptionRecord) Proceeds() bool {
 
 // Interceptor is the interceptor protocol (§7).
 type Interceptor interface {
-	OnHook(ctx context.Context, hctx AgentContext) (Verdict, error)
+	Intercept(ctx context.Context, hctx AgentContext) (Verdict, error)
 }
 
 // ApprovalOutcome is the resolver's outcome (§9).

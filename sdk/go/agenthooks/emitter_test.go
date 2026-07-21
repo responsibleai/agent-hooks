@@ -18,7 +18,7 @@ import (
 
 type scripted struct{ v Verdict }
 
-func (s scripted) OnHook(context.Context, AgentContext) (Verdict, error) {
+func (s scripted) Intercept(context.Context, AgentContext) (Verdict, error) {
 	return s.v, nil
 }
 
@@ -430,11 +430,11 @@ func TestEvaluateOnlyNeverConsults(t *testing.T) {
 	}
 }
 
-// panicker panics inside OnHook — §6.3: this must become a fail-closed
+// panicker panics inside Intercept — §6.3: this must become a fail-closed
 // host_error:interceptor_failed deny, never kill the host process.
 type panicker struct{}
 
-func (panicker) OnHook(context.Context, AgentContext) (Verdict, error) {
+func (panicker) Intercept(context.Context, AgentContext) (Verdict, error) {
 	panic("interceptor bug: " + strings.Repeat("x", 8))
 }
 
@@ -482,7 +482,7 @@ func TestPanickingResolverFailsClosed(t *testing.T) {
 
 type failing struct{}
 
-func (failing) OnHook(context.Context, AgentContext) (Verdict, error) {
+func (failing) Intercept(context.Context, AgentContext) (Verdict, error) {
 	return Verdict{}, errors.New("boom")
 }
 
@@ -557,7 +557,7 @@ type tracking struct {
 	ran *bool
 }
 
-func (tr tracking) OnHook(context.Context, AgentContext) (Verdict, error) {
+func (tr tracking) Intercept(context.Context, AgentContext) (Verdict, error) {
 	*tr.ran = true
 	return tr.v, nil
 }

@@ -69,7 +69,7 @@ type scriptedInterceptor struct {
 	recorded  []agenthooks.AgentContext
 }
 
-func (s *scriptedInterceptor) OnHook(_ context.Context, actx agenthooks.AgentContext) (agenthooks.Verdict, error) {
+func (s *scriptedInterceptor) Intercept(_ context.Context, actx agenthooks.AgentContext) (agenthooks.Verdict, error) {
 	if s.record {
 		cp, err := agenthooks.DeepCopyContext(actx)
 		if err != nil {
