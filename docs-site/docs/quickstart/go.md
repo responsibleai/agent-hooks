@@ -32,7 +32,7 @@ import (
 
 type EgressGuard struct{}
 
-func (EgressGuard) OnHook(_ context.Context, hctx agenthooks.AgentContext) (agenthooks.Verdict, error) {
+func (EgressGuard) Intercept(_ context.Context, hctx agenthooks.AgentContext) (agenthooks.Verdict, error) {
 	if hctx["interception_point"] != "pre_tool_call" {
 		return agenthooks.Verdict{Decision: agenthooks.Allow}, nil
 	}
@@ -64,7 +64,7 @@ func main() {
 
 Things to notice:
 
-- The interceptor interface is `OnHook(ctx, agentContext)`, returning
+- The interceptor interface is `Intercept(ctx, agentContext)`, returning
   the verdict and an error; a returned error fails closed as
   `host_error:interceptor_failed`, and panics are recovered to the same
   fail-closed path.
