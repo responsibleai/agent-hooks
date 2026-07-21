@@ -174,6 +174,13 @@ func Warn(reason, message string) Verdict {
 	return Verdict{Decision: Allow, Warnings: []Warning{{Reason: reason, Message: message}}}
 }
 
+// DenyVerdict is constructor sugar for a plain, final deny: no approval
+// block, so the approval seam cannot lift it (§5.1). Named like
+// AllowVerdict because Deny is the Decision constant.
+func DenyVerdict(reason, message string) Verdict {
+	return Verdict{Decision: Deny, Reason: reason, Message: message}
+}
+
 // Escalate is constructor sugar for what earlier drafts called
 // `escalate`: a liftable deny — denied as-is unless the approval seam
 // lifts it (§5.1, §9).

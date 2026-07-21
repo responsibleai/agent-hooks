@@ -52,6 +52,14 @@ class TestVerdict:
         assert v.warnings == (Warning(reason="pii", message="found ssn"),)
         assert not v.is_liftable
 
+    def test_deny_sugar_is_final_deny(self) -> None:
+        v = Verdict.deny(reason="policy", message="blocked")
+        assert v.decision is Decision.DENY
+        assert v.reason == "policy"
+        assert v.message == "blocked"
+        assert v.approval is None
+        assert not v.is_liftable
+
     def test_escalate_sugar_is_liftable_deny(self) -> None:
         v = Verdict.escalate(reason="check")
         assert v.decision is Decision.DENY

@@ -279,6 +279,12 @@ public sealed record Verdict(
     public static Verdict Warn(string? reason = null, string? message = null) =>
         new(Decision.Allow, Warnings: [new Warning(reason, message)]);
 
+    /// <summary>Constructor sugar for a plain, final deny: no
+    /// <c>approval</c> block, so the approval seam cannot lift it
+    /// (§5.1).</summary>
+    public static Verdict Deny(string? reason = null, string? message = null) =>
+        new(Decision.Deny, reason, message);
+
     /// <summary>Constructor sugar for what earlier drafts called
     /// <c>escalate</c>: a liftable deny — denied as-is unless the approval
     /// seam lifts it (§5.1, §9).</summary>

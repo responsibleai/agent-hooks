@@ -215,6 +215,12 @@ class Verdict:
         )
 
     @classmethod
+    def deny(cls, *, reason: str | None = None, message: str | None = None) -> Verdict:
+        """Constructor sugar for a plain, final deny: no ``approval``
+        block, so the approval seam cannot lift it (§5.1)."""
+        return cls(decision=Decision.DENY, reason=reason, message=message)
+
+    @classmethod
     def escalate(cls, *, reason: str | None = None, message: str | None = None) -> Verdict:
         """Constructor sugar for what earlier drafts called ``escalate``:
         a liftable deny — denied as-is unless the approval seam lifts it

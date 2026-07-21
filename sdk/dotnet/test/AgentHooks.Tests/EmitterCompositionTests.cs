@@ -337,6 +337,18 @@ public sealed class EmitterCompositionTests
     }
 
     [Fact]
+    public void DenySugarIsFinalDeny()
+    {
+        var v = Verdict.Deny("policy", "blocked");
+        Assert.Equal(Decision.Deny, v.Decision);
+        Assert.Equal("policy", v.Reason);
+        Assert.Equal("blocked", v.Message);
+        Assert.Null(v.Approval);
+        Assert.False(v.IsLiftable);
+        v.Validate();
+    }
+
+    [Fact]
     public void EscalateSugarIsLiftableDeny()
     {
         var v = Verdict.Escalate("check");

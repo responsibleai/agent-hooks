@@ -72,6 +72,16 @@ test("sugar: warn is allow+warnings, escalate is deny+approval", () => {
   assert.ok(!isLiftable(deny()));
 });
 
+test("sugar: deny is a plain, final deny", () => {
+  const d = Verdict.deny("policy", "blocked");
+  assert.equal(d.decision, Decision.Deny);
+  assert.equal(d.reason, "policy");
+  assert.equal(d.message, "blocked");
+  assert.equal(d.approval, undefined);
+  assert.ok(!isLiftable(d));
+  validateVerdict(d);
+});
+
 test("wire: warn/escalate decisions and misplaced approval fail the §5 gate", () => {
   for (const bad of [
     { decision: "warn" },

@@ -241,6 +241,17 @@ impl Verdict {
         }
     }
 
+    /// Constructor sugar for a plain, final deny: no `approval` block,
+    /// so the approval seam cannot lift it (§5.1).
+    pub fn deny(reason: Option<String>, message: Option<String>) -> Self {
+        Self {
+            decision: Decision::Deny,
+            reason,
+            message,
+            ..Self::allow()
+        }
+    }
+
     /// Constructor sugar for what earlier drafts called `escalate`: a
     /// liftable deny — denied as-is unless the approval seam lifts it
     /// (§5.1, §9).
@@ -508,6 +519,16 @@ mod verdict_validate_tests {
         let v = Verdict::warn(Some("pii".into()), None);
         assert_eq!(v.decision, Decision::Allow);
         assert_eq!(v.warnings.len(), 1);
+        assert!(v.validate().is_ok());
+    }
+
+    #[test]
+    fn deny_sugar_is_final_deny() {
+        let v = Verdict::deny(Some("policy".into()), Some("blocked".into()));
+        assert_eq!(v.decision, Decision::Deny);
+        assert_eq!(v.reason.as_deref(), Some("policy"));
+        assert_eq!(v.message.as_deref(), Some("blocked"));
+        assert!(!v.is_liftable());
         assert!(v.validate().is_ok());
     }
     #[test]

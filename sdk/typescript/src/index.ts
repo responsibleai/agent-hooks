@@ -127,6 +127,11 @@ export const Verdict = Object.freeze({
   warn(reason?: string, message?: string): Verdict {
     return { decision: Decision.Allow, warnings: [{ reason, message }] };
   },
+  /** A plain, final deny: no `approval` block, so the approval seam
+   * cannot lift it (§5.1). */
+  deny(reason?: string, message?: string): Verdict {
+    return { decision: Decision.Deny, reason, message };
+  },
   /** What earlier drafts called `escalate`: a liftable deny — denied
    * as-is unless the approval seam lifts it (§5.1, §9). */
   escalate(reason?: string, message?: string): Verdict {
