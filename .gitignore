@@ -460,3 +460,4 @@ sdk/go/**/*.test
 .idea/
 .DS_Store
 .claude/
+docs-site/docs/spec.md

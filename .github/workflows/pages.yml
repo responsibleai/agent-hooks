@@ -1,0 +1,61 @@
+# Documentation site (docs-site/, mkdocs-material).
+#
+# Builds on every PR so site breakage is caught pre-merge; deploys on
+# push to main only when GitHub Pages is enabled for the repository
+# (Settings -> Pages -> Source: GitHub Actions), so the job stays green
+# while Pages is disabled. The spec page is copied from
+# spec/AGENT-HOOKS-0.1.md at build time; the file is not committed.
+name: pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+      - name: Build site (strict)
+        run: |
+          uv venv .mkdocs-venv
+          uv pip install --python .mkdocs-venv/bin/python "mkdocs-material==9.6.23"
+          cp spec/AGENT-HOOKS-0.1.md docs-site/docs/spec.md
+          .mkdocs-venv/bin/mkdocs build --strict -f docs-site/mkdocs.yml -d "$PWD/site"
+      - name: Upload Pages artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check whether Pages is enabled
+        id: enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" --silent 2>/dev/null; then
+            echo "pages=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pages=false" >> "$GITHUB_OUTPUT"
+            echo "GitHub Pages is not enabled; skipping deploy."
+          fi
+      - name: Deploy to GitHub Pages
+        if: steps.enabled.outputs.pages == 'true'
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

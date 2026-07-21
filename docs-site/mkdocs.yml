@@ -1,0 +1,66 @@
+site_name: Agent Hooks
+site_description: >-
+  Framework-neutral control contract for AI agents: eight interception
+  points, three verdicts, and a conformance kit.
+site_url: https://responsibleai.github.io/agent-hooks/
+repo_url: https://github.com/responsibleai/agent-hooks
+repo_name: responsibleai/agent-hooks
+edit_uri: ""
+
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+  features:
+    - navigation.sections
+    - navigation.footer
+    - content.code.copy
+    - toc.integrate
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - Concepts:
+      - Interception points: concepts/interception-points.md
+      - Verdicts: concepts/verdicts.md
+      - Composition profiles: concepts/composition.md
+      - Approval seam: concepts/approval.md
+      - Identity providers: concepts/identity.md
+      - Interception records: concepts/records.md
+  - Quickstarts:
+      - Python: quickstart/python.md
+      - TypeScript: quickstart/typescript.md
+      - Rust: quickstart/rust.md
+      - .NET: quickstart/dotnet.md
+      - Go: quickstart/go.md
+  - Examples:
+      - Policy deny: examples/policy-deny.md
+      - Human approval: examples/approval-flow.md
+      - Redaction transform: examples/redaction.md
+  - Conformance: conformance.md
+  - Specification: spec.md
+  - FAQ: faq.md
