@@ -265,6 +265,13 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
+      - name: Install ${{ matrix.target }} for the pinned toolchain
+        # rust-toolchain.toml pins the toolchain inside sdk/rust; the
+        # setup action installs targets for `stable` only, so cross
+        # targets must be added in the pinned context.
+        shell: bash
+        run: rustup target add ${{ matrix.target }}
+        working-directory: sdk/rust
       - name: Build FFI cdylib for ${{ matrix.target }}
         shell: bash
         run: cargo build --locked --release -p agent-hooks-ffi --target ${{ matrix.target }}
