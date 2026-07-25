@@ -461,3 +461,7 @@ sdk/go/**/*.test
 .DS_Store
 .claude/
 docs-site/docs/spec.md
+
+# Native pack staging (release pipeline / local pack verification)
+sdk/dotnet/src/AgentHooks/runtimes/
+sdk/dotnet/ffi-artifacts/

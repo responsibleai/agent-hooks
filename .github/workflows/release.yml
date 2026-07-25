@@ -247,7 +247,36 @@ jobs:
           done
         working-directory: sdk/typescript
 
+  ffi-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu, rid: linux-x64, lib: libagent_hooks_ffi.so }
+          - { os: macos-latest,   target: aarch64-apple-darwin,     rid: osx-arm64, lib: libagent_hooks_ffi.dylib }
+          - { os: macos-latest,   target: x86_64-apple-darwin,      rid: osx-x64,   lib: libagent_hooks_ffi.dylib }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc,   rid: win-x64,   lib: agent_hooks_ffi.dll }
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master; toolchain pinned via sdk/rust/rust-toolchain.toml
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - name: Build FFI cdylib for ${{ matrix.target }}
+        shell: bash
+        run: cargo build --locked --release -p agent-hooks-ffi --target ${{ matrix.target }}
+        working-directory: sdk/rust
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ffi-${{ matrix.rid }}
+          path: sdk/rust/target/${{ matrix.target }}/release/${{ matrix.lib }}
+          if-no-files-found: error
+
   dotnet:
+    needs: ffi-build
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -256,13 +285,31 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master; toolchain pinned via sdk/rust/rust-toolchain.toml
-        with: { toolchain: stable }
-      - run: cargo build --locked -p agent-hooks-ffi --release
-        working-directory: sdk/rust
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: ffi-*
+          path: sdk/dotnet/ffi-artifacts
+      - name: Stage native runtimes into the pack layout
+        shell: bash
+        run: |
+          for rid in linux-x64 osx-x64 osx-arm64 win-x64; do
+            mkdir -p "src/AgentHooks/runtimes/$rid/native"
+            cp ffi-artifacts/ffi-"$rid"/* "src/AgentHooks/runtimes/$rid/native/"
+          done
+          find src/AgentHooks/runtimes -type f | sort
+          test "$(find src/AgentHooks/runtimes -type f | wc -l)" -eq 4
+        working-directory: sdk/dotnet
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore --locked-mode && dotnet pack src/AgentHooks -c Release -o dist
+        working-directory: sdk/dotnet
+      - name: Assert the nupkg bundles all four native runtimes
+        shell: bash
+        run: |
+          pkg=$(ls dist/*.nupkg)
+          for rid in linux-x64 osx-x64 osx-arm64 win-x64; do
+            unzip -l "$pkg" | grep -q "runtimes/$rid/native/" || { echo "::error::$rid native library missing from $pkg"; exit 1; }
+          done
         working-directory: sdk/dotnet
       - name: SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0

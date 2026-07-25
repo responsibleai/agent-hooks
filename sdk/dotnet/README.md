@@ -15,7 +15,7 @@ composition profiles, the identity-provider seam, and the CTK runner.
 > before relying on it.
 
 ```bash
-# Not yet published to NuGet — build from source (needs a Rust toolchain):
+# Or build from source (needs a Rust toolchain):
 git clone https://github.com/responsibleai/agent-hooks && cd agent-hooks
 cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
 dotnet build sdk/dotnet
@@ -44,8 +44,11 @@ shortcuts. Run the conformance tests with
 
 ## Native library deployment
 
-`ResponsibleAI.AgentHooks` P/Invokes `libagent_hooks_ffi`; the current
-NuGet package does **not** bundle it. Build it once per target platform
+`ResponsibleAI.AgentHooks` P/Invokes `libagent_hooks_ffi`. The NuGet
+package bundles it for linux-x64, osx-x64, osx-arm64, and win-x64 under
+`runtimes/<rid>/native/`, so package consumers need no extra step
+(versions up to 0.1.0-alpha.3 shipped managed code only). For source
+builds or other platforms, build it per target
 (`cargo build --release -p agent-hooks-ffi` under `sdk/rust`) and make
 it resolvable at process start:
 

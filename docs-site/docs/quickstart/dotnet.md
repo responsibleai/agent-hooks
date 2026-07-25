@@ -4,18 +4,17 @@
 dotnet add package ResponsibleAI.AgentHooks --prerelease
 ```
 
-The NuGet package currently ships managed code only; the native core
-library (`libagent_hooks_ffi`) is loaded at run time and must be built
-once from the repository:
+The package bundles the native core library (`libagent_hooks_ffi`)
+for linux-x64, osx-x64, osx-arm64, and win-x64 under the standard
+`runtimes/` layout, so restore is the only step. Versions up to
+0.1.0-alpha.3 shipped managed code only; on those, build the native
+library from source and make it resolvable:
 
 ```sh
 git clone https://github.com/responsibleai/agent-hooks
 cargo build --release -p agent-hooks-ffi --manifest-path agent-hooks/sdk/rust/Cargo.toml
 export LD_LIBRARY_PATH=$PWD/agent-hooks/sdk/rust/target/release   # PATH on Windows
 ```
-
-Runtime-identifier packaging of the native library is planned; until
-then this is the one extra step.
 
 A minimal host with one control interceptor:
 

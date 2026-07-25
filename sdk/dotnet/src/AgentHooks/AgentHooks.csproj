@@ -6,11 +6,12 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Native library resolved at runtime via NativeLibrary search paths.
-         Packaging: the current NuGet package does NOT bundle
-         libagent_hooks_ffi; consumers make it resolvable per OS (see
-         README "Native library deployment"). Per-RID bundling under
-         runtimes/<rid>/native/ is planned. For local dev, set
-         LD_LIBRARY_PATH / DYLD_LIBRARY_PATH / PATH to sdk/rust/target/release. -->
+    <!-- Per-RID native libraries (libagent_hooks_ffi) are staged under
+         runtimes/ by the release pipeline before pack, so the published
+         package resolves the native library through the standard RID
+         probing with no consumer action. The glob is empty in local dev
+         builds: resolve via LD_LIBRARY_PATH / DYLD_LIBRARY_PATH / PATH
+         to sdk/rust/target/release. -->
+    <None Include="runtimes/**" Pack="true" PackagePath="runtimes/" Visible="false" />
   </ItemGroup>
 </Project>
