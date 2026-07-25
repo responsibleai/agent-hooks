@@ -214,9 +214,8 @@ jobs:
         # workflow release.yml, environment release). A package's FIRST
         # publish cannot use trusted publishing — bootstrap once with a
         # granular token exposed as NPM_TOKEN, then configure the
-        # publisher and drop the secret. npm provenance requires a
-        # PUBLIC source repo; while this repo is private the provenance
-        # leg fails — see the bootstrap note above.
+        # publisher and drop the secret. The repo is public, so npm
+        # attaches provenance automatically under trusted publishing.
         # Prerelease versions publish under the `alpha` dist-tag;
         # stable under latest. Idempotent: existing versions skip.
         env:
