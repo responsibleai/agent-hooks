@@ -3,6 +3,30 @@
 User-visible changes to the spec and SDKs. Versioning rules:
 [VERSIONING.md](VERSIONING.md).
 
+## 0.1.0-alpha.4 — tag `v0.1.0-alpha.4`
+
+- **.NET: the NuGet package ships the native library.** The nupkg now
+  bundles the FFI cdylib for four runtime identifiers
+  (`runtimes/{linux-x64,osx-x64,osx-arm64,win-x64}/native/`), so
+  package consumers no longer build `agent_hooks_ffi` from source. The
+  release pipeline cross-builds all four targets and asserts their
+  presence in the packed package.
+- **`deny` constructor sugar in every SDK.** A plain, final deny
+  (reason + optional message, no `approval` block) alongside the
+  existing `warn`/`escalate` sugar: Rust `Verdict::deny`, Python
+  `Verdict.deny`, TypeScript `Verdict.deny`, .NET `Verdict.Deny`, and
+  Go `DenyVerdict` (suffixed like `AllowVerdict` because `Deny` is the
+  `Decision` constant). (Merged after the alpha.3 tag; previously
+  listed under alpha.3 in error.)
+- **Go: `Interceptor.OnHook` renamed to `Intercept`,** aligning the
+  interceptor protocol method with Python/TypeScript `intercept` and
+  .NET `InterceptAsync`. Clean rename, no alias (pre-release; drafts
+  within the 0.1 window are not compatibility-bound). (Merged after
+  the alpha.3 tag; previously listed under alpha.3 in error.)
+- Registry publishing is trusted-publishing-only on every registry;
+  the one-time bootstrap token paths are removed from the release
+  workflow.
+
 ## 0.1.0-alpha.3
 
 Additive; driven by the first external consumer of the contract (a
@@ -17,16 +41,6 @@ policy decision runtime implementing the interceptor side).
   order = the §3 lifecycle order, documented on the enum) **and
   implements `Display`** (wire name). The other SDKs already expose
   wire-string point types and needed no change.
-- **`deny` constructor sugar in every SDK.** A plain, final deny
-  (reason + optional message, no `approval` block) alongside the
-  existing `warn`/`escalate` sugar: Rust `Verdict::deny`, Python
-  `Verdict.deny`, TypeScript `Verdict.deny`, .NET `Verdict.Deny`, and
-  Go `DenyVerdict` (suffixed like `AllowVerdict` because `Deny` is the
-  `Decision` constant).
-- **Go: `Interceptor.OnHook` renamed to `Intercept`,** aligning the
-  interceptor protocol method with Python/TypeScript `intercept` and
-  .NET `InterceptAsync`. Clean rename, no alias (pre-release; drafts
-  within the 0.1 window are not compatibility-bound).
 - **Docs: decision runtimes behind an interceptor.** Crate-level
   rustdoc and the README now state the reason-namespace convention:
   engine-internal failures surface as fail-closed denies under the
