@@ -1,5 +1,5 @@
 {
-  "$id": "https://agent-hooks.responsibleai.dev/v0.1/interception-point.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-point.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — interception point",
   "description": "The closed set of agent lifecycle interception points (AGENT-HOOKS-0.1 §3).",

@@ -1,5 +1,5 @@
 {
-  "$id": "https://agent-hooks.responsibleai.dev/v0.1/interception-record.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-record.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — interception record",
   "description": "Host-side record of one emission (AGENT-HOOKS-0.1 §10.3). Payload-free: identities (when a provider is declared) bind the record to the exact pre/post-composition context; session_id/sequence/decided_by provide ordering and attribution; composition makes the record interpretable without out-of-band host configuration.",

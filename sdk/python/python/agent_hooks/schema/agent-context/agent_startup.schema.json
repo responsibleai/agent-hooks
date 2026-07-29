@@ -1,5 +1,5 @@
 {
-  "$id": "https://agent-hooks.responsibleai.dev/v0.1/agent-context/agent_startup.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/agent-context/agent_startup.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks \u2014 agent context (agent_startup)",
   "description": "Closed required+conditional schema for interception_point=agent_startup (AGENT-HOOKS-0.1 \u00a74.2). Used by the CTK for strict validation.",

@@ -1,5 +1,5 @@
 {
-  "$id": "https://agent-hooks.responsibleai.dev/v0.1/approval.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/approval.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — approval seam",
   "description": "Approval request and resolution shapes for lifting a liftable deny (AGENT-HOOKS-0.1 §9). context_identity is an opaque provider-produced string, or null when identity_provider is null (§10.1); the only normative constraint is the echo rule.",

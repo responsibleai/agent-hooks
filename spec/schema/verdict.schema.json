@@ -1,5 +1,5 @@
 {
-  "$id": "https://agent-hooks.responsibleai.dev/v0.1/verdict.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/verdict.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — verdict",
   "description": "Interceptor return value (AGENT-HOOKS-0.1 §5). Three decisions: allow (absorbs warn via warnings[]), deny (absorbs escalate via the approval block), transform. A verdict carries decision content only; composition is host configuration (§7.1).",

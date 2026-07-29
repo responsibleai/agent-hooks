@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agent-hooks.responsibleai.dev/v0.1/reserved-reasons.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/reserved-reasons.json",
   "title": "Agent Hooks — reserved host_error:* reasons",
   "description": "Host-synthesized deny reasons (AGENT-HOOKS-0.1 §11). Interceptors MUST NOT emit reasons with the host_error: prefix.",
   "reasons": [

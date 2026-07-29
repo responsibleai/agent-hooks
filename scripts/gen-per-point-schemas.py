@@ -48,7 +48,7 @@ def main() -> None:
             if d in defs and defs[d].get("type") == "object":
                 defs[d]["additionalProperties"] = False
         schema = {
-            "$id": f"https://agent-hooks.responsibleai.dev/v0.1/agent-context/{hp}.schema.json",
+            "$id": f"https://responsibleai.github.io/agent-hooks/schema/v0.1/agent-context/{hp}.schema.json",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "title": f"Agent Hooks — agent context ({hp})",
             "description": (

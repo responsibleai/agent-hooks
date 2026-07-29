@@ -1,5 +1,5 @@
 {
-  "$id": "https://agent-hooks.responsibleai.dev/v0.1/agent-context.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/agent-context.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — agent context",
   "description": "Payload a host constructs at each interception point (AGENT-HOOKS-0.1 §4). required fields are always present; conditional fields are required per interception_point; optional fields are well-known; namespaced extensions live under extensions.",

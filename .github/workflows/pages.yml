@@ -26,6 +26,12 @@ jobs:
           uv venv .mkdocs-venv
           uv pip install --python .mkdocs-venv/bin/python "mkdocs-material==9.6.23"
           cp spec/AGENT-HOOKS-0.1.md docs-site/docs/spec.md
+          # Publish the machine-readable schemas so every $id dereferences.
+          mkdir -p docs-site/docs/schema/v0.1/agent-context docs-site/docs/schema/v0.1/conformance
+          cp spec/schema/*.json docs-site/docs/schema/v0.1/
+          cp spec/schema/agent-context/*.json docs-site/docs/schema/v0.1/agent-context/
+          cp spec/reserved-reasons.json docs-site/docs/schema/v0.1/
+          cp conformance/vectors.schema.json docs-site/docs/schema/v0.1/conformance/
           .mkdocs-venv/bin/mkdocs build --strict -f docs-site/mkdocs.yml -d "$PWD/site"
       - name: Upload Pages artifact
         if: github.event_name == 'push'
