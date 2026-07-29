@@ -274,24 +274,52 @@ jobs:
         working-directory: sdk/typescript
 
   go-xplat:
-    # macOS only: the Windows leg needs a gnu-target import library or a
-    # dedicated cgo linking setup (the msvc-built cdylib ships no .dll.a
-    # for mingw gcc); deferred until someone owns that combination.
-    runs-on: macos-latest
+    # The Windows leg builds the ffi crate for x86_64-pc-windows-gnu:
+    # cgo links with the GNU toolchain, which cannot consume the
+    # msvc-built cdylib (no import library for mingw gcc). The gnu
+    # target emits libagent_hooks_ffi.dll.a next to the dll, so the
+    # runner's mingw gcc resolves -lagent_hooks_ffi directly.
+    # Advisory: not in the required-check set yet (names must prove stable).
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+        # include only attaches `target` to existing os entries, so the
+        # check names stay `go-xplat (<os>)`.
+        include:
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: windows-latest, target: x86_64-pc-windows-gnu }
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
-        with: { toolchain: stable }
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - name: Install ${{ matrix.target }} for the pinned toolchain
+        # rust-toolchain.toml pins the toolchain inside sdk/rust; the
+        # setup action installs targets for `stable` only, so the target
+        # must be added in the pinned context (as in release.yml ffi-build).
+        shell: bash
+        run: rustup target add ${{ matrix.target }}
+        working-directory: sdk/rust
       - name: Build ffi cdylib
-        run: cargo build --locked -p agent-hooks-ffi --release
+        shell: bash
+        run: cargo build --locked -p agent-hooks-ffi --release --target ${{ matrix.target }}
         working-directory: sdk/rust
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.22" }
+      - name: Expose native library to the per-OS loader
+        # GITHUB_PATH covers the Windows DLL search path (mirrors
+        # dotnet-xplat); DYLD_LIBRARY_PATH below covers the Mach-O loader.
+        shell: bash
+        run: echo "${{ github.workspace }}/sdk/rust/target/${{ matrix.target }}/release" >> "$GITHUB_PATH"
       - name: Build and test
+        shell: bash
         run: |
           go build ./...
           go test ./...
         working-directory: sdk/go
         env:
-          CGO_LDFLAGS: -L${{ github.workspace }}/sdk/rust/target/release -lagent_hooks_ffi
-          DYLD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
+          CGO_LDFLAGS: -L${{ github.workspace }}/sdk/rust/target/${{ matrix.target }}/release -lagent_hooks_ffi
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/${{ matrix.target }}/release
