@@ -28,6 +28,7 @@ retract already-streamed content (§12.1a).
 | Framework | Adapter version | Spec | Capabilities | Profiles | Identity provider | SDK | Report | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | reference-agent | 0.1.0 | agent-hooks/0.1 | model_calls, tool_calls, int64_json (not typescript) | all four (§7.2), all knobs | jcs-sha256 (+ null, vector-scoped) | python, typescript, dotnet, go, rust | (CI: CTK self-test, all parts) | In-tree reference |
+| [agent-control-spec](https://github.com/responsibleai/agent-control-spec) | 0.4.0-alpha.1 | agent-hooks/0.1 | model_calls, tool_calls, int64_json | all four (§7.2), all knobs | jcs-sha256 (+ null, vector-scoped) | rust@0.1.0-alpha.3 | [per-part report](https://github.com/responsibleai/agent-control-spec/blob/a075ff9602e9/conformance/agent-hooks/REPORT.md) — 46/47, 1 capability-gated skip (bigint_json undeclared) | Policy decision runtime; engine registered as the interceptor behind a first-party harness over the production emitter loop |
 
 ## Filing and acceptance
 
