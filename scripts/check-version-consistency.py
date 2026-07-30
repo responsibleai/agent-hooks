@@ -71,7 +71,6 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    check_no_committed_platform_pins()
     sys.exit(main())
 
 
@@ -79,6 +78,7 @@ def check_no_committed_platform_pins():
     """The loader manifest must not pin platform packages; the release
     workflow injects optionalDependencies at publish time."""
     import json as _json
+
     with open("sdk/typescript/package.json", encoding="utf-8") as f:
         pkg = _json.load(f)
     if "optionalDependencies" in pkg:
@@ -86,3 +86,7 @@ def check_no_committed_platform_pins():
             "sdk/typescript/package.json commits optionalDependencies; "
             "platform pins are injected at publish time (see release.yml)"
         )
+
+
+if __name__ == "__main__":
+    check_no_committed_platform_pins()
