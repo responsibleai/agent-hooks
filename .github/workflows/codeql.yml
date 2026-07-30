@@ -56,7 +56,10 @@ jobs:
         with: { go-version: "1.22" }
       - if: matrix.language == 'go'
         name: Manual build for the Go extractor
-        run: go build ./...
+        # The Go modules live under sdk/go, not the repo root.
+        run: |
+          cd sdk/go/agenthooks && go build ./...
+          cd ../conformance && go build ./...
       - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
         with:
           category: "/language:${{ matrix.language }}"
