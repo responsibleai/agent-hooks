@@ -1,6 +1,6 @@
 {
   "name": "@responsibleai/agent-hooks-darwin-arm64",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "cpu": [
     "arm64"
   ],

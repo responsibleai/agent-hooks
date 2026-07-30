@@ -1,6 +1,6 @@
 {
   "name": "@responsibleai/agent-hooks",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "description": "Framework-neutral agent control contract (AGENT-HOOKS-0.1). TypeScript wrapper over the canonical Rust core. Cooperative contract, not a security boundary: the host is fully trusted (see SECURITY.md).",
   "license": "MIT",
   "main": "./dist/index.js",

@@ -19,10 +19,8 @@
 #            on the package (repo responsibleai/agent-hooks, workflow
 #            release.yml, environment release) at
 #            npmjs.com > package > Settings > Trusted Publisher.
-#            No token. First-ever publish of a new package cannot use
-#            trusted publishing — bootstrap once with a granular token
-#            (npm publish from a maintainer machine or a temporary
-#            NPM_TOKEN secret), then configure the publisher.
+#            No token; all five packages (loader + four platform
+#            packages) have trusted publishers configured.
 #   NuGet  — trusted publishing (OIDC): configure a Trusted Publishing
 #            policy on nuget.org (repo responsibleai/agent-hooks,
 #            workflow release.yml, environment release); the NuGet/login
@@ -41,15 +39,6 @@ on:
         description: Build and attest everything, skip all uploads
         type: boolean
         default: true
-      bootstrap_platform_packages:
-        description: >-
-          One-time bootstrap: publish the npm platform packages from a
-          dispatch run (they cannot use trusted publishing before their
-          first publish). Requires the NPM_TOKEN environment secret and
-          dry_run=false. Only the platform-package step is enabled;
-          every other publish remains tag-gated.
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -207,19 +196,15 @@ jobs:
             sdk/typescript/*.tgz
             sdk/typescript/npm/**/*.node
       - name: Publish to npm (platform packages, then the loader package)
-        if: env.DRY_RUN != 'true' && (github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.bootstrap_platform_packages))
-        # OIDC trusted publishing: no token. Each PACKAGE (the four
-        # platform packages and the main one) needs its own trusted
+        if: env.DRY_RUN != 'true' && github.ref_type == 'tag'
+        # OIDC trusted publishing: no token. Each package (the four
+        # platform packages and the loader) has its own trusted
         # publisher on npmjs.com (repo responsibleai/agent-hooks,
-        # workflow release.yml, environment release). A package's FIRST
-        # publish cannot use trusted publishing — bootstrap once with a
-        # granular token exposed as NPM_TOKEN, then configure the
-        # publisher and drop the secret. The repo is public, so npm
-        # attaches provenance automatically under trusted publishing.
-        # Prerelease versions publish under the `alpha` dist-tag;
-        # stable under latest. Idempotent: existing versions skip.
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # workflow release.yml, environment release). The repo is
+        # public, so npm attaches provenance automatically under
+        # trusted publishing. Prerelease versions publish under the
+        # `alpha` dist-tag; stable under latest. Idempotent: existing
+        # versions skip.
         run: |
           npm install -g npm@latest
           V=$(node -p "require('./package.json').version")
