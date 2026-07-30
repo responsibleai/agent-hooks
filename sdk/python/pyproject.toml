@@ -7,7 +7,7 @@ build-backend = "maturin"
 # similarity check blocks all separator variants (incl. agenthooks).
 # Import name stays agent_hooks.
 name = "agent-hooks-sdk"
-version = "0.1.0a3"
+version = "0.1.0a4"
 description = "Framework-neutral agent control contract: interception points, agent context, verdict, and conformance test kit. Python wrapper over the canonical Rust core. Cooperative contract, not a security boundary: the host is fully trusted (see SECURITY.md)."
 readme = "README.md"
 requires-python = ">=3.10"
