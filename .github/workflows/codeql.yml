@@ -40,10 +40,9 @@ jobs:
           - { language: rust,                  build-mode: none }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version: "1.22" }
       - if: matrix.language == 'go'
         uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
         with: { toolchain: stable }
@@ -51,9 +50,10 @@ jobs:
         name: Build ffi cdylib (cgo dependency)
         run: cargo build --locked -p agent-hooks-ffi --release
         working-directory: sdk/rust
-      - if: matrix.language == 'go'
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with: { go-version: "1.22" }
+      - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
       - if: matrix.language == 'go'
         name: Manual build for the Go extractor
         # The Go modules live under sdk/go, not the repo root.
