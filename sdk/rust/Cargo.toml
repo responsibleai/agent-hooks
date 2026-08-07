@@ -3,7 +3,7 @@ resolver = "2"
 members = ["core", "ffi"]
 
 [workspace.package]
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 edition = "2021"
 rust-version = "1.75"
 license = "MIT"

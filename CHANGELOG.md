@@ -3,8 +3,21 @@
 User-visible changes to the spec and SDKs. Versioning rules:
 [VERSIONING.md](VERSIONING.md).
 
-## Unreleased
+## 0.1.0-alpha.5 — tag `v0.1.0-alpha.5`
 
+- **Python: `Verdict.allow()` constructor sugar,** completing the
+  cross-SDK vocabulary: Rust `Verdict::allow`, TypeScript
+  `Verdict.allow()`, .NET `Verdict.Allow` and Go `AllowVerdict`
+  already existed; Python exposed only the module-level `ALLOW`
+  constant. The Python README interceptor example now uses the sugar
+  throughout.
+- **npm: prebuilt `linux-arm64-gnu` binary.** The TypeScript loader
+  gains a fifth platform package
+  (`@responsibleai/agent-hooks-linux-arm64-gnu`,
+  `aarch64-unknown-linux-gnu`), built natively on the arm64 hosted
+  runner. musl (Alpine) targets remain unshipped — the pipeline
+  builds on native runners only, and `linux-x64-musl` does not ship
+  either; a musl pair can land together later.
 - **§12.1 admits incremental mediation.** Previously a host had to
   assemble the complete response before `post_model_call` with no
   exception, so a host mediating a stream incrementally (e.g. per ACS

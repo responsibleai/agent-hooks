@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "agent-hooks-python"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 dependencies = [
  "agent-hooks-sdk",
  "pyo3",
@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "agent-hooks-sdk"
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 dependencies = [
  "async-trait",
  "futures-util",

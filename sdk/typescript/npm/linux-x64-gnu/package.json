@@ -1,6 +1,6 @@
 {
   "name": "@responsibleai/agent-hooks-linux-x64-gnu",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "cpu": [
     "x64"
   ],
