@@ -194,6 +194,12 @@ class AgentFrameworkHarness:
         Capability.INT64_JSON,
         Capability.BIGINT_JSON,
     }
+    # Declared §6.2 posture (§13.1): Agent Framework deliberately terminates
+    # the run when a host_error:* deny lands at the tool seam ("the
+    # enforcement layer itself failed, so continuing would be unreliable") —
+    # the posture §6.2's "unless the host's own semantics terminate the
+    # turn" clause permits. Plain policy denies continue the loop.
+    tool_seam_host_error: ClassVar[str] = "terminate"
 
     def __init__(self) -> None:
         self._scenario: Scenario | None = None

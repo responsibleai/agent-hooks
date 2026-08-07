@@ -10,22 +10,27 @@ The enforcement surface under test is the middleware bundle returned by
 `agent_framework.Agent` with only the chat client and tools mocked
 (`harness.py`, this directory).
 
-Corpus: the 47 `AH-CTK-*` vectors vendored in the `agent-hooks-sdk`
-0.1.0a4 wheel (`agent_hooks.ctk/vectors`), byte-identical to
-`responsibleai/agent-hooks` `conformance/vectors/` at `6195293`.
+Corpus: the 51 `AH-CTK-*` vectors vendored in the `agent-hooks-sdk`
+0.1.0a5 build (`agent_hooks.ctk/vectors`), byte-identical to
+`responsibleai/agent-hooks` `conformance/vectors/` at `4f7af78`.
 
-**This is a cross-validation report, not a conformance claim**: 14 of 47
-vectors fail, all from two documented host-semantics divergences analysed
-under [Findings](#findings). Per spec §13.1/§13.2 a host claims
-conformance only at 100% of non-skipped vectors, so Agent Framework MUST
-NOT be recorded as conformant on this report.
+**This is a §13.1 conformance claim**: 100% of the vectors applicable
+to the declared surface pass (47 of 47; the 4 skips are the
+capability-gated `streaming/incremental` part a `buffered_output: true`
+host never declares). The two CTK expressibility findings of the
+earlier cross-validation run (F1/F2 below) were fixed upstream as
+agent-hooks [#68](https://github.com/responsibleai/agent-hooks/issues/68)
+/ [#69](https://github.com/responsibleai/agent-hooks/issues/69)
+(PR [#72](https://github.com/responsibleai/agent-hooks/pull/72)); this
+report supersedes the 33/47 cross-validation report recorded at
+agent-hooks `af249da`.
 
 ## Environment
 
 | Component | Version |
 | --- | --- |
 | agent-framework-core | 1.13.0 (`4b1afd9052`, `main`, via git; subdirectory `python/packages/core`) |
-| agent-hooks-sdk | 0.1.0a4 (PyPI), `[ctk]` extra |
+| agent-hooks-sdk | 0.1.0a5, built from source at `responsibleai/agent-hooks@4f7af78`, `[ctk]` extra |
 | CTK runner | Python SDK (`agent_hooks.ctk`), pytest plugin |
 | Python | 3.12.3 |
 | OS | Linux 6.6.87.2 (WSL2) |
@@ -44,13 +49,19 @@ pytest test_conformance.py \
   `output`, `agent_shutdown`).
 - **Capabilities (§3.2):** `model_calls`, `tool_calls`, `int64_json`,
   `bigint_json` (Python integers are arbitrary precision; the >2^53 and
-  beyond-u64 vectors run rather than skip — no capability-gated skips in
-  this report).
+  beyond-u64 vectors run rather than skip).
+- **Posture (§13.1): `tool_seam_host_error: terminate`** — Agent
+  Framework deliberately terminates the run when a `host_error:*` deny
+  lands at `pre_tool_call`/`post_tool_call` (module docstring: "the
+  enforcement layer itself failed, so continuing would be unreliable";
+  pinned by its own unit tests). §6.2 permits this posture ("unless the
+  host's own semantics terminate the turn"); the tool call is blocked
+  exactly as §6.2 requires before the turn ends, and the 13 tool-seam
+  `host_error:*` vectors resolve to `run_outcome: "blocked"` under this
+  declaration. Plain (policy) denies at the tool seam continue the loop.
 - **Composition (§7.2):** SDK default `sequential/first_deny`
   (`on_approval: stop`); all four profiles and every knob are host
   configuration, passed through the factories' `composition=` parameter.
-  All composition vectors that reach a run-level verdict pass; see F1 for
-  the tool-seam ones that do not.
 - **Identity provider (§10.1):** `jcs-sha256` (content-derived) by
   default; custom providers and `null` (identity-unbound records,
   vector-scoped) supported.
@@ -59,7 +70,8 @@ pytest test_conformance.py \
   gated (`ResponseStream.buffered_and_gated`); the complete response is
   assembled before `post_model_call` / `output` and nothing egresses to
   the caller ahead of the combined verdict. No incremental mediation is
-  performed, so no §12.1 exposure bound applies.
+  performed, so no §12.1 exposure bound applies, `incremental_output`
+  is not declared, and the `streaming/incremental` part skips.
 - **Known limitation (disclosed by the feature):** service-side (hosted)
   tools executed by the model provider never traverse the framework's
   function-invocation seam, so `pre_tool_call`/`post_tool_call` cannot
@@ -69,83 +81,66 @@ pytest test_conformance.py \
 
 ## Results (per part)
 
-| Part | Passed | Failed |
-| --- | --- | --- |
-| approval_seam | 4 | 4 |
-| composition/parallel_strictest | 2 | 1 |
-| composition/parallel_unanimous | 1 | 1 |
-| composition/sequential_first_deny | 2 | 0 |
-| composition/sequential_run_all | 3 | 2 |
-| enforcement/evaluate_only | 1 | 0 |
-| enforcement/isolation | 1 | 0 |
-| enforcement/post_action_deny | 0 | 1 |
-| fail_closed/verdict_gate | 0 | 1 |
-| identity_provider | 4 | 1 |
-| record/decided_by | 0 | 1 |
-| record/projection | 1 | 0 |
-| unspecified | 13 | 2 |
-| verdict/warnings | 1 | 0 |
+| Part | Passed | Failed | Skipped |
+| --- | --- | --- | --- |
+| approval_seam | 8 | 0 | 0 |
+| composition/parallel_strictest | 3 | 0 | 0 |
+| composition/parallel_unanimous | 2 | 0 | 0 |
+| composition/sequential_first_deny | 2 | 0 | 0 |
+| composition/sequential_run_all | 5 | 0 | 0 |
+| enforcement/evaluate_only | 1 | 0 | 0 |
+| enforcement/isolation | 1 | 0 | 0 |
+| enforcement/post_action_deny | 1 | 0 | 0 |
+| fail_closed/verdict_gate | 1 | 0 | 0 |
+| identity_provider | 5 | 0 | 0 |
+| record/decided_by | 1 | 0 | 0 |
+| record/projection | 1 | 0 | 0 |
+| streaming/incremental | 0 | 0 | 4 |
+| unspecified | 15 | 0 | 0 |
+| verdict/warnings | 1 | 0 | 0 |
 
-Total: **33 passed, 14 failed, 0 skipped** of 47.
+Total: **47 passed, 0 failed, 4 skipped** of 51. All skips are the
+`incremental_output` capability gate (`AH-CTK-110`–`AH-CTK-113`), the
+honest surface of a buffering host.
 
 ## Findings
 
-### F1 — a `host_error:*` deny at the tool seam halts the run (13 vectors)
+### F1 (resolved) — terminate-on-`host_error` posture, now declarable
 
-AH-CTK-070, -071, -072, -073, -085, -087, -092, -094, -095, -097, -098,
--102, -103.
-
-Every one of these vectors fails on **exactly one assertion**:
-`run_outcome == "blocked", want "completed"`. Everything else those
-vectors pin — the synthesized deny reason, the failing interceptor's
-slot/`decided_by` attribution, `tool_not_invoked`, the absent
-`post_tool_call`, record projections — passes.
-
-Cause: Agent Framework deliberately halts the run when a `host_error:*`
-deny lands at `pre_tool_call`/`post_tool_call` (module docstring: "the
-enforcement layer itself failed, so continuing would be unreliable";
-pinned by its own unit tests, e.g.
-`test_interceptor_crash_fails_closed_and_halts_run`). The tool call is
-blocked exactly as §6.2 requires, and then `InterceptionBlocked`
-propagates to the caller instead of the loop continuing. Plain (policy)
-denies at the tool seam continue the loop and their vectors (AH-CTK-010,
--030, -031, -032, -050, -080 …) pass.
-
-Spec reading: §6.2's continue rule carries the clause "unless the host's
-own semantics terminate the turn", which this posture satisfies; §6.3's
-"a single failure does not abort the emission, it composes as a deny" is
-also honoured (composition and records are exactly as expected). The
-CTK's `run_outcome` grammar (a single enum value per vector) cannot
-express a terminate-on-`host_error` host, so a spec-permitted posture is
-unrepresentable — **CTK expressibility gap; upstream agent-hooks issue
-material.**
+The earlier cross-validation failed 13 vectors (AH-CTK-070–073, -085,
+-087, -092, -094, -095, -097, -098, -102, -103) on exactly one
+assertion each: `run_outcome == "blocked", want "completed"` — the
+CTK's single-valued `run_outcome` could not express the
+terminate-on-`host_error` posture §6.2 permits. Fixed upstream
+(agent-hooks #68): the harness declares
+`tool_seam_host_error: "terminate"` and
+`expect.run_outcome_by_posture` resolves each vector to the single
+outcome this declared surface must produce. All 13 pass, still pinning
+the synthesized deny reason, slot/`decided_by` attribution,
+`tool_not_invoked`, and the absent `post_tool_call`.
 
 Secondary, MAF-side design question (upstream agent-framework issue
-material): the halt keys on the `host_error:` reason prefix and so also
-fires for composition-*produced* denies — `host_error:transform_conflict`
-(AH-CTK-085) and `host_error:composition_disagreement` (AH-CTK-087) are
-configured knob outcomes (§7.5), not enforcement-layer failures.
-Distinguishing genuine infrastructure failure from composed policy
-outcomes would reduce this divergence.
+material, unchanged): the halt keys on the `host_error:` reason prefix
+and so also fires for composition-*produced* denies —
+`host_error:transform_conflict` (AH-CTK-085) and
+`host_error:composition_disagreement` (AH-CTK-087) are configured knob
+outcomes (§7.5), not enforcement-layer failures. Distinguishing genuine
+infrastructure failure from composed policy outcomes would narrow the
+declared posture's blast radius.
 
-### F2 — AH-CTK-100 prescribes the reference host's blocked-tool transcript (1 vector)
+### F2 (resolved) — AH-CTK-100 now asserts substance, not transcript shape
 
-The vector asserts that after a `post_tool_call` deny, the next
-`pre_model_call` request has `messages[1].role == "tool"` with content
-the exact string `"blocked: ctk:tainted-result"` — the in-tree
-reference agent's transcript convention. Agent Framework instead
-(a) retains the assistant function-call message that precedes the tool
-result (required for protocol-valid transcripts on real chat APIs, so
-the tool message sits at index 2), and (b) surfaces a structured
-tool-error payload (`{"error": …, "reason": "ctk:tainted-result"}`)
-rather than a `"blocked: <reason>"` string. §6.2 requires only that the
-host "surface a tool error to the model" and prescribes no transcript
-shape or payload format. The vector's actual §6.1 substance — the deny
-record, the discarded (never re-executed, never incorporated) result —
-is honoured. **CTK over-prescription; upstream agent-hooks issue
-material.**
+The vector previously pinned the reference host's transcript cosmetics
+(tool message at `messages[1]`, content exactly
+`"blocked: ctk:tainted-result"`). Fixed upstream (agent-hooks #69): it
+now asserts the §6.1/§6.2 substance — the denied tool result never
+surfaces at the next `pre_model_call` in any form, the deny reason
+surfaces to the model in some form, the tool ran exactly once, and the
+deny record is correct. Agent Framework's protocol-valid transcript
+(assistant function-call message retained, structured
+`{"error": …, "reason": "ctk:tainted-result"}` payload) passes as-is.
 
-### F3 — observation (no vector failure): constructor-registered tools missing from `tools_registered`
+### F3 — observation (no vector impact): constructor-registered tools missing from `tools_registered`
 
 The feature's `agent_startup` projection reads the run-level
 `AgentContext.tools` and falls back to `getattr(agent, "tools", None)`,
@@ -153,9 +148,13 @@ but `agent_framework.Agent` stores constructor-registered tools in
 `default_options["tools"]` (no `.tools` attribute), so
 `agent_init.tools_registered` projects as `[]` for the
 `Agent(tools=[...])` registration path. Tools supplied per run
-(`Agent.run(..., tools=[...])`) project correctly; the harness uses that
-path, which is why AH-CTK-001 passes. **Upstream agent-framework fix
-material.**
+(`Agent.run(..., tools=[...])`) project correctly; the harness uses
+that path, which is why AH-CTK-001 passes and why this observation
+costs no vector in this report (confirmed: 0 failures above). Filed
+upstream as
+[microsoft/agent-framework#7560](https://github.com/microsoft/agent-framework/issues/7560);
+a SHOULD-grade optional-field projection gap (§4.5), not
+conformance-gated.
 
 ## Harness description (per CLAIMS.md)
 
@@ -191,6 +190,10 @@ only model/tool I/O mocked; it re-implements no dispatch:
 
 ## Disclosures
 
+- **`tool_seam_host_error: terminate`** (non-default posture, §13.1):
+  a `host_error:*` deny at the tool seam blocks the action and then
+  terminates the run instead of continuing the loop. The 13 passing
+  tool-seam vectors attest this posture's outcomes, not the default's.
 - `buffered_output: true` — a deny at `output` retracts nothing because
   nothing has egressed; streaming runs release content only after the
   combined verdict (§12.1a).

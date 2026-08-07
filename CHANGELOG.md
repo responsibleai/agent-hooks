@@ -5,6 +5,7 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+- **Microsoft Agent Framework: full §13.1 conformance claim.** The MAF row upgrades from partial cross-validation (33/47) to a conformance claim — 47/47 applicable vectors pass on the declared surface (`tool_seam_host_error: terminate`, `buffered_output: true` → 4 capability-gated skips); report and harness updated in `conformance/claims/maf/`.
 - **CTK: declared `tool_seam_host_error` posture (§13.1).** A harness declares `continue` (default) or `terminate`, and `expect.run_outcome_by_posture` resolves the 13 tool-seam `host_error:*` vectors to the single outcome that declared surface must produce — the §6.2 terminate clause is now claimable (#68).
 - **CTK: AH-CTK-100 asserts §6.1 substance, not transcript cosmetics.** New `context_must_contain`/`context_must_not_contain` interception assertions pin non-incorporation of the denied tool result and the deny surfacing to the model in some form, leaving message layout and payload shape to the host (#69).
 - **The §12.1 incremental exception is CTK-testable.** The vectors
