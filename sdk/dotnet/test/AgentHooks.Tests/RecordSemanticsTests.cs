@@ -82,3 +82,86 @@ public class RecordSemanticsTests
         Assert.Null(r.Verdicts[1].Name);
     }
 }
+
+public class HostFailureTests
+{
+    private sealed class Allow : IInterceptor
+    {
+        public ValueTask<Verdict> InterceptAsync(AgentContext ctx, CancellationToken ct = default)
+            => ValueTask.FromResult(Verdict.Allow);
+    }
+
+    [Fact]
+    public void RecordHostFailureSynthesizesRejectionShape()
+    {
+        // §10.3 host projection failure: the host could not construct a
+        // context at all; the synthesized record is the rejection shape
+        // with the host's envelope facts.
+        var em = new InterceptionEmitter();
+        em.Register(new Allow());
+        var r = em.RecordHostFailure(
+            InterceptionPoint.PreToolCall,
+            detail: "InvalidOperationException",
+            sessionId: "s",
+            sequence: 7,
+            timestamp: "2026-01-01T00:00:00Z");
+        Assert.False(r.Proceeds);
+        Assert.Equal(InterceptionPoint.PreToolCall, r.InterceptionPoint);
+        Assert.Equal("host_error:context_invalid", r.Verdict.Reason);
+        Assert.Equal("InvalidOperationException", r.Verdict.Message);
+        // §10.3 rejection shape: null identities under the declared
+        // provider, nothing dispatched.
+        Assert.Equal("jcs-sha256", r.IdentityProvider);
+        Assert.Null(r.InputIdentity);
+        Assert.Null(r.EnforcedIdentity);
+        Assert.Null(r.DecidedBy);
+        Assert.Empty(r.Verdicts);
+        Assert.Equal(1, r.InterceptorsRegistered);
+        // Envelope facts the host supplied.
+        Assert.Equal("s", r.SessionId);
+        Assert.Equal(7, r.Sequence);
+        Assert.Equal("2026-01-01T00:00:00Z", r.Timestamp);
+        // The record entered the emitter's stream like any emission.
+        Assert.Single(em.Records);
+    }
+
+    [Fact]
+    public void RecordHostFailureDefaultsAreTheUnknownValues()
+    {
+        var em = new InterceptionEmitter();
+        var r = em.RecordHostFailure(InterceptionPoint.Output);
+        Assert.Equal("", r.SessionId);
+        Assert.Equal(-1, r.Sequence);
+        Assert.Null(r.Timestamp);
+        Assert.Null(r.Verdict.Message);
+        Assert.Equal(0, r.InterceptorsRegistered);
+    }
+
+    [Fact]
+    public void RecordHostFailureRecordsInEvaluateOnlyAndHitsSink()
+    {
+        // §8: synthesis still records in evaluate_only — records are the
+        // point — and the mode member keeps the record from implying a
+        // block happened.
+        var em = new InterceptionEmitter(EnforcementMode.EvaluateOnly);
+        var seen = new List<InterceptionRecord>();
+        em.SetRecordSink(seen.Add);
+        var r = em.RecordHostFailure(InterceptionPoint.PreToolCall, detail: "TypeError");
+        Assert.Equal(EnforcementMode.EvaluateOnly, r.Mode);
+        Assert.Equal("host_error:context_invalid", r.Verdict.Reason);
+        Assert.Equal([r], seen);
+    }
+
+    [Fact]
+    public void RecordHostFailureDetailTruncatedByProjection()
+    {
+        // §10.3: the synthesized verdict crosses the same payload-free
+        // projection as every combined verdict.
+        var em = new InterceptionEmitter();
+        var r = em.RecordHostFailure(
+            InterceptionPoint.PreToolCall, detail: new string('x', 300));
+        Assert.NotNull(r.Verdict.Message);
+        Assert.EndsWith("…", r.Verdict.Message);
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(r.Verdict.Message!) <= 256 + 3);
+    }
+}

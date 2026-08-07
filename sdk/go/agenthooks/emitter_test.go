@@ -793,3 +793,121 @@ func TestSetCompositionEmptyProfileResetsToDefault(t *testing.T) {
 		t.Fatalf("composition = %+v, want default", rec.Composition)
 	}
 }
+
+// ---- §10.3 host projection failure ------------------------------------------
+
+func TestRecordHostFailureSynthesizesRejectionShape(t *testing.T) {
+	// §10.3 host projection failure: the host could not construct a
+	// context at all; the synthesized record is the rejection shape
+	// with the host's envelope facts.
+	e := NewInterceptionEmitter(Enforce, nil)
+	e.Register(scripted{v: AllowVerdict})
+	seq := int64(7)
+	r, err := e.RecordHostFailure(PreToolCall, HostFailure{
+		Detail:    "json.UnsupportedTypeError",
+		SessionID: "s",
+		Sequence:  &seq,
+		Timestamp: "2026-01-01T00:00:00Z",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Proceeds() {
+		t.Fatal("host failure must not proceed in enforce mode")
+	}
+	if r.InterceptionPoint != PreToolCall {
+		t.Fatalf("point: %v", r.InterceptionPoint)
+	}
+	if r.Verdict.Reason != "host_error:context_invalid" {
+		t.Fatalf("reason: %q", r.Verdict.Reason)
+	}
+	if r.Verdict.Message != "json.UnsupportedTypeError" {
+		t.Fatalf("message: %q", r.Verdict.Message)
+	}
+	// §10.3 rejection shape: null identities under the declared
+	// provider, nothing dispatched.
+	if r.IdentityProvider == nil || *r.IdentityProvider != JCSSHA256 {
+		t.Fatalf("identity_provider: %v", r.IdentityProvider)
+	}
+	if r.InputIdentity != nil || r.EnforcedIdentity != nil {
+		t.Fatal("identities must be null")
+	}
+	if r.DecidedBy != nil {
+		t.Fatal("decided_by must be null")
+	}
+	if len(r.Verdicts) != 0 {
+		t.Fatal("no interceptor ran")
+	}
+	if r.InterceptorsRegistered != 1 {
+		t.Fatalf("interceptors_registered: %d", r.InterceptorsRegistered)
+	}
+	// Envelope facts the host supplied.
+	if r.SessionID != "s" || r.Sequence != 7 {
+		t.Fatalf("envelope: %q/%d", r.SessionID, r.Sequence)
+	}
+	if r.Timestamp == nil || *r.Timestamp != "2026-01-01T00:00:00Z" {
+		t.Fatalf("timestamp: %v", r.Timestamp)
+	}
+	// The record entered the emitter's stream like any emission.
+	if len(e.Records()) != 1 {
+		t.Fatalf("records: %d", len(e.Records()))
+	}
+}
+
+func TestRecordHostFailureDefaultsAreTheUnknownValues(t *testing.T) {
+	e := NewInterceptionEmitter(Enforce, nil)
+	r, err := e.RecordHostFailure(Output, HostFailure{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.SessionID != "" || r.Sequence != -1 {
+		t.Fatalf("envelope: %q/%d", r.SessionID, r.Sequence)
+	}
+	if r.Timestamp != nil {
+		t.Fatalf("timestamp: %v", r.Timestamp)
+	}
+	if r.Verdict.Message != "" {
+		t.Fatalf("message: %q", r.Verdict.Message)
+	}
+	if r.InterceptorsRegistered != 0 {
+		t.Fatalf("interceptors_registered: %d", r.InterceptorsRegistered)
+	}
+}
+
+func TestRecordHostFailureEvaluateOnlyRecordsAndHitsSink(t *testing.T) {
+	// §8: synthesis still records in evaluate_only — records are the
+	// point — and the mode member keeps the record from implying a
+	// block happened.
+	e := NewInterceptionEmitter(EvaluateOnly, nil)
+	var seen []InterceptionRecord
+	e.SetRecordSink(func(r InterceptionRecord) { seen = append(seen, r) })
+	r, err := e.RecordHostFailure(PreToolCall, HostFailure{Detail: "reflect.ValueError"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Mode != EvaluateOnly {
+		t.Fatalf("mode: %v", r.Mode)
+	}
+	if r.Verdict.Reason != "host_error:context_invalid" {
+		t.Fatalf("reason: %q", r.Verdict.Reason)
+	}
+	if len(seen) != 1 {
+		t.Fatalf("sink saw %d records", len(seen))
+	}
+}
+
+func TestRecordHostFailureDetailTruncatedByProjection(t *testing.T) {
+	// §10.3: the synthesized verdict crosses the same payload-free
+	// projection as every combined verdict.
+	e := NewInterceptionEmitter(Enforce, nil)
+	r, err := e.RecordHostFailure(PreToolCall, HostFailure{Detail: strings.Repeat("x", 300)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(r.Verdict.Message, "…") {
+		t.Fatalf("message not truncated: %q", r.Verdict.Message)
+	}
+	if len(r.Verdict.Message) > 256+len("…") {
+		t.Fatalf("message too long: %d bytes", len(r.Verdict.Message))
+	}
+}

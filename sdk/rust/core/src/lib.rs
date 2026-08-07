@@ -72,7 +72,7 @@ pub use composition::{
     aggregate_strictest, severity, Aggregate, CompositionConfig, CompositionProfile, OnApproval,
     SynthesisPolicy,
 };
-pub use emitter::{IdentityProvider, InterceptionBlocked, InterceptionEmitter};
+pub use emitter::{HostFailure, IdentityProvider, InterceptionBlocked, InterceptionEmitter};
 pub use enforce::{apply_transform_to_ctx, finalize, validate_transform, FinalizeMeta};
 pub use path::{apply as apply_transform_path, parse as parse_transform_path, resolve, Segment};
 pub use types::{

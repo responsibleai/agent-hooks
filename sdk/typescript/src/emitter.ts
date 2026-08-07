@@ -160,6 +160,27 @@ type Consultation =
 
 const NOT_CONSULTED: Consultation = { consulted: false };
 
+/** Envelope facts for {@link InterceptionEmitter.recordHostFailure}:
+ * what the host still knows about an emission whose context it could
+ * not construct (§10.3 "Host projection failure"). Everything is
+ * optional — an absent member records the §10.3 unknown value
+ * (`session_id: ""`, `sequence: -1`, `timestamp` absent). */
+export interface HostFailure {
+  /** Payload-free failure detail — an exception **type name** or a
+   * path, never the content that failed to project (§14 data
+   * minimization). Recorded as the verdict `message` (truncated by
+   * the §10.3 projection). */
+  detail?: string;
+  /** `session.id` of the failed emission, when the host knows it. */
+  session_id?: string;
+  /** The sequence number the failed emission would have carried. The
+   * host SHOULD consume the next number from its context source so
+   * records stay totally ordered within the session (§10.3). */
+  sequence?: number;
+  /** RFC 3339 event time, when the host has one. */
+  timestamp?: string;
+}
+
 export class InterceptionEmitter {
   private readonly interceptors: Interceptor[] = [];
   private _records: InterceptionRecord[] = [];
@@ -389,6 +410,62 @@ export class InterceptionEmitter {
     } else {
       record = finalize(ctx, outcome.combined, this.mode, meta);
     }
+    return this.deliver(record);
+  }
+
+  /** §10.3/§11 host projection failure: synthesize and deliver the
+   * fail-closed record for an emission whose `AgentContext` the host
+   * could not construct at all — its own projection to the wire failed
+   * before anything existed to {@link emit} (e.g. a tool-call argument
+   * getter threw during to-wire conversion at the chat seam). Without
+   * this the host can only fail the action closed *recordless*; with
+   * it the trail stays complete under host-side faults.
+   *
+   * The record is the §10.3 rejection shape: the payload-free
+   * projection of a `deny host_error:context_invalid` carrying
+   * `failure.detail` (payload-free: a type name or path, never
+   * content) as its message; `null` identities under the declared
+   * provider; `decided_by: null`; no per-interceptor summaries (no
+   * interceptor ran); envelope members from {@link HostFailure}, with
+   * the §10.3 unknown values (`""`/`-1`) where absent. It takes the
+   * next slot in the record stream (sink, then buffer) like any
+   * emission. In `enforce` mode the host MUST still fail the action
+   * closed; in `evaluate_only` the record documents the host fault
+   * without implying enforcement (§8). */
+  recordHostFailure(point: InterceptionPoint, failure: HostFailure = {}): InterceptionRecord {
+    // Deliberately partial basis: only the envelope facts the host
+    // still knows. It never passes §4 validation (`spec` is absent),
+    // so the core's finalize always yields the §10.3 rejection shape —
+    // null identities under the declared provider — and keeps the
+    // synthesized `context_invalid` deny (with the host's detail)
+    // instead of substituting its own.
+    const basis: Record<string, unknown> = { interception_point: point };
+    if (failure.session_id !== undefined) basis["session"] = { id: failure.session_id };
+    if (failure.sequence !== undefined) basis["sequence"] = failure.sequence;
+    if (failure.timestamp !== undefined) basis["timestamp"] = failure.timestamp;
+    const providerName =
+      this.identity === null ? null : this.identity === JCS_SHA256 ? JCS_SHA256 : this.identity.name;
+    const record = finalize(
+      basis as unknown as AgentContext,
+      hostErrorVerdict(HostError.ContextInvalid, failure.detail),
+      this.mode,
+      {
+        input_identity: null,
+        identity_provider: providerName,
+        enforced_identity: null,
+        decided_by: null,
+        composition: this.composition,
+        verdicts: null,
+        fold_truncated: null,
+        resolved_by: null,
+        interceptors_registered: this.interceptors.length,
+      },
+    );
+    return this.deliver(record);
+  }
+
+  /** Deliver a record to the sink and the bounded buffer (§10.3). */
+  private deliver(record: InterceptionRecord): InterceptionRecord {
     if (this.recordSink) {
       // Audit delivery must not take down the control plane (§10.3).
       try {

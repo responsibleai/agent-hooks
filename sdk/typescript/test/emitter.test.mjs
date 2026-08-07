@@ -649,3 +649,64 @@ test("setComposition accepts every declared §7.2 profile", async () => {
   const rec = await e.emitUnchecked(ctx());
   assert.equal(rec.composition.profile, "parallel/unanimous");
 });
+
+// ---- §10.3 host projection failure ------------------------------------------
+
+test("recordHostFailure synthesizes the rejection-shape record", () => {
+  const e = new InterceptionEmitter(EnforcementMode.Enforce);
+  e.register(scripted({ decision: "allow" }));
+  const r = e.recordHostFailure("pre_tool_call", {
+    detail: "TypeError",
+    session_id: "s",
+    sequence: 7,
+    timestamp: "2026-01-01T00:00:00Z",
+  });
+  assert.equal(r.interception_point, "pre_tool_call");
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.equal(r.verdict.reason, "host_error:context_invalid");
+  assert.equal(r.verdict.message, "TypeError");
+  // §10.3 rejection shape: null identities under the declared
+  // provider, nothing dispatched.
+  assert.equal(r.identity_provider, "jcs-sha256");
+  assert.equal(r.input_identity, null);
+  assert.equal(r.enforced_identity, null);
+  assert.equal(r.decided_by, null);
+  assert.equal(r.verdicts, undefined, "no interceptor ran");
+  assert.equal(r.interceptors_registered, 1);
+  // Envelope facts the host supplied.
+  assert.equal(r.session_id, "s");
+  assert.equal(r.sequence, 7);
+  assert.equal(r.timestamp, "2026-01-01T00:00:00Z");
+  // The record entered the emitter's stream like any emission.
+  assert.equal(e.records.length, 1);
+});
+
+test("recordHostFailure defaults are the §10.3 unknown values", () => {
+  const e = new InterceptionEmitter(EnforcementMode.Enforce);
+  const r = e.recordHostFailure("output");
+  assert.equal(r.session_id, "");
+  assert.equal(r.sequence, -1);
+  assert.equal(r.timestamp, undefined);
+  assert.equal(r.verdict.message, undefined);
+  assert.equal(r.interceptors_registered, 0);
+});
+
+test("recordHostFailure records in evaluate_only and hits the sink", () => {
+  // §8: synthesis still records in evaluate_only — records are the
+  // point — and the mode member keeps the record from implying a
+  // block happened.
+  const e = new InterceptionEmitter(EnforcementMode.EvaluateOnly);
+  const seen = [];
+  e.setRecordSink((r) => seen.push(r));
+  const r = e.recordHostFailure("pre_tool_call", { detail: "TypeError" });
+  assert.equal(r.mode, EnforcementMode.EvaluateOnly);
+  assert.equal(r.verdict.reason, "host_error:context_invalid");
+  assert.deepEqual(seen, [r]);
+});
+
+test("recordHostFailure detail is truncated by the §10.3 projection", () => {
+  const e = new InterceptionEmitter(EnforcementMode.Enforce);
+  const r = e.recordHostFailure("pre_tool_call", { detail: "x".repeat(300) });
+  assert.ok(r.verdict.message.endsWith("…"));
+  assert.ok(Buffer.byteLength(r.verdict.message, "utf8") <= 256 + Buffer.byteLength("…"));
+});

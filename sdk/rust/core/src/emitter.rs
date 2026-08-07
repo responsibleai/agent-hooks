@@ -184,6 +184,28 @@ fn is_host_synthesized(v: &Verdict) -> bool {
         .is_some_and(|r| r.starts_with("host_error:"))
 }
 
+/// Envelope facts for [`InterceptionEmitter::record_host_failure`]:
+/// what the host still knows about an emission whose context it could
+/// not construct (§10.3 "Host projection failure"). Everything is
+/// optional — an absent member records the §10.3 unknown value
+/// (`session_id: ""`, `sequence: -1`, `timestamp` absent).
+#[derive(Debug, Clone, Default)]
+pub struct HostFailure {
+    /// Payload-free failure detail — an exception **type name** or a
+    /// path, never the content that failed to project (§14 data
+    /// minimization). Recorded as the verdict `message` (truncated by
+    /// the §10.3 projection).
+    pub detail: Option<String>,
+    /// `session.id` of the failed emission, when the host knows it.
+    pub session_id: Option<String>,
+    /// The sequence number the failed emission would have carried. The
+    /// host SHOULD consume the next number from its context source so
+    /// records stay totally ordered within the session (§10.3).
+    pub sequence: Option<i64>,
+    /// RFC 3339 event time, when the host has one.
+    pub timestamp: Option<String>,
+}
+
 /// §9/§14 approval redactor: produces the context placed in every
 /// ApprovalRequest.
 pub type ApprovalRedactor = Box<dyn Fn(&AgentContext) -> AgentContext + Send + Sync>;
@@ -448,6 +470,75 @@ impl InterceptionEmitter {
             interceptors_registered: self.interceptors.len() as u32,
         };
         let record = finalize(ctx, outcome.combined, self.mode, meta);
+        self.deliver(record)
+    }
+
+    /// §10.3/§11 host projection failure: synthesize and deliver the
+    /// fail-closed record for an emission whose `AgentContext` the host
+    /// could not construct at all — its own projection to the wire
+    /// failed before anything existed to [`emit`](Self::emit) (e.g. a
+    /// tool-call argument getter raised during to-wire conversion at
+    /// the chat seam). Without this the host can only fail the action
+    /// closed *recordless*; with it the trail stays complete under
+    /// host-side faults.
+    ///
+    /// The record is the §10.3 rejection shape: the payload-free
+    /// projection of a `deny host_error:context_invalid` carrying
+    /// `failure.detail` (payload-free: a type name or path, never
+    /// content) as its message; `null` identities under the declared
+    /// provider; `decided_by: null`; no per-interceptor summaries (no
+    /// interceptor ran); envelope members from [`HostFailure`], with
+    /// the §10.3 unknown values (`""`/`-1`) where absent. It takes the
+    /// next slot in the record stream (sink, then buffer) like any
+    /// emission. In `enforce` mode the host MUST still fail the action
+    /// closed; in `evaluate_only` the record documents the host fault
+    /// without implying enforcement (§8) — the action failed on its
+    /// own, not on a verdict.
+    pub fn record_host_failure(
+        &mut self,
+        point: InterceptionPoint,
+        failure: HostFailure,
+    ) -> InterceptionRecord {
+        // Deliberately partial basis: only the envelope facts the host
+        // still knows. It never passes §4 validation (`spec` is
+        // absent), so `finalize` always yields the §10.3 rejection
+        // shape — null identities under the declared provider — and
+        // keeps the synthesized `context_invalid` deny (with the
+        // host's detail) instead of substituting its own.
+        let mut basis = AgentContext::new();
+        basis.insert(
+            "interception_point".into(),
+            Value::String(point.as_str().to_owned()),
+        );
+        if let Some(sid) = failure.session_id {
+            basis.insert("session".into(), serde_json::json!({ "id": sid }));
+        }
+        if let Some(seq) = failure.sequence {
+            basis.insert("sequence".into(), Value::from(seq));
+        }
+        if let Some(ts) = failure.timestamp {
+            basis.insert("timestamp".into(), Value::String(ts));
+        }
+        let verdict = Verdict::host_error(HostError::ContextInvalid, failure.detail);
+        let meta = FinalizeMeta {
+            input_identity: None,
+            identity_provider: self.identity.name(),
+            enforced_identity: None,
+            jcs_input_rejected: false,
+            unchanged_since_input: false,
+            decided_by: None,
+            composition: self.composition,
+            verdicts: Vec::new(),
+            fold_truncated: None,
+            resolved_by: None,
+            interceptors_registered: self.interceptors.len() as u32,
+        };
+        let record = finalize(&basis, verdict, self.mode, meta);
+        self.deliver(record)
+    }
+
+    /// Deliver a record to the sink and the bounded buffer (§10.3).
+    fn deliver(&mut self, record: InterceptionRecord) -> InterceptionRecord {
         if let Some(sink) = &self.record_sink {
             // Audit delivery must not take down the control plane.
             let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| sink(&record)));
@@ -1392,6 +1483,96 @@ mod tests {
             Some("host_error:interceptor_timeout")
         );
         assert_eq!(r.verdict.decision, Decision::Deny);
+    }
+
+    #[tokio::test]
+    async fn host_failure_synthesizes_rejection_shape_record() {
+        // §10.3 host projection failure: the host could not construct
+        // a context at all; the synthesized record is the rejection
+        // shape with the host's envelope facts.
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.register(Box::new(Scripted(Verdict::allow())));
+        let r = e.record_host_failure(
+            InterceptionPoint::PreToolCall,
+            HostFailure {
+                detail: Some("InvalidOperationException".into()),
+                session_id: Some("s".into()),
+                sequence: Some(7),
+                timestamp: Some("2026-01-01T00:00:00Z".into()),
+            },
+        );
+        assert!(!r.proceeds());
+        assert_eq!(r.interception_point, InterceptionPoint::PreToolCall);
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:context_invalid")
+        );
+        assert_eq!(
+            r.verdict.message.as_deref(),
+            Some("InvalidOperationException")
+        );
+        // §10.3 rejection shape: null identities under the declared
+        // provider, nothing dispatched.
+        assert_eq!(r.identity_provider.as_deref(), Some(JCS_SHA256));
+        assert!(r.input_identity.is_none() && r.enforced_identity.is_none());
+        assert_eq!(r.decided_by, None);
+        assert!(r.verdicts.is_empty(), "no interceptor ran");
+        assert_eq!(r.interceptors_registered, 1);
+        // Envelope facts the host supplied.
+        assert_eq!(r.session_id, "s");
+        assert_eq!(r.sequence, 7);
+        assert_eq!(r.timestamp.as_deref(), Some("2026-01-01T00:00:00Z"));
+        // The record entered the emitter's stream like any emission.
+        assert_eq!(e.records().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn host_failure_defaults_are_the_unknown_values() {
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let r = e.record_host_failure(InterceptionPoint::Output, HostFailure::default());
+        assert_eq!(r.session_id, "");
+        assert_eq!(r.sequence, -1);
+        assert!(r.timestamp.is_none());
+        assert!(r.verdict.message.is_none());
+        assert_eq!(r.interceptors_registered, 0);
+    }
+
+    #[tokio::test]
+    async fn host_failure_records_in_evaluate_only_without_implying_enforcement() {
+        // §8: synthesis still records in evaluate_only — records are
+        // the point — and the mode member keeps the record from
+        // implying a block happened.
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        let seen = Arc::new(AtomicUsize::new(0));
+        let seen2 = seen.clone();
+        let mut e = InterceptionEmitter::new(EnforcementMode::EvaluateOnly, None);
+        e.set_record_sink(move |_r| {
+            seen2.fetch_add(1, Ordering::SeqCst);
+        });
+        let r = e.record_host_failure(InterceptionPoint::PreToolCall, HostFailure::default());
+        assert_eq!(r.mode, EnforcementMode::EvaluateOnly);
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:context_invalid")
+        );
+        assert_eq!(seen.load(Ordering::SeqCst), 1, "sink saw the record");
+    }
+
+    #[tokio::test]
+    async fn host_failure_detail_is_truncated_by_the_projection() {
+        // §10.3: the synthesized verdict crosses the same payload-free
+        // projection as every combined verdict.
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let r = e.record_host_failure(
+            InterceptionPoint::PreToolCall,
+            HostFailure {
+                detail: Some("x".repeat(300)),
+                ..HostFailure::default()
+            },
+        );
+        let m = r.verdict.message.unwrap();
+        assert!(m.ends_with('…') && m.len() <= 256 + '…'.len_utf8());
     }
 
     #[tokio::test]

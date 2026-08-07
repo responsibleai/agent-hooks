@@ -442,6 +442,72 @@ class InterceptionEmitter:
         record = self._finalize(ctx, outcome, input_identity)
         return self._append(record)
 
+    def record_host_failure(
+        self,
+        point: InterceptionPoint,
+        detail: str | None = None,
+        *,
+        session_id: str | None = None,
+        sequence: int | None = None,
+        timestamp: str | None = None,
+    ) -> InterceptionRecord:
+        """§10.3/§11 host projection failure: synthesize and deliver the
+        fail-closed record for an emission whose ``AgentContext`` the
+        host could not construct at all — its own projection to the
+        wire failed before anything existed to :meth:`emit` (e.g. a
+        tool-call argument raised during to-wire conversion at the chat
+        seam). Without this the host can only fail the action closed
+        *recordless*; with it the trail stays complete under host-side
+        faults.
+
+        The record is the §10.3 rejection shape: the payload-free
+        projection of a ``deny host_error:context_invalid`` carrying
+        ``detail`` (payload-free: an exception **type name** or a path,
+        never content — §14 data minimization) as its message; ``null``
+        identities under the declared provider; ``decided_by: null``;
+        no per-interceptor summaries (no interceptor ran). The keyword
+        arguments carry the envelope facts the host still knows;
+        ``sequence`` SHOULD be the number the failed emission would
+        have carried (consume the next one from the context source so
+        records stay totally ordered); absent members record the §10.3
+        unknown values (``""``/``-1``). The record takes the next slot
+        in the record stream (sink, then buffer) like any emission. In
+        ``enforce`` mode the host MUST still fail the action closed; in
+        ``evaluate_only`` the record documents the host fault without
+        implying enforcement (§8).
+        """
+        # Deliberately partial basis: only the envelope facts the host
+        # still knows. It never passes §4 validation (``spec`` is
+        # absent), so the core's finalize always yields the §10.3
+        # rejection shape — null identities under the declared provider
+        # — and keeps the synthesized ``context_invalid`` deny (with
+        # the host's detail) instead of substituting its own.
+        basis: dict[str, Any] = {
+            "interception_point": point.value if isinstance(point, InterceptionPoint) else point
+        }
+        if session_id is not None:
+            basis["session"] = {"id": session_id}
+        if sequence is not None:
+            basis["sequence"] = sequence
+        if timestamp is not None:
+            basis["timestamp"] = timestamp
+        verdict = Verdict.host_error(HostError.CONTEXT_INVALID, detail)
+        options: dict[str, Any] = {
+            "input_identity": None,
+            "identity_provider": self._provider_name(),
+            "enforced_identity": None,
+            "decided_by": None,
+            "composition": self._composition.to_wire(),
+            "verdicts": [],
+            "fold_truncated": None,
+            "resolved_by": None,
+            "interceptors_registered": len(self._interceptors),
+        }
+        record_json = _core.finalize(
+            dumps(basis), dumps(verdict.to_wire()), self._mode.value, dumps(options)
+        )
+        return self._append(InterceptionRecord.from_core(json.loads(record_json)))
+
     def _append(self, record: InterceptionRecord) -> InterceptionRecord:
         """Deliver ``record`` to the sink and the bounded buffer (§10.3)."""
         if self._record_sink is not None:

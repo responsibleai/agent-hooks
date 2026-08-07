@@ -513,6 +513,7 @@ export function composeAggregate(
 
 export { AgentContextBuilder } from "./builder";
 export { InterceptionEmitter } from "./emitter";
+export type { HostFailure } from "./emitter";
 
 /** Raised by a host when a verdict blocks the guarded action (§6). */
 /** Returned by `InterceptionEmitter.emit` on a proceeding emission:

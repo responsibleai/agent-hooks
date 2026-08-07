@@ -295,6 +295,74 @@ public sealed class InterceptionEmitter
             _mode == EnforcementMode.Enforce ? "enforce" : "evaluate_only",
             options.ToJsonString(Compact));
         var record = RecordFromCore((JsonObject)JsonNode.Parse(recordJson)!);
+        return Deliver(record);
+    }
+
+    /// <summary>§10.3/§11 host projection failure: synthesize and deliver
+    /// the fail-closed record for an emission whose <see cref="AgentContext"/>
+    /// the host could not construct at all — its own projection to the
+    /// wire failed before anything existed to emit (e.g. a tool-call
+    /// argument property getter threw during to-wire conversion at the
+    /// chat seam). Without this the host can only fail the action closed
+    /// <b>recordless</b>; with it the trail stays complete under host-side
+    /// faults.
+    ///
+    /// <para>The record is the §10.3 rejection shape: the payload-free
+    /// projection of a <c>deny host_error:context_invalid</c> carrying
+    /// <paramref name="detail"/> (payload-free: an exception <b>type
+    /// name</b> or a path, never the content that failed to project —
+    /// §14 data minimization) as its message; <c>null</c> identities
+    /// under the declared provider; <c>decided_by: null</c>; no
+    /// per-interceptor summaries (no interceptor ran). The optional
+    /// parameters carry the envelope facts the host still knows;
+    /// <paramref name="sequence"/> SHOULD be the number the failed
+    /// emission would have carried (consume the next one from the
+    /// context source so records stay totally ordered); absent members
+    /// record the §10.3 unknown values (<c>""</c>/<c>-1</c>). The record
+    /// takes the next slot in the record stream (sink, then buffer) like
+    /// any emission. In <c>enforce</c> mode the host MUST still fail the
+    /// action closed; in <c>evaluate_only</c> the record documents the
+    /// host fault without implying enforcement (§8).</para></summary>
+    public InterceptionRecord RecordHostFailure(
+        InterceptionPoint point,
+        string? detail = null,
+        string? sessionId = null,
+        long? sequence = null,
+        string? timestamp = null)
+    {
+        // Deliberately partial basis: only the envelope facts the host
+        // still knows. It never passes §4 validation (`spec` is absent),
+        // so the core's finalize always yields the §10.3 rejection shape
+        // — null identities under the declared provider — and keeps the
+        // synthesized `context_invalid` deny (with the host's detail)
+        // instead of substituting its own.
+        var basis = new JsonObject { ["interception_point"] = point.ToWireName() };
+        if (sessionId is not null) basis["session"] = new JsonObject { ["id"] = sessionId };
+        if (sequence is { } seq) basis["sequence"] = seq;
+        if (timestamp is not null) basis["timestamp"] = timestamp;
+        var options = new JsonObject
+        {
+            ["input_identity"] = null,
+            ["identity_provider"] = _identity.Name,
+            ["enforced_identity"] = null,
+            ["decided_by"] = null,
+            ["composition"] = _composition.ToWire(),
+            ["verdicts"] = new JsonArray(),
+            ["fold_truncated"] = null,
+            ["resolved_by"] = null,
+            ["interceptors_registered"] = _interceptors.Count,
+        };
+        var recordJson = Native.Finalize(
+            basis.ToJsonString(Compact),
+            Verdict.FromHostError(HostError.ContextInvalid, detail).ToWire().ToJsonString(Compact),
+            _mode == EnforcementMode.Enforce ? "enforce" : "evaluate_only",
+            options.ToJsonString(Compact));
+        return Deliver(RecordFromCore((JsonObject)JsonNode.Parse(recordJson)!));
+    }
+
+    /// <summary>Deliver a record to the sink and the bounded buffer (§10.3).</summary>
+    private InterceptionRecord Deliver(InterceptionRecord record)
+    {
         if (_recordSink is { } sink)
         {
             // Audit delivery must not take down the control plane (§10.3).

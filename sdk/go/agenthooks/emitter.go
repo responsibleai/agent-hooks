@@ -437,6 +437,103 @@ func (e *InterceptionEmitter) EmitUnchecked(ctx context.Context, actx AgentConte
 	if err := json.Unmarshal([]byte(recJSON), &rec); err != nil {
 		return InterceptionRecord{}, err
 	}
+	return e.deliver(rec), nil
+}
+
+// HostFailure carries the envelope facts for RecordHostFailure: what
+// the host still knows about an emission whose context it could not
+// construct (§10.3 "Host projection failure"). Everything is optional —
+// an absent member records the §10.3 unknown value (session_id: "",
+// sequence: -1, timestamp absent).
+type HostFailure struct {
+	// Detail is the payload-free failure detail — an error TYPE NAME
+	// or a path, never the content that failed to project (§14 data
+	// minimization). Recorded as the verdict message (truncated by the
+	// §10.3 projection). Empty records nothing.
+	Detail string
+	// SessionID is session.id of the failed emission, when the host
+	// knows it. Empty records the unknown value.
+	SessionID string
+	// Sequence is the number the failed emission would have carried.
+	// The host SHOULD consume the next number from its context source
+	// so records stay totally ordered within the session (§10.3). nil
+	// records -1.
+	Sequence *int64
+	// Timestamp is the RFC 3339 event time, when the host has one.
+	Timestamp string
+}
+
+// RecordHostFailure synthesizes and delivers the §10.3/§11 fail-closed
+// record for an emission whose AgentContext the host could not
+// construct at all — its own projection to the wire failed before
+// anything existed to Emit (e.g. a tool-call argument failed to-wire
+// conversion at the chat seam). Without this the host can only fail
+// the action closed recordless; with it the trail stays complete under
+// host-side faults.
+//
+// The record is the §10.3 rejection shape: the payload-free projection
+// of a deny host_error:context_invalid carrying failure.Detail as its
+// message; null identities under the declared provider; decided_by
+// null; no per-interceptor summaries (no interceptor ran); envelope
+// members from HostFailure, with the §10.3 unknown values (""/-1)
+// where absent. It takes the next slot in the record stream (sink,
+// then buffer) like any emission. In enforce mode the host MUST still
+// fail the action closed; in evaluate_only the record documents the
+// host fault without implying enforcement (§8). A non-nil error is an
+// infrastructure failure only (JSON marshalling or core invocation).
+func (e *InterceptionEmitter) RecordHostFailure(point InterceptionPoint, failure HostFailure) (InterceptionRecord, error) {
+	// Deliberately partial basis: only the envelope facts the host
+	// still knows. It never passes §4 validation (spec is absent), so
+	// the core's finalize always yields the §10.3 rejection shape —
+	// null identities under the declared provider — and keeps the
+	// synthesized context_invalid deny (with the host's detail)
+	// instead of substituting its own.
+	basis := map[string]any{"interception_point": string(point)}
+	if failure.SessionID != "" {
+		basis["session"] = map[string]any{"id": failure.SessionID}
+	}
+	if failure.Sequence != nil {
+		basis["sequence"] = *failure.Sequence
+	}
+	if failure.Timestamp != "" {
+		basis["timestamp"] = failure.Timestamp
+	}
+	opts := map[string]any{
+		"input_identity":          nil,
+		"identity_provider":       e.identity.name(),
+		"enforced_identity":       nil,
+		"decided_by":              nil,
+		"composition":             e.composition,
+		"verdicts":                []VerdictSummary{},
+		"fold_truncated":          nil,
+		"resolved_by":             nil,
+		"interceptors_registered": len(e.interceptors),
+	}
+	basisJSON, err := json.Marshal(basis)
+	if err != nil {
+		return InterceptionRecord{}, err
+	}
+	verdictJSON, err := json.Marshal(HostErrorVerdict(ErrContextInvalid, failure.Detail))
+	if err != nil {
+		return InterceptionRecord{}, err
+	}
+	optsJSON, err := json.Marshal(opts)
+	if err != nil {
+		return InterceptionRecord{}, err
+	}
+	recJSON, err := nativeFinalize(string(basisJSON), string(verdictJSON), string(e.mode), string(optsJSON))
+	if err != nil {
+		return InterceptionRecord{}, err
+	}
+	var rec InterceptionRecord
+	if err := json.Unmarshal([]byte(recJSON), &rec); err != nil {
+		return InterceptionRecord{}, err
+	}
+	return e.deliver(rec), nil
+}
+
+// deliver hands a record to the sink and the bounded buffer (§10.3).
+func (e *InterceptionEmitter) deliver(rec InterceptionRecord) InterceptionRecord {
 	if e.recordSink != nil {
 		// Audit delivery must not take down the control plane (§10.3).
 		func() {
@@ -453,7 +550,7 @@ func (e *InterceptionEmitter) EmitUnchecked(ctx context.Context, actx AgentConte
 	}
 	e.records = append(e.records, rec)
 	e.mu.Unlock()
-	return rec, nil
+	return rec
 }
 
 // -----------------------------------------------------------------------------

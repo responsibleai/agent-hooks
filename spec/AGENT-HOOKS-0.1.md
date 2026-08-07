@@ -1079,6 +1079,35 @@ of the record.
 | `resolved_by` | Consultation outcome (§7.6): `"approval"` iff a permit resolution substituted for a verdict; `"rejection"` iff the seam was consulted and did **not** lift the deny (reject, unresolved, resolver failure, or echo violation); absent iff the seam was never consulted. A record reader can therefore always answer "was a human consulted, and did they permit?". |
 | `interceptors_registered` | Number of interceptors registered at emission time. Together with `verdicts`/`fold_truncated` this makes skipped interceptors detectable from the record alone. |
 
+**Host projection failure.** The reserved reasons of §11 assume an
+emission: a context reached the emitter and something about it or its
+dispatch failed. A fault in the host's **own projection to the wire**
+— the host cannot construct an `AgentContext` for a point at all
+(e.g. a tool-call argument's property getter throws during to-wire
+conversion at the chat seam) — happens before anything exists to
+emit, and a host without further provision can only fail the action
+closed **recordless**, leaving the trail silently shorter than the
+session. A host MUST still fail the guarded action closed in
+`enforce` mode, and SHOULD produce an interception record for the
+failed emission: the payload-free projection of a synthesized `deny`
+with reason `host_error:context_invalid` (§11 — the host could not
+construct a schema-valid context) whose OPTIONAL `message` names the
+failure **type or path only**, never the content that failed to
+project (§14); `input_identity` and `enforced_identity` `null` under
+the declared provider (the rejection shape above); `decided_by:
+null`, no `verdicts` entries, and `interceptors_registered` reporting
+the registration count — no interceptor ran. The envelope members
+carry what the host still knows: `session_id` and `sequence` SHOULD
+be the values the failed emission would have carried — the host
+SHOULD consume the next sequence number for it, so records stay
+totally ordered within the session — and are `""`/`-1` when unknown;
+`timestamp` is present when the host has one. The record is produced
+in both enforcement modes; in `evaluate_only` it documents the host
+fault without implying enforcement (§8) — the action failed on its
+own, not on a verdict. SDK emitters expose this as the
+`record_host_failure` affordance (per-language naming), delivered
+through the same record stream (sink, then buffer) as every emission.
+
 *Informative — OpenTelemetry alignment.* The optional context fields
 `usage.prompt_tokens`/`usage.completion_tokens` (§4.5) correspond to
 the OTel GenAI semantic-convention attributes `gen_ai.usage.input_tokens`/
@@ -1094,7 +1123,8 @@ divergent naming.
 [Pure Specification]
 
 A host MUST use the following `reason` values, and only these, when it
-synthesizes a `deny` verdict per §6.3, §5.2, §7.5, or §9. An interceptor MUST NOT emit a
+synthesizes a `deny` verdict per §6.3, §5.2, §7.5, §9, or §10.3 (host
+projection failure). An interceptor MUST NOT emit a
 `reason` beginning with `host_error:`.
 
 | Reason | Cause |
