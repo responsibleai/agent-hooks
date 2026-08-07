@@ -1,0 +1,91 @@
+{
+  "id": "AH-CTK-110",
+  "title": "incremental mediation: a fully permitted stream is released segment by segment, each release under a covering verdict (§12.1 exception item 1; the covering-verdict bite on a denied stream is AH-CTK-111)",
+  "spec_clause": "12.1, 12.1a",
+  "part": "streaming/incremental",
+  "capabilities": [
+    "model_calls",
+    "incremental_output"
+  ],
+  "scenario": {
+    "input": {
+      "content": "stream a reply",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "the quick brown fox",
+          "stream": [
+            "the quick ",
+            "brown fox"
+          ],
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "post_model_call",
+      "return": {
+        "decision": "allow"
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": true,
+    "interceptions": [
+      {
+        "interception_point": "agent_startup"
+      },
+      {
+        "interception_point": "input"
+      },
+      {
+        "interception_point": "pre_model_call"
+      },
+      {
+        "interception_point": "post_model_call",
+        "context": {
+          "response.content": "the quick ",
+          "response.finish_reason": "incremental"
+        }
+      },
+      {
+        "interception_point": "post_model_call",
+        "context": {
+          "response.content": "the quick brown fox",
+          "response.finish_reason": "stop"
+        }
+      },
+      {
+        "interception_point": "output",
+        "context": {
+          "output.content": "the quick brown fox"
+        }
+      },
+      {
+        "interception_point": "agent_shutdown"
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "post_model_call",
+        "assert": {
+          "verdict.decision": "allow"
+        }
+      },
+      {
+        "interception_point": "post_model_call",
+        "assert": {
+          "verdict.decision": "allow"
+        }
+      }
+    ],
+    "released_output": "the quick brown fox",
+    "final_output": "the quick brown fox",
+    "run_outcome": "completed"
+  }
+}

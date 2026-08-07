@@ -45,9 +45,10 @@
           "multi_turn",
           "int64_json",
           "bigint_json",
-          "buffered_output"
+          "buffered_output",
+          "incremental_output"
         ],
-        "description": "int64_json marks vectors whose JSON carries integers beyond 2^53 (within i64/u64): a JavaScript harness cannot even load such a file without silent rounding (JSON.parse), so it omits the capability and skips. bigint_json marks vectors carrying integers beyond u64/i64, which additionally exceed serde_json's integer range — only harness languages whose JSON layer preserves raw numeric tokens (Python int, Go json.Number, .NET JsonNode) can claim it. buffered_output is declaration-only (§12.1a): it appears in a host's declared surface and claim, never as a vector requirement — the CTK's mocked I/O cannot exercise streaming egress."
+        "description": "int64_json marks vectors whose JSON carries integers beyond 2^53 (within i64/u64): a JavaScript harness cannot even load such a file without silent rounding (JSON.parse), so it omits the capability and skips. bigint_json marks vectors carrying integers beyond u64/i64, which additionally exceed serde_json's integer range — only harness languages whose JSON layer preserves raw numeric tokens (Python int, Go json.Number, .NET JsonNode) can claim it. buffered_output is declaration-only (§12.1a): it appears in a host's declared surface and claim, never as a vector requirement — the CTK's mocked I/O cannot exercise streaming egress. incremental_output marks the streaming/incremental vector part (§12.1 exception): the host declares buffered_output: false, mediates post_model_call incrementally with watermark-gated release (declared exposure bound: none), and its harness can drive a chunked mock stream (scenario respond.stream) and report released_output and persisted content. A host that buffers (buffered_output: true, the default) does not declare it and skips these vectors."
       },
       "default": []
     },
@@ -221,6 +222,19 @@
                   "finish_reason"
                 ],
                 "properties": {
+                  "stream": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "description": "Chunked delivery of this response for an incremental_output host (§12.1 exception): the mock model delivers these chunks in order, each chunk boundary closes one evaluated segment, and the host emits one post_model_call per segment over the assembled prefix through that chunk (response.content is the prefix; response.finish_reason is \"incremental\" for a non-final segment and this respond's finish_reason for the final one). The chunk concatenation MUST equal content. Ignored by buffered hosts, which never run a vector carrying incremental_output."
+                  },
+                  "stream_truncated": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "The mock stream terminates abnormally after delivering the listed chunks: the final chunk is a partial segment no emission covers and the scripted finish_reason never arrives. The host has residue no emission evaluated and MUST fail closed per §12.1 exception item 3 — a post_model_call over the full delivered assembly with response.finish_reason \"stream_incomplete\" and a deny self-verdict host_error:streaming_unsupported — withholding and not persisting the residue. Only meaningful with stream."
+                  },
                   "content": true,
                   "tool_calls": {
                     "type": "array",
@@ -419,6 +433,16 @@
           }
         },
         "final_output": true,
+        "released_output": {
+          "description": "Caller-visible content the host actually egressed, in order, by the end of the run (streaming/incremental part only). Asserted against RunRecord.released_output, which the harness of an incremental_output host MUST report. Distinct from final_output: a stream denied mid-way returns no final output, yet the prefix released under covering verdicts had already reached the caller and is pinned here."
+        },
+        "persisted_must_not_contain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Substrings that MUST NOT appear anywhere in the serialization of RunRecord.persisted — the harness-reported durable incorporations the host made for this session (conversation history, session stores; §6.1, §12.1 exception item 4). A host that persists nothing reports an empty value and passes vacuously, which is the always-safe §6.1 posture; the assertion pins that withheld or unevaluated stream content never became durable."
+        },
         "run_outcome": {
           "type": "string",
           "enum": [

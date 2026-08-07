@@ -30,8 +30,21 @@ async fn ctk_reference_all_vectors() {
     assert!(unexpected.is_empty(), "{unexpected:#?}");
     // Pinned skip manifest: Rust holds i64 (int64_json) but
     // serde_json coerces beyond-u64 vector literals at load (no
-    // bigint_json). Exact IDs, not a count: the parity gate must fail
-    // when the skip set drifts in either direction.
+    // bigint_json), and the reference harness buffers caller-bound
+    // output, so it does not declare incremental_output and skips the
+    // streaming/incremental part (§12.1 exception). Exact IDs, not a
+    // count: the parity gate must fail when the skip set drifts in
+    // either direction.
     skipped.sort();
-    assert_eq!(skipped, vec!["AH-CTK-091".to_owned()], "skip set drifted");
+    assert_eq!(
+        skipped,
+        vec![
+            "AH-CTK-091".to_owned(),
+            "AH-CTK-110".to_owned(),
+            "AH-CTK-111".to_owned(),
+            "AH-CTK-112".to_owned(),
+            "AH-CTK-113".to_owned(),
+        ],
+        "skip set drifted"
+    );
 }

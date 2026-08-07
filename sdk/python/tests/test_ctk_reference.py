@@ -14,10 +14,13 @@ from agent_hooks.ctk.reference import ReferenceHarness
 _VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vectors"
 
 # Pinned skip set: Python ints are arbitrary precision, so the
-# reference harness declares every value-domain capability — nothing may
-# skip. A skip here means a capability regressed or a vector was
-# quietly excluded; both must fail the suite.
-EXPECTED_SKIPS: frozenset[str] = frozenset()
+# reference harness declares every value-domain capability and no
+# value-domain vector may skip. The streaming/incremental part (§12.1
+# exception) skips because the reference harness buffers caller-bound
+# output and does not declare incremental_output. Any other skip means
+# a capability regressed or a vector was quietly excluded; both must
+# fail the suite.
+EXPECTED_SKIPS: frozenset[str] = frozenset({"AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113"})
 
 
 @pytest.mark.parametrize(

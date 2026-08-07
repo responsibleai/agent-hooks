@@ -23,11 +23,20 @@ public sealed class CtkReferenceTests
         Runner.LoadVectors(VectorsDir())
               .Select(v => new object[] { (string)v["id"]!, v });
 
-    // Pinned skip set: JsonNode preserves raw numeric tokens,
-    // so the .NET reference harness declares every value-domain
-    // capability — nothing may skip. An unexpected skip fails; a stale
-    // manifest (expected-but-not-skipped) fails the aggregate test.
-    private static readonly IReadOnlySet<string> ExpectedSkips = new HashSet<string>();
+    // Pinned skip set: JsonNode preserves raw numeric tokens, so the
+    // .NET reference harness declares every value-domain capability
+    // and no value-domain vector may skip. The streaming/incremental
+    // part (§12.1 exception) skips because the reference harness
+    // buffers caller-bound output and does not declare
+    // incremental_output. An unexpected skip fails; a stale manifest
+    // (expected-but-not-skipped) fails the aggregate test.
+    private static readonly IReadOnlySet<string> ExpectedSkips = new HashSet<string>
+    {
+        "AH-CTK-110",
+        "AH-CTK-111",
+        "AH-CTK-112",
+        "AH-CTK-113",
+    };
 
     [Theory]
     [MemberData(nameof(Vectors))]

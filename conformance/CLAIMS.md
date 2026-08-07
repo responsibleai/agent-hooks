@@ -25,7 +25,10 @@ property (§10.1). A claim with
 `buffered_output: false` MUST state that a `deny` at `output` cannot
 retract already-streamed content (§12.1a); one whose host mediates
 incrementally under the §12.1 exception MUST also state the exposure
-bound its accounting discipline enforces.
+bound its accounting discipline enforces and MUST declare
+`incremental_output`, so the `streaming/incremental` vectors
+(`AH-CTK-110`–`AH-CTK-113`) run against that discipline instead of
+being skipped.
 
 | Framework | Adapter version | Spec | Capabilities | Profiles | Identity provider | SDK | Report | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -50,8 +53,10 @@ artefacts, in the PR:
    the claim states records/approvals are identity-unbound;
    custom provider → content-derived or not; `buffered_output: false`
    → the claim states a deny at `output` cannot retract streamed
-   content, plus the exposure bound when the host mediates
-   incrementally under the §12.1 exception.
+   content, plus the exposure bound and the `incremental_output`
+   declaration (its report then covers the `streaming/incremental`
+   part) when the host mediates incrementally under the §12.1
+   exception.
 
 Acceptance is by CODEOWNERS review (`conformance/` owner). The
 reviewer checks: the report matches the declared surface tuple; the

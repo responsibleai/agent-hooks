@@ -26,6 +26,11 @@ class Capability(str, Enum):
     #: losslessly (§4.4). JavaScript harnesses omit this.
     INT64_JSON = "int64_json"
     BIGINT_JSON = "bigint_json"
+    #: The host declares buffered_output: false and mediates
+    #: post_model_call incrementally under the §12.1 exception with
+    #: watermark-gated release; gates the streaming/incremental vector
+    #: part. Buffered hosts (the default) omit this and skip it.
+    INCREMENTAL_OUTPUT = "incremental_output"
 
 
 class RunOutcome(str, Enum):

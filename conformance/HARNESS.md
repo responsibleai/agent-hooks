@@ -106,17 +106,68 @@ coercion class the core's raw-text scan (§10.2) exists to reject; see
 `true` (the host buffers caller-bound output until the `output`
 combined verdict permits), and a host that streams to its caller
 without buffering declares `buffered_output: false` in its surface and
-claim. A declaring host may also mediate `post_model_call`
-incrementally under the §12.1 exception; its claim then states the
-exposure bound (§12.1a). The CTK drives hosts with mocked I/O and
-cannot exercise streaming egress, so no vector carries this capability
-— the declaration exists to make the retraction limitation visible
-(§13.3). Vectors exercising the §12.1 accounting discipline against a
-mocked stream are future work.
+claim. The CTK drives hosts with mocked I/O and cannot exercise
+streaming egress, so no vector carries this capability — the
+declaration exists to make the retraction limitation visible (§13.3).
+
+`incremental_output` gates the `streaming/incremental` vector part
+(`AH-CTK-110`–`AH-CTK-113`), which exercises the §12.1 exception's
+accounting discipline against a mocked stream (see "Incremental
+mediation" below). Declare it only when your host declares
+`buffered_output: false` **and** mediates `post_model_call`
+incrementally with watermark-gated release (declared exposure bound:
+none — the posture ACS §18.1 calls `blocking`); the vectors pin that
+posture's deterministic release points, so a host with a looser bound
+does not declare the capability and skips the part. A buffering host
+never declares it.
 
 Non-finite floats (NaN/Infinity) and lone surrogates cannot be
 expressed in a JSON vector at all — those §4.4 marshalling guards are
 pinned by per-SDK unit tests, not vectors.
+
+## Incremental mediation
+
+Vectors in the `streaming/incremental` part carry a chunked mock
+stream: `respond.stream` is an ordered list of chunks whose
+concatenation equals `respond.content`. A harness declaring
+`incremental_output` MUST drive them as follows:
+
+- The mock model delivers the chunks in order. Each chunk boundary
+  closes one evaluated segment, and the host emits one
+  `post_model_call` per segment over the **assembled prefix** through
+  that chunk: `response.content` is the prefix, `response.finish_reason`
+  is `"incremental"` for a non-final segment and the scripted
+  `finish_reason` for the final one. Each emission is an ordinary
+  `post_model_call` (§12.1); the scripted interceptor answers each.
+- Release is watermark-gated: a permitted segment's text egresses on
+  its verdict; a `deny` terminates the stream, withholds everything
+  not yet released, and stops chunk consumption.
+- `respond.stream_truncated: true` means the stream dies abnormally
+  after the listed chunks: the final chunk is a partial segment no
+  emission covers, and the scripted `finish_reason` never arrives. The
+  host MUST fail closed per §12.1 exception item 3 — a
+  `post_model_call` over the full delivered assembly with
+  `response.finish_reason: "stream_incomplete"` and a deny
+  self-verdict `host_error:streaming_unsupported` — withholding and
+  not persisting the residue. The vectors assert the record, not
+  whether interceptors observe that emission (host-defined, as with
+  provider faults).
+- The `RunRecord` grows two fields for this part: `released_output` —
+  the caller-visible content the host actually egressed, in order
+  (distinct from `final_output`, which stays null on a blocked run) —
+  and `persisted` — a serialization of every durable incorporation the
+  host made for the session (conversation history, session stores).
+  `expect.released_output` is compared exactly;
+  `expect.persisted_must_not_contain` asserts substrings that must not
+  appear in `persisted`. A host that persists nothing reports an empty
+  value and satisfies the durability assertions vacuously, which is
+  the always-safe §6.1 posture.
+
+No in-tree reference harness declares `incremental_output` yet (every
+reference harness buffers), so runner-side assertion support for
+`released_output`/`persisted_must_not_contain` lands with the first
+declaring host; the part is capability-gated precisely so it stays
+inert for every buffered surface until then.
 
 ## Running
 
@@ -151,9 +202,14 @@ is pinned by per-SDK unit tests instead:
 
 - **NaN/Infinity marshalling guards (§4.4)** — not representable in a
   JSON vector file.
-- **§12.1 streaming assembly** — the scenario grammar has no partial-
-  stream form; the fail-closed `host_error:streaming_unsupported` path
-  is a host obligation the mocked model cannot exercise.
+- **§12.1 streaming assembly (buffered path)** — for a buffering host
+  the scenario grammar has no partial-stream form, so the
+  assemble-before-`post_model_call` rule and its fail-closed
+  `host_error:streaming_unsupported` path remain host obligations the
+  mocked model cannot exercise. The *incremental* path is different:
+  the `streaming/incremental` part drives it through `respond.stream`
+  for hosts declaring `incremental_output` (see "Incremental
+  mediation"), including the residue fail-closed shape (`AH-CTK-112`).
 - **§12.2 concurrent emissions** — vectors run single-threaded;
   sequence-uniqueness under concurrency is a per-SDK unit test.
 - **Multi-turn sessions (§3.1)** — the scenario grammar carries one

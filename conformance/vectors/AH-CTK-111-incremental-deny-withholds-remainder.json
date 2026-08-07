@@ -1,0 +1,91 @@
+{
+  "id": "AH-CTK-111",
+  "title": "incremental mediation: a terminating deny withholds the unreleased remainder — the denied segment and every chunk behind it, harmless or not — while the prefix released under covering verdicts stays released (§12.1 exception items 1–2; with the watermark-gated bound a permitted segment is released on its verdict, so the withheld-but-permitted clause of item 2 is structurally empty here and is exercised on the durable side by AH-CTK-113)",
+  "spec_clause": "12.1, 12.1a",
+  "part": "streaming/incremental",
+  "capabilities": [
+    "model_calls",
+    "incremental_output"
+  ],
+  "scenario": {
+    "input": {
+      "content": "stream a reply",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "public part, SECRET-PART then a harmless tail",
+          "stream": [
+            "public part, ",
+            "SECRET-PART",
+            " then a harmless tail"
+          ],
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "post_model_call",
+      "match": {
+        "response.content": "public part, SECRET-PART"
+      },
+      "return": {
+        "decision": "deny",
+        "reason": "ctk:streamed-secret"
+      }
+    },
+    {
+      "at": "post_model_call",
+      "return": {
+        "decision": "allow"
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "post_model_call",
+        "context": {
+          "response.content": "public part, ",
+          "response.finish_reason": "incremental"
+        }
+      },
+      {
+        "interception_point": "post_model_call",
+        "context": {
+          "response.content": "public part, SECRET-PART",
+          "response.finish_reason": "incremental"
+        }
+      },
+      {
+        "interception_point": "agent_shutdown"
+      }
+    ],
+    "interceptions_absent": [
+      "output"
+    ],
+    "records": [
+      {
+        "interception_point": "post_model_call",
+        "assert": {
+          "verdict.decision": "allow"
+        }
+      },
+      {
+        "interception_point": "post_model_call",
+        "assert": {
+          "verdict.decision": "deny",
+          "verdict.reason": "ctk:streamed-secret"
+        }
+      }
+    ],
+    "released_output": "public part, ",
+    "final_output": null,
+    "run_outcome": "blocked"
+  }
+}

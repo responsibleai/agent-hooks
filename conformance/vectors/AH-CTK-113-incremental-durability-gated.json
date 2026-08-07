@@ -1,0 +1,88 @@
+{
+  "id": "AH-CTK-113",
+  "title": "incremental mediation: durable incorporation is gated by the same discipline as release — content withheld at the terminating deny, the withheld-but-permitted included, and content no emission evaluated never becomes durable; the released prefix MAY be persisted and is not pinned (§12.1 exception item 4, §6.1 restated at segment granularity)",
+  "spec_clause": "12.1, 6.1",
+  "part": "streaming/incremental",
+  "capabilities": [
+    "model_calls",
+    "incremental_output"
+  ],
+  "scenario": {
+    "input": {
+      "content": "stream a reply",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "keep this, DROP-THIS-SECRET and this undelivered tail",
+          "stream": [
+            "keep this, ",
+            "DROP-THIS-SECRET",
+            " and this undelivered tail"
+          ],
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "post_model_call",
+      "match": {
+        "response.content": "keep this, DROP-THIS-SECRET"
+      },
+      "return": {
+        "decision": "deny",
+        "reason": "ctk:streamed-secret"
+      }
+    },
+    {
+      "at": "post_model_call",
+      "return": {
+        "decision": "allow"
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "post_model_call",
+        "context": {
+          "response.content": "keep this, ",
+          "response.finish_reason": "incremental"
+        }
+      },
+      {
+        "interception_point": "agent_shutdown"
+      }
+    ],
+    "interceptions_absent": [
+      "output"
+    ],
+    "records": [
+      {
+        "interception_point": "post_model_call",
+        "assert": {
+          "verdict.decision": "allow"
+        }
+      },
+      {
+        "interception_point": "post_model_call",
+        "assert": {
+          "verdict.decision": "deny",
+          "verdict.reason": "ctk:streamed-secret"
+        }
+      }
+    ],
+    "released_output": "keep this, ",
+    "persisted_must_not_contain": [
+      "DROP-THIS-SECRET",
+      "undelivered tail"
+    ],
+    "final_output": null,
+    "run_outcome": "blocked"
+  }
+}

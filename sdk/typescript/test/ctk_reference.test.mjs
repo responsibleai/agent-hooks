@@ -16,8 +16,19 @@ const vectorsDir = resolve(here, "../../../conformance/vectors");
 // suite — the parity gate must not silently degrade to green when a
 // capability regresses or a new vector is quietly skipped.
 // JSON.parse rounds beyond-2^53 integers before any guard can see
-// them, so TS declares neither int64_json nor bigint_json.
-const EXPECTED_SKIPS = new Set(["AH-CTK-090", "AH-CTK-091", "AH-CTK-095"]);
+// them, so TS declares neither int64_json nor bigint_json. The
+// streaming/incremental part (§12.1 exception) skips because the
+// reference harness buffers caller-bound output and does not declare
+// incremental_output.
+const EXPECTED_SKIPS = new Set([
+  "AH-CTK-090",
+  "AH-CTK-091",
+  "AH-CTK-095",
+  "AH-CTK-110",
+  "AH-CTK-111",
+  "AH-CTK-112",
+  "AH-CTK-113",
+]);
 
 const skipped = new Set();
 const vectors = loadVectors(vectorsDir);

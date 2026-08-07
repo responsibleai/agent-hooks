@@ -3,6 +3,23 @@
 User-visible changes to the spec and SDKs. Versioning rules:
 [VERSIONING.md](VERSIONING.md).
 
+## Unreleased
+
+- **The §12.1 incremental exception is CTK-testable.** The vectors
+  the alpha.5 entry below left as future work exist: a
+  `streaming/incremental` part (`AH-CTK-110`–`AH-CTK-113`) exercises
+  the exception's four conditions against a chunked mock stream —
+  release under covering verdicts, a terminating deny that withholds
+  the unreleased remainder, uncleared residue failing closed with
+  `host_error:streaming_unsupported`, and §6.1-gated durability. The
+  vector grammar grows `respond.stream`/`respond.stream_truncated` and
+  `expect.released_output`/`expect.persisted_must_not_contain`; the
+  part is gated on the new `incremental_output` capability, so every
+  buffering host (`buffered_output: true`, the default) skips it —
+  the vectors are additive and no existing declared surface changes.
+  Reference-harness skip manifests across the five SDKs pin the new
+  skips. Spec version unchanged (`agent-hooks/0.1`, 0.1.0-alpha).
+
 ## 0.1.0-alpha.5 — tag `v0.1.0-alpha.5`
 
 - **Python: `Verdict.allow()` constructor sugar,** completing the

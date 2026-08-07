@@ -16,9 +16,17 @@ import (
 
 // expectedSkips pins the skip set: Go decodes vector JSON via
 // json.Number, so the reference harness declares every value-domain
-// capability — nothing may skip. An unexpected skip fails its subtest;
-// a stale manifest (expected-but-not-skipped) fails the aggregate.
-var expectedSkips = map[string]struct{}{}
+// capability and no value-domain vector may skip. The
+// streaming/incremental part (§12.1 exception) skips because the
+// reference harness buffers caller-bound output and does not declare
+// incremental_output. An unexpected skip fails its subtest; a stale
+// manifest (expected-but-not-skipped) fails the aggregate.
+var expectedSkips = map[string]struct{}{
+	"AH-CTK-110": {},
+	"AH-CTK-111": {},
+	"AH-CTK-112": {},
+	"AH-CTK-113": {},
+}
 
 func TestReferenceHarnessConformance(t *testing.T) {
 	dir := filepath.Join("..", "..", "..", "conformance", "vectors")

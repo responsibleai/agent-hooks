@@ -1165,11 +1165,17 @@ Each such emission is an ordinary `post_model_call` under §4–§7; the
 discipline governs what the host does with the verdicts, not the
 emission contract. ACS §18.1 ("Incremental stream mediation",
 [agent-control-spec](https://github.com/responsibleai/agent-control-spec))
-is one implementation of such a discipline. This exception is
-capability-shaped, not vector-backed: conformance vectors exercising
-the accounting discipline are future work, and until they exist the
-surface is visible only through the declaration and claim (§12.1a,
-§13.3).
+is one implementation of such a discipline. The CTK carries a vector
+part for this exception, `streaming/incremental`
+(`AH-CTK-110`–`AH-CTK-113`), exercising the four items above against a
+chunked mock stream (`conformance/HARNESS.md`, "Incremental
+mediation"). The part is gated on the `incremental_output` capability:
+a host that mediates incrementally declares it and runs the part; a
+buffering host (`buffered_output: true`, the default) does not declare
+it and skips, so the vectors are additive to every existing surface.
+The declaration and claim remain the visible statement of the posture
+(§12.1a, §13.3); the CTK still cannot exercise real streaming egress,
+only the accounting discipline over mocked I/O.
 
 ### 12.1a Streaming to the caller
 
@@ -1257,7 +1263,10 @@ There are no conformance tiers, levels, or baseline profiles. A host
   the CTK defines (e.g. `int64_json`: the language can observe a JSON
   integer beyond ±(2⁵³−1) without rounding — JavaScript hosts cannot)
   and the egress capability `buffered_output` (§12.1a; defaults to
-  `true`, and `false` MUST be declared explicitly),
+  `true`, and `false` MUST be declared explicitly) with its companion
+  `incremental_output` (declared by a host that mediates incrementally
+  under the §12.1 exception; gates the `streaming/incremental`
+  vectors),
 - the composition profiles and knob values it supports (§7.2),
 - its identity provider (§10.1).
 
@@ -1298,7 +1307,9 @@ identity-unbound. A claim with `buffered_output: false` MUST state
 that a `deny` at `output` cannot retract already-streamed content
 (§12.1a), and, when the host mediates incrementally under the §12.1
 exception, MUST state the exposure bound its accounting discipline
-enforces (§12.1a).
+enforces (§12.1a) and MUST declare `incremental_output` so the
+`streaming/incremental` vectors run against that discipline rather
+than being skipped.
 
 ---
 
