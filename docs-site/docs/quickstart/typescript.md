@@ -5,8 +5,8 @@ npm install @responsibleai/agent-hooks
 ```
 
 The package resolves a prebuilt native binary for your platform through
-`optionalDependencies` (linux-x64-gnu, darwin-x64, darwin-arm64,
-win32-x64-msvc today).
+`optionalDependencies` (linux-x64-gnu, linux-arm64-gnu, darwin-x64,
+darwin-arm64, win32-x64-msvc today).
 
 A minimal host with one control interceptor:
 

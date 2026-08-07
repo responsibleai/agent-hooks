@@ -24,8 +24,10 @@
 #            on the package (repo responsibleai/agent-hooks, workflow
 #            release.yml, environment release) at
 #            npmjs.com > package > Settings > Trusted Publisher.
-#            No token; all five packages (loader + four platform
-#            packages) have trusted publishers configured.
+#            No token; every package (the loader + each platform
+#            package) needs its own trusted publisher. A brand-new
+#            platform package cannot be configured before its first
+#            publish, so its leg fails soft (see the npm publish step).
 #   NuGet  — trusted publishing (OIDC): configure a Trusted Publishing
 #            policy on nuget.org (repo responsibleai/agent-hooks,
 #            workflow release.yml, environment release); the NuGet/login
@@ -211,10 +213,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu }
-          - { os: macos-latest,   target: aarch64-apple-darwin }
-          - { os: macos-latest,   target: x86_64-apple-darwin }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+          - { os: ubuntu-latest,      target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04-arm,   target: aarch64-unknown-linux-gnu }
+          - { os: macos-latest,       target: aarch64-apple-darwin }
+          - { os: macos-latest,       target: x86_64-apple-darwin }
+          - { os: windows-latest,     target: x86_64-pc-windows-msvc }
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -278,7 +281,7 @@ jobs:
             sdk/typescript/npm/**/*.node
       - name: Publish to npm (platform packages, then the loader package)
         if: env.DRY_RUN != 'true'
-        # OIDC trusted publishing: no token. Each package (the four
+        # OIDC trusted publishing: no token. Each package (the
         # platform packages and the loader) has its own trusted
         # publisher on npmjs.com (repo responsibleai/agent-hooks,
         # workflow release.yml, environment release). The repo is
@@ -299,20 +302,29 @@ jobs:
           node -e '
             const fs = require("fs");
             const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
-            const targets = ["linux-x64-gnu","darwin-x64","darwin-arm64","win32-x64-msvc"];
+            const targets = ["linux-x64-gnu","linux-arm64-gnu","darwin-x64","darwin-arm64","win32-x64-msvc"];
             p.optionalDependencies = Object.fromEntries(
               targets.map(t => ["@responsibleai/agent-hooks-" + t, p.version]));
             fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n");
           '
-          for dir in npm/linux-x64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc .; do
+          for dir in npm/linux-x64-gnu npm/linux-arm64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc .; do
             name=$(node -p "require('./$dir/package.json').name")
             if [ "$dir" != "." ] && ! ls "$dir"/*.node >/dev/null 2>&1; then
               echo "::error::$name has no native artifact"; exit 1
             fi
             if npm view "$name@$V" version >/dev/null 2>&1; then
               echo "$name@$V already on npm — skipping"
+            elif (cd "$dir" && npm publish --access public --tag "$T"); then
+              :
+            elif ! npm view "$name" name >/dev/null 2>&1; then
+              # npm trusted publishing cannot be configured for a package
+              # that has never been published, so a brand-new platform
+              # package fails its first OIDC publish. Fail soft: consumers
+              # tolerate a missing optionalDependency; bootstrap the
+              # package manually, then rerun this workflow (idempotent).
+              echo "::warning::$name@$V first publish failed — bootstrap the new package on npmjs.com (one-time token publish), configure its trusted publisher, then rerun"
             else
-              (cd "$dir" && npm publish --access public --tag "$T")
+              exit 1
             fi
           done
         working-directory: sdk/typescript
