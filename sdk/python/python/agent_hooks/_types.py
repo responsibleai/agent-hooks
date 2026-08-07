@@ -206,6 +206,11 @@ class Verdict:
         return self.decision is Decision.DENY and self.approval is not None
 
     @classmethod
+    def allow(cls) -> Verdict:
+        """The trivial permit verdict."""
+        return cls(decision=Decision.ALLOW)
+
+    @classmethod
     def warn(cls, *, reason: str | None = None, message: str | None = None) -> Verdict:
         """Constructor sugar for what earlier drafts called ``warn``: an
         ``allow`` carrying one warning (§5.1)."""

@@ -40,18 +40,19 @@ result = invoke_tool(ctx["tool_call"]["args"])  # post-transform args
 ## Interceptor usage
 
 ```python
-from agent_hooks import AgentContext, Decision, Verdict
+from agent_hooks import AgentContext, Verdict
+
 
 class MyPolicy:
     def intercept(self, ctx: AgentContext) -> Verdict:
         if ctx["interception_point"] == "pre_tool_call" and ctx["tool_call"]["name"] == "rm":
-            return Verdict(decision=Decision.DENY, reason="dangerous")
-        return Verdict(decision=Decision.ALLOW)
+            return Verdict.deny(reason="dangerous")
+        return Verdict.allow()
 ```
 
-`Verdict.warn(...)` (allow + recorded warning) and `Verdict.escalate(...)`
-(liftable deny for the approval seam, §9) are the constructor shortcuts for
-the other two §5 shapes.
+`Verdict.allow()`, `Verdict.deny(...)`, `Verdict.warn(...)` (allow + recorded
+warning) and `Verdict.escalate(...)` (liftable deny for the approval seam, §9)
+are the constructor shortcuts for the §5 shapes.
 
 ## Running the CTK against your framework
 

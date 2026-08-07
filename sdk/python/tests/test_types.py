@@ -46,6 +46,16 @@ class TestVerdict:
         assert v.is_liftable
         assert not Verdict(decision=Decision.DENY).is_liftable
 
+    def test_allow_sugar_is_trivial_permit(self) -> None:
+        from agent_hooks import ALLOW
+
+        v = Verdict.allow()
+        assert v.decision is Decision.ALLOW
+        assert v == ALLOW
+        assert v.warnings == ()
+        assert v.approval is None
+        assert not v.is_liftable
+
     def test_warn_sugar_is_allow_with_warning(self) -> None:
         v = Verdict.warn(reason="pii", message="found ssn")
         assert v.decision is Decision.ALLOW
