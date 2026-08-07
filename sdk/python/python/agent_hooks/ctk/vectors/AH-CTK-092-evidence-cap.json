@@ -80,6 +80,10 @@
         }
       }
     ],
-    "run_outcome": "completed"
+    "run_outcome": "completed",
+    "run_outcome_by_posture": {
+      "posture": "tool_seam_host_error",
+      "outcomes": { "continue": "completed", "terminate": "blocked" }
+    }
   }
 }

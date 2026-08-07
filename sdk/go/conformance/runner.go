@@ -97,7 +97,7 @@ func mustJSON(v any) string {
 	return string(b)
 }
 
-func runRecordToWire(rr RunRecord) string {
+func runRecordToWire(rr RunRecord, postures map[string]string) string {
 	invs := make([]map[string]any, len(rr.ToolInvocations))
 	for i, t := range rr.ToolInvocations {
 		invs[i] = map[string]any{"name": t.Name, "args": t.Args}
@@ -122,6 +122,9 @@ func runRecordToWire(rr RunRecord) string {
 		"error":            rr.Err,
 		"identities":       ids,
 		"records":          records,
+		// Harness *declarations* (§13.1), not observed behavior: the
+		// engine selects expect.run_outcome_by_posture entries by them.
+		"postures": postures,
 	})
 }
 
@@ -228,7 +231,14 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 	if first != nil {
 		recorded = first.recorded
 	}
-	return agenthooks.CtkAssert(vectorJSON, recorded, runRecordToWire(rr))
+	// §13.1 posture declaration; a Harness that does not implement the
+	// optional declarer interface declares the spec default.
+	posture := "continue"
+	if d, ok := h.(ToolSeamHostErrorDeclarer); ok {
+		posture = d.ToolSeamHostError()
+	}
+	postures := map[string]string{"tool_seam_host_error": posture}
+	return agenthooks.CtkAssert(vectorJSON, recorded, runRecordToWire(rr, postures))
 }
 
 func scenarioFromWire(s map[string]any) Scenario {

@@ -394,6 +394,20 @@
               "context_must_validate": {
                 "type": "boolean",
                 "default": true
+              },
+              "context_must_contain": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Substrings that MUST appear somewhere in the serialization of the recorded AgentContext — shape-agnostic: pins that content surfaced to this interception point in SOME form (e.g. a deny reason surfaced to the model per §6.2) without prescribing message layout or payload format. Needles should avoid characters JSON escapes (quotes, backslashes, control characters)."
+              },
+              "context_must_not_contain": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Substrings that MUST NOT appear anywhere in the serialization of the recorded AgentContext — pins non-incorporation (§6.1): a discarded result must not surface here in any form. Same needle caveat as context_must_contain."
               }
             }
           }
@@ -449,7 +463,50 @@
             "completed",
             "blocked",
             "error"
-          ]
+          ],
+          "description": "The run outcome for a host with the spec-default posture. When run_outcome_by_posture is present, this MUST equal its outcomes entry for the default posture value (the engine enforces the equality), so pre-posture runners resolve the same expectation for default-posture hosts."
+        },
+        "run_outcome_by_posture": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "posture",
+            "outcomes"
+          ],
+          "properties": {
+            "posture": {
+              "type": "string",
+              "enum": [
+                "tool_seam_host_error"
+              ],
+              "description": "The declared host posture (§13.1) that selects the expected outcome. tool_seam_host_error: what the host does with the run after a host_error:* deny at pre_tool_call/post_tool_call — \"continue\" (the §6.2 default: surface a tool error to the model and keep the loop going) or \"terminate\" (the host's own semantics terminate the turn, which §6.2 explicitly permits)."
+            },
+            "outcomes": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "continue",
+                "terminate"
+              ],
+              "properties": {
+                "continue": {
+                  "enum": [
+                    "completed",
+                    "blocked",
+                    "error"
+                  ]
+                },
+                "terminate": {
+                  "enum": [
+                    "completed",
+                    "blocked",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "description": "Posture-conditional run outcome, for behavior the spec permits either way (§6.2). The runner forwards the harness's declared posture and the engine selects the single outcome that declared surface must produce — each (vector, declared surface) pair stays single-valued, so a pass never means \"one of several outcomes happened\"."
         },
         "identities_equal": {
           "type": "boolean",

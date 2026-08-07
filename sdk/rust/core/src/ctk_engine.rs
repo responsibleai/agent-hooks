@@ -164,7 +164,7 @@ pub struct IdentityPair {
 }
 
 /// Wire-shaped `RunRecord` the harness returns.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct RunRecord {
     pub outcome: String,
     #[serde(default)]
@@ -184,6 +184,14 @@ pub struct RunRecord {
     /// combined-verdict content).
     #[serde(default)]
     pub records: Vec<Value>,
+    /// Host-declared postures (§13.1), forwarded by the runner from the
+    /// harness *declaration* — never inferred from observed behavior.
+    /// Known key: `tool_seam_host_error` = `"continue"` (the §6.2
+    /// default) or `"terminate"` (the host's own semantics terminate
+    /// the turn on a `host_error:*` deny at the tool seam). A missing
+    /// key means the spec-default posture.
+    #[serde(default)]
+    pub postures: std::collections::BTreeMap<String, String>,
 }
 
 /// Result of one vector run.
@@ -288,6 +296,41 @@ fn assert_interceptions(expect: &Value, recorded: &[Value], failures: &mut Vec<S
                 }
             }
         }
+        // Whole-context substring assertions (shape-agnostic): pin that
+        // content surfaced (in SOME form) or never surfaced (e.g. a
+        // §6.1-discarded tool result), without prescribing message
+        // layout or payload format. Matched against the serialized
+        // recorded context; needles should avoid JSON-escaped
+        // characters (quotes, backslashes, control chars).
+        let needs_scan =
+            e.get("context_must_contain").is_some() || e.get("context_must_not_contain").is_some();
+        if needs_scan {
+            let serialized = serde_json::to_string(r).unwrap_or_default();
+            for n in e
+                .get("context_must_contain")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                if !serialized.contains(n) {
+                    failures.push(format!("{ip}: context does not contain {n:?} in any form"));
+                }
+            }
+            for n in e
+                .get("context_must_not_contain")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                if serialized.contains(n) {
+                    failures.push(format!(
+                        "{ip}: context contains {n:?}, which MUST NOT surface here"
+                    ));
+                }
+            }
+        }
     }
 
     if let Some(absent) = expect.get("interceptions_absent").and_then(Value::as_array) {
@@ -303,8 +346,62 @@ fn assert_interceptions(expect: &Value, recorded: &[Value], failures: &mut Vec<S
     }
 }
 
+/// The spec-default value for a declarable host posture (§13.1).
+/// `tool_seam_host_error`: §6.2's continue rule is the default reading;
+/// "terminate" is the explicitly permitted alternative ("unless the
+/// host's own semantics terminate the turn").
+fn posture_default(posture: &str) -> Option<&'static str> {
+    match posture {
+        "tool_seam_host_error" => Some("continue"),
+        _ => None,
+    }
+}
+
+/// Resolve the expected `run_outcome` for this harness's declared
+/// postures. `expect.run_outcome` stays the single value for the
+/// spec-default posture (so pre-posture runners keep working for
+/// default-posture hosts); `expect.run_outcome_by_posture`, where
+/// present, selects by the posture the runner forwarded in
+/// `RunRecord.postures` where the spec permits both behaviors.
+fn expected_outcome(expect: &Value, rr: &RunRecord, failures: &mut Vec<String>) -> String {
+    let base = expect["run_outcome"].as_str().unwrap_or("").to_owned();
+    let Some(by) = expect.get("run_outcome_by_posture") else {
+        return base;
+    };
+    let posture = by.get("posture").and_then(Value::as_str).unwrap_or("");
+    let Some(default) = posture_default(posture) else {
+        failures.push(format!(
+            "run_outcome_by_posture names unknown posture {posture:?}"
+        ));
+        return base;
+    };
+    let outcomes = &by["outcomes"];
+    // Vector-authoring integrity: the default-posture outcome MUST
+    // equal run_outcome, or pre-posture runners and posture-aware
+    // runners would disagree about the same default-posture host.
+    if outcomes.get(default).and_then(Value::as_str) != Some(base.as_str()) {
+        failures.push(format!(
+            "vector error: run_outcome_by_posture.outcomes.{default} must equal run_outcome {base:?}"
+        ));
+    }
+    let declared = rr
+        .postures
+        .get(posture)
+        .map(String::as_str)
+        .unwrap_or(default);
+    match outcomes.get(declared).and_then(Value::as_str) {
+        Some(o) => o.to_owned(),
+        None => {
+            failures.push(format!(
+                "declared posture {posture}={declared:?} has no outcome in run_outcome_by_posture"
+            ));
+            base
+        }
+    }
+}
+
 fn assert_record(expect: &Value, rr: &RunRecord, failures: &mut Vec<String>) {
-    let want_outcome = expect["run_outcome"].as_str().unwrap_or("");
+    let want_outcome = expected_outcome(expect, rr, failures);
     if rr.outcome != want_outcome {
         failures.push(format!(
             "run_outcome == {:?}, want {want_outcome:?}",
@@ -577,6 +674,121 @@ mod tests {
         assert!(should_skip(&v, &["model_calls", "tool_calls"]).is_none());
     }
 
+    fn posture_vector() -> Value {
+        json!({
+            "id": "T", "title": "t",
+            "expect": {
+                "interceptions": [],
+                "run_outcome": "completed",
+                "run_outcome_by_posture": {
+                    "posture": "tool_seam_host_error",
+                    "outcomes": { "continue": "completed", "terminate": "blocked" }
+                }
+            }
+        })
+    }
+
+    fn rr_with(outcome: &str, posture: Option<&str>) -> RunRecord {
+        let mut rr = RunRecord {
+            outcome: outcome.into(),
+            ..Default::default()
+        };
+        if let Some(p) = posture {
+            rr.postures.insert("tool_seam_host_error".into(), p.into());
+        }
+        rr
+    }
+
+    #[test]
+    fn run_outcome_selected_by_declared_posture() {
+        let v = posture_vector();
+        // Default (undeclared) posture = continue.
+        assert_eq!(
+            assert_vector(&v, &[], &rr_with("completed", None)).status,
+            "pass"
+        );
+        // Explicit continue.
+        let r = assert_vector(&v, &[], &rr_with("completed", Some("continue")));
+        assert_eq!(r.status, "pass", "{:?}", r.failures);
+        // Declared terminate host: blocked is the expected outcome …
+        let r = assert_vector(&v, &[], &rr_with("blocked", Some("terminate")));
+        assert_eq!(r.status, "pass", "{:?}", r.failures);
+        // … and completed now fails.
+        let r = assert_vector(&v, &[], &rr_with("completed", Some("terminate")));
+        assert_eq!(r.status, "fail");
+        // A continue host reporting blocked still fails.
+        let r = assert_vector(&v, &[], &rr_with("blocked", None));
+        assert_eq!(r.status, "fail");
+    }
+
+    #[test]
+    fn run_outcome_by_posture_authoring_errors() {
+        // Unknown posture name fails loudly.
+        let mut v = posture_vector();
+        v["expect"]["run_outcome_by_posture"]["posture"] = json!("no_such_posture");
+        let r = assert_vector(&v, &[], &rr_with("completed", None));
+        assert_eq!(r.status, "fail");
+        assert!(
+            r.failures[0].contains("unknown posture"),
+            "{:?}",
+            r.failures
+        );
+        // Default-posture outcome disagreeing with run_outcome fails.
+        let mut v = posture_vector();
+        v["expect"]["run_outcome_by_posture"]["outcomes"]["continue"] = json!("blocked");
+        let r = assert_vector(&v, &[], &rr_with("completed", None));
+        assert_eq!(r.status, "fail");
+        // A declared posture value the vector does not cover fails.
+        let v = posture_vector();
+        let r = assert_vector(&v, &[], &rr_with("blocked", Some("halt")));
+        assert_eq!(r.status, "fail");
+        assert!(
+            r.failures.iter().any(|f| f.contains("has no outcome")),
+            "{:?}",
+            r.failures
+        );
+    }
+
+    #[test]
+    fn context_substring_assertions() {
+        let vector = json!({
+            "id": "T", "title": "t",
+            "expect": {
+                "sequence_strict": false,
+                "interceptions": [{
+                    "interception_point": "pre_model_call",
+                    "context_must_validate": false,
+                    "context_must_contain": ["ctk:tainted-result"],
+                    "context_must_not_contain": ["SECRET-RESULT"]
+                }],
+                "run_outcome": "completed"
+            }
+        });
+        let ok = vec![json!({
+            "interception_point": "pre_model_call", "sequence": 0,
+            "messages": [{"role": "tool", "content": {"error": true, "reason": "ctk:tainted-result"}}]
+        })];
+        let r = assert_vector(&vector, &ok, &rr_with("completed", None));
+        assert_eq!(r.status, "pass", "{:?}", r.failures);
+
+        let leaky = vec![json!({
+            "interception_point": "pre_model_call", "sequence": 0,
+            "messages": [{"role": "tool", "content": "SECRET-RESULT"}]
+        })];
+        let r = assert_vector(&vector, &leaky, &rr_with("completed", None));
+        assert_eq!(r.status, "fail");
+        assert!(
+            r.failures.iter().any(|f| f.contains("MUST NOT surface")),
+            "{:?}",
+            r.failures
+        );
+        assert!(
+            r.failures.iter().any(|f| f.contains("in any form")),
+            "{:?}",
+            r.failures
+        );
+    }
+
     #[test]
     fn assert_vector_pass() {
         let vector = json!({
@@ -596,11 +808,7 @@ mod tests {
         })];
         let rr = RunRecord {
             outcome: "completed".into(),
-            final_output: Value::Null,
-            tool_invocations: vec![],
-            error: None,
-            identities: vec![],
-            records: vec![],
+            ..Default::default()
         };
         let r = assert_vector(&vector, &recorded, &rr);
         assert_eq!(r.status, "pass", "{:?}", r.failures);

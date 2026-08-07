@@ -28,11 +28,7 @@ impl Harness for ExternalHarness {
     async fn run(&mut self) -> RunRecord {
         RunRecord {
             outcome: "completed".into(),
-            final_output: json!(null),
-            tool_invocations: Vec::new(),
-            error: None,
-            identities: Vec::new(),
-            records: Vec::new(),
+            ..Default::default()
         }
     }
 

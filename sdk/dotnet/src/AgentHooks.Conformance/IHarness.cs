@@ -114,6 +114,16 @@ public interface IHarness
     string Name { get; }
     IReadOnlySet<Capability> Capabilities { get; }
 
+    /// <summary>Declared §6.2 posture at the tool seam (§13.1): what the
+    /// host does with the run after a <c>host_error:*</c> deny at
+    /// <c>pre_tool_call</c>/<c>post_tool_call</c>. <c>"continue"</c> (the
+    /// default — surface a tool error to the model and keep the loop
+    /// going) or <c>"terminate"</c> (the host's own semantics terminate
+    /// the turn, which §6.2 explicitly permits). The runner forwards this
+    /// declaration so <c>expect.run_outcome_by_posture</c> vectors resolve
+    /// to the single outcome this surface must produce.</summary>
+    string ToolSeamHostError => "continue";
+
     /// <summary>Wire the scenario's mock model + tools into the framework,
     /// register the interceptors and resolver, set the enforcement mode,
     /// the vector's composition profile (§7.1), and its identity provider

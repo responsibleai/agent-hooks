@@ -16,7 +16,11 @@ or baseline profiles — the claim attaches the CTK's **per-part report**
 (runner results grouped by each vector's `part` tag), which
 communicates *what was exercised*, not a tier name.
 
-A claim with `identity_provider: null` MUST state that its records and
+A claim with a non-default posture (§13.1) MUST state it (e.g.
+`tool_seam_host_error: terminate` — the host terminates the turn on a
+`host_error:*` deny at the tool seam, which §6.2 permits); the report's
+passing vectors attest that posture's outcomes, not the default's. A
+claim with `identity_provider: null` MUST state that its records and
 approvals are identity-unbound (§10.1). A claim with a host-defined
 provider MUST disclose whether the provider is **content-derived**
 (a pure function of the projected context, like `jcs-sha256`) or not —
@@ -49,7 +53,9 @@ artefacts, in the PR:
    wires the framework — specifically confirming it drives the
    framework's **production dispatch path** with only model/tool I/O
    mocked (a harness that re-implements dispatch attests nothing).
-3. **Disclosure flags** where applicable: `identity_provider: null` →
+3. **Disclosure flags** where applicable: a non-default posture
+   (`tool_seam_host_error: terminate`) → the claim states it;
+   `identity_provider: null` →
    the claim states records/approvals are identity-unbound;
    custom provider → content-derived or not; `buffered_output: false`
    → the claim states a deny at `output` cannot retract streamed

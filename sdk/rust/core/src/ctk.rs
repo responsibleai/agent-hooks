@@ -170,6 +170,18 @@ pub trait Harness: Send {
     /// (`"model_calls"`, `"tool_calls"`, …).
     fn capabilities(&self) -> Vec<String>;
 
+    /// Declared §6.2 posture at the tool seam (§13.1): what the host
+    /// does with the run after a `host_error:*` deny at
+    /// `pre_tool_call`/`post_tool_call`. `"continue"` (the default —
+    /// surface a tool error to the model and keep the loop going) or
+    /// `"terminate"` (the host's own semantics terminate the turn,
+    /// which §6.2 explicitly permits). The runner forwards this
+    /// declaration so `expect.run_outcome_by_posture` vectors resolve
+    /// to the single outcome this surface must produce.
+    fn tool_seam_host_error(&self) -> &str {
+        "continue"
+    }
+
     /// Wire one vector into the framework: the scenario's mock model +
     /// tools, the interceptors and resolver, the enforcement mode, the
     /// vector's composition profile (§7.1), its identity provider
@@ -285,8 +297,14 @@ pub async fn run_vector(harness: &mut dyn Harness, vector: &Value) -> VectorResu
         identity_provider,
         redact_for_approval,
     });
-    let rr = harness.run().await;
+    let posture = harness.tool_seam_host_error().to_owned();
+    let mut rr = harness.run().await;
     harness.teardown();
+
+    // Forward the harness's declared posture (§13.1) so the engine can
+    // select the expected run_outcome where the spec permits both.
+    rr.postures
+        .insert("tool_seam_host_error".to_owned(), posture);
 
     let recorded = recorded.lock().expect("recorder poisoned").clone();
     assert_vector(vector, &recorded, &rr)
@@ -541,6 +559,8 @@ impl Harness for ReferenceHarness {
                 .iter()
                 .map(|r| serde_json::to_value(r).expect("record serializes"))
                 .collect(),
+            // The runner overwrites this from the Harness declaration.
+            postures: Default::default(),
         }
     }
 

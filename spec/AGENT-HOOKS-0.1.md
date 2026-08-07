@@ -1268,7 +1268,15 @@ There are no conformance tiers, levels, or baseline profiles. A host
   under the §12.1 exception; gates the `streaming/incremental`
   vectors),
 - the composition profiles and knob values it supports (§7.2),
-- its identity provider (§10.1).
+- its identity provider (§10.1),
+- its posture where this specification permits two behaviors:
+  `tool_seam_host_error: continue | terminate` (default `continue`) —
+  whether a `host_error:*` deny at `pre_tool_call`/`post_tool_call`
+  continues the agent loop per §6.2's continue rule or terminates the
+  turn under §6.2's "unless the host's own semantics terminate the
+  turn" clause. The CTK resolves posture-conditional expectations
+  against this declaration, so each declared surface is tested against
+  a single expected outcome.
 
 A host is **conformant** when it passes 100% of the CTK vectors
 applicable to its declaration. The CTK emits a **conformance report**
@@ -1302,6 +1310,9 @@ runners are provided under `sdk/<lang>/`.
 A conformance claim is the tuple
 `(<framework>, <adapter-version>, agent-hooks/<spec-version>, <capabilities>, <profiles>, <identity-provider>, <sdk-lang>@<sdk-version>)`
 plus the CTK report, recorded in `conformance/CLAIMS.md`. A claim with
+a non-default posture (§13.1) MUST state it (e.g.
+`tool_seam_host_error: terminate`) — the report's passing vectors
+attest that posture's outcomes, not the default's. A claim with
 `identity_provider: null` MUST state that its approvals and records are
 identity-unbound. A claim with `buffered_output: false` MUST state
 that a `deny` at `output` cannot retract already-streamed content

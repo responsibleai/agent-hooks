@@ -128,6 +128,15 @@ class Harness(Protocol):
 
     name: str
     capabilities: set[Capability]
+    #: Declared §6.2 posture at the tool seam (§13.1): what the host does
+    #: with the run after a ``host_error:*`` deny at
+    #: ``pre_tool_call``/``post_tool_call``. ``"continue"`` (the default —
+    #: surface a tool error to the model and keep the loop going) or
+    #: ``"terminate"`` (the host's own semantics terminate the turn, which
+    #: §6.2 explicitly permits). The runner forwards this declaration so
+    #: ``expect.run_outcome_by_posture`` vectors resolve to the single
+    #: outcome this surface must produce.
+    tool_seam_host_error: str = "continue"
 
     def setup(
         self,

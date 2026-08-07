@@ -106,7 +106,7 @@ class ScriptedResolver {
   }
 }
 
-function runRecordToWire(rr: RunRecord): string {
+function runRecordToWire(rr: RunRecord, postures: Record<string, string>): string {
   return JSON.stringify({
     outcome: rr.outcome,
     final_output: rr.final_output ?? null,
@@ -114,6 +114,9 @@ function runRecordToWire(rr: RunRecord): string {
     error: rr.error ?? null,
     identities: rr.identities.map(([i, e]) => ({ input_identity: i, enforced_identity: e })),
     records: rr.records,
+    // Harness *declarations* (§13.1), not observed behavior: the engine
+    // selects expect.run_outcome_by_posture entries by them.
+    postures,
   });
 }
 
@@ -184,8 +187,14 @@ export async function runVector(harness: Harness, vector: JsonValue): Promise<Ve
     harness.teardown();
   }
 
+  // §13.1 posture declaration; absent means the spec default.
+  const postures = { tool_seam_host_error: harness.toolSeamHostError ?? "continue" };
   return JSON.parse(
-    native.ctkAssert(vectorJson, JSON.stringify(first?.recorded ?? []), runRecordToWire(rr)),
+    native.ctkAssert(
+      vectorJson,
+      JSON.stringify(first?.recorded ?? []),
+      runRecordToWire(rr, postures),
+    ),
   );
 }
 

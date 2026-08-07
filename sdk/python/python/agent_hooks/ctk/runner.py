@@ -71,7 +71,7 @@ def load_vectors(directory: str | pathlib.Path | None = None) -> list[dict[str, 
     return vectors
 
 
-def _run_record_to_wire(rr: RunRecord) -> str:
+def _run_record_to_wire(rr: RunRecord, postures: dict[str, str]) -> str:
     return dumps(
         {
             "outcome": rr.outcome.value,
@@ -80,6 +80,9 @@ def _run_record_to_wire(rr: RunRecord) -> str:
             "error": rr.error,
             "identities": [{"input_identity": i, "enforced_identity": e} for i, e in rr.identities],
             "records": rr.records,
+            # Harness *declarations* (§13.1), not observed behavior: the
+            # engine selects expect.run_outcome_by_posture entries by them.
+            "postures": postures,
         }
     )
 
@@ -130,11 +133,14 @@ async def run_vector(harness: Harness, vector: dict[str, Any]) -> VectorResult:
     finally:
         harness.teardown()
 
+    # §13.1 posture declaration; getattr keeps structural (non-subclass)
+    # Harness implementations working — absent means the spec default.
+    postures = {"tool_seam_host_error": getattr(harness, "tool_seam_host_error", "continue")}
     result = json.loads(
         _core.ctk_assert(
             vector_json,
             dumps(first.recorded if first else []),
-            _run_record_to_wire(rr),
+            _run_record_to_wire(rr, postures),
         )
     )
     return VectorResult(

@@ -108,3 +108,16 @@ type Harness interface {
 
 	Teardown()
 }
+
+// ToolSeamHostErrorDeclarer is an optional Harness extension declaring
+// the host's §6.2 posture at the tool seam (§13.1): what the host does
+// with the run after a host_error:* deny at pre_tool_call /
+// post_tool_call. "continue" (the default — surface a tool error to
+// the model and keep the loop going) or "terminate" (the host's own
+// semantics terminate the turn, which §6.2 explicitly permits). A
+// Harness that does not implement it declares the default. The runner
+// forwards this declaration so expect.run_outcome_by_posture vectors
+// resolve to the single outcome this surface must produce.
+type ToolSeamHostErrorDeclarer interface {
+	ToolSeamHostError() string
+}

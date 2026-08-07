@@ -125,6 +125,32 @@ Non-finite floats (NaN/Infinity) and lone surrogates cannot be
 expressed in a JSON vector at all — those §4.4 marshalling guards are
 pinned by per-SDK unit tests, not vectors.
 
+## Postures
+
+Where the spec permits two host behaviors, the harness **declares**
+which one its host implements and the runner selects the single
+expected outcome for that declared surface — a vector never accepts
+"either outcome", so a pass always attests one specific behavior.
+
+`tool_seam_host_error: continue | terminate` (default `continue`)
+declares what the host does with the run after a `host_error:*` deny
+at `pre_tool_call`/`post_tool_call` (§6.2): `continue` surfaces a tool
+error to the model and keeps the loop going; `terminate` means the
+host's own semantics terminate the turn — the posture §6.2's "unless
+the host's own semantics terminate the turn" clause permits. Vectors
+whose run ends in such a deny carry `expect.run_outcome_by_posture`,
+and the runner resolves it against this declaration (forwarded in the
+run-record wire as `postures.tool_seam_host_error`).
+
+Declare it per SDK convention: a `tool_seam_host_error` attribute
+(Python), `toolSeamHostError` (TypeScript), the optional
+`ToolSeamHostErrorDeclarer` interface (Go), the `ToolSeamHostError`
+property (default interface member, .NET), or the
+`tool_seam_host_error()` trait method (Rust). Omitting it declares
+`continue` — the posture every in-tree reference harness implements.
+The declaration belongs in the host's §13.3 claim alongside its
+capabilities.
+
 ## Incremental mediation
 
 Vectors in the `streaming/incremental` part carry a chunked mock

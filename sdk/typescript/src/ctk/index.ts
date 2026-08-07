@@ -66,6 +66,16 @@ export interface Harness {
   readonly name: string;
   readonly capabilities: ReadonlySet<Capability>;
 
+  /** Declared §6.2 posture at the tool seam (§13.1): what the host does
+   * with the run after a `host_error:*` deny at
+   * `pre_tool_call`/`post_tool_call`. `"continue"` (the default —
+   * surface a tool error to the model and keep the loop going) or
+   * `"terminate"` (the host's own semantics terminate the turn, which
+   * §6.2 explicitly permits). The runner forwards this declaration so
+   * `expect.run_outcome_by_posture` vectors resolve to the single
+   * outcome this surface must produce. */
+  readonly toolSeamHostError?: "continue" | "terminate";
+
   /** Wire the scenario's mock model + tools into the framework,
    * register the interceptors and resolver, set the enforcement mode,
    * the vector's composition profile (§7.1), and its identity provider

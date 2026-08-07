@@ -115,7 +115,7 @@ public static class Runner
 
         var recordedJson = new JsonArray(
             recorded.Select(c => (JsonNode)c).ToArray()).ToJsonString(Compact);
-        var rrJson = RunRecordToWire(rr);
+        var rrJson = RunRecordToWire(rr, harness.ToolSeamHostError);
         var result = (JsonObject)JsonNode.Parse(
             Native.CtkAssert(vectorJson, recordedJson, rrJson))!;
         return new VectorResult(
@@ -126,7 +126,7 @@ public static class Runner
             (result["failures"] as JsonArray)?.Select(n => (string)n!).ToList() ?? []);
     }
 
-    private static string RunRecordToWire(RunRecord rr)
+    private static string RunRecordToWire(RunRecord rr, string toolSeamHostError)
     {
         var identities = new JsonArray();
         foreach (var (i, e) in rr.Identities ?? [])
@@ -146,6 +146,12 @@ public static class Runner
             ["error"] = rr.Error,
             ["identities"] = identities,
             ["records"] = records,
+            // Harness *declarations* (§13.1), not observed behavior: the
+            // engine selects expect.run_outcome_by_posture entries by them.
+            ["postures"] = new JsonObject
+            {
+                ["tool_seam_host_error"] = toolSeamHostError,
+            },
         };
         return o.ToJsonString(Compact);
     }

@@ -1,6 +1,6 @@
 {
   "id": "AH-CTK-100",
-  "title": "deny at post_tool_call: the tool result is discarded, not incorporated into agent state (§6.1)",
+  "title": "deny at post_tool_call: the tool result is discarded, not incorporated into agent state; the deny surfaces to the model in some form, transcript shape unprescribed (§6.1)",
   "spec_clause": "6.1, 6.2",
   "part": "enforcement/post_action_deny",
   "capabilities": [
@@ -67,9 +67,15 @@
       },
       {
         "interception_point": "pre_model_call",
-        "context": {
-          "messages[1].role": "tool",
-          "messages[1].content": "blocked: ctk:tainted-result"
+        "context_must_contain": ["ctk:tainted-result"],
+        "context_must_not_contain": ["SECRET-RESULT"]
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://x"
         }
       }
     ],

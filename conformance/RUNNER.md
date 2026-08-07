@@ -41,7 +41,11 @@ for each vector file in conformance/vectors/*.json:
                        {outcome:rr.outcome, final_output:rr.final_output,
                         tool_invocations:rr.tool_invocations, error:rr.error,
                         identities:rr.identities,      # (input, enforced) per emission
-                        records:rr.records})           # wire-shaped §10.3 records
+                        records:rr.records,            # wire-shaped §10.3 records
+                        postures:{                     # harness *declarations* (§13.1),
+                          tool_seam_host_error:        # not observed behavior — they
+                            harness.tool_seam_host_error  # select run_outcome_by_posture
+                              ?? "continue"}})            # (HARNESS.md "Postures")
 ```
 
 ## The conformance report (§13.1)

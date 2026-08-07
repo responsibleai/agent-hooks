@@ -5,6 +5,8 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+- **CTK: declared `tool_seam_host_error` posture (§13.1).** A harness declares `continue` (default) or `terminate`, and `expect.run_outcome_by_posture` resolves the 13 tool-seam `host_error:*` vectors to the single outcome that declared surface must produce — the §6.2 terminate clause is now claimable (#68).
+- **CTK: AH-CTK-100 asserts §6.1 substance, not transcript cosmetics.** New `context_must_contain`/`context_must_not_contain` interception assertions pin non-incorporation of the denied tool result and the deny surfacing to the model in some form, leaving message layout and payload shape to the host (#69).
 - **The §12.1 incremental exception is CTK-testable.** The vectors
   the alpha.5 entry below left as future work exist: a
   `streaming/incremental` part (`AH-CTK-110`–`AH-CTK-113`) exercises
