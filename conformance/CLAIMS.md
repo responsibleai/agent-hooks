@@ -23,7 +23,9 @@ provider MUST disclose whether the provider is **content-derived**
 approval binding and record correlation are only as strong as that
 property (§10.1). A claim with
 `buffered_output: false` MUST state that a `deny` at `output` cannot
-retract already-streamed content (§12.1a).
+retract already-streamed content (§12.1a); one whose host mediates
+incrementally under the §12.1 exception MUST also state the exposure
+bound its accounting discipline enforces.
 
 | Framework | Adapter version | Spec | Capabilities | Profiles | Identity provider | SDK | Report | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -47,7 +49,8 @@ artefacts, in the PR:
    the claim states records/approvals are identity-unbound;
    custom provider → content-derived or not; `buffered_output: false`
    → the claim states a deny at `output` cannot retract streamed
-   content.
+   content, plus the exposure bound when the host mediates
+   incrementally under the §12.1 exception.
 
 Acceptance is by CODEOWNERS review (`conformance/` owner). The
 reviewer checks: the report matches the declared surface tuple; the

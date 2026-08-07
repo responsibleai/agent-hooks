@@ -1135,6 +1135,32 @@ emitting `post_model_call`. A host that cannot assemble MUST emit
 `deny` self-verdict with `host_error:streaming_unsupported`, and MUST NOT
 incorporate the partial response.
 
+**Exception — incremental mediation.** A host that declares
+`buffered_output: false` (§12.1a, §13.1) MAY instead evaluate the
+stream incrementally, emitting `post_model_call` more than once per
+response, each emission over an assembled prefix or window of it,
+provided it satisfies a bounded-exposure accounting discipline:
+
+1. no part of the response is released to the caller beyond the
+   declared exposure bound ahead of a verdict covering it;
+2. a `deny` terminates the stream and withholds everything not yet
+   released, including content an earlier emission permitted;
+3. content that no emission evaluated MUST fail closed at end of
+   stream with `host_error:streaming_unsupported` rather than settle
+   clean — the same failure mode as the non-assembling host above;
+4. durable incorporation (§6.1) is gated by the same discipline as
+   release: denied or unevaluated content MUST NOT be persisted.
+
+Each such emission is an ordinary `post_model_call` under §4–§7; the
+discipline governs what the host does with the verdicts, not the
+emission contract. ACS §18.1 ("Incremental stream mediation",
+[agent-control-spec](https://github.com/responsibleai/agent-control-spec))
+is one implementation of such a discipline. This exception is
+capability-shaped, not vector-backed: conformance vectors exercising
+the accounting discipline are future work, and until they exist the
+surface is visible only through the declaration and claim (§12.1a,
+§13.3).
+
 ### 12.1a Streaming to the caller
 
 A host that streams output to its caller MUST buffer the stream and
@@ -1148,6 +1174,12 @@ declaration makes that limitation visible in the conformance claim
 (§13.3) rather than leaving it implied. The CTK drives hosts with
 mocked I/O and therefore cannot exercise streaming egress; this
 capability is declaration-only.
+
+A host that additionally mediates incrementally under the §12.1
+exception MUST state its exposure bound in the declaration: which
+content can reach the caller ahead of the verdict covering it, and how
+much (e.g. "none — release is watermark-gated" or "each chunk egresses
+on arrival; evaluation runs behind the stream").
 
 ### 12.2 Parallel tool calls
 
@@ -1246,7 +1278,9 @@ plus the CTK report, recorded in `conformance/CLAIMS.md`. A claim with
 `identity_provider: null` MUST state that its approvals and records are
 identity-unbound. A claim with `buffered_output: false` MUST state
 that a `deny` at `output` cannot retract already-streamed content
-(§12.1a).
+(§12.1a), and, when the host mediates incrementally under the §12.1
+exception, MUST state the exposure bound its accounting discipline
+enforces (§12.1a).
 
 ---
 

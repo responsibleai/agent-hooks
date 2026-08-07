@@ -106,9 +106,13 @@ coercion class the core's raw-text scan (§10.2) exists to reject; see
 `true` (the host buffers caller-bound output until the `output`
 combined verdict permits), and a host that streams to its caller
 without buffering declares `buffered_output: false` in its surface and
-claim. The CTK drives hosts with mocked I/O and cannot exercise
-streaming egress, so no vector carries this capability — the
-declaration exists to make the retraction limitation visible (§13.3).
+claim. A declaring host may also mediate `post_model_call`
+incrementally under the §12.1 exception; its claim then states the
+exposure bound (§12.1a). The CTK drives hosts with mocked I/O and
+cannot exercise streaming egress, so no vector carries this capability
+— the declaration exists to make the retraction limitation visible
+(§13.3). Vectors exercising the §12.1 accounting discipline against a
+mocked stream are future work.
 
 Non-finite floats (NaN/Infinity) and lone surrogates cannot be
 expressed in a JSON vector at all — those §4.4 marshalling guards are
