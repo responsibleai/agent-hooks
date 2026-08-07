@@ -13,10 +13,19 @@ User-visible changes to the spec and SDKs. Versioning rules:
   evaluate incrementally under a bounded-exposure accounting
   discipline (verdict-covered release, terminating deny that withholds
   the unreleased remainder, fail-closed residue at end of stream,
-  §6.1-gated durability). The capability stays declaration-only: the
-  §12.1a declaration and §13.3 claim MUST state the exposure bound,
-  and conformance vectors for the accounting discipline are future
-  work. Additive; no version-surface change.
+  §6.1-gated durability covering withheld-but-permitted content). The
+  capability stays declaration-only: the §12.1a declaration and §13.3
+  claim MUST state the exposure bound, and conformance vectors for the
+  accounting discipline are future work. §12.1 also now distinguishes
+  an errored model call (handled per §6.1, no `post_model_call`) from
+  the `stream_incomplete` shape, which is for hosts that cannot
+  buffer. Additive; no version-surface change.
+- **§12.1a defines the caller and pins released-content identity.**
+  The caller is any consumer outside the host's enforcement boundary,
+  observers, callbacks, and preview channels included, and the content
+  released once the verdict permits MUST be the verdicted
+  (post-transform) content — a host MUST NOT rewrite content between
+  the verdict and its release.
 
 ## 0.1.0-alpha.4 — tag `v0.1.0-alpha.4`
 

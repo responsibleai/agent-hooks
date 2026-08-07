@@ -1135,6 +1135,14 @@ emitting `post_model_call`. A host that cannot assemble MUST emit
 `deny` self-verdict with `host_error:streaming_unsupported`, and MUST NOT
 incorporate the partial response.
 
+Assembly that fails because the model call itself errored is an
+errored model call, not this shape: there is no complete response to
+evaluate, the host handles the failure as it handles any errored
+action — nothing partial egresses or persists (§6.1) — and
+`post_model_call` is not the vehicle for reporting the provider's
+error. The `stream_incomplete` shape above is for a host that cannot
+buffer the stream it received.
+
 **Exception — incremental mediation.** A host that declares
 `buffered_output: false` (§12.1a, §13.1) MAY instead evaluate the
 stream incrementally, emitting `post_model_call` more than once per
@@ -1149,7 +1157,9 @@ provided it satisfies a bounded-exposure accounting discipline:
    stream with `host_error:streaming_unsupported` rather than settle
    clean — the same failure mode as the non-assembling host above;
 4. durable incorporation (§6.1) is gated by the same discipline as
-   release: denied or unevaluated content MUST NOT be persisted.
+   release: content withheld at termination — including content an
+   earlier emission permitted but the host had not yet released — or
+   that no emission evaluated MUST NOT be persisted.
 
 Each such emission is an ordinary `post_model_call` under §4–§7; the
 discipline governs what the host does with the verdicts, not the
@@ -1167,6 +1177,14 @@ A host that streams output to its caller MUST buffer the stream and
 MUST NOT release any part of it to the caller until the `output`
 emission's combined verdict permits, UNLESS the host declares the
 capability `buffered_output: false` in its conformance surface (§13.1).
+
+For this section the *caller* is any consumer outside the host's
+enforcement boundary — host-registered observers, callbacks, and
+preview channels included — not only the far end of the connection.
+The content released once the verdict permits MUST be the verdicted
+content (the transformed value when the combined verdict is
+`transform`); a host MUST NOT rewrite content between the verdict and
+its release.
 
 A host declaring `buffered_output: false` remains conformant, but a
 `deny` at `output` then cannot retract content already streamed; the
