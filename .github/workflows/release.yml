@@ -154,7 +154,7 @@ jobs:
           artifact-name: sbom-python.spdx.json
       - name: Attest build provenance
         if: env.DRY_RUN != 'true'
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v2
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v2
         with:
           subject-path: dist/*
       - name: Publish to PyPI (trusted publishing)
@@ -187,7 +187,7 @@ jobs:
           artifact-name: sbom-rust.spdx.json
       - name: Attest build provenance
         if: env.DRY_RUN != 'true'
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v2
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v2
         with:
           subject-path: sdk/rust/target/package/*.crate
       - name: Authenticate to crates.io (trusted publishing)
@@ -274,7 +274,7 @@ jobs:
           artifact-name: sbom-typescript.spdx.json
       - name: Attest build provenance
         if: env.DRY_RUN != 'true'
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v2
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v2
         with:
           subject-path: |
             sdk/typescript/*.tgz
@@ -407,7 +407,7 @@ jobs:
           artifact-name: sbom-dotnet.spdx.json
       - name: Attest build provenance
         if: env.DRY_RUN != 'true'
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v2
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v2
         with:
           subject-path: sdk/dotnet/dist/*.nupkg
       - name: Authenticate to NuGet (trusted publishing)
