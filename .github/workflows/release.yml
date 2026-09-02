@@ -148,7 +148,7 @@ jobs:
             compgen -G "$pattern" >/dev/null || { echo "::error::missing artifact matching $pattern"; exit 1; }
           done
       - name: SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           path: sdk/python
           artifact-name: sbom-python.spdx.json
@@ -181,7 +181,7 @@ jobs:
         run: cargo package --locked -p agent-hooks-sdk
         working-directory: sdk/rust
       - name: SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           path: sdk/rust
           artifact-name: sbom-rust.spdx.json
@@ -268,7 +268,7 @@ jobs:
           npm pack
         working-directory: sdk/typescript
       - name: SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           path: sdk/typescript
           artifact-name: sbom-typescript.spdx.json
@@ -401,7 +401,7 @@ jobs:
           done
         working-directory: sdk/dotnet
       - name: SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           path: sdk/dotnet
           artifact-name: sbom-dotnet.spdx.json
