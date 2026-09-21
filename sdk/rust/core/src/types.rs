@@ -179,9 +179,13 @@ pub struct Evidence {
     pub verification_pointers: BTreeMap<String, String>,
 }
 
-/// §5.3: maximum UTF-8 byte length of the RFC 8785 canonical
-/// serialization of the `evidence` member. Breach fails §5 validation
-/// (`verdict_invalid`).
+/// AGENT-HOOKS-0.1 §5.3 evidence cap: the maximum UTF-8 byte length
+/// of the RFC 8785 canonical serialization of the `evidence` member
+/// (measure with [`canonical_json`](crate::canonical_json)).
+/// [`Verdict::validate`] and the §5 wire gate enforce it; a breach is
+/// `verdict_invalid`. Re-exported at the crate root so a consumer can
+/// check evidence size before validation instead of hard-coding the
+/// number.
 pub const EVIDENCE_MAX_BYTES: usize = 10240;
 
 /// A recorded concern that does not affect control flow (§5.1).

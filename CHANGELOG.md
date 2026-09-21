@@ -5,6 +5,14 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+- **Rust: `agent_hooks::EVIDENCE_MAX_BYTES` is public.** The §5.3
+  evidence cap (10240 bytes of the RFC 8785 canonical serialization of
+  `evidence`) was a private constant, so a consumer that wanted to
+  measure evidence before `Verdict::validate` rejected it had to
+  hard-code the number. The crate root now re-exports it next to
+  `canonical_json`, and a test pins the export to the exact bound
+  `validate` enforces. The Python, TypeScript, .NET, and Go SDKs do not
+  expose the cap yet; that is a follow-up. Additive.
 - **SDKs: `record_host_failure` — a host projection failure is no
   longer recordless.** When the host's own to-wire projection fails
   before a valid `AgentContext` exists (e.g. a tool-call argument

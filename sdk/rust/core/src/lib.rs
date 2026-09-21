@@ -78,6 +78,6 @@ pub use path::{apply as apply_transform_path, parse as parse_transform_path, res
 pub use types::{
     AgentContext, ApprovalOutcome, ApprovalRequest, ApprovalResolution, ApprovalResolver, Decision,
     EnforcementMode, Evidence, HostError, InterceptionPoint, InterceptionRecord, Interceptor,
-    Transform, Verdict, VerdictSummary, Warning, JCS_SHA256, SPEC_VERSION,
+    Transform, Verdict, VerdictSummary, Warning, EVIDENCE_MAX_BYTES, JCS_SHA256, SPEC_VERSION,
 };
 pub use verdict::from_wire as verdict_from_wire;
