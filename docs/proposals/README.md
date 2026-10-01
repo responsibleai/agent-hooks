@@ -1,7 +1,7 @@
 # Design proposals
 
 Significant design decisions are made through written proposals in
-this directory (P-001 through P-004 to date). This file defines when a
+this directory (P-001 through P-005 to date). This file defines when a
 proposal is required, its lifecycle, and who decides.
 
 ## When a proposal is required
