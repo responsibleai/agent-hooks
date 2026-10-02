@@ -93,7 +93,7 @@
       "ResponsibleAI.AgentHooks.Conformance": {
         "type": "Project",
         "dependencies": {
-          "ResponsibleAI.AgentHooks": "[0.1.0-alpha.5, )"
+          "ResponsibleAI.AgentHooks": "[0.1.0-beta.1, )"
         }
       }
     }

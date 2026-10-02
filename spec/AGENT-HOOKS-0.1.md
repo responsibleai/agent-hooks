@@ -1,6 +1,6 @@
 # Agent Hooks Specification — Version 0.1
 
-> **Status:** Draft · **Version:** `0.1.0-alpha` · **Date:** 2026-07-09
+> **Status:** Beta · **Version:** `0.1.0-beta` · **Date:** 2026-10-02
 > **Editors:** Responsible AI / Agent Governance Toolkit
 >
 > This document defines a framework-neutral contract for **lifecycle hooks** in

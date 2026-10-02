@@ -5,6 +5,12 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+## 0.1.0-beta.1 — 2026-10-02 — tag `v0.1.0-beta.1`
+
+- **Promote the SDKs and specification maturity from alpha to beta.**
+  The wire contract remains `agent-hooks/0.1`; this release does not
+  change interception points, context shapes, verdict semantics, or
+  composition behavior.
 - **Rust: `agent_hooks::EVIDENCE_MAX_BYTES` is public.** The §5.3
   evidence cap (10240 bytes of the RFC 8785 canonical serialization of
   `evidence`) was a private constant, so a consumer that wanted to
@@ -41,7 +47,8 @@ User-visible changes to the spec and SDKs. Versioning rules:
   buffering host (`buffered_output: true`, the default) skips it —
   the vectors are additive and no existing declared surface changes.
   Reference-harness skip manifests across the five SDKs pin the new
-  skips. Spec version unchanged (`agent-hooks/0.1`, 0.1.0-alpha).
+  skips. Wire version unchanged (`agent-hooks/0.1`); the specification
+  maturity label advances to `0.1.0-beta`.
 
 ## 0.1.0-alpha.5 — tag `v0.1.0-alpha.5`
 
