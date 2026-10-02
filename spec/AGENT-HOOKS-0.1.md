@@ -619,6 +619,14 @@ An interceptor is a callable `intercept(context: AgentContext) -> Verdict`. A ho
 - SHOULD bound interceptor execution with a configurable timeout
   (RECOMMENDED default: 5000 ms) and apply §6.3 on breach.
 
+A registered interceptor can use a remote service to compute its
+verdict. The in-process callable remains the trusted interceptor (§1.4)
+and returns a §5 `Verdict` for the context it received. Delegating
+computation does not transfer the host's composition or enforcement
+obligations. The failure rules in §6.3 and timeout guidance above still
+apply. Transport selection, service authentication, and protection of
+context data sent to the service are host integration concerns.
+
 ### 7.1 Composition is host configuration
 
 How multiple interceptors compose at one emission is a **host
@@ -1193,8 +1201,19 @@ provided it satisfies a bounded-exposure accounting discipline:
 
 Each such emission is an ordinary `post_model_call` under §4–§7; the
 discipline governs what the host does with the verdicts, not the
-emission contract. ACS §18.1 ("Incremental stream mediation",
-[agent-control-spec](https://github.com/responsibleai/agent-control-spec))
+emission contract.
+
+Buffering, selection of evaluated prefixes or windows, and release
+accounting are host integration concerns. The host can delegate that
+work to a local helper or a remote service used by an interceptor (§7).
+Transport chunks need not coincide with evaluation boundaries. The host
+still enforces the combined verdict and the declared exposure bound,
+even when the handler and model pipeline run independently. Watermarks,
+when used, belong to that accounting discipline. They are not additional
+`Verdict` fields, and this specification defines no streaming transport.
+
+ACS §18.1 ("Incremental stream mediation",
+[agent-control-spec](https://github.com/responsibleai/agent-control-spec/blob/main/spec/SPECIFICATION.md#181-incremental-stream-mediation))
 is one implementation of such a discipline. The CTK carries a vector
 part for this exception, `streaming/incremental`
 (`AH-CTK-110`–`AH-CTK-113`), exercising the four items above against a
