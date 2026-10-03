@@ -625,7 +625,7 @@ and returns a §5 `Verdict` for the context it received. Delegating
 computation does not transfer the host's composition or enforcement
 obligations. The failure rules in §6.3 and timeout guidance above still
 apply. Transport selection, service authentication, and protection of
-context data sent to the service are host integration concerns.
+context data sent to the service are host concerns (§1.4, §14).
 
 ### 7.1 Composition is host configuration
 
@@ -1204,16 +1204,20 @@ discipline governs what the host does with the verdicts, not the
 emission contract.
 
 Buffering, selection of evaluated prefixes or windows, and release
-accounting are host integration concerns. The host can delegate that
+accounting are host concerns. The host can delegate that
 work to a local helper or a remote service used by an interceptor (§7).
-Transport chunks need not coincide with evaluation boundaries. The host
+Outside the CTK's scripted streams, the chunks in which the host receives
+the model stream need not coincide with evaluation boundaries. The CTK
+uses one evaluated segment per mock chunk (`conformance/HARNESS.md`,
+"Incremental mediation"). The host
 still enforces the combined verdict and the declared exposure bound,
-even when the handler and model pipeline run independently. Watermarks,
-when used, belong to that accounting discipline. They are not additional
-`Verdict` fields, and this specification defines no streaming transport.
+even when the interceptor, or the service it uses, runs independently of
+the host's handling of the model stream. Watermarks, when used, belong to
+that accounting discipline. They are not additional `Verdict` fields,
+and this specification defines no streaming transport.
 
 ACS §18.1 ("Incremental stream mediation",
-[agent-control-spec](https://github.com/responsibleai/agent-control-spec/blob/main/spec/SPECIFICATION.md#181-incremental-stream-mediation))
+[agent-control-spec v0.4.0-alpha.4](https://github.com/responsibleai/agent-control-spec/blob/v0.4.0-alpha.4/spec/SPECIFICATION.md#181-incremental-stream-mediation))
 is one implementation of such a discipline. The CTK carries a vector
 part for this exception, `streaming/incremental`
 (`AH-CTK-110`–`AH-CTK-113`), exercising the four items above against a
