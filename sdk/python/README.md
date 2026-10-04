@@ -14,9 +14,7 @@ identity-provider seam, and the Conformance Test Kit.
 > before relying on it.
 
 ```bash
-# The 0.1.0a1 artifact on PyPI implements a superseded draft — until
-# 0.1.0a2 is published, install from source:
-pip install "agent-hooks-sdk[ctk] @ git+https://github.com/responsibleai/agent-hooks.git#subdirectory=sdk/python"
+pip install "agent-hooks-sdk[ctk]==0.1.0b1"
 # import name: agent_hooks
 ```
 

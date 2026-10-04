@@ -17,9 +17,7 @@ Python, TypeScript, .NET, and Go wrappers bind.
 > before relying on it.
 
 ```bash
-# The 0.1.0-alpha.1 crate on crates.io implements a superseded draft —
-# until 0.1.0-alpha.2 is published, use a git dependency:
-cargo add agent-hooks-sdk --git https://github.com/responsibleai/agent-hooks
+cargo add agent-hooks-sdk@0.1.0-beta.1
 ```
 
 ## Host usage

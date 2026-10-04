@@ -1,6 +1,6 @@
 # agent-hooks
 
-> **Status:** Draft · **Spec:** [AGENT-HOOKS-0.1](spec/AGENT-HOOKS-0.1.md)
+> **Status:** Beta · **Spec:** [AGENT-HOOKS-0.1](spec/AGENT-HOOKS-0.1.md)
 
 A framework-neutral **control** contract for AI agent systems: a fixed set
 of interception points, the agent context a host framework supplies at each,
@@ -97,9 +97,7 @@ interceptor emits it.
 **Prove conformance:**
 
 ```bash
-# The 0.1.0a1 artifact on PyPI implements a superseded draft — until
-# 0.1.0a2 is published, install from source:
-pip install "agent-hooks-sdk[ctk] @ git+https://github.com/responsibleai/agent-hooks.git#subdirectory=sdk/python"
+pip install "agent-hooks-sdk[ctk]==0.1.0b1"
 pytest --agent-hooks-harness=your_pkg:YourHarness   # vectors ship in the wheel
 ```
 

@@ -15,9 +15,7 @@ identity-provider seam, and the CTK runner.
 > before relying on it.
 
 ```bash
-# Not yet published to npm — install from source:
-git clone https://github.com/responsibleai/agent-hooks && cd agent-hooks/sdk/typescript
-npm install && npm run build   # builds the native module (needs a Rust toolchain)
+npm install @responsibleai/agent-hooks@0.1.0-beta.1
 ```
 
 ## Usage
