@@ -99,7 +99,7 @@ transform folded). Verify with `cargo bench -p agent-hooks-sdk` —
 and the full emit path at these sizes. Numbers are targets on
 commodity x86-64; CI does not gate on them (shared-runner variance
 makes threshold gates flaky) — regressions are caught by running the
-bench suite before release tags.
+bench suite before release tags ([RELEASING.md](RELEASING.md)).
 
 ## Golden vectors
 
