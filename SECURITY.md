@@ -33,10 +33,10 @@ security fixes. One root tag releases every SDK; see
 
 | Version | Status |
 | --- | --- |
-| `v0.1.0-alpha.5` (2026-08-07) | **Supported.** Latest tag. Published as crates.io `agent-hooks-sdk 0.1.0-alpha.5`, PyPI `agent-hooks-sdk 0.1.0a5`, npm `@responsibleai/agent-hooks 0.1.0-alpha.5`, NuGet `ResponsibleAI.AgentHooks 0.1.0-alpha.5`. Go has no tagged module version yet; pin the tag commit: `go get github.com/responsibleai/agent-hooks/sdk/go@61952932e52d5dab091a64677f19272daae619f8`. |
-| `v0.1.0-alpha.2` to `v0.1.0-alpha.4` | Not supported. Upgrade to the latest tag. |
+| `v0.1.0-beta.1` (2026-10-05) | **Supported.** Latest tag. Published as crates.io `agent-hooks-sdk 0.1.0-beta.1`, PyPI `agent-hooks-sdk 0.1.0b1`, npm `@responsibleai/agent-hooks 0.1.0-beta.1`, NuGet `ResponsibleAI.AgentHooks 0.1.0-beta.1`. Go has no tagged module version yet; pin the tag commit: `go get github.com/responsibleai/agent-hooks/sdk/go@944418765f25fdf5e5f6b05dd6b66bcb85687ecd`. |
+| `v0.1.0-alpha.2` to `v0.1.0-alpha.5` | Not supported. Upgrade to the latest tag. |
 | `0.1.0-alpha.1` / `0.1.0a1` (crates.io and PyPI only, never tagged) | Not supported. Yanked on crates.io and PyPI. Implements a **superseded draft** of the spec that predates the three-verdict model, composition profiles, and the identity-provider seam. Do not build on it. |
-| `main` (`0.1.0-beta.1`) | Unreleased. The version bump is merged, but no `v0.1.0-beta.1` tag exists and no registry carries it. Fixes land here first and ship with the next tag. |
+| `main` | Fixes land here first and ship with the next tag. |
 
 Each SDK reports the spec revision it implements via its `SPEC_VERSION`
 constant / `ah_spec_version()`.
