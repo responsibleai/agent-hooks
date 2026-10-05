@@ -151,7 +151,7 @@ jobs:
             compgen -G "$pattern" >/dev/null || { echo "::error::missing artifact matching $pattern"; exit 1; }
           done
       - name: SBOM
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           path: sdk/python
           artifact-name: sbom-python.spdx.json
@@ -178,13 +178,13 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master; toolchain pinned via sdk/rust/rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master; toolchain pinned via sdk/rust/rust-toolchain.toml
         with: { toolchain: stable }
       - name: Package (verifies the publishable crate)
         run: cargo package --locked -p agent-hooks-sdk
         working-directory: sdk/rust
       - name: SBOM
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           path: sdk/rust
           artifact-name: sbom-rust.spdx.json
@@ -226,7 +226,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master; toolchain pinned via sdk/rust/rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master; toolchain pinned via sdk/rust/rust-toolchain.toml
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
@@ -271,7 +271,7 @@ jobs:
           npm pack
         working-directory: sdk/typescript
       - name: SBOM
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           path: sdk/typescript
           artifact-name: sbom-typescript.spdx.json
@@ -346,7 +346,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master; toolchain pinned via sdk/rust/rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master; toolchain pinned via sdk/rust/rust-toolchain.toml
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
@@ -404,7 +404,7 @@ jobs:
           done
         working-directory: sdk/dotnet
       - name: SBOM
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           path: sdk/dotnet
           artifact-name: sbom-dotnet.spdx.json
@@ -430,7 +430,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master; toolchain pinned via sdk/rust/rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master; toolchain pinned via sdk/rust/rust-toolchain.toml
         with: { toolchain: stable }
       - run: cargo build --locked -p agent-hooks-ffi --release
         working-directory: sdk/rust
