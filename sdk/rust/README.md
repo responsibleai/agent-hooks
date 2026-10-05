@@ -17,7 +17,7 @@ Python, TypeScript, .NET, and Go wrappers bind.
 > before relying on it.
 
 ```bash
-cargo add agent-hooks-sdk@0.1.0-beta.1
+cargo add agent-hooks-sdk
 ```
 
 ## Host usage

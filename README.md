@@ -97,9 +97,20 @@ interceptor emits it.
 **Prove conformance:**
 
 ```bash
-pip install "agent-hooks-sdk[ctk]==0.1.0b1"
+pip install --pre "agent-hooks-sdk[ctk]"
 pytest --agent-hooks-harness=your_pkg:YourHarness   # vectors ship in the wheel
 ```
+
+**TypeScript / Node:**
+
+```bash
+npm install @responsibleai/agent-hooks@alpha
+```
+
+Keep the `@alpha` tag (or pin an exact version) while the package is
+pre-release: npm's `latest` tag can lag the newest pre-release, so a
+plain `npm install` may fetch an older build. See
+[`sdk/typescript/README.md`](sdk/typescript/README.md).
 
 ## Conformance
 
@@ -119,6 +130,26 @@ See [`conformance/CLAIMS.md`](conformance/CLAIMS.md).
 The **spec** is versioned `MAJOR.MINOR` independently of the **SDKs**
 (semver). Each SDK declares the spec version it implements via
 `SPEC_VERSION`. See [`VERSIONING.md`](VERSIONING.md).
+
+npm dist-tags: the release workflow publishes pre-release versions under
+the `alpha` tag and leaves `latest` alone; a stable release moves
+`latest` itself. The workflow does not move `latest` for a pre-release
+today (npm trusted publishing can run `npm dist-tag` once "Allow npm
+dist-tag" is enabled on each publisher; wiring that in is still to do).
+Until then, when a pre-release should be the default install, a
+maintainer moves the tag by hand from an interactive npm login with
+2FA, not a stored automation token:
+
+```bash
+V=<version>
+for p in agent-hooks agent-hooks-linux-x64-gnu agent-hooks-linux-arm64-gnu \
+         agent-hooks-darwin-x64 agent-hooks-darwin-arm64 agent-hooks-win32-x64-msvc; do
+  npm dist-tag add "@responsibleai/$p@$V" latest
+done
+```
+
+Check with `npm view @responsibleai/agent-hooks dist-tags`. Skip this
+for a stable release.
 
 ## License
 

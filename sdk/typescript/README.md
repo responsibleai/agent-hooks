@@ -15,8 +15,14 @@ identity-provider seam, and the CTK runner.
 > before relying on it.
 
 ```bash
-npm install @responsibleai/agent-hooks@0.1.0-beta.1
+npm install @responsibleai/agent-hooks@alpha
 ```
+
+Keep the `@alpha` tag (or pin an exact published version) while the
+package is pre-release: npm's `latest` tag can lag the newest
+pre-release, so a plain `npm install` may fetch an older build. Check
+what the tags resolve to with
+`npm view @responsibleai/agent-hooks dist-tags`.
 
 ## Usage
 

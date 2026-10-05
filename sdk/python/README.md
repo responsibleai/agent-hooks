@@ -14,7 +14,7 @@ identity-provider seam, and the Conformance Test Kit.
 > before relying on it.
 
 ```bash
-pip install "agent-hooks-sdk[ctk]==0.1.0b1"
+pip install --pre "agent-hooks-sdk[ctk]"
 # import name: agent_hooks
 ```
 

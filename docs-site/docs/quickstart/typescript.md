@@ -1,7 +1,7 @@
 # TypeScript quickstart
 
 ```sh
-npm install @responsibleai/agent-hooks
+npm install @responsibleai/agent-hooks@alpha
 ```
 
 The package resolves a prebuilt native binary for your platform through
