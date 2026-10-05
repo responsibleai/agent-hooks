@@ -110,10 +110,12 @@ curl -sf https://api.nuget.org/v3-flatcontainer/responsibleai.agenthooks/index.j
 go list -m -versions github.com/responsibleai/agent-hooks/sdk/go
 ```
 
-Check the npm dist-tags. `latest` still points at `0.1.0-alpha.2` (the
-first npm publish); `alpha` follows each pre-release. So
-`npm install @responsibleai/agent-hooks` with no version installs
-alpha.2 until `latest` is moved by hand with `npm dist-tag add`.
+Check the npm dist-tags. The workflow moves only `alpha`; `latest`
+stays where it was, so a plain `npm install @responsibleai/agent-hooks`
+keeps installing the previous release until `latest` is moved by hand
+on the loader and the five platform packages (`npm dist-tag add`, from
+an npm login with 2FA; the step above). Both tags sit on
+`0.1.0-beta.1` since 2026-10-05.
 
 Then update the supported-versions table in
 [SECURITY.md](SECURITY.md) to the new tag.
