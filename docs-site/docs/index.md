@@ -48,9 +48,9 @@ state.
 ## Install
 
 ```sh
-pip install --pre agent-hooks-sdk        # Python  (import agent_hooks)
-npm install @responsibleai/agent-hooks   # TypeScript / Node
-cargo add agent-hooks-sdk                # Rust    (crate agent_hooks)
+pip install --pre agent-hooks-sdk              # Python  (import agent_hooks)
+npm install @responsibleai/agent-hooks@alpha   # TypeScript / Node
+cargo add agent-hooks-sdk                      # Rust    (crate agent_hooks)
 dotnet add package ResponsibleAI.AgentHooks --prerelease
 go get github.com/responsibleai/agent-hooks/sdk/go/agenthooks
 ```
