@@ -24,6 +24,11 @@ User-visible changes to the spec and SDKs. Versioning rules:
   contract version is tracked in `spec/DECLARATION-VERSIONS.md`. The
   other SDKs follow in a later change and skip the new vectors until
   then. Wire version agent-hooks/0.1 unchanged. Additive.
+- Spec §7.2 and §10.3: `on_transform_conflict` is consulted by
+  `parallel/strictest` only, not by both parallel profiles. The text
+  said "parallel profiles"; the core's `with_knob_defaults` and the
+  record stamp always treated the knob this way, so this is a wording
+  fix with no behaviour change. Clarification.
 
 ## 0.1.0-beta.1 — 2026-10-02 — tag `v0.1.0-beta.1`
 

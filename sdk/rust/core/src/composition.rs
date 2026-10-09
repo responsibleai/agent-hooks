@@ -142,7 +142,7 @@ pub struct CompositionConfig {
     /// `parallel/unanimous` only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_disagreement: Option<SynthesisPolicy>,
-    /// Parallel profiles only.
+    /// `parallel/strictest` only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_transform_conflict: Option<SynthesisPolicy>,
 }
