@@ -1093,7 +1093,7 @@ closed namespace, `declaration_error:<class>`, with eleven classes:
 | `declaration_error:unreadable` | not a regular file, over 1 MiB, not strict UTF-8, byte-order mark, I/O error |
 | `declaration_error:malformed` | not JSON, root not an object, duplicate key, depth over 32, text over 1 MiB, non-finite number from the value path |
 | `declaration_error:version_unsupported` | `declaration` missing, not a string, or not in the accepted set |
-| `declaration_error:spec_unsupported` | `spec` present with another major or a higher minor than the loader's |
+| `declaration_error:spec_unsupported` | `spec` present with another major, a higher minor than the loader's, or a malformed value |
 | `declaration_error:unknown_field` | an unknown member at any closed level |
 | `declaration_error:invalid_field` | wrong type, enum, pattern, range, or a required-iff rule |
 | `declaration_error:inconsistent` | a step 7 rule |
