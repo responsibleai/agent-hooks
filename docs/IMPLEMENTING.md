@@ -79,11 +79,11 @@ Register, in code, what a document may name:
   by name;
 - the surface your code supports (`HostSurface`).
 
-Then build the emitter from the file path, from JSON text, from a
-parsed value, or from a builder in code. All four go through one
-loader and yield the same emitter and the same records (§7.7.7).
-Hosts that construct the emitter with the constructor and setters
-stay conformant; their records carry no `declaration` member.
+Then build the emitter from a file path, from JSON text, or from a
+value built in code (a parsed object or the builder). Every path goes
+through one loader and yields the same emitter and the same records
+(§7.7.7). Hosts that construct the emitter with the constructor and
+setters stay conformant; their records carry no `declaration` member.
 
 ### What a kind is
 
@@ -184,8 +184,8 @@ Rules that hold at every point:
   `buffered_output: false` and state in your claim that a deny at
   `output` cannot retract streamed content (§12.1a).
 - Persist the records. They are the audit trail, payload-free by
-  construction, and the in-memory buffer drops the oldest when full
-  (§10.3).
+  construction (§10.3). The SDKs' in-memory buffer drops the oldest
+  record when full and counts the drops in `records_dropped`.
 
 ## What fails closed
 
