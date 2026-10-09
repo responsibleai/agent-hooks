@@ -44,6 +44,68 @@ fail closed (§6.3). **Value-domain note (spec §4.4):** decode JSON
 carrying 64-bit integers with `json.Number` — default `any`
 decoding rounds beyond 2^53 exactly like JavaScript.
 
+## Host declaration
+
+A host can load its configuration, declared surface and interceptor
+bindings from a host declaration document (spec section 7.7) instead of
+calling the setters. The document is a versioned contract of its own,
+`agent-hooks-declaration/1.0`, separate from the wire version. The
+module exports `agenthooks.DeclarationVersion` and
+`agenthooks.SupportedDeclarationVersions`; `DeclarationVersions()`
+reads the same values from the Rust core.
+
+The host registers in code what a document may reference: its surface,
+kind resolvers (one Go func per binding kind), custom identity
+providers, approval resolvers and redactors. A document that names
+anything the registry does not hold is refused at load, before any
+emission.
+
+```go
+surface := agenthooks.DefaultHostSurface().
+	WithPoints(agenthooks.PreToolCall, agenthooks.PostToolCall).
+	WithCapabilities("tool_calls")
+
+reg := agenthooks.NewHostRegistry(surface)
+if err := reg.Kind("com.example.egress", func(config json.RawMessage, ctx agenthooks.BindingContext) (agenthooks.Interceptor, error) {
+	return newEgress(config) // validates its own config; never echoes it in errors
+}); err != nil {
+	return err
+}
+if err := reg.ApprovalResolver("operator-queue", queue); err != nil {
+	return err
+}
+
+// Three construction paths, one loader, the same records:
+e, err := agenthooks.NewInterceptionEmitterFromDeclarationPath("agent-hooks.declaration.json", reg)
+e, err = agenthooks.NewInterceptionEmitterFromDeclarationJSON(text, reg)
+e, err = agenthooks.NewInterceptionEmitterFromDeclaration(
+	agenthooks.NewDeclarationBuilder().
+		Composition(agenthooks.StrictestComposition("")).
+		ApprovalResolver("operator-queue").
+		Bind("egress", "com.example.egress", map[string]any{"allow_hosts": []string{"internal.example"}},
+			agenthooks.BindAt(agenthooks.PreToolCall, agenthooks.Output)).
+		Build())
+```
+
+A refusal is a `*agenthooks.DeclarationError` with `Class`,
+`Findings` (JSON pointer and detail) and, for an unsupported version,
+`Accepted`; `errors.As` recovers it and `Code()` gives the namespaced
+class (`declaration_error:unknown_field`). Steps 2 to 10 of the load
+pipeline run in the Rust core, so Go reports the same class for a
+document as every other SDK. A document a kind resolver refuses is
+`declaration_error:binding_rejected`.
+
+An emitter built from a declaration is sealed: the setters return
+`agenthooks.ErrEmitterSealed` (or panic where their signature has no
+error), and `Timeout` is read-only. `Declaration()` returns the
+resolved form; its `CanonicalJSON()` is the same string for the path,
+JSON and code paths. Every record such an emitter writes carries
+`declaration: "agent-hooks-declaration/1.0"`; records from an emitter
+configured in code carry no such member. Bindings run per point:
+`RegisterAt` offers the same per-point binding in code, and
+`interceptors_registered`, `verdicts[].index` and `decided_by` count
+the interceptors bound at the emitted point.
+
 ## Native library deployment
 
 The Go SDK links `libagent_hooks_ffi` via cgo. Build-time and run-time
