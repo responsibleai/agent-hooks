@@ -882,13 +882,14 @@ A loader:
 
 Across a major, the specification revision that introduces the new
 major ships a migration step for each supported older major, in every
-SDK and as written steps in `spec/DECLARATION-VERSIONS.md`. A loader
+SDK that implements the loader and as written steps in
+`spec/DECLARATION-VERSIONS.md`. A loader
 MAY accept more than one major during a deprecation window of at least
 two SDK minor releases; its accepted set says which. A host MUST re-run
 the CTK after migrating a document.
 
-Every SDK exports the current version and the accepted set next to its
-`SPEC_VERSION` (`DECLARATION_VERSION` and
+An SDK that implements the loader exports the current version and the
+accepted set next to its `SPEC_VERSION` (`DECLARATION_VERSION` and
 `SUPPORTED_DECLARATION_VERSIONS` in the Rust core).
 `spec/DECLARATION-VERSIONS.md` maps each contract version to its schema
 file and each SDK release to the versions it accepts.
@@ -914,7 +915,14 @@ order carries no meaning are sets; `bindings` is an ordered list.
 `host.name` follows the `agent.framework` grammar (§4.1). `extensions`
 is kept verbatim and never read by the loader, which checks the key
 grammar only and does not check namespaces; the reserved namespaces of
-§4.6 bind the writer of the document, not the loader. Integer members
+§4.6 bind the writer of the document, not the loader. This differs
+from binding kinds on purpose. A kind is a key the loader resolves, so
+a reserved segment would let a host kind shadow a kind this
+specification or the conformance kit defines later, and the registry
+refuses it (§7.7.5). An extension value is never read or resolved by
+the loader, only carried, and a later revision of this specification
+MAY define content under its own namespaces; a loader that refused
+those keys today would refuse such documents. Integer members
 are written as JSON integers without a fraction or an exponent
 (`5000`, not `5000.0` or `5e3`); the loader refuses the other forms as
 `invalid_field` even where a schema validator accepts them.
@@ -1100,8 +1108,8 @@ accepted set. A document with several problems at one step reports
 them all under that step's class. Findings name pointers, members,
 kinds and ids; they MUST NOT echo `config`, because load errors are
 logged and `config` may hold secrets. Refusal MUST happen before any
-emitter exists and MUST leave no record. Nothing MUST be narrowed,
-defaulted past the code's capability, or partially applied.
+emitter exists and MUST leave no record. A loader MUST NOT narrow a
+document, default it past the code's capability, or apply it in part.
 
 Duplicate keys are refused on text input (steps 1 and 2) so a schema
 validator in a settings pipeline and the loader cannot disagree on
