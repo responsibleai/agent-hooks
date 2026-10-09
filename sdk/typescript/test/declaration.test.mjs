@@ -341,6 +341,62 @@ test("a declaration-built emitter is sealed", () => {
   assert.deepEqual(em.takeRecords(), []);
 });
 
+test("writing through emitter.declaration changes nothing", async () => {
+  const doc = {
+    declaration: V,
+    bindings: [
+      { id: "a", kind: "com.example.deny" },
+      { id: "b", kind: "com.example.allow" },
+    ],
+  };
+  const em = InterceptionEmitter.fromDeclarationValue(doc, registry());
+  const decl = em.declaration;
+  assert.ok(Object.isFrozen(decl));
+  assert.ok(Object.isFrozen(decl.configuration.composition));
+  assert.ok(Object.isFrozen(decl.bindings[0].at));
+  assert.ok(Object.isFrozen(decl.surface.interception_points));
+  // Frozen objects swallow writes in sloppy mode and throw in strict
+  // mode; either way the value must not move.
+  assert.throws(() => {
+    decl.configuration.composition.profile = "sequential/run_all";
+  }, TypeError);
+  assert.throws(() => {
+    decl.bindings[0].at.push("agent_startup");
+  }, TypeError);
+  assert.equal(decl.configuration.composition.profile, "sequential/first_deny");
+  const before = canonicalDeclaration(decl);
+  const r = await em.emitUnchecked(ctx());
+  assert.equal(r.composition.profile, "sequential/first_deny");
+  assert.equal(r.verdicts.length, 1);
+  assert.equal(r.fold_truncated, true);
+  assert.equal(canonicalDeclaration(em.declaration), before);
+});
+
+test("a kind resolver cannot widen its binding through the context", async () => {
+  let seen;
+  const reg = registry((r) =>
+    r.kind("com.example.widen", (_config, context) => {
+      seen = context.at;
+      assert.ok(Object.isFrozen(context.at));
+      assert.throws(() => context.at.push("agent_startup"), TypeError);
+      return allow;
+    }),
+  );
+  const doc = {
+    declaration: V,
+    bindings: [{ id: "narrow", kind: "com.example.widen", at: ["pre_tool_call"] }],
+  };
+  const em = InterceptionEmitter.fromDeclarationValue(doc, reg);
+  assert.deepEqual([...seen], ["pre_tool_call"]);
+  assert.deepEqual(em.declaration.bindings[0].at, ["pre_tool_call"]);
+  const s = await em.emitUnchecked(startup(0));
+  assert.equal(s.interceptors_registered, 0);
+  assert.equal(s.verdict.reason, "host_error:no_interceptor");
+  const t = await em.emitUnchecked(ctx("pre_tool_call", 1));
+  assert.equal(t.interceptors_registered, 1);
+  assert.equal(t.verdict.decision, "allow");
+});
+
 // ---- refusal classes -----------------------------------------------------------------
 
 test("version_unsupported: reserved major, missing, higher minor, non-string", () => {

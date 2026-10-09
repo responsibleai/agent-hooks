@@ -91,6 +91,15 @@ class InterceptTimeout extends Error {
 
 /** Thrown when a setter or `register` is called on an emitter built
  * from a host declaration (§7.7.7): the declaration must stay what ran. */
+/** Recursively freeze a JSON-shaped value in place and return it. */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const v of Object.values(value as Record<string, unknown>)) deepFreeze(v);
+  }
+  return value;
+}
+
 export class EmitterSealed extends Error {
   constructor(what: string) {
     super(
@@ -301,8 +310,9 @@ export class InterceptionEmitter {
 
   /** The resolved declaration this emitter runs under, when it was
    * built from one (§7.7.7). Its canonical JSON is the equivalence
-   * oracle for the construction paths. `null` for an emitter
-   * configured in code. */
+   * oracle for the construction paths. The value is frozen all the
+   * way down: writing through it has no effect on dispatch or records.
+   * `null` for an emitter configured in code. */
   get declaration(): ResolvedDeclaration | null {
     return this._declaration;
   }
@@ -370,10 +380,15 @@ export class InterceptionEmitter {
           `kind ${JSON.stringify(b.kind)} vanished from the registry`,
         );
       }
+      // The dispatch set is fixed before the resolver runs and the
+      // context carries a frozen copy, so a resolver cannot widen its
+      // own binding (the Rust core hands out `&BTreeSet` for the same
+      // reason).
+      const at = new Set(b.at);
       const context: BindingContext = {
         id: b.id,
         kind: b.kind,
-        at: b.at,
+        at: Object.freeze([...b.at]),
         timeoutMs: b.timeout_ms,
         host: resolved.host ?? null,
         declarationVersion: resolved.declaration,
@@ -406,19 +421,22 @@ export class InterceptionEmitter {
       bound.push({
         interceptor,
         name: b.id,
-        at: new Set(b.at),
+        at,
         timeoutMs: b.timeout_ms,
       });
     });
 
     const em = new InterceptionEmitter(cfg.mode, resolver, cfg.timeouts.interceptor_ms);
     em.resolverTimeoutMs = cfg.timeouts.approval_resolver_ms;
-    em.composition = cfg.composition;
+    // The emitter owns its own copy of the composition and the
+    // declaration it exposes is frozen all the way down, so the seal
+    // cannot be bypassed by writing through `emitter.declaration`.
+    em.composition = { ...cfg.composition };
     em.identity = identity;
     em.approvalRedactor = approvalRedactor;
     em.maxRecords = cfg.records.max_buffered;
     em.interceptors.push(...bound);
-    em._declaration = resolved;
+    em._declaration = deepFreeze(resolved);
     em.sealed = true;
     return em;
   }
