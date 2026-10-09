@@ -256,7 +256,8 @@ document with an explicit surface and route the 51 field-based vectors
 through the loader too: each writes the vector's mode, composition and
 provider into a copy of its document and binds the scripted
 interceptors by index through a `ctk.instance` kind. Their skip
-manifests do not change. The Python, .NET and Go reference harnesses
+manifests return to the seven pre-existing entries. The Python, .NET
+and Go reference harnesses
 keep their field-based construction and list `AH-CTK-120` to
 `AH-CTK-139` in their skip manifests until their SDKs gain the loader;
 those entries go when the loader lands.
@@ -321,7 +322,10 @@ is pinned by per-SDK unit tests instead:
   wording of a finding on a filled member, and sealing. Vectors carry
   a document as a value and every
   conformant host has the full default surface, so these are core and
-  per-SDK unit tests (`sdk/rust/core/tests/declaration.rs`). The
-  golden file `conformance/golden/declaration.json` pins the resolved
-  canonical form of five documents byte for byte in the Rust core;
-  each other SDK asserts it when it gains the loader.
+  per-SDK unit tests (`sdk/rust/core/tests/declaration.rs`,
+  `sdk/typescript/test/declaration.test.mjs`). The golden file
+  `conformance/golden/declaration.json` pins the resolved canonical
+  form of five documents byte for byte in the Rust core and the
+  TypeScript SDK (`sdk/rust/core/tests/declaration.rs`,
+  `sdk/typescript/test/golden_declaration.test.mjs`); Python, .NET
+  and Go assert it when they gain the loader.
