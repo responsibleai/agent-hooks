@@ -24,6 +24,7 @@ import {
   HostRegistryError,
   HostSurface,
   InterceptionEmitter,
+  MAX_DETAIL_LEN,
   MAX_DOCUMENT_BYTES,
   SUPPORTED_DECLARATION_VERSIONS,
   canonicalDeclaration,
@@ -576,6 +577,54 @@ test("reference_unresolved, kind_unknown, binding_rejected", () => {
     "/bindings/0",
   );
   assert.match(e2.message, /did not return an interceptor/);
+  // An async resolver is refused the same way, and the message says why.
+  const asyncReg = registry((r) => r.kind("com.example.async", async () => allow));
+  const e3 = refused(
+    () =>
+      InterceptionEmitter.fromDeclarationValue(
+        { declaration: V, bindings: [{ id: "p", kind: "com.example.async" }] },
+        asyncReg,
+      ),
+    DeclarationErrorClass.BindingRejected,
+    "/bindings/0",
+  );
+  assert.match(e3.message, /returned a Promise; kind resolvers are synchronous/);
+});
+
+test("a resolver message is bounded in the findings and in the message alike", () => {
+  const long = "x".repeat(5000);
+  const loud = registry((r) =>
+    r.kind("com.example.loud", () => {
+      throw new Error(long);
+    }),
+  );
+  const e = refused(
+    () =>
+      InterceptionEmitter.fromDeclarationValue(
+        { declaration: V, bindings: [{ id: "l", kind: "com.example.loud" }] },
+        loud,
+      ),
+    DeclarationErrorClass.BindingRejected,
+    "/bindings/0",
+  );
+  assert.equal(Array.from(e.findings[0].detail).length, MAX_DETAIL_LEN);
+  assert.doesNotMatch(e.message, /x{513}/);
+  assert.ok(e.message.length < 700, `message is ${e.message.length} characters`);
+  // The same bound holds when findings arrive directly.
+  const direct = new DeclarationError(DeclarationErrorClass.BindingRejected, [
+    { pointer: "/bindings/0", detail: long },
+  ]);
+  assert.doesNotMatch(direct.message, /x{513}/);
+  assert.equal(Array.from(direct.findings[0].detail).length, MAX_DETAIL_LEN);
+});
+
+test("register(at) refuses an unknown point name at call time", () => {
+  const em = new InterceptionEmitter();
+  assert.throws(
+    () => em.register(allow, "x", ["pre_tool_cal"]),
+    (err) => err instanceof RangeError && /unknown interception point "pre_tool_cal"/.test(err.message),
+  );
+  em.register(allow, "y", ["pre_tool_call"]);
 });
 
 test("malformed: not JSON, root not an object, duplicate keys, depth, non-finite value", () => {

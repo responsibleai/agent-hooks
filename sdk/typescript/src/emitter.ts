@@ -393,10 +393,14 @@ export class InterceptionEmitter {
         );
       }
       if (!isInterceptor(interceptor)) {
+        const why =
+          interceptor instanceof Promise
+            ? "resolver returned a Promise; kind resolvers are synchronous"
+            : "resolver did not return an interceptor";
         throw DeclarationError.single(
           DeclarationErrorClass.BindingRejected,
           pointer,
-          `binding ${JSON.stringify(b.id)} (kind ${JSON.stringify(b.kind)}) rejected: resolver did not return an interceptor`,
+          `binding ${JSON.stringify(b.id)} (kind ${JSON.stringify(b.kind)}) rejected: ${why}`,
         );
       }
       bound.push({
@@ -455,10 +459,25 @@ export class InterceptionEmitter {
    * {@link EmitterSealed} on a declaration-built emitter. */
   register(interceptor: Interceptor, name?: string, at?: Iterable<InterceptionPoint>): this {
     this.unsealed("register");
+    let points: Set<InterceptionPoint> | null = null;
+    if (at !== undefined) {
+      // The compile-time type does not protect plain-JS callers: a
+      // misspelled point must not bind nowhere without a word.
+      points = new Set();
+      const known: readonly string[] = Object.values(InterceptionPoint);
+      for (const p of at) {
+        if (!known.includes(p)) {
+          throw new RangeError(
+            `unknown interception point ${JSON.stringify(p)}: the point set is closed (§3)`,
+          );
+        }
+        points.add(p);
+      }
+    }
     this.interceptors.push({
       interceptor,
       name: name ?? null,
-      at: at === undefined ? null : new Set(at),
+      at: points,
       timeoutMs: undefined,
     });
     return this;
