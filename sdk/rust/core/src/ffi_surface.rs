@@ -391,6 +391,20 @@ pub fn declaration_resolve(document_json: &str, host_json: &str) -> Result<Strin
             format!("host description does not parse: {e}"),
         )
     })?;
+    // A surface that parses but breaks the §3.2 floor, the pairs or a
+    // closed vocabulary is the same kind of defect: the wrapper, not the
+    // document, is wrong, so it does not come back as a refusal either.
+    host.surface.validate().map_err(|e| {
+        let detail: Vec<String> = e
+            .findings
+            .iter()
+            .map(|f| format!("{} {}", f.pointer, f.detail))
+            .collect();
+        (
+            "marshal_error".to_owned(),
+            format!("host description surface is invalid: {}", detail.join("; ")),
+        )
+    })?;
     let document = decl::HostDeclaration::from_json(document_json).map_err(as_ffi)?;
     let resolved = decl::resolve(&document, &host.surface, &host.names()).map_err(as_ffi)?;
     Ok(serde_json::to_string(&resolved).expect("resolved declaration serializes"))

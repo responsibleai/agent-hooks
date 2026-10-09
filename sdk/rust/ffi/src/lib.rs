@@ -12,8 +12,8 @@
 //! `{"findings": [{"pointer", "detail"}], "accepted": [...]}`), or
 //! one of two boundary codes: `marshal_error` (an argument
 //! was not valid UTF-8, the `host_json` description a wrapper passes
-//! to `ah_declaration_resolve` did not parse, or a result could not
-//! cross the boundary) and
+//! to `ah_declaration_resolve` did not parse or carried an invalid
+//! surface, or a result could not cross the boundary) and
 //! `panic` (a defect in the core; the process is NOT aborted — every
 //! entry point is wrapped in `catch_unwind`, because since Rust 1.81 a
 //! panic unwinding through an `extern "C"` boundary aborts the host
@@ -530,6 +530,16 @@ mod tests {
             assert_eq!(ok, 0);
             assert_eq!(code, "marshal_error");
             assert!(detail.contains("foo"), "{detail}");
+
+            // So is a surface that parses but breaks the section 3.2
+            // floor: the wrapper described its code wrongly, and the
+            // document is not refused for it.
+            let no_floor = HOST.replace("\"agent_shutdown\"", "\"pre_tool_call\"");
+            let (ok, detail, code) = call2(ah_declaration_resolve, doc, &no_floor);
+            assert_eq!(ok, 0);
+            assert_eq!(code, "marshal_error");
+            assert!(detail.contains("host description surface"), "{detail}");
+            assert!(detail.contains("agent_shutdown"), "{detail}");
 
             // A valid host description with an empty document is a
             // refusal of the document: malformed.
