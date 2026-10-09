@@ -33,6 +33,24 @@ fn declaration_error_classes_match_registry() {
         emitted, registered,
         "core DeclarationErrorClass codes and spec/declaration-errors.json diverged"
     );
+    // `conformance/vectors.schema.json` repeats the codes by hand in
+    // `expect.load.class`; a class added to one file must reach the
+    // other.
+    let schema: serde_json::Value =
+        serde_json::from_str(include_str!("../../../../conformance/vectors.schema.json"))
+            .expect("conformance/vectors.schema.json parses");
+    let schema_classes: Vec<String> = schema["$defs"]["expect"]["properties"]["load"]["properties"]
+        ["class"]["enum"]
+        .as_array()
+        .expect("expect.load.class enum")
+        .iter()
+        .map(|v| v.as_str().expect("class string").to_owned())
+        .collect();
+    let codes: Vec<String> = emitted.iter().map(|(c, _)| c.clone()).collect();
+    assert_eq!(
+        schema_classes, codes,
+        "conformance/vectors.schema.json expect.load.class enum and DeclarationErrorClass diverged"
+    );
     // Every class is distinct from the §11 reason namespace.
     for c in DeclarationErrorClass::ALL {
         assert!(c.code().starts_with("declaration_error:"));
