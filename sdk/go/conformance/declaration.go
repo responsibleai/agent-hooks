@@ -14,10 +14,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
+	"sync"
 
 	"github.com/responsibleai/agent-hooks/sdk/go/agenthooks"
 )
@@ -147,6 +146,28 @@ func redactPaths(actx agenthooks.AgentContext, paths []string) agenthooks.AgentC
 	return current
 }
 
+// writeTempDocument writes text to a fresh file under os.TempDir()
+// with an unpredictable name (O_EXCL, mode 0600), through the returned
+// handle, so a planted symlink in a shared temporary directory is
+// neither followed nor overwritten.
+func writeTempDocument(tag, text string) (string, error) {
+	f, err := os.CreateTemp("", "agent-hooks-ctk-"+tag+"-*.json")
+	if err != nil {
+		return "", err
+	}
+	path := f.Name()
+	if _, err := f.WriteString(text); err != nil {
+		_ = f.Close()
+		_ = os.Remove(path)
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(path)
+		return "", err
+	}
+	return path, nil
+}
+
 // provePaths resolves doc through the four construction paths of
 // §7.7.7 (value, JSON text, a temporary file, the builder) and
 // compares: equal canonical forms, or equal refusal classes, prove the
@@ -183,14 +204,13 @@ func provePaths(doc map[string]any, reg *agenthooks.HostRegistry, tag string) (b
 	d, err = agenthooks.ParseDeclaration([]byte(text))
 	outcomes = append(outcomes, resolve("json", d, err))
 
-	path := filepath.Join(os.TempDir(), fmt.Sprintf("agent-hooks-ctk-%s-%d-%d.json", tag, os.Getpid(), time.Now().UnixNano()))
-	if werr := os.WriteFile(path, []byte(text), 0o600); werr != nil {
+	if path, werr := writeTempDocument(tag, text); werr != nil {
 		outcomes = append(outcomes, outcome{"file", "err:write", "cannot write temporary file: " + werr.Error()})
 	} else {
 		d, err = agenthooks.LoadDeclarationPath(path)
 		outcomes = append(outcomes, resolve("file", d, err))
+		_ = os.Remove(path)
 	}
-	_ = os.Remove(path)
 
 	d, err = builderFromValue(doc).Build()
 	outcomes = append(outcomes, resolve("builder", d, err))
@@ -531,8 +551,17 @@ func typedSurface(b *agenthooks.DeclarationBuilder, sf map[string]any) bool {
 				if err := json.Unmarshal([]byte(mustJSON(knobs)), &support); err != nil {
 					return false
 				}
-				if km, ok := knobs.(map[string]any); !ok || !knobKeysKnown(km) {
+				km, ok := knobs.(map[string]any)
+				if !ok || !knobKeysKnown(km) {
 					return false
+				}
+				// KnobSupport drops an empty set (omitempty), which the
+				// loader would accept as "default only" while the text
+				// path refuses it; such a member goes through Raw.
+				for _, values := range km {
+					if list, ok := values.([]any); ok && len(list) == 0 {
+						return false
+					}
 				}
 				profile := agenthooks.CompositionProfile(name)
 				actions = append(actions, func() { b.SurfaceProfile(profile, support) })
@@ -590,6 +619,12 @@ func typedBindings(b *agenthooks.DeclarationBuilder, items []any) bool {
 			switch k {
 			case "id", "kind":
 			case "config":
+				// Bind omits a nil config; a present `"config": null`
+				// must round-trip as null so the builder path equals
+				// the text path.
+				if v == nil {
+					v = json.RawMessage("null")
+				}
 				bd.config = v
 			case "at":
 				points, ok := pointsOf(v)
@@ -629,6 +664,29 @@ func resolvedSurface(doc map[string]any, surface agenthooks.HostSurface) ([]stri
 	}
 	return append([]string(nil), resolved.Surface.Capabilities...),
 		string(resolved.Configuration.Posture.ToolSeamHostError), nil
+}
+
+// harnessSurfaceCache memoises resolvedSurface by document and code
+// surface, so a harness's own declaration goes through the core once
+// per run rather than once per vector (§7.7.9). The key is the JSON
+// text of both inputs; a changed document or surface misses.
+var harnessSurfaceCache sync.Map // string -> *harnessSurfaceEntry
+
+type harnessSurfaceEntry struct {
+	caps    []string
+	posture string
+	err     error
+}
+
+func cachedResolvedSurface(doc map[string]any, surface agenthooks.HostSurface) ([]string, string, error) {
+	key := mustJSON(doc) + "\x00" + mustJSON(surface)
+	if v, ok := harnessSurfaceCache.Load(key); ok {
+		e := v.(*harnessSurfaceEntry)
+		return append([]string(nil), e.caps...), e.posture, e.err
+	}
+	caps, posture, err := resolvedSurface(doc, surface)
+	harnessSurfaceCache.Store(key, &harnessSurfaceEntry{caps: caps, posture: posture, err: err})
+	return append([]string(nil), caps...), posture, err
 }
 
 // codeSurface is the harness's code surface: its own when it declares

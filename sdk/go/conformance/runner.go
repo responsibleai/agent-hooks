@@ -149,7 +149,7 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 	surface := codeSurface(h, posture)
 	var caps []string
 	if d, ok := h.(DeclarationDeclarer); ok && d.Declaration() != nil {
-		resolvedCaps, resolvedPosture, err := resolvedSurface(d.Declaration(), surface)
+		resolvedCaps, resolvedPosture, err := cachedResolvedSurface(d.Declaration(), surface)
 		if err != nil {
 			return VectorResult{ID: id, Title: title, Status: "fail",
 				Failures: []string{fmt.Sprintf("harness declaration refused: %v", err)}}, nil

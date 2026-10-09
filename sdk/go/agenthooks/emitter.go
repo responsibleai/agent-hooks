@@ -406,14 +406,20 @@ func (e *InterceptionEmitter) RegisterNamed(i Interceptor, name string) *Interce
 }
 
 // RegisterAt appends an interceptor with a payload-free name at the
-// given points only; nil or empty means every point. At point P the
-// interceptors that run are those bound there, in registration order;
-// interceptors_registered, verdicts[].index and decided_by count and
-// index that list (§7.7.8). Returns ErrEmitterSealed on a sealed
-// emitter and an error for a point name outside §3.
+// given points only; a nil slice means every point. An empty non-nil
+// slice is refused rather than read as "everywhere" or "nowhere" (the
+// Rust core binds an empty set nowhere), so the caller states what it
+// meant. At point P the interceptors that run are those bound there,
+// in registration order; interceptors_registered, verdicts[].index and
+// decided_by count and index that list (§7.7.8). Returns
+// ErrEmitterSealed on a sealed emitter and an error for a point name
+// outside §3.
 func (e *InterceptionEmitter) RegisterAt(i Interceptor, name string, at []InterceptionPoint) error {
 	if e.sealed {
 		return fmt.Errorf("RegisterAt: %w", ErrEmitterSealed)
+	}
+	if at != nil && len(at) == 0 {
+		return errors.New("RegisterAt: at is empty; pass nil for every point or name at least one point")
 	}
 	var points []InterceptionPoint
 	for _, p := range at {

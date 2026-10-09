@@ -130,8 +130,10 @@ func (h *ReferenceHarness) Setup(
 	switch {
 	case identityProvider == nil:
 		cfg["identity_provider"] = nil
-	case identityProvider.Compute == nil:
+	case identityProvider.Name == agenthooks.JCSSHA256:
 		cfg["identity_provider"] = agenthooks.JCSSHA256
+	case identityProvider.Compute == nil:
+		return fmt.Errorf("identity provider %q has no Compute function", identityProvider.Name)
 	default:
 		if err := registry.IdentityProvider(identityProvider.Name, identityProvider.Compute); err != nil {
 			return err

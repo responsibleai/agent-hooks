@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"regexp"
 	"sort"
@@ -1314,7 +1315,13 @@ func emitterFromResolved(resolved *ResolvedDeclaration, reg *HostRegistry) (*Int
 		*em.resolverTimeout = time.Duration(*cfg.Timeouts.ApprovalResolverMs) * time.Millisecond
 	}
 	if cfg.Records.MaxBuffered != nil {
-		em.maxRecords = int(*cfg.Records.MaxBuffered)
+		// A stated bound must never become no bound: int(uint64) wraps
+		// above math.MaxInt, and the emitter treats a value below 1 as
+		// unbounded, so clamp instead.
+		em.maxRecords = math.MaxInt
+		if *cfg.Records.MaxBuffered < uint64(math.MaxInt) {
+			em.maxRecords = int(*cfg.Records.MaxBuffered)
+		}
 	}
 	return em, nil
 }

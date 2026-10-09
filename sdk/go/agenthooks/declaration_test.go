@@ -787,3 +787,43 @@ func TestGoldenDeclarationsResolveByteForByte(t *testing.T) {
 		})
 	}
 }
+
+func TestRegisterAtRefusesAnEmptyPointList(t *testing.T) {
+	em := NewInterceptionEmitter(Enforce, nil)
+	if err := em.RegisterAt(scripted{AllowVerdict}, "", []InterceptionPoint{}); err == nil {
+		t.Fatal("an empty non-nil at must be refused")
+	}
+	if err := em.RegisterAt(scripted{AllowVerdict}, "", nil); err != nil {
+		t.Fatalf("nil means every point: %v", err)
+	}
+	if rec := emit(t, em, fixedCtx(Input, 0)); rec.InterceptorsRegistered != 1 {
+		t.Errorf("record = %+v", rec)
+	}
+}
+
+// TestMaxBufferedAboveMaxIntStaysABound: int(uint64) wraps negative
+// above math.MaxInt, which the emitter would read as unbounded.
+func TestMaxBufferedAboveMaxIntStaysABound(t *testing.T) {
+	reg := testRegistry(t)
+	doc := map[string]any{
+		"declaration":   DeclarationVersion,
+		"configuration": map[string]any{"records": map[string]any{"max_buffered": json.Number("18446744073709551615")}},
+		"bindings": []any{
+			map[string]any{"id": "a", "kind": "com.example.scripted", "config": map[string]any{"decision": "allow"}},
+		},
+	}
+	em, err := NewInterceptionEmitterFromDeclarationValue(doc, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if em.maxRecords != math.MaxInt {
+		t.Fatalf("maxRecords = %d, want math.MaxInt", em.maxRecords)
+	}
+	doc["configuration"] = map[string]any{"records": map[string]any{"max_buffered": json.Number("2")}}
+	if em, err = NewInterceptionEmitterFromDeclarationValue(doc, reg); err != nil {
+		t.Fatal(err)
+	}
+	if em.maxRecords != 2 {
+		t.Fatalf("maxRecords = %d, want 2", em.maxRecords)
+	}
+}
