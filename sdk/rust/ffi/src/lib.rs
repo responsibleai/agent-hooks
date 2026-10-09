@@ -11,7 +11,9 @@
 //! declaration functions (the detail is then JSON:
 //! `{"findings": [{"pointer", "detail"}], "accepted": [...]}`), or
 //! one of two boundary codes: `marshal_error` (an argument
-//! was not valid UTF-8, or a result could not cross the boundary) and
+//! was not valid UTF-8, the `host_json` description a wrapper passes
+//! to `ah_declaration_resolve` did not parse, or a result could not
+//! cross the boundary) and
 //! `panic` (a defect in the core; the process is NOT aborted — every
 //! entry point is wrapped in `catch_unwind`, because since Rust 1.81 a
 //! panic unwinding through an `extern "C"` boundary aborts the host
@@ -498,12 +500,29 @@ mod tests {
             assert_eq!(code, "declaration_error:kind_unknown");
             assert!(detail.contains("/bindings/0/kind"), "{detail}");
 
-            // A null document is the empty string: malformed, not a crash.
+            // Null pointers are empty strings. An empty host description
+            // is a wrapper defect, reported as `marshal_error`, not as a
+            // refusal of the document.
             let r = ah_declaration_resolve(std::ptr::null(), std::ptr::null());
             assert_eq!((*r).ok, 0);
             assert_eq!(
                 CStr::from_ptr((*r).error_code).to_str().unwrap(),
-                "declaration_error:surface_unsupported"
+                "marshal_error"
+            );
+            assert!(CStr::from_ptr((*r).value)
+                .to_str()
+                .unwrap()
+                .contains("host description"));
+            ah_free_result(r);
+
+            // A valid host description with an empty document is a
+            // refusal of the document: malformed.
+            let host = CString::new(HOST).unwrap();
+            let r = ah_declaration_resolve(std::ptr::null(), host.as_ptr());
+            assert_eq!((*r).ok, 0);
+            assert_eq!(
+                CStr::from_ptr((*r).error_code).to_str().unwrap(),
+                "declaration_error:malformed"
             );
             ah_free_result(r);
         }

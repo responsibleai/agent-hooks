@@ -379,14 +379,17 @@ pub fn declaration_versions() -> String {
 /// resolved form. Errors carry a `declaration_error:*` code and the
 /// findings as JSON detail.
 pub fn declaration_resolve(document_json: &str, host_json: &str) -> Result<String, FfiError> {
-    use crate::declaration::{self as decl, DeclarationError, DeclarationErrorClass};
+    use crate::declaration::{self as decl, DeclarationError};
     let as_ffi = |e: DeclarationError| (e.code().to_owned(), e.detail_json());
+    // `host_json` is the wrapper's own description of its code, not the
+    // document under test. One that does not parse is a wrapper defect
+    // and crosses the boundary as `marshal_error`, never as a
+    // `declaration_error:*` refusal of the document.
     let host: decl::HostDescription = serde_json::from_str(host_json).map_err(|e| {
-        as_ffi(DeclarationError::new(
-            DeclarationErrorClass::SurfaceUnsupported,
-            "",
+        (
+            "marshal_error".to_owned(),
             format!("host description does not parse: {e}"),
-        ))
+        )
     })?;
     let document = decl::HostDeclaration::from_json(document_json).map_err(as_ffi)?;
     let resolved = decl::resolve(&document, &host.surface, &host.names).map_err(as_ffi)?;
