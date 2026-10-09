@@ -65,22 +65,12 @@ public static class Runner
         string posture;
         if (harness.Declaration is { } own)
         {
-            ResolvedDeclaration resolved;
-            try
-            {
-                // The core also checks the references the document names
-                // against the registry; a harness's own document states
-                // its surface and configuration and binds nothing, so an
-                // empty registry is the right one here.
-                resolved = HostDeclaration.FromNode(own).Resolve(new HostRegistry(codeSurface));
-            }
-            catch (DeclarationException e)
-            {
+            var assessed = AssessOwnDeclaration(own, codeSurface);
+            if (assessed.Refused is { } refused)
                 return new VectorResult(id, title, "fail", "",
-                    [$"harness declaration refused: {e.Message}"]);
-            }
-            capabilities = resolved.SurfaceCapabilities;
-            posture = resolved.ToolSeamHostError.ToWireName();
+                    [$"harness declaration refused: {refused}"]);
+            capabilities = assessed.Capabilities;
+            posture = assessed.Posture;
         }
         else
         {
@@ -191,6 +181,46 @@ public static class Runner
             (string)result["status"]!,
             (string?)result["detail"] ?? "",
             (result["failures"] as JsonArray)?.Select(n => (string)n!).ToList() ?? []);
+    }
+
+    /// <summary>What a harness's own declaration resolves to: the
+    /// capabilities and posture a run is assessed against, or the
+    /// refusal that fails the run.</summary>
+    private sealed record AssessedSurface(
+        IReadOnlyList<string> Capabilities, string Posture, string? Refused);
+
+    /// <summary>Resolutions of harness declarations, keyed on the
+    /// document text and the code surface. The pair fixes the result,
+    /// so one entry serves every vector of a run and every harness
+    /// instance that ships the same document: §7.7.9 resolves the
+    /// document once, before any vector runs, not once per vector.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, AssessedSurface>
+        OwnDeclarations = new(StringComparer.Ordinal);
+
+    /// <summary>Resolve a harness's own document against its code
+    /// surface (steps 2 to 8 of §7.7.6). The references and kinds it
+    /// names are the host's to register per run, so they are not
+    /// checked here; the CTK registry a vector builds is checked when
+    /// that vector's document is loaded.</summary>
+    private static AssessedSurface AssessOwnDeclaration(JsonObject own, HostSurface codeSurface)
+    {
+        var text = own.ToJsonString(Compact);
+        var key = text + "\n" + codeSurface.ToWire().ToJsonString(Compact);
+        return OwnDeclarations.GetOrAdd(key, _ =>
+        {
+            try
+            {
+                var resolved = HostDeclaration.FromJson(text).ResolveSurfaceOnly(codeSurface);
+                return new AssessedSurface(
+                    resolved.SurfaceCapabilities.Order(StringComparer.Ordinal).ToList(),
+                    resolved.ToolSeamHostError.ToWireName(),
+                    null);
+            }
+            catch (DeclarationException e)
+            {
+                return new AssessedSurface([], "", e.Message);
+            }
+        });
     }
 
     /// <summary>Resolve <paramref name="document"/> through the four

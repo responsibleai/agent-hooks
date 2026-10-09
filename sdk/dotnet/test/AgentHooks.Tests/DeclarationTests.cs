@@ -804,11 +804,78 @@ public sealed class DeclarationTests
     {
         var harness = new ReferenceHarness();
         Assert.Contains(Capability.HostDeclaration, harness.Capabilities);
-        var resolved = HostDeclaration.FromNode(harness.Declaration).Resolve(new HostRegistry(harness.HostSurface));
+        var resolved = HostDeclaration.FromNode(harness.Declaration).ResolveSurfaceOnly(harness.HostSurface);
         Assert.Equal(
             harness.Capabilities.Select(c => c.ToWireName()).Order(StringComparer.Ordinal),
             resolved.SurfaceCapabilities.Order(StringComparer.Ordinal));
         Assert.Equal(AllPoints.Length, resolved.SurfaceInterceptionPoints.Count);
         Assert.Empty(resolved.Bindings);
+    }
+
+    /// <summary>§7.7.9: the runner resolves a harness's own document
+    /// against the code surface only (steps 2 to 8). A vendor document
+    /// that names a custom identity provider and carries a binding
+    /// resolves there, while the production path over an empty registry
+    /// refuses the same document, as it must.</summary>
+    [Fact]
+    public async Task HarnessDeclarationWithReferencesResolvesSurfaceOnly()
+    {
+        var harness = new ReferenceHarness();
+        var document = (JsonObject)harness.Declaration!.DeepClone();
+        ((JsonObject)document["configuration"]!)["identity_provider"] = "hmac-sha256-k1";
+        document["bindings"] = new JsonArray(new JsonObject
+        {
+            ["id"] = "x",
+            ["kind"] = "com.example.x",
+            ["config"] = new JsonObject { ["key"] = "k1" },
+        });
+
+        var resolved = HostDeclaration.FromNode(document).ResolveSurfaceOnly(harness.HostSurface);
+        Assert.Equal("hmac-sha256-k1", resolved.IdentityProvider);
+        Assert.Single(resolved.Bindings);
+        Assert.Equal("com.example.x", resolved.Bindings[0].Kind);
+        Assert.Equal(
+            harness.Capabilities.Select(c => c.ToWireName()).Order(StringComparer.Ordinal),
+            resolved.SurfaceCapabilities.Order(StringComparer.Ordinal));
+
+        var e = Assert.Throws<DeclarationException>(
+            () => HostDeclaration.FromNode(document).Resolve(new HostRegistry(harness.HostSurface)));
+        Assert.Equal(DeclarationErrorClass.ReferenceUnresolved, e.Class);
+        Assert.Contains(e.Findings, f => f.Pointer == "/configuration/identity_provider");
+
+        // The runner path: a harness shipping that document is assessed,
+        // not failed, and the vector runs on its declared surface.
+        var vector = Runner.LoadVectors(Path.Combine(RepoRoot(), "conformance", "vectors"))
+            .First(v => (string)v["id"]! == "AH-CTK-120");
+        var result = await Runner.RunVectorAsync(new WithDeclaration(harness, document), vector);
+        Assert.True(result.Status == "pass", $"{result.Status}: {string.Join("; ", result.Failures)}");
+
+        // Steps 2 to 8 still run: a document past the code surface is
+        // refused with the same class the production path reports.
+        var past = (JsonObject)document.DeepClone();
+        ((JsonObject)past["surface"]!)["capabilities"] = new JsonArray(
+            "host_declaration", "model_calls", "tool_calls", "streaming");
+        var refused = Assert.Throws<DeclarationException>(
+            () => HostDeclaration.FromNode(past).ResolveSurfaceOnly(harness.HostSurface));
+        Assert.Equal(DeclarationErrorClass.SurfaceUnsupported, refused.Class);
+    }
+
+    /// <summary>The reference harness with a different own document.</summary>
+    private sealed class WithDeclaration(IHarness inner, JsonObject declaration) : IHarness
+    {
+        public string Name => inner.Name;
+        public IReadOnlySet<Capability> Capabilities => inner.Capabilities;
+        public string ToolSeamHostError => inner.ToolSeamHostError;
+        public HostSurface HostSurface => inner.HostSurface;
+        public JsonObject? Declaration => declaration;
+        public void Setup(
+            Scenario scenario, IReadOnlyList<IInterceptor> interceptors, IApprovalResolver? resolver,
+            EnforcementMode mode, CompositionConfig composition, string? identityProvider,
+            IReadOnlyList<string>? redactForApproval = null) =>
+            inner.Setup(scenario, interceptors, resolver, mode, composition, identityProvider, redactForApproval);
+        public void SetupDeclared(Scenario scenario, JsonObject document, HostRegistry registry) =>
+            inner.SetupDeclared(scenario, document, registry);
+        public Task<RunRecord> RunAsync(CancellationToken ct = default) => inner.RunAsync(ct);
+        public void Teardown() => inner.Teardown();
     }
 }

@@ -737,9 +737,33 @@ public sealed class HostDeclaration
         ArgumentNullException.ThrowIfNull(registry);
         try
         {
-            var json = Native.DeclarationResolve(Text, registry.ToHostWire().ToJsonString());
+            var json = Native.DeclarationResolve(Text, host.ToJsonString());
             return new ResolvedDeclaration(json);
         }
+        return Resolve(registry.ToHostWire());
+    }
+
+    /// <summary>Steps 2 to 8 only: validate the document and resolve it
+    /// against <paramref name="surface"/> without a registry. The CTK
+    /// runner uses this on a harness's own document (§7.7.9), which is
+    /// resolved against the host's code surface, not against the kinds
+    /// and names a given run registers. The name sets handed to the
+    /// core are derived from the document itself (its custom identity
+    /// provider, approval resolver, redactor and binding kinds), so
+    /// steps 9 and 10 cannot fire and steps 2 to 8 run exactly as in
+    /// <see cref="Resolve(HostRegistry)"/>. Never a production path: a
+    /// resolved document from here has not been checked against any
+    /// registry.</summary>
+    internal ResolvedDeclaration ResolveSurfaceOnly(HostSurface surface)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        var host = new JsonObject { ["surface"] = surface.ToWire() };
+        AddNamesTheDocumentUses(host);
+        return Resolve(host);
+    }
+
+    private ResolvedDeclaration Resolve(JsonObject host)
+    {
         catch (AgentHooksCoreException e) when (DeclarationException.FromCore(e) is { } refused)
         {
             throw refused;
@@ -750,6 +774,51 @@ public sealed class HostDeclaration
 /// <summary>One binding with <c>at</c> and <c>timeout_ms</c> filled.</summary>
 public sealed record ResolvedBinding(
     string Id,
+
+    /// <summary>Add to <paramref name="host"/> the registry names this
+    /// document references, read leniently: a document the core will
+    /// refuse at steps 2 to 7 yields whatever names can be read (or
+    /// none), and the core reports the real class.</summary>
+    private void AddNamesTheDocumentUses(JsonObject host)
+    {
+        var providers = new SortedSet<string>(StringComparer.Ordinal);
+        var resolvers = new SortedSet<string>(StringComparer.Ordinal);
+        var redactors = new SortedSet<string>(StringComparer.Ordinal);
+        var kinds = new SortedSet<string>(StringComparer.Ordinal);
+        JsonObject? doc = null;
+        try
+        {
+            doc = JsonNode.Parse(Text) as JsonObject;
+        }
+        catch (JsonException)
+        {
+            // Malformed: the core refuses it before any name is checked.
+        }
+        if (doc?["configuration"] is JsonObject configuration)
+        {
+            if (configuration["identity_provider"] is JsonValue ip
+                && ip.TryGetValue(out string? provider)
+                && provider != Spec.JcsSha256)
+                providers.Add(provider);
+            if (configuration["approval"] is JsonObject approval)
+            {
+                if (approval["resolver"] is JsonValue r && r.TryGetValue(out string? resolver))
+                    resolvers.Add(resolver);
+                if (approval["redactor"] is JsonValue d && d.TryGetValue(out string? redactor))
+                    redactors.Add(redactor);
+            }
+        }
+        if (doc?["bindings"] is JsonArray bindings)
+            foreach (var b in bindings)
+                if (b is JsonObject binding
+                    && binding["kind"] is JsonValue k
+                    && k.TryGetValue(out string? kind))
+                    kinds.Add(kind);
+        host["identity_providers"] = KnobSupport.Sorted(providers);
+        host["approval_resolvers"] = KnobSupport.Sorted(resolvers);
+        host["approval_redactors"] = KnobSupport.Sorted(redactors);
+        host["kinds"] = KnobSupport.Sorted(kinds);
+    }
     string Kind,
     JsonNode? Config,
     IReadOnlySet<InterceptionPoint> At,
