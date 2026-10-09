@@ -322,4 +322,5 @@ is pinned by per-SDK unit tests instead:
   conformant host has the full default surface, so these are core and
   per-SDK unit tests (`sdk/rust/core/tests/declaration.rs`). The
   golden file `conformance/golden/declaration.json` pins the resolved
-  canonical form of five documents byte for byte in every SDK.
+  canonical form of five documents byte for byte in the Rust core;
+  each other SDK asserts it when it gains the loader.
