@@ -290,7 +290,7 @@ type CompositionConfig struct {
 	OnApproval OnApproval `json:"on_approval,omitempty"`
 	// OnDisagreement applies to parallel/unanimous only.
 	OnDisagreement SynthesisPolicy `json:"on_disagreement,omitempty"`
-	// OnTransformConflict applies to parallel profiles only.
+	// OnTransformConflict applies to parallel/strictest only.
 	OnTransformConflict SynthesisPolicy `json:"on_transform_conflict,omitempty"`
 }
 
@@ -413,6 +413,11 @@ type InterceptionRecord struct {
 	DecidedBy *int `json:"decided_by"`
 	// Composition is the profile and knobs in effect (§7.1).
 	Composition CompositionConfig `json:"composition"`
+	// Declaration is the host declaration contract version the emitter
+	// was built from (§7.7.8), e.g. agent-hooks-declaration/1.0.
+	// Present iff the emitter was constructed from a declaration
+	// document; nil for an emitter configured in code.
+	Declaration *string `json:"declaration,omitempty"`
 	// Verdicts is the per-interceptor summary; populated in
 	// multi-verdict profiles (sequential/run_all, parallel/*).
 	Verdicts []VerdictSummary `json:"verdicts,omitempty"`

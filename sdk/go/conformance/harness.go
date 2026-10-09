@@ -32,6 +32,15 @@ const (
 	// BigintJSON: the harness JSON layer preserves integer tokens
 	// beyond u64/i64 (Go: json.Number vector decoding).
 	BigintJSON Capability = "bigint_json"
+	// IncrementalOutput gates the streaming/incremental part (§12.1
+	// exception): the host declares buffered_output: false and states
+	// its exposure bound. A buffering host never declares it.
+	IncrementalOutput Capability = "incremental_output"
+	// HostDeclaration gates the declaration/* parts (§7.7.9): the host
+	// builds its emitter from the host declaration document a vector
+	// carries, through the loader, and surfaces refusal as a load
+	// outcome. A harness declaring it implements DeclaredHarness.
+	HostDeclaration Capability = "host_declaration"
 )
 
 // RunOutcome describes how a harness run ended.
@@ -78,6 +87,22 @@ type RunRecord struct {
 	// Records is the wire-shaped InterceptionRecords (§10.3), one per
 	// emission, in order. Enables expect.records assertions.
 	Records []agenthooks.InterceptionRecord
+	// Load is set by the runner for a vector carrying host_declaration
+	// (§7.7.9); nil otherwise.
+	Load *LoadRecord
+}
+
+// LoadRecord is what loading a vector's host declaration produced
+// (§7.7.9), as the runner records it.
+type LoadRecord struct {
+	// Outcome is "accepted" or "refused".
+	Outcome string `json:"outcome"`
+	// Class is the declaration_error:* code on refusal.
+	Class string `json:"class,omitempty"`
+	// PathsEquivalent: the value, JSON, file and builder paths resolved
+	// the document to one canonical form, or refused with one class.
+	PathsEquivalent *bool  `json:"paths_equivalent,omitempty"`
+	Detail          string `json:"detail,omitempty"`
 }
 
 // Harness is the single interface a framework adapter implements for the CTK.
@@ -120,4 +145,37 @@ type Harness interface {
 // resolve to the single outcome this surface must produce.
 type ToolSeamHostErrorDeclarer interface {
 	ToolSeamHostError() string
+}
+
+// HostSurfaceDeclarer is an optional Harness extension returning the
+// host's code surface (§7.7.4), the value a declaration is resolved
+// against. A Harness that does not implement it gets the surface
+// derived from Capabilities and the posture: the §3.2 floor plus the
+// model points iff model_calls plus the tool points iff tool_calls,
+// every profile with every knob value. A host declaring
+// incremental_output must implement it to add its exposure bound.
+type HostSurfaceDeclarer interface {
+	HostSurface() agenthooks.HostSurface
+}
+
+// DeclarationDeclarer is an optional Harness extension returning the
+// host's own declaration document (§7.7.9). The runner resolves it
+// against the code surface and reads the capabilities and posture a
+// run is assessed against from the resolved form, so what the CTK ran
+// against is what a claim cites. A nil document keeps the
+// code-declared surface.
+type DeclarationDeclarer interface {
+	Declaration() map[string]any
+}
+
+// DeclaredHarness is the extension a Harness declaring the
+// host_declaration capability MUST implement (§7.7.9). SetupDeclared
+// wires one declaration vector: the harness MUST build its emitter
+// from document and registry through the loader
+// (agenthooks.NewInterceptionEmitterFromDeclarationValue) and return
+// the refusal, never fall back to the field-based Setup. The document
+// and the registry carry the interceptors, resolver, composition and
+// identity provider.
+type DeclaredHarness interface {
+	SetupDeclared(scenario Scenario, document map[string]any, registry *agenthooks.HostRegistry) error
 }

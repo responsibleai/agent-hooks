@@ -63,6 +63,19 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `HostSurface`, `Declaration` and `SetupDeclared`, and the reference
   harness builds every emitter through the loader and runs AH-CTK-120
   to AH-CTK-139. Additive.
+- Go SDK: host declaration loader (spec §7.7). `LoadDeclarationPath`,
+  `ParseDeclaration`, `DeclarationFromValue` and `DeclarationBuilder`
+  feed `NewInterceptionEmitterFromDeclaration` and its path, JSON and
+  value forms; `HostRegistry` holds the code surface, kind resolvers
+  (Go funcs), identity providers, approval resolvers and redactors;
+  refusals are `*DeclarationError` with the eleven classes: nine read
+  back from the core's `ah_declaration_resolve`, `unreadable` and
+  `binding_rejected` from the Go loader (steps 1 and 11). Records carry
+  `declaration`, interceptors bind per point (`RegisterAt`), and a
+  declaration-built emitter is sealed. The Go reference harness
+  declares `host_declaration`, builds every emitter through the loader
+  and runs AH-CTK-120 to AH-CTK-139; its skip manifest is back to the
+  four streaming vectors. Additive.
 - Spec §7.2 and §10.3: `on_transform_conflict` is consulted by
   `parallel/strictest` only, not by both parallel profiles. The text
   said "parallel profiles"; the core's `with_knob_defaults` and the

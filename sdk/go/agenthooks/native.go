@@ -31,7 +31,10 @@ import (
 	"unsafe"
 )
 
-// CoreError wraps a §11 host_error:* code returned by the Rust core.
+// CoreError wraps a code returned by the Rust core: a §11 host_error:*
+// reason, a boundary code (marshal_error, panic) or, from the
+// declaration functions, a §7.7.6 declaration_error:* class (which
+// the loader rewraps as *DeclarationError).
 type CoreError struct {
 	Code   string
 	Detail string
@@ -156,6 +159,29 @@ func nativeComposeAggregate(compositionJSON, verdictsJSON string) (string, error
 	cv, fv := cstr(verdictsJSON)
 	defer fv()
 	return unwrap(C.ah_compose_aggregate(cc, cv))
+}
+
+// ---- host declaration (§7.7) -----------------------------------------------
+
+// nativeDeclarationVersions returns {"current": "...", "supported":
+// [...]}: the declaration contract versions the core writes and accepts
+// (§7.7.2).
+func nativeDeclarationVersions() (string, error) {
+	return unwrap(C.ah_declaration_versions())
+}
+
+// nativeDeclarationResolve runs steps 2 to 10 of §7.7.6: it validates
+// documentJSON and resolves it against hostJSON, the host's code
+// surface plus the names its registry holds. The Ok value is the
+// resolved declaration JSON. A refusal comes back as a CoreError whose
+// Code is a declaration_error:* class and whose Detail is the JSON
+// findings; a hostJSON the core cannot read is a marshal_error.
+func nativeDeclarationResolve(documentJSON, hostJSON string) (string, error) {
+	cd, fd := cstr(documentJSON)
+	defer fd()
+	ch, fh := cstr(hostJSON)
+	defer fh()
+	return unwrap(C.ah_declaration_resolve(cd, ch))
 }
 
 // ---- CTK engine (§13.2) ---------------------------------------------------
