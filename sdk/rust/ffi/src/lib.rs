@@ -515,6 +515,22 @@ mod tests {
                 .contains("host description"));
             ah_free_result(r);
 
+            // So is a host description with an unknown or misspelled
+            // member: the object is closed, and a wrapper that sends
+            // `kind` for `kinds` learns so here, not as a later
+            // `kind_unknown` refusal of the document.
+            let misspelled = HOST.replace("\"kinds\":", "\"kind\":");
+            let (ok, detail, code) = call2(ah_declaration_resolve, doc, &misspelled);
+            assert_eq!(ok, 0);
+            assert_eq!(code, "marshal_error");
+            assert!(detail.contains("host description"), "{detail}");
+            assert!(detail.contains("kind"), "{detail}");
+            let extra = HOST.replacen('{', "{\"foo\": 1,", 1);
+            let (ok, detail, code) = call2(ah_declaration_resolve, doc, &extra);
+            assert_eq!(ok, 0);
+            assert_eq!(code, "marshal_error");
+            assert!(detail.contains("foo"), "{detail}");
+
             // A valid host description with an empty document is a
             // refusal of the document: malformed.
             let host = CString::new(HOST).unwrap();

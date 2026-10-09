@@ -643,12 +643,35 @@ pub struct RegistryNames {
 }
 
 /// What the FFI `declaration_resolve` call receives as `host_json`:
-/// the surface plus the registry names.
+/// the surface plus the four registry name sets, spelled out so the
+/// object is closed. serde does not honour `deny_unknown_fields`
+/// through `flatten`, so a flattened [`RegistryNames`] would let a
+/// misspelled set (`kind` for `kinds`) pass and surface later as a
+/// refusal of the document instead of a wrapper defect.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HostDescription {
     pub surface: HostSurface,
-    #[serde(flatten)]
-    pub names: RegistryNames,
+    #[serde(default)]
+    pub identity_providers: BTreeSet<String>,
+    #[serde(default)]
+    pub approval_resolvers: BTreeSet<String>,
+    #[serde(default)]
+    pub approval_redactors: BTreeSet<String>,
+    #[serde(default)]
+    pub kinds: BTreeSet<String>,
+}
+
+impl HostDescription {
+    /// The registry names the description carries.
+    pub fn names(&self) -> RegistryNames {
+        RegistryNames {
+            identity_providers: self.identity_providers.clone(),
+            approval_resolvers: self.approval_resolvers.clone(),
+            approval_redactors: self.approval_redactors.clone(),
+            kinds: self.kinds.clone(),
+        }
+    }
 }
 
 /// What a kind resolver learns about the binding it builds (§7.7.5).

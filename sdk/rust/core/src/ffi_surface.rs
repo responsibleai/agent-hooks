@@ -392,7 +392,7 @@ pub fn declaration_resolve(document_json: &str, host_json: &str) -> Result<Strin
         )
     })?;
     let document = decl::HostDeclaration::from_json(document_json).map_err(as_ffi)?;
-    let resolved = decl::resolve(&document, &host.surface, &host.names).map_err(as_ffi)?;
+    let resolved = decl::resolve(&document, &host.surface, &host.names()).map_err(as_ffi)?;
     Ok(serde_json::to_string(&resolved).expect("resolved declaration serializes"))
 }
 

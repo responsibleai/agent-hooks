@@ -62,8 +62,9 @@ AhResult *ah_compose_aggregate(const char *composition_json,
  * surface plus the names its registry holds. Ok value is the resolved
  * declaration JSON; on refusal error_code is declaration_error:<class>
  * and value is {"findings": [{pointer, detail}], "accepted": [...]}.
- * A host_json that does not parse is a wrapper defect and comes back
- * as marshal_error, not as a refusal of the document. */
+ * host_json is a closed object: one that does not parse or carries an
+ * unknown member is a wrapper defect and comes back as marshal_error,
+ * not as a refusal of the document. */
 AhResult *ah_declaration_versions(void);
 AhResult *ah_declaration_resolve(const char *document_json,
                                  const char *host_json);
