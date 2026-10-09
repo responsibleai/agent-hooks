@@ -434,12 +434,15 @@ class InterceptionEmitter:
                     f"kind {_declaration._q(b.kind)} vanished from the registry",
                 )
             timeout = _declaration._ms_to_seconds(b.timeout_ms)
+            # The resolver gets copies: a resolver that edits its config
+            # or the host block must not rewrite the resolved declaration
+            # the sealed emitter reports (§7.7.7).
             bctx = BindingContext(
                 id=b.id,
                 kind=b.kind,
                 at=b.at,
                 timeout=timeout,
-                host=resolved.host,
+                host=copy.deepcopy(resolved.host),
                 declaration_version=resolved.version,
             )
             # §7.7.5: a resolver that raises or returns something other
@@ -449,7 +452,7 @@ class InterceptionEmitter:
                 f"binding {_declaration._q(b.id)} (kind {_declaration._q(b.kind)}) rejected: "
             )
             try:
-                built = kind_resolver(b.config, bctx)
+                built = kind_resolver(copy.deepcopy(b.config), bctx)
             except Exception as e:  # noqa: BLE001 - any resolver failure refuses the document
                 raise vanished(
                     DeclarationErrorClass.BINDING_REJECTED,

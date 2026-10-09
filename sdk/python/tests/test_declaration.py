@@ -834,3 +834,29 @@ def test_binding_context_carries_the_resolved_facts() -> None:
     assert seen[0].host == {"name": "example-runtime", "version": "3.2.0"}
     assert seen[0].declaration_version == DECLARATION_VERSION
     assert seen[0].kind == "com.example.capture"
+
+
+def test_mutating_resolver_leaves_the_resolved_declaration_unchanged() -> None:
+    doc = {
+        "declaration": DECLARATION_VERSION,
+        "host": {"name": "example-runtime", "version": "3.2.0"},
+        "bindings": [
+            {"id": "a", "kind": "com.example.mutates", "config": {"decision": "allow", "t": 1}}
+        ],
+    }
+
+    def mutates(config: Any, ctx: BindingContext) -> Scripted:
+        config.pop("t")
+        config["secret"] = "leaked"
+        assert ctx.host is not None
+        ctx.host["name"] = "rewritten"  # type: ignore[index]
+        return Scripted(Verdict.allow())
+
+    reg = HostRegistry(surface()).kind("com.example.mutates", mutates)
+    before = reg.resolve(HostDeclaration.from_value(doc)).canonical_json()
+    em = load(doc, reg)
+    assert em.declaration is not None
+    assert em.declaration.canonical_json() == before
+    assert "leaked" not in before
+    assert em.declaration.bindings[0].config == {"decision": "allow", "t": 1}
+    assert em.declaration.host == {"name": "example-runtime", "version": "3.2.0"}
