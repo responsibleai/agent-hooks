@@ -548,9 +548,10 @@ impl HostSurface {
         s
     }
 
-    /// Check the surface against the closed vocabularies and the §3.2
-    /// floor. A host surface that fails here is a programming error;
-    /// [`resolve`] refuses every document against it.
+    /// Check the surface against the closed vocabularies, the §3.2
+    /// floor and the §3.2 omission pairs. A host surface that fails
+    /// here is a programming error; [`resolve`] refuses every document
+    /// against it.
     pub fn validate(&self) -> Result<(), DeclarationError> {
         let mut findings = Vec::new();
         for p in FLOOR_POINTS {
@@ -560,6 +561,39 @@ impl HostSurface {
                     detail: format!("host surface lacks the §3.2 floor point {p}"),
                 });
             }
+        }
+        let has = |p: InterceptionPoint| self.interception_points.contains(&p);
+        let model_points =
+            has(InterceptionPoint::PreModelCall) && has(InterceptionPoint::PostModelCall);
+        let tool_points =
+            has(InterceptionPoint::PreToolCall) && has(InterceptionPoint::PostToolCall);
+        if has(InterceptionPoint::PreModelCall) != has(InterceptionPoint::PostModelCall) {
+            findings.push(Finding {
+                pointer: "/surface/interception_points".into(),
+                detail: "host surface omits one model point; pre_model_call and post_model_call are omitted together or not at all (see spec §3.2)".into(),
+            });
+        }
+        if has(InterceptionPoint::PreToolCall) != has(InterceptionPoint::PostToolCall) {
+            findings.push(Finding {
+                pointer: "/surface/interception_points".into(),
+                detail: "host surface omits one tool point; pre_tool_call and post_tool_call are omitted together or not at all (see spec §3.2)".into(),
+            });
+        }
+        if self.capabilities.contains("model_calls") != model_points {
+            findings.push(Finding {
+                pointer: "/surface/capabilities".into(),
+                detail:
+                    "host surface lists model_calls iff it emits both model points (see spec §3.2)"
+                        .into(),
+            });
+        }
+        if self.capabilities.contains("tool_calls") != tool_points {
+            findings.push(Finding {
+                pointer: "/surface/capabilities".into(),
+                detail:
+                    "host surface lists tool_calls iff it emits both tool points (see spec §3.2)"
+                        .into(),
+            });
         }
         for c in &self.capabilities {
             if !CAPABILITIES.contains(&c.as_str()) {
@@ -3278,6 +3312,40 @@ mod tests {
         assert_eq!(
             resolve(&d, &s, &names()).unwrap_err().class,
             DeclarationErrorClass::SurfaceUnsupported
+        );
+        // The §3.2 pairs are a host-side rule too: a surface that keeps
+        // model_calls while omitting the model points is a programming
+        // error, reported against the host, not against a document
+        // whose absent `surface` was filled from it.
+        let mut s = surface();
+        s.interception_points
+            .remove(&InterceptionPoint::PreModelCall);
+        s.interception_points
+            .remove(&InterceptionPoint::PostModelCall);
+        let e = s.validate().unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+        assert_eq!(e.findings.len(), 1);
+        assert_eq!(e.findings[0].pointer, "/surface/capabilities");
+        assert!(e.findings[0]
+            .detail
+            .starts_with("host surface lists model_calls"));
+        let e = resolve(&d, &s, &names()).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+        assert!(e.findings[0].detail.contains("host surface"));
+        let mut s = surface();
+        s.interception_points
+            .remove(&InterceptionPoint::PostToolCall);
+        let e = s.validate().unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+        assert_eq!(e.findings.len(), 2);
+        assert_eq!(e.findings[0].pointer, "/surface/interception_points");
+        assert!(e.findings[0].detail.contains("one tool point"));
+        assert_eq!(e.findings[1].pointer, "/surface/capabilities");
+        let mut s = surface();
+        s.capabilities.remove("tool_calls");
+        assert_eq!(
+            s.validate().unwrap_err().findings[0].pointer,
+            "/surface/capabilities"
         );
         let s = HostSurface::from_capabilities(
             ["model_calls".to_owned(), "int64_json".to_owned()],
