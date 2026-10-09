@@ -18,7 +18,16 @@ import type {
   JsonValue,
 } from "../index";
 
-export { loadVectors, runVector, runVectors, VectorResult, builderFromValue, provePaths } from "./runner";
+export {
+  assessHarness,
+  loadVectors,
+  runVector,
+  runVectors,
+  VectorResult,
+  builderFromValue,
+  provePaths,
+} from "./runner";
+export type { AssessedSurface } from "./runner";
 export { ReferenceHarness, REFERENCE_DECLARATION } from "./reference";
 
 /** Host-declared capability subset (§3.2, §13.1): the closed list of

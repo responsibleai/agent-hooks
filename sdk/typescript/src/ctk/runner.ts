@@ -11,7 +11,7 @@
  * calls the native `Harness`.
  */
 
-import { readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -442,7 +442,10 @@ export async function provePaths(
   tag: string,
 ): Promise<[boolean, string]> {
   const text = JSON.stringify(doc);
-  const path = join(tmpdir(), `agent-hooks-ctk-${tag}-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  // A private directory, not a guessable name in the shared tmpdir: a
+  // planted symlink there could redirect the write.
+  let dir: string | undefined;
+  let path = "";
   const resolveWith = (
     load: () => HostDeclaration,
   ): { ok: true; resolved: ResolvedDeclaration } | { ok: false; error: unknown } => {
@@ -455,7 +458,9 @@ export async function provePaths(
   let fromFile: HostDeclaration | undefined;
   let fileError: unknown;
   try {
-    writeFileSync(path, text, "utf8");
+    dir = mkdtempSync(join(tmpdir(), "agent-hooks-ctk-"));
+    path = join(dir, `${tag}.json`);
+    writeFileSync(path, text, { encoding: "utf8", flag: "wx" });
     try {
       fromFile = await HostDeclaration.fromPath(path);
     } catch (e) {
@@ -468,10 +473,12 @@ export async function provePaths(
       `cannot write temporary file: ${(e as Error)?.constructor?.name ?? "Error"}`,
     );
   } finally {
-    try {
-      rmSync(path, { force: true });
-    } catch {
-      /* best effort */
+    if (dir !== undefined) {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {
+        /* best effort */
+      }
     }
   }
   const outcomes: Array<[string, ReturnType<typeof resolveWith>]> = [
@@ -518,30 +525,62 @@ function fail(v: Record<string, JsonValue>, failures: string[]): VectorResult {
   };
 }
 
-export async function runVector(harness: Harness, vector: JsonValue): Promise<VectorResult> {
+/** The code surface a harness reports (§13.1), or the one derived from
+ * its capabilities and posture. */
+function codeSurfaceOf(harness: Harness): HostSurface {
+  return (
+    harness.hostSurface?.() ??
+    HostSurface.fromCapabilities(harness.capabilities, harness.toolSeamHostError ?? "continue")
+  );
+}
+
+/** What a run assesses the harness against: its capabilities and
+ * posture, read from its resolved declaration when it ships one
+ * (§7.7.9) and from the Harness fields otherwise. */
+export interface AssessedSurface {
+  capabilities: string[];
+  posture: string;
+}
+
+/** Resolve the harness's own declaration against its code surface.
+ * Throws {@link DeclarationError} on refusal. {@link runVectors} calls
+ * this once before the first vector, as §7.7.9 asks; {@link runVector}
+ * calls it when no resolved surface is handed in. */
+export function assessHarness(harness: Harness): AssessedSurface {
+  const own = harness.declaration?.();
+  if (own === undefined) {
+    return {
+      capabilities: [...harness.capabilities],
+      posture: harness.toolSeamHostError ?? "continue",
+    };
+  }
+  const resolved: ResolvedDeclaration = resolveSurfaceOnly(
+    HostDeclaration.fromValue(own),
+    codeSurfaceOf(harness),
+  );
+  return {
+    capabilities: [...resolved.surface.capabilities],
+    posture: resolved.configuration.posture.tool_seam_host_error,
+  };
+}
+
+export async function runVector(
+  harness: Harness,
+  vector: JsonValue,
+  assessed?: AssessedSurface,
+): Promise<VectorResult> {
   const v = vector as Record<string, JsonValue>;
   const vectorJson = JSON.stringify(vector);
 
   // §7.7.9: a harness with its own declaration is assessed against the
   // resolved document, so what ran is what a claim cites.
-  const codeSurface: HostSurface =
-    harness.hostSurface?.() ??
-    HostSurface.fromCapabilities(harness.capabilities, harness.toolSeamHostError ?? "continue");
+  const codeSurface = codeSurfaceOf(harness);
   let caps: string[];
   let posture: string;
-  const own = harness.declaration?.();
-  if (own !== undefined) {
-    let resolved: ResolvedDeclaration;
-    try {
-      resolved = resolveSurfaceOnly(HostDeclaration.fromValue(own), codeSurface);
-    } catch (e) {
-      return fail(v, [`harness declaration refused: ${e}`]);
-    }
-    caps = [...resolved.surface.capabilities];
-    posture = resolved.configuration.posture.tool_seam_host_error;
-  } else {
-    caps = [...harness.capabilities];
-    posture = harness.toolSeamHostError ?? "continue";
+  try {
+    ({ capabilities: caps, posture } = assessed ?? assessHarness(harness));
+  } catch (e) {
+    return fail(v, [`harness declaration refused: ${e}`]);
   }
 
   const capsJson = JSON.stringify(caps.sort());
@@ -654,8 +693,21 @@ export async function runVectors(
   vectors: JsonValue[],
 ): Promise<VectorResult[]> {
   const out: VectorResult[] = [];
+  // Resolve the harness declaration once, before the first vector
+  // (§7.7.9); a refusal fails every vector with the findings.
+  let assessed: AssessedSurface | undefined;
+  let refusal: unknown;
+  try {
+    assessed = assessHarness(harnessFactory());
+  } catch (e) {
+    refusal = e;
+  }
   for (const v of vectors) {
-    out.push(await runVector(harnessFactory(), v));
+    if (assessed === undefined) {
+      out.push(fail(v as Record<string, JsonValue>, [`harness declaration refused: ${refusal}`]));
+      continue;
+    }
+    out.push(await runVector(harnessFactory(), v, assessed));
   }
   return out;
 }
