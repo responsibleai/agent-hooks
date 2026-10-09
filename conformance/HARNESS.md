@@ -62,7 +62,7 @@ class MyFrameworkHarness(Harness):
         ...
 ```
 
-Equivalent interfaces ship in `sdk/typescript/src/ctk/harness.ts`,
+Equivalent interfaces ship in `sdk/typescript/src/ctk/index.ts`,
 `sdk/dotnet/src/AgentHooks.Conformance/IHarness.cs`,
 `sdk/go/conformance/harness.go`, and `sdk/rust/core/src/ctk.rs (`ctk` feature)`.
 
@@ -93,7 +93,7 @@ mandatory baseline is `{}` (lifecycle only: `agent_startup`, `input`,
 `int64_json` declares that your harness *language* can hold integers
 beyond 2^53 from vector JSON losslessly (§4.4). JavaScript harnesses
 omit it (`JSON.parse` rounds before any guard can run); Go harnesses
-need `json.Number` decoding to claim it (see `conformance/runner.go`).
+need `json.Number` decoding to claim it (see `sdk/go/conformance/runner.go`).
 
 `bigint_json` is the stronger form: integer tokens beyond u64/i64
 survive your JSON layer byte-faithfully (Python `int`, Go
@@ -318,11 +318,16 @@ is pinned by per-SDK unit tests instead:
   own surface (`buffered_output: false` and its exposure bound), the
   wording of a finding on a filled member, and sealing. Vectors carry
   a document as a value and every
-  conformant host has the full default surface, so these are core and
-  per-SDK unit tests (`sdk/rust/core/tests/declaration.rs`,
-  `sdk/typescript/test/declaration.test.mjs`). The golden file
+  reference harness has the full default surface, so these are core
+  and per-SDK unit tests (`sdk/rust/core/tests/declaration.rs`,
+  `sdk/python/tests/test_declaration.py`,
+  `sdk/typescript/test/declaration.test.mjs`,
+  `sdk/dotnet/test/AgentHooks.Tests/DeclarationTests.cs`,
+  `sdk/go/agenthooks/declaration_test.go`). The golden file
   `conformance/golden/declaration.json` pins the resolved canonical
-  form of five documents byte for byte in the Rust core and the
-  TypeScript SDK (`sdk/rust/core/tests/declaration.rs`,
-  `sdk/typescript/test/golden_declaration.test.mjs`); Python, .NET
-  and Go assert it when they gain the loader.
+  form of five documents byte for byte in all five SDKs
+  (`sdk/rust/core/tests/declaration.rs`,
+  `sdk/python/tests/test_golden_declaration.py`,
+  `sdk/typescript/test/golden_declaration.test.mjs`,
+  `sdk/dotnet/test/AgentHooks.Tests/DeclarationTests.cs`,
+  `sdk/go/agenthooks/declaration_test.go`).
