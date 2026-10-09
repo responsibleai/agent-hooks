@@ -1,0 +1,50 @@
+{
+  "id": "AH-CTK-137",
+  "title": "§7.7.5: a binding kind with no registered resolver is refused as kind_unknown",
+  "spec_clause": "7.7.5, 7.7.6",
+  "part": "declaration/refusal",
+  "capabilities": [
+    "host_declaration"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.0",
+    "bindings": [
+      {
+        "id": "ghost",
+        "kind": "ctk.nonexistent",
+        "config": {}
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "hi",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "UNREACHED",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "refused",
+      "class": "declaration_error:kind_unknown"
+    }
+  }
+}

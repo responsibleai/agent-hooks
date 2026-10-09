@@ -10,6 +10,13 @@ and is exposed through every binding as four functions:
 | `ctk_scripted_resolve(rules, ctx, identity)` | Evaluate `approval_script`; returns `{outcome, context_identity, verdict?}` |
 | `ctk_assert(vector, recorded, run_record)` | Run all `expect` assertions; returns `{id, title, part, status, failures}` |
 
+Two more core functions serve the host declaration parts (§7.7.9):
+
+| Function | Purpose |
+| --- | --- |
+| `declaration_versions()` | `{current, supported}`: the contract versions the core writes and accepts |
+| `declaration_resolve(document, host)` | Steps 2 to 10 of §7.7.6 against `{surface, identity_providers, approval_resolvers, approval_redactors, kinds}`; returns the resolved declaration or a `declaration_error:*` code with JSON findings |
+
 A per-language runner is the ~60 lines below. Only steps 3 and 5 touch
 native code (the `Harness` protocol); everything else is a straight FFI
 call. `sdk/python/python/agent_hooks/ctk/runner.py` is the reference.
@@ -33,9 +40,19 @@ for each vector file in conformance/vectors/*.json:
                     vector.composition ?? sequential/first_deny+stop,   # §7.2
                     "identity_provider" in vector ? vector.identity_provider : "jcs-sha256")  # §10.1
 
+  3b. if "host_declaration" in vector:                                # §7.7.9, see HARNESS.md
+        registry = ctk registry over harness.host_surface()           # ctk.scripted, ctk-fault,
+        paths_equivalent = resolve the document from value, JSON,     #   ctk-scripted, ctk-redact
+                           a temp file and the builder; compare
+        load = harness.setup_declared(setup, vector.host_declaration, registry)
+        if load refused: rr = {outcome:"error", load:{outcome:"refused", class, paths_equivalent}}
+                         harness.teardown(); go to 5
+      else: harness.setup(...) as in 3
+
   4.  try:  rr = harness.run()
       except e: yield {status:"fail", failures:["harness.run raised: "+e]}; continue
       finally: harness.teardown()
+      if "host_declaration" in vector: rr.load = {outcome:"accepted", paths_equivalent}
 
   5.  yield ctk_assert(vector, recorded,
                        {outcome:rr.outcome, final_output:rr.final_output,

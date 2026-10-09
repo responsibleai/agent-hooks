@@ -1,0 +1,52 @@
+{
+  "id": "AH-CTK-138",
+  "title": "§7.7.5: a kind resolver that refuses its config fails the load as binding_rejected",
+  "spec_clause": "7.7.5, 7.7.6",
+  "part": "declaration/refusal",
+  "capabilities": [
+    "host_declaration"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.0",
+    "bindings": [
+      {
+        "id": "bad",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": "0"
+        }
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "hi",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "UNREACHED",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "refused",
+      "class": "declaration_error:binding_rejected"
+    }
+  }
+}

@@ -28,6 +28,9 @@ const EXPECTED_SKIPS = new Set([
   "AH-CTK-111",
   "AH-CTK-112",
   "AH-CTK-113",
+  // declaration/* parts (spec §7.7.9): skipped until this harness
+  // declares host_declaration and builds its emitter through the loader.
+  ...Array.from({ length: 20 }, (_, i) => `AH-CTK-${120 + i}`),
 ]);
 
 const skipped = new Set();

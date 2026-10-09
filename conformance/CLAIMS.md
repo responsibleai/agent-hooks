@@ -34,6 +34,11 @@ bound its accounting discipline enforces and MUST declare
 (`AH-CTK-110`–`AH-CTK-113`) run against that discipline instead of
 being skipped.
 
+A claim MAY cite a host declaration document (spec §7.7). It then cites
+the file whose resolved surface the CTK run used, at the claimed
+commit, and that document carries an explicit `surface`. The claim
+tuple is unchanged; name the file in the Notes column.
+
 | Framework | Adapter version | Spec | Capabilities | Profiles | Identity provider | SDK | Report | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | reference-agent | 0.1.0 | agent-hooks/0.1 | model_calls, tool_calls, int64_json (not typescript) | all four (§7.2), all knobs | jcs-sha256 (+ null, vector-scoped) | python, typescript, dotnet, go, rust | (CI: CTK self-test, all parts) | In-tree reference |
@@ -53,7 +58,11 @@ artefacts, in the PR:
    wires the framework — specifically confirming it drives the
    framework's **production dispatch path** with only model/tool I/O
    mocked (a harness that re-implements dispatch attests nothing).
-3. **Disclosure flags** where applicable: a non-default posture
+3. **Host declaration**, when the claim cites one: the document's path
+   or URL at the claimed commit, with an explicit `surface`, and the
+   `host_declaration` capability in the declared surface so the
+   `declaration/*` parts appear in the report.
+4. **Disclosure flags** where applicable: a non-default posture
    (`tool_seam_host_error: terminate`) → the claim states it;
    `identity_provider: null` →
    the claim states records/approvals are identity-unbound;

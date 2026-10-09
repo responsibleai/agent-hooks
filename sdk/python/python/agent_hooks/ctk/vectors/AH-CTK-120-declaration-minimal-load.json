@@ -1,0 +1,141 @@
+{
+  "id": "AH-CTK-120",
+  "title": "§7.7: a minimal host declaration loads; every record stamps the contract version and the resolved defaults",
+  "spec_clause": "7.7.3, 7.7.8, 10.3",
+  "part": "declaration/load",
+  "capabilities": [
+    "host_declaration",
+    "model_calls",
+    "tool_calls"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.0",
+    "bindings": [
+      {
+        "id": "allow",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        }
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "ok"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "accepted"
+    },
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      },
+      {
+        "interception_point": "post_tool_call"
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "agent_startup",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.0",
+          "composition.profile": "sequential/first_deny",
+          "composition.on_approval": "stop",
+          "identity_provider": "jcs-sha256",
+          "mode": "enforce",
+          "interceptors_registered": 1,
+          "verdicts[0].name": "allow"
+        },
+        "absent": [
+          "composition.on_disagreement",
+          "composition.on_transform_conflict"
+        ]
+      },
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.0",
+          "composition.profile": "sequential/first_deny",
+          "composition.on_approval": "stop",
+          "identity_provider": "jcs-sha256",
+          "mode": "enforce",
+          "interceptors_registered": 1,
+          "verdicts[0].name": "allow",
+          "verdict.decision": "allow"
+        }
+      },
+      {
+        "interception_point": "agent_shutdown",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.0",
+          "composition.profile": "sequential/first_deny",
+          "composition.on_approval": "stop",
+          "identity_provider": "jcs-sha256",
+          "mode": "enforce",
+          "interceptors_registered": 1,
+          "verdicts[0].name": "allow"
+        }
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://x"
+        }
+      }
+    ],
+    "run_outcome": "completed",
+    "final_output": "done",
+    "identities_equal": true
+  }
+}

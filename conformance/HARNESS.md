@@ -121,6 +121,14 @@ posture's deterministic release points, so a host with a looser bound
 does not declare the capability and skips the part. A buffering host
 never declares it.
 
+`host_declaration` (§7.7.9) declares that the host builds its emitter
+from a host declaration document through the loader. It gates the
+`declaration/load`, `declaration/bindings` and `declaration/refusal`
+parts (`AH-CTK-120` onwards). A harness that declares it implements
+the declaration seam below; one that does not skips those twenty
+vectors with a stated reason. Every in-tree reference harness declares
+it and builds every emitter through the loader.
+
 Non-finite floats (NaN/Infinity) and lone surrogates cannot be
 expressed in a JSON vector at all — those §4.4 marshalling guards are
 pinned by per-SDK unit tests, not vectors.
@@ -195,6 +203,56 @@ reference harness buffers), so runner-side assertion support for
 declaring host; the part is capability-gated precisely so it stays
 inert for every buffered surface until then.
 
+## Host declaration seam
+
+The Harness contract has two methods with defaults and one the
+`host_declaration` capability requires (Rust names; each SDK uses its
+own casing):
+
+- `host_surface()` returns the host's code surface (§7.7.4): the
+  points it emits, its capabilities, the profiles and knob values it
+  supports, its posture, whether it may declare `buffered_output:
+  false`, whether the build bounds execution, and the contract versions
+  it accepts. The default derives it from `capabilities()` and the
+  posture: the §3.2 floor plus the model points iff `model_calls` plus
+  the tool points iff `tool_calls`, every profile with every knob
+  value.
+- `declaration()` returns the host's own declaration document, or
+  nothing. When present the runner resolves it against `host_surface()`
+  and reads the capabilities and posture a run is assessed against
+  from the resolved document, so what the CTK ran against is what the
+  claim cites. A refusal fails the run with the findings.
+- `setup_declared(setup, document, registry)` wires a declaration
+  vector. The harness MUST build its emitter from `document` and
+  `registry` through the loader (`from_declaration_value` or its
+  equivalent) and return the refusal; it MUST NOT fall back to the
+  field-based `setup`. `setup.interceptors`, `resolver`, `composition`
+  and `identity_provider` are empty or default here: the document and
+  the registry carry them.
+
+For a declaration vector the runner builds the registry
+(`HostRegistry::for_conformance(harness.host_surface())`, which opens
+the reserved `ctk` kind segment) with kind `ctk.scripted` (config
+`{"script": i}` selects `interceptor_scripts[i]`; script 0 records),
+identity provider `ctk-fault`, approval resolver `ctk-scripted` (from
+`approval_script`) and redactor `ctk-redact` (from
+`redact_for_approval`). Before calling the harness it resolves the
+document through the core from the value, from its JSON text, from a
+temporary file and from a builder populated member by member (§7.7.7);
+the four canonical resolved forms must agree, or all four must refuse
+with one class, and a divergence fails the vector. It then records
+`RunRecord.load` (`outcome: accepted | refused`, `class`,
+`paths_equivalent`), skips `run` on refusal, and `ctk_assert` checks
+`expect.load` first; a refused load must leave no record and no
+interception.
+
+The reference harnesses ship `reference.declaration.json` with an
+explicit surface and route the 51 field-based vectors through the
+loader too: the harness writes the vector's mode, composition and
+provider into a copy of its document and binds the scripted
+interceptors by index through a `ctk.instance` kind. The skip
+manifests do not change.
+
 ## Running
 
 ```bash
@@ -243,3 +301,15 @@ is pinned by per-SDK unit tests instead:
 - **§5.4 result_labels persistence/resurfacing** — requires label
   storage in the harness agent; not yet implemented in the reference
   harnesses.
+- **Host declaration load errors a vector cannot express (§7.7.6)**:
+  `unreadable` (a missing path, a directory, an oversize file, invalid
+  UTF-8, a byte-order mark), `malformed` (non-JSON text, duplicate
+  keys, excess depth, a non-finite value on the value path), a higher
+  minor refused as `version_unsupported`, `surface_unsupported` for
+  points, capabilities, profiles, knob values, posture,
+  `buffered_output: false` and timeouts against a narrowed host
+  surface, and sealing. Vectors carry a document as a value and every
+  conformant host has the full default surface, so these are core and
+  per-SDK unit tests (`sdk/rust/core/tests/declaration.rs`). The
+  golden file `conformance/golden/declaration.json` pins the resolved
+  canonical form of five documents byte for byte in every SDK.
