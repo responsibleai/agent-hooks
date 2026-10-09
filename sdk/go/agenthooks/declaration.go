@@ -1268,17 +1268,24 @@ func emitterFromResolved(resolved *ResolvedDeclaration, reg *HostRegistry) (*Int
 		if b.TimeoutMs != nil {
 			timeout = time.Duration(*b.TimeoutMs) * time.Millisecond
 		}
+		// The resolver gets copies of the host block and the config,
+		// so it cannot rewrite what Declaration() reports as run.
+		var host *HostInfo
+		if resolved.Host != nil {
+			h := *resolved.Host
+			host = &h
+		}
 		bctx := BindingContext{
 			ID:                 b.ID,
 			Kind:               b.Kind,
 			At:                 append([]InterceptionPoint(nil), b.At...),
 			Timeout:            timeout,
-			Host:               resolved.Host,
+			Host:               host,
 			DeclarationVersion: resolved.Declaration,
 		}
-		config := b.Config
-		if config == nil {
-			config = json.RawMessage("{}")
+		config := json.RawMessage("{}")
+		if b.Config != nil {
+			config = append(json.RawMessage(nil), b.Config...)
 		}
 		// Section 7.7.5: a resolver error, panic or non-interceptor
 		// return refuses the document; the message is bounded and the

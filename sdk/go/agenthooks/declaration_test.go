@@ -673,6 +673,40 @@ func TestDeclaredTimeoutsBoundInterceptorAndResolver(t *testing.T) {
 	}
 }
 
+func TestResolverGetsCopiesOfHostAndConfig(t *testing.T) {
+	// A resolver that writes through its context must not change what
+	// Declaration() reports as run.
+	reg := NewHostRegistry(testSurface())
+	if err := reg.Kind("com.example.mutate", func(config json.RawMessage, bctx BindingContext) (Interceptor, error) {
+		bctx.Host.Name = "rewritten"
+		copy(config, []byte(`{"a":2}`))
+		bctx.At[0] = Output
+		return scripted{AllowVerdict}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	em, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
+		"declaration": DeclarationVersion,
+		"host":        map[string]any{"name": "h", "version": "1"},
+		"bindings": []any{
+			map[string]any{"id": "m", "kind": "com.example.mutate", "config": map[string]any{"a": 1}, "at": []any{"pre_tool_call"}},
+		},
+	}, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := em.Declaration()
+	if d.Host == nil || d.Host.Name != "h" {
+		t.Errorf("host rewritten through the resolver: %+v", d.Host)
+	}
+	if string(d.Bindings[0].Config) != `{"a":1}` {
+		t.Errorf("config rewritten through the resolver: %s", d.Bindings[0].Config)
+	}
+	if len(d.Bindings[0].At) != 1 || d.Bindings[0].At[0] != PreToolCall {
+		t.Errorf("at rewritten through the resolver: %v", d.Bindings[0].At)
+	}
+}
+
 func TestResolveDeclarationSurfaceTakesCitedNamesAsRegistered(t *testing.T) {
 	decl, err := DeclarationFromValue(map[string]any{
 		"declaration":   DeclarationVersion,
