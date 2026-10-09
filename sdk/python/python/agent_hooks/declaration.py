@@ -124,6 +124,30 @@ def _compact(value: Any) -> str:
     return json.dumps(value, allow_nan=False, separators=(",", ":"))
 
 
+def _non_string_key(value: Any, pointer: str = "") -> str | None:
+    """The JSON pointer of the first object whose key is not a string,
+    or ``None``. ``json.dumps`` would coerce such a key to text, so the
+    value path would accept a document no JSON text can carry."""
+    if isinstance(value, dict):
+        for k, v in value.items():
+            if not isinstance(k, str):
+                return pointer or "/"
+            found = _non_string_key(v, f"{pointer}/{_escape_pointer(k)}")
+            if found is not None:
+                return found
+    elif isinstance(value, (list, tuple)):
+        for i, v in enumerate(value):
+            found = _non_string_key(v, f"{pointer}/{i}")
+            if found is not None:
+                return found
+    return None
+
+
+def _escape_pointer(token: str) -> str:
+    """RFC 6901 token escaping."""
+    return token.replace("~", "~0").replace("/", "~1")
+
+
 def _q(s: str) -> str:
     """Double-quoted, escaped, as the core prints names in findings."""
     return json.dumps(s)
@@ -624,6 +648,13 @@ class HostDeclaration:
     a :class:`HostRegistry` (:meth:`HostRegistry.resolve`,
     :meth:`InterceptionEmitter.from_declaration`), with one refusal
     class per document on every SDK.
+
+    This class holds the text and does not validate it: :meth:`from_json`
+    and :meth:`from_path` accept text the core will later refuse, and
+    :meth:`as_value` on text that is not JSON raises
+    :class:`json.JSONDecodeError`. The refusal class a document gets at
+    ``from_declaration`` is the same as on the SDKs that validate
+    eagerly.
     """
 
     #: The JSON text the core receives.
@@ -675,7 +706,15 @@ class HostDeclaration:
         """The value path: ``value`` is serialized to compact JSON and
         handed to the text path, so size, depth and shape checks are the
         same core code on every path. A value the wire cannot carry (a
-        non-finite number, a non-JSON type) is ``malformed``."""
+        non-finite number, a non-JSON type, an object key that is not a
+        string) is ``malformed``."""
+        pointer = _non_string_key(value)
+        if pointer is not None:
+            raise _single(
+                DeclarationErrorClass.MALFORMED,
+                pointer,
+                "cannot serialize: object key is not a string",
+            )
         try:
             text = _compact(value)
         except (TypeError, ValueError) as e:

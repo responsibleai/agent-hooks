@@ -438,6 +438,17 @@ def test_malformed_text_and_values() -> None:
     assert "cannot serialize" in e.findings[0].detail
     e = refusal({"declaration": DECLARATION_VERSION, "bindings": [], "extensions": {"x": object()}})
     assert e.error_class is DeclarationErrorClass.MALFORMED
+    # json.dumps would coerce a non-string key to text; no JSON text can
+    # carry such a value, so the value path refuses it.
+    e = refusal(
+        {
+            "declaration": DECLARATION_VERSION,
+            "bindings": [{"id": "a", "kind": "com.example.scripted", "config": {1: "allow"}}],
+        }
+    )
+    assert e.error_class is DeclarationErrorClass.MALFORMED
+    assert e.findings[0].pointer == "/bindings/0/config"
+    assert "key is not a string" in e.findings[0].detail
 
 
 @pytest.mark.parametrize(
