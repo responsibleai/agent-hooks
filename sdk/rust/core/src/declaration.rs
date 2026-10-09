@@ -425,8 +425,12 @@ pub struct HostSurface {
     /// this bound (§7.7.4).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exposure_bound: Option<String>,
-    /// Whether this build bounds execution; filled by the SDK.
-    pub interceptor_timeout: TimeoutSupport,
+    /// Whether this build bounds execution. Filled from this build by
+    /// every constructor and never settable by a host; read it with
+    /// [`interceptor_timeout`](Self::interceptor_timeout). The JSON
+    /// form carries it because a wrapper SDK, which bounds in its own
+    /// runtime, states it through the FFI `host_json`.
+    interceptor_timeout: TimeoutSupport,
     /// Contract versions the host accepts; a subset of
     /// [`SUPPORTED_DECLARATION_VERSIONS`].
     pub declaration_versions: BTreeSet<String>,
@@ -546,6 +550,21 @@ impl HostSurface {
             s.capabilities.insert(c);
         }
         s
+    }
+
+    /// Whether this build bounds interceptor and resolver execution.
+    pub fn interceptor_timeout(&self) -> TimeoutSupport {
+        self.interceptor_timeout
+    }
+
+    /// Test-suite hook: state a timeout support this build may not
+    /// have, so equivalence tests that compare records, never timing,
+    /// run the default timeouts on every build. Not part of the stable
+    /// API; a host never calls it.
+    #[doc(hidden)]
+    pub fn assume_timeout_support_for_tests(mut self, support: TimeoutSupport) -> Self {
+        self.interceptor_timeout = support;
+        self
     }
 
     /// Check the surface against the closed vocabularies, the §3.2

@@ -41,18 +41,17 @@ impl ApprovalResolver for Approver {
 }
 
 fn surface() -> HostSurface {
-    let mut s = HostSurface::from_capabilities(
+    // Equivalence tests compare records, never timing; a bounded
+    // surface lets the default timeouts resolve on every build.
+    HostSurface::from_capabilities(
         [
             "model_calls".to_owned(),
             "tool_calls".to_owned(),
             "host_declaration".to_owned(),
         ],
         ToolSeamPosture::Continue,
-    );
-    // Equivalence tests compare records, never timing; a bounded
-    // surface lets the default timeouts resolve on every build.
-    s.interceptor_timeout = TimeoutSupport::Bounded;
-    s
+    )
+    .assume_timeout_support_for_tests(TimeoutSupport::Bounded)
 }
 
 fn verdict_from(config: &Value) -> Result<Box<dyn Interceptor>, String> {
@@ -478,8 +477,8 @@ fn golden_declarations_resolve_byte_for_byte() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../../conformance/golden/declaration.json");
     let doc: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-    let mut surface: HostSurface = serde_json::from_value(doc["surface"].clone()).unwrap();
-    surface.interceptor_timeout = TimeoutSupport::Bounded;
+    let surface: HostSurface = serde_json::from_value(doc["surface"].clone()).unwrap();
+    assert_eq!(surface.interceptor_timeout(), TimeoutSupport::Bounded);
     let names = serde_json::from_value(doc["names"].clone()).unwrap();
     let mut regenerated = doc.clone();
     let mut mismatches = Vec::new();
