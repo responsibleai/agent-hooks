@@ -26,14 +26,20 @@ const binding = require("../binding.js") as {
   ctkScriptedResolve(rulesJson: string, ctxJson: string, identity: string): string;
   ctkShouldSkip(vectorJson: string, capsJson: string): string;
   ctkAssert(vectorJson: string, recordedJson: string, runRecordJson: string): string;
+  declarationVersions(): string;
+  declarationValidate(documentJson: string): string;
+  declarationResolve(documentJson: string, hostJson: string): string;
+  declarationResolveSurface(documentJson: string, surfaceJson: string): string;
 };
 
 /** Thrown by every native function on failure. `.code` is the §11
- *  `host_error:*` wire string. */
+ *  `host_error:*` wire string, or a §7.7.6 `declaration_error:*`
+ *  string from the declaration functions (the detail is then JSON
+ *  findings, which `declaration.ts` retypes as `DeclarationError`). */
 export class AgentHooksCoreError extends Error {
   constructor(
     public readonly code: string,
-    detail: string,
+    public readonly detail: string,
   ) {
     super(`${code}: ${detail}`);
     this.name = "AgentHooksCoreError";
@@ -68,4 +74,8 @@ export const native = {
   ctkScriptedResolve: wrap(binding.ctkScriptedResolve),
   ctkShouldSkip: wrap(binding.ctkShouldSkip),
   ctkAssert: wrap(binding.ctkAssert),
+  declarationVersions: binding.declarationVersions,
+  declarationValidate: wrap(binding.declarationValidate),
+  declarationResolve: wrap(binding.declarationResolve),
+  declarationResolveSurface: wrap(binding.declarationResolveSurface),
 };

@@ -8,9 +8,18 @@ package conformance
 // Simplest possible conformant agent loop; exists so the CTK
 // can self-test without depending on any real framework. Port of
 // sdk/python/python/agent_hooks/ctk/reference.py.
+//
+// Every emitter it builds goes through the host declaration loader
+// (§7.7): for a field-based vector it writes the vector's mode,
+// composition and provider into a copy of its own document
+// (reference.declaration.json) and binds the scripted interceptors
+// through a ctk.instance kind, so the field-based vectors exercise the
+// loader too.
 
 import (
 	"context"
+	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -18,6 +27,20 @@ import (
 
 	"github.com/responsibleai/agent-hooks/sdk/go/agenthooks"
 )
+
+// ReferenceDeclaration is the reference harness's own declaration
+// (§7.7.9), with an explicit surface a claim can cite.
+//
+//go:embed reference.declaration.json
+var ReferenceDeclaration string
+
+func referenceDocument() map[string]any {
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(ReferenceDeclaration), &doc); err != nil {
+		panic("reference declaration does not parse: " + err.Error())
+	}
+	return doc
+}
 
 // ReferenceHarness is a ~120-line conformant host used as the CTK
 // self-test target.
@@ -38,8 +61,49 @@ func (h *ReferenceHarness) Name() string { return "reference-agent" }
 // Capabilities implements Harness.
 func (h *ReferenceHarness) Capabilities() map[Capability]struct{} {
 	// Int64JSON: Go holds int64, so vectors carrying >2^53 integers
-	// load losslessly (§4.4).
-	return map[Capability]struct{}{ModelCalls: {}, ToolCalls: {}, Int64JSON: {}, BigintJSON: {}}
+	// load losslessly (§4.4). HostDeclaration: every emitter is built
+	// through the loader (§7.7.9).
+	return map[Capability]struct{}{
+		ModelCalls: {}, ToolCalls: {}, Int64JSON: {}, BigintJSON: {}, HostDeclaration: {},
+	}
+}
+
+// HostSurface implements HostSurfaceDeclarer: the surface derived from
+// the capability list and the default posture.
+func (h *ReferenceHarness) HostSurface() agenthooks.HostSurface {
+	caps := make([]string, 0, len(h.Capabilities()))
+	for c := range h.Capabilities() {
+		caps = append(caps, string(c))
+	}
+	sort.Strings(caps)
+	return agenthooks.HostSurfaceFromCapabilities(caps, agenthooks.PostureContinue)
+}
+
+// Declaration implements DeclarationDeclarer.
+func (h *ReferenceHarness) Declaration() map[string]any { return referenceDocument() }
+
+// startSession installs a freshly built emitter and a context builder
+// for one scenario.
+func (h *ReferenceHarness) startSession(scenario Scenario, em *agenthooks.InterceptionEmitter) {
+	h.scenario = scenario
+	h.toolLog = nil
+	h.emitter = em
+	h.sess++
+	h.builder = agenthooks.NewAgentContextBuilder(
+		"ref-agent", "reference-agent", fmt.Sprintf("sess-%d", h.sess),
+	)
+}
+
+// SetupDeclared implements DeclaredHarness: the emitter is built from
+// the vector's document and the CTK registry through the loader, and
+// a refusal is returned as is.
+func (h *ReferenceHarness) SetupDeclared(scenario Scenario, document map[string]any, registry *agenthooks.HostRegistry) error {
+	em, err := agenthooks.NewInterceptionEmitterFromDeclarationValue(document, registry)
+	if err != nil {
+		return err
+	}
+	h.startSession(scenario, em)
+	return nil
 }
 
 // Setup implements Harness.
@@ -52,41 +116,99 @@ func (h *ReferenceHarness) Setup(
 	identityProvider *agenthooks.IdentityProvider,
 	redactForApproval []string,
 ) error {
-	h.scenario = scenario
-	h.toolLog = nil
-	em := agenthooks.NewInterceptionEmitter(mode, resolver)
-	if _, err := em.SetComposition(composition); err != nil {
+	// Field-based vector: write the vector's configuration into a copy
+	// of the reference document and bind the interceptors by index
+	// through the ctk.instance kind (§7.7.9).
+	if err := composition.Validate(); err != nil {
 		return err
 	}
-	if _, err := em.SetIdentityProvider(identityProvider); err != nil {
-		return err
+	doc := referenceDocument()
+	cfg, _ := doc["configuration"].(map[string]any)
+	cfg["mode"] = string(mode)
+	cfg["composition"] = compositionValue(composition)
+	registry := agenthooks.NewConformanceHostRegistry(h.HostSurface())
+	switch {
+	case identityProvider == nil:
+		cfg["identity_provider"] = nil
+	case identityProvider.Name == agenthooks.JCSSHA256:
+		cfg["identity_provider"] = agenthooks.JCSSHA256
+	case identityProvider.Compute == nil:
+		return fmt.Errorf("identity provider %q has no Compute function", identityProvider.Name)
+	default:
+		if err := registry.IdentityProvider(identityProvider.Name, identityProvider.Compute); err != nil {
+			return err
+		}
+		cfg["identity_provider"] = identityProvider.Name
+	}
+	approval := map[string]any{"resolver": nil, "redactor": nil}
+	if resolver != nil {
+		if err := registry.ApprovalResolver("ctk-scripted", resolver); err != nil {
+			return err
+		}
+		approval["resolver"] = "ctk-scripted"
 	}
 	if len(redactForApproval) > 0 {
-		// §9 redaction seam, CTK convention: each listed path is
-		// replaced with "[redacted]" via the §5.2/§4.3 transform
-		// machinery; unresolvable paths are left untouched.
 		paths := append([]string(nil), redactForApproval...)
-		em.SetApprovalRedactor(func(actx agenthooks.AgentContext) agenthooks.AgentContext {
-			current := actx
-			for _, path := range paths {
-				next, err := agenthooks.ApplyTransformToContext(current, path, "[redacted]")
-				if err != nil {
-					continue // unresolvable at this point — skip
-				}
-				current = next
-			}
-			return current
+		if err := registry.ApprovalRedactor("ctk-redact", func(actx agenthooks.AgentContext) agenthooks.AgentContext {
+			return redactPaths(actx, paths)
+		}); err != nil {
+			return err
+		}
+		approval["redactor"] = "ctk-redact"
+	}
+	cfg["approval"] = approval
+
+	// Interceptor instances handed to the ctk.instance kind by index;
+	// each is taken once.
+	slots := append([]agenthooks.Interceptor(nil), interceptors...)
+	instance := func(config json.RawMessage, ctx agenthooks.BindingContext) (agenthooks.Interceptor, error) {
+		var c struct {
+			Index *int `json:"index"`
+		}
+		if err := json.Unmarshal(config, &c); err != nil || c.Index == nil || *c.Index < 0 {
+			return nil, errors.New("config.index must be an unsigned integer")
+		}
+		if *c.Index >= len(slots) || slots[*c.Index] == nil {
+			return nil, fmt.Errorf("no interceptor instance %d for binding %s", *c.Index, ctx.ID)
+		}
+		i := slots[*c.Index]
+		slots[*c.Index] = nil
+		return i, nil
+	}
+	if err := registry.Kind("ctk.instance", instance); err != nil {
+		return err
+	}
+	bindings := make([]any, 0, len(interceptors))
+	for i := range interceptors {
+		bindings = append(bindings, map[string]any{
+			"id":     fmt.Sprintf("interceptor-%d", i),
+			"kind":   "ctk.instance",
+			"config": map[string]any{"index": i},
 		})
 	}
-	for _, i := range interceptors {
-		em.Register(i)
+	doc["bindings"] = bindings
+	em, err := agenthooks.NewInterceptionEmitterFromDeclarationValue(doc, registry)
+	if err != nil {
+		return fmt.Errorf("reference declaration refused: %w", err)
 	}
-	h.emitter = em
-	h.sess++
-	h.builder = agenthooks.NewAgentContextBuilder(
-		"ref-agent", "reference-agent", fmt.Sprintf("sess-%d", h.sess),
-	)
+	h.startSession(scenario, em)
 	return nil
+}
+
+// compositionValue writes a CompositionConfig as the document's
+// composition block: the profile and only the knobs that are set.
+func compositionValue(c agenthooks.CompositionConfig) map[string]any {
+	out := map[string]any{"profile": string(c.Profile)}
+	if c.OnApproval != "" {
+		out["on_approval"] = string(c.OnApproval)
+	}
+	if c.OnDisagreement != "" {
+		out["on_disagreement"] = string(c.OnDisagreement)
+	}
+	if c.OnTransformConflict != "" {
+		out["on_transform_conflict"] = string(c.OnTransformConflict)
+	}
+	return out
 }
 
 // Teardown implements Harness.

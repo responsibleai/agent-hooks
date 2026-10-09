@@ -17,15 +17,11 @@ _VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vector
 # reference harness declares every value-domain capability and no
 # value-domain vector may skip. The streaming/incremental part (§12.1
 # exception) skips because the reference harness buffers caller-bound
-# output and does not declare incremental_output. Any other skip means
-# a capability regressed or a vector was quietly excluded; both must
-# fail the suite.
-EXPECTED_SKIPS: frozenset[str] = frozenset(
-    {"AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113"}
-    # declaration/* parts (spec §7.7.9): skipped until this harness
-    # declares host_declaration and builds its emitter through the loader.
-    | {f"AH-CTK-{n}" for n in range(120, 140)}
-)
+# output and does not declare incremental_output. The declaration/*
+# parts (§7.7.9) run: the harness declares host_declaration and builds
+# every emitter through the loader. Any other skip means a capability
+# regressed or a vector was quietly excluded; both must fail the suite.
+EXPECTED_SKIPS: frozenset[str] = frozenset({"AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113"})
 
 
 @pytest.mark.parametrize(
@@ -53,3 +49,86 @@ def test_skip_set_matches_manifest() -> None:
     assert skipped == set(EXPECTED_SKIPS), (
         "expected-but-not-skipped vectors mean the manifest is stale"
     )
+
+
+def test_structural_harness_without_setup_declared_fails_the_vector() -> None:
+    """A harness that declares host_declaration but lacks the seam fails
+    the vector with a stated detail; it must not abort the run."""
+    from typing import Any, ClassVar
+
+    from agent_hooks.ctk import Capability, RunRecord, Scenario
+
+    class Structural:
+        name = "structural"
+        capabilities: ClassVar[frozenset[Capability]] = frozenset(
+            {Capability.MODEL_CALLS, Capability.TOOL_CALLS, Capability.HOST_DECLARATION}
+        )
+
+        def setup(self, scenario: Scenario, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError("field-based setup must not be used for a declaration vector")
+
+        async def run(self) -> RunRecord:
+            raise AssertionError("run must not be reached")
+
+        def teardown(self) -> None:
+            pass
+
+    vector = next(v for v in load_vectors(_VECTORS) if v["id"] == "AH-CTK-120")
+    result = asyncio.run(run_vector(Structural(), vector))  # type: ignore[arg-type]
+    assert result.status == "fail"
+    assert any("does not implement setup_declared" in f for f in result.failures)
+
+
+def test_harness_with_an_invalid_surface_fails_the_vector() -> None:
+    """A harness whose own surface does not validate (incremental_output
+    without an exposure bound, no host_surface override) fails the
+    declaration vector with a stated defect instead of aborting the
+    run."""
+    from typing import Any, ClassVar
+
+    from agent_hooks.ctk import Capability, RunRecord, Scenario
+
+    class BadSurface:
+        name = "bad-surface"
+        capabilities: ClassVar[frozenset[Capability]] = frozenset(
+            {
+                Capability.MODEL_CALLS,
+                Capability.TOOL_CALLS,
+                Capability.INCREMENTAL_OUTPUT,
+                Capability.HOST_DECLARATION,
+            }
+        )
+
+        def setup(self, scenario: Scenario, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError("setup must not be reached")
+
+        def setup_declared(self, *args: Any) -> None:
+            raise AssertionError("setup_declared must not be reached")
+
+        async def run(self) -> RunRecord:
+            raise AssertionError("run must not be reached")
+
+        def teardown(self) -> None:
+            pass
+
+    vector = next(v for v in load_vectors(_VECTORS) if v["id"] == "AH-CTK-120")
+    result = asyncio.run(run_vector(BadSurface(), vector))  # type: ignore[arg-type]
+    assert result.status == "fail"
+    assert any("harness defect: host surface rejected" in f for f in result.failures)
+
+
+def test_prove_paths_keeps_a_null_binding_config() -> None:
+    """``config: null`` is a stated value; the builder path must rebuild
+    it verbatim so the four paths agree."""
+    from agent_hooks import HostRegistry, HostSurface
+    from agent_hooks.ctk.runner import prove_paths
+
+    reg = HostRegistry(HostSurface.from_capabilities(["host_declaration"])).kind(
+        "com.example.x",
+        lambda _c, _x: None,  # type: ignore[arg-type,return-value]
+    )
+    doc = {
+        "declaration": "agent-hooks-declaration/1.0",
+        "bindings": [{"id": "a", "kind": "com.example.x", "config": None}],
+    }
+    assert prove_paths(doc, reg, "test") == (True, "")

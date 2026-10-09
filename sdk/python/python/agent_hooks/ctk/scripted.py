@@ -64,6 +64,20 @@ class RecordingInterceptor:
         return self.inner.intercept(context)
 
 
+def redact_paths(ctx: AgentContext, paths: list[str]) -> AgentContext:
+    """§9 redaction seam, CTK convention: each listed path is replaced
+    with ``"[redacted]"`` via the §5.2/§4.3 transform machinery; a path
+    that does not resolve at the escalating point is left untouched."""
+    out = dumps(ctx)
+    for path in paths:
+        try:
+            out = _core.apply_transform_ctx(out, path, '"[redacted]"')
+        except Exception:  # noqa: BLE001 - an unresolvable path is skipped
+            continue
+    redacted: AgentContext = json.loads(out)
+    return redacted
+
+
 @dataclass(slots=True)
 class ScriptedResolver:
     """Replays a vector's ``approval_script`` via the Rust core."""

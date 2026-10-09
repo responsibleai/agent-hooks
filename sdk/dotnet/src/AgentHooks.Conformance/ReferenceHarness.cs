@@ -1,7 +1,14 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 // Reference in-memory conformant host. Self-test target for the CTK.
-// Port of sdk/python/python/agent_hooks/ctk/reference.py.
+// Port of sdk/rust/core/src/ctk.rs ReferenceHarness.
+//
+// Every emitter it builds goes through the host declaration loader
+// (§7.7): for a field-based vector it writes the vector's mode,
+// composition and provider into a copy of its own document
+// (reference.declaration.json, embedded) and binds the scripted
+// interceptors through a `ctk.instance` kind, so the field-based
+// vectors exercise the loader too.
 
 using System.Text.Json.Nodes;
 
@@ -17,6 +24,8 @@ public sealed class ReferenceHarness : IHarness
             // JsonNode preserves raw numeric tokens: beyond-u64 literals
             // survive vector loading and emission byte-faithfully.
             Capability.BigintJson,
+            // Every emitter is built through the loader.
+            Capability.HostDeclaration,
         };
 
     private Scenario? _scenario;
@@ -24,57 +33,143 @@ public sealed class ReferenceHarness : IHarness
     private AgentContextBuilder? _builder;
     private readonly List<JsonObject> _toolLog = [];
 
+    public HostSurface HostSurface => HostSurface.FromCapabilities(
+        Capabilities.Select(c => c.ToWireName()), ToolSeamPosture.Continue);
+
+    /// <summary>The reference harness's own declaration (§7.7.9), with
+    /// an explicit surface a claim can cite.</summary>
+    public JsonObject? Declaration => Document();
+
+    /// <summary>The embedded <c>reference.declaration.json</c>.</summary>
+    public static JsonObject Document()
+    {
+        using var stream = typeof(ReferenceHarness).Assembly
+            .GetManifestResourceStream("reference.declaration.json")
+            ?? throw new InvalidOperationException("reference.declaration.json is not embedded");
+        return (JsonObject)JsonNode.Parse(stream)!;
+    }
+
     public void Setup(
         Scenario scenario, IReadOnlyList<IInterceptor> interceptors,
         IApprovalResolver? resolver, EnforcementMode mode,
         CompositionConfig composition, string? identityProvider,
         IReadOnlyList<string>? redactForApproval = null)
     {
-        _scenario = scenario;
-        _toolLog.Clear();
-        var em = new InterceptionEmitter(mode, resolver);
-        em.SetComposition(composition);
-        // §13.2: "ctk-fault" is a custom provider that throws, pinning
-        // the §10.1 provider-failure rule (deny context_invalid
-        // pre-dispatch).
-        em.SetIdentityProvider(identityProvider switch
+        // Field-based vector: write the vector's configuration into a
+        // copy of the reference document and bind the interceptors by
+        // index through the `ctk.instance` kind.
+        var doc = Document();
+        var cfg = (JsonObject)doc["configuration"]!;
+        cfg["mode"] = mode == EnforcementMode.EvaluateOnly ? "evaluate_only" : "enforce";
+        cfg["composition"] = composition.ToWire();
+        var registry = HostRegistry.ForConformance(HostSurface);
+        switch (identityProvider)
         {
-            null => IdentityProvider.Null,
-            "ctk-fault" => IdentityProvider.Custom(
-                "ctk-fault", _ => throw new InvalidOperationException("ctk scripted provider fault")),
-            _ => IdentityProvider.JcsSha256,
-        });
+            case null:
+                cfg["identity_provider"] = null;
+                break;
+            case "ctk-fault":
+                // §13.2: "ctk-fault" is a custom provider that throws,
+                // pinning the §10.1 provider-failure rule (deny
+                // context_invalid pre-dispatch).
+                registry.IdentityProvider(
+                    "ctk-fault", _ => throw new InvalidOperationException("ctk scripted provider fault"));
+                cfg["identity_provider"] = "ctk-fault";
+                break;
+            default:
+                cfg["identity_provider"] = Spec.JcsSha256;
+                break;
+        }
+        var approval = new JsonObject();
+        if (resolver is not null)
+        {
+            registry.ApprovalResolver("ctk-scripted", resolver);
+            approval["resolver"] = "ctk-scripted";
+        }
+        else
+        {
+            approval["resolver"] = null;
+        }
         if (redactForApproval is { Count: > 0 })
         {
-            // §9 redaction seam, CTK convention: each listed path is
-            // replaced with "[redacted]" via the §5.2/§4.3 transform
-            // machinery; unresolvable paths are left untouched.
-            var paths = redactForApproval.ToList();
-            em.SetApprovalRedactor(ctx =>
+            registry.ApprovalRedactor("ctk-redact", Redactor(redactForApproval.ToList()));
+            approval["redactor"] = "ctk-redact";
+        }
+        else
+        {
+            approval["redactor"] = null;
+        }
+        cfg["approval"] = approval;
+
+        var slots = interceptors.Select(i => (IInterceptor?)i).ToArray();
+        registry.Kind("ctk.instance", (config, ctx) =>
+        {
+            if (config?["index"] is not JsonValue v || !v.TryGetValue(out long index) || index < 0)
+                throw new InvalidOperationException("config.index must be an unsigned integer");
+            if (index >= slots.Length || slots[index] is not { } instance)
+                throw new InvalidOperationException(
+                    $"no interceptor instance {index} for binding {ctx.Id}");
+            slots[index] = null;
+            return instance;
+        });
+        var bindings = new JsonArray();
+        for (var i = 0; i < slots.Length; i++)
+        {
+            bindings.Add(new JsonObject
             {
-                var current = ctx;
-                foreach (var path in paths)
-                {
-                    try
-                    {
-                        current = new AgentContext(
-                            Canonical.ApplyTransformCtx(current, path, "[redacted]"));
-                    }
-                    catch (AgentHooksCoreException)
-                    {
-                        // unresolvable at this point — skip
-                    }
-                }
-                return current;
+                ["id"] = $"interceptor-{i}",
+                ["kind"] = "ctk.instance",
+                ["config"] = new JsonObject { ["index"] = i },
             });
         }
-        foreach (var i in interceptors) em.Register(i);
-        _emitter = em;
+        doc["bindings"] = bindings;
+
+        InterceptionEmitter emitter;
+        try
+        {
+            emitter = InterceptionEmitter.FromDeclarationNode(doc, registry);
+        }
+        catch (DeclarationException e)
+        {
+            throw new InvalidOperationException($"reference declaration refused: {e.Message}", e);
+        }
+        StartSession(scenario, emitter);
+    }
+
+    public void SetupDeclared(Scenario scenario, JsonObject document, HostRegistry registry) =>
+        StartSession(scenario, InterceptionEmitter.FromDeclarationNode(document, registry));
+
+    private void StartSession(Scenario scenario, InterceptionEmitter emitter)
+    {
+        _scenario = scenario;
+        _toolLog.Clear();
+        _emitter = emitter;
         _builder = new AgentContextBuilder(
             agentId: "ref-agent",
             framework: "reference-agent",
             sessionId: Guid.NewGuid().ToString());
     }
+
+    /// <summary>§9 redaction seam, CTK convention: each listed path is
+    /// replaced with "[redacted]" via the §5.2/§4.3 transform machinery;
+    /// unresolvable paths are left untouched.</summary>
+    internal static Func<AgentContext, AgentContext> Redactor(IReadOnlyList<string> paths) => ctx =>
+    {
+        var current = ctx;
+        foreach (var path in paths)
+        {
+            try
+            {
+                current = new AgentContext(
+                    Canonical.ApplyTransformCtx(current, path, "[redacted]"));
+            }
+            catch (AgentHooksCoreException)
+            {
+                // unresolvable at this point, skip
+            }
+        }
+        return current;
+    };
 
     public async Task<RunRecord> RunAsync(CancellationToken ct = default)
     {

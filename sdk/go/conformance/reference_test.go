@@ -9,7 +9,6 @@ package conformance
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -22,20 +21,12 @@ import (
 // reference harness buffers caller-bound output and does not declare
 // incremental_output. An unexpected skip fails its subtest; a stale
 // manifest (expected-but-not-skipped) fails the aggregate.
-var expectedSkips = func() map[string]struct{} {
-	m := map[string]struct{}{
-		"AH-CTK-110": {},
-		"AH-CTK-111": {},
-		"AH-CTK-112": {},
-		"AH-CTK-113": {},
-	}
-	// declaration/* parts (spec §7.7.9): skipped until this harness
-	// declares host_declaration and builds its emitter through the loader.
-	for n := 120; n < 140; n++ {
-		m[fmt.Sprintf("AH-CTK-%d", n)] = struct{}{}
-	}
-	return m
-}()
+var expectedSkips = map[string]struct{}{
+	"AH-CTK-110": {},
+	"AH-CTK-111": {},
+	"AH-CTK-112": {},
+	"AH-CTK-113": {},
+}
 
 func TestReferenceHarnessConformance(t *testing.T) {
 	dir := filepath.Join("..", "..", "..", "conformance", "vectors")

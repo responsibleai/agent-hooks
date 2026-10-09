@@ -16,6 +16,17 @@ SPEC_VERSION: Final[str] = "agent-hooks/0.1"
 #: Name of the default identity provider (§10.1, §10.2).
 JCS_SHA256: Final[str] = "jcs-sha256"
 
+#: The host declaration contract version this SDK writes and accepts
+#: (§7.7.2). Independent of :data:`SPEC_VERSION` (the wire contract)
+#: and of the package version. Equal to the Rust core's constant; a
+#: test pins the two.
+DECLARATION_VERSION: Final[str] = "agent-hooks-declaration/1.0"
+
+#: Every declaration contract version this SDK's loader accepts
+#: (§7.7.2). A document carrying any other ``declaration`` value is
+#: refused with ``declaration_error:version_unsupported``.
+SUPPORTED_DECLARATION_VERSIONS: Final[tuple[str, ...]] = (DECLARATION_VERSION,)
+
 
 class InterceptionPoint(str, Enum):
     """The closed set of agent lifecycle interception points (§3)."""
@@ -431,6 +442,11 @@ class InterceptionRecord:
     decided_by: int | None = None
     #: The composition profile and knobs in effect (§7.1). REQUIRED.
     composition: CompositionConfig = field(default_factory=CompositionConfig.default)
+    #: The host declaration contract version the emitter was built from
+    #: (§7.7.8), e.g. ``agent-hooks-declaration/1.0``. Present iff the
+    #: emitter was built from a declaration document; ``None`` for an
+    #: emitter configured in code. Never defaulted.
+    declaration: str | None = None
     #: Per-interceptor summary; populated in multi-verdict profiles
     #: (``sequential/run_all``, ``parallel/*``).
     verdicts: tuple[VerdictSummary, ...] = ()
@@ -471,6 +487,8 @@ class InterceptionRecord:
             "decided_by": self.decided_by,
             "composition": self.composition.to_wire(),
         }
+        if self.declaration is not None:
+            out["declaration"] = self.declaration
         if self.timestamp is not None:
             out["timestamp"] = self.timestamp
         if self.trace is not None:
@@ -500,6 +518,7 @@ class InterceptionRecord:
             trace=obj.get("trace"),
             decided_by=obj.get("decided_by"),
             composition=CompositionConfig.from_wire(obj.get("composition")),
+            declaration=obj.get("declaration"),
             verdicts=tuple(VerdictSummary.from_wire(v) for v in obj.get("verdicts") or ()),
             fold_truncated=obj.get("fold_truncated"),
             resolved_by=obj.get("resolved_by"),

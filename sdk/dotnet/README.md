@@ -42,6 +42,68 @@ if (!record.Proceeds) return ToolError(record.Verdict.Reason);
 shortcuts. Run the conformance tests with
 `LD_LIBRARY_PATH=../rust/target/release dotnet test`.
 
+## Host declaration
+
+A host can load its configuration, declared surface and interceptor
+bindings from a host declaration document (spec §7.7) instead of
+calling the setters. The document is a versioned contract of its own,
+`agent-hooks-declaration/1.0` (`Declaration.Version`,
+`Declaration.SupportedVersions`), separate from the wire version
+`Spec.Version`.
+
+The host registers what its code can honour in a `HostRegistry`: its
+surface, a resolver per binding kind, and any custom identity provider,
+approval resolver or approval redactor the document may name. A kind
+is a lookup key the host controls (`com.example.egress`), never a path
+or class name the loader interprets.
+
+```csharp
+using AgentHooks;
+
+var surface = HostSurface.SdkDefault()
+    .WithPoints(InterceptionPoint.PreToolCall, InterceptionPoint.PostToolCall)
+    .WithCapabilities("tool_calls");
+var registry = new HostRegistry(surface)
+    .Kind("com.example.egress", (config, ctx) => new EgressGuard(config))
+    .ApprovalResolver("operator-queue", queue);
+
+var emitter = InterceptionEmitter.FromDeclarationPath("agent-hooks.declaration.json", registry);
+// or: FromDeclarationJson(text, registry), FromDeclarationNode(jsonObject, registry),
+// or the code path:
+var declaration = HostDeclaration.Builder()
+    .Composition(CompositionConfig.RunAll())
+    .ApprovalResolver("operator-queue")
+    .Bind("egress", "com.example.egress", new JsonObject { ["allow_hosts"] = new JsonArray("internal.example") },
+          at: [InterceptionPoint.PreToolCall])
+    .Build();
+emitter = InterceptionEmitter.FromDeclaration(declaration, registry);
+```
+
+The three paths yield the same emitter and the same records. The Rust
+core validates the document and resolves it against the registry; the
+host's kind resolvers then run once per binding, in array order. A
+document that names anything the code cannot honour is refused before
+any emission with a `DeclarationException` carrying the
+`declaration_error:*` class (`Class`, `Code`), the findings (JSON
+pointer and detail) and, for an unsupported version, the accepted
+versions. Nothing is narrowed or applied in part.
+
+An emitter built from a declaration is sealed: `Register`,
+`SetComposition`, `SetIdentityProvider`, `SetApprovalRedactor` and
+`SetMaxRecords` throw `InvalidOperationException`; `SetRecordSink` and
+`TakeRecords` stay allowed. Its records carry `Declaration`, the
+contract version, and `emitter.Declaration` exposes the resolved form
+and its canonical JSON. Bindings run only at the points their `at`
+lists; `Register(interceptor, name, at)` offers the same per-point
+registration on the code path.
+
+The CTK reference harness (`AgentHooks.Conformance.ReferenceHarness`)
+declares the `host_declaration` capability, ships its own declaration
+as an embedded resource and builds every emitter through the loader.
+A harness that adopts the declaration seam implements
+`IHarness.SetupDeclared` and may return its document from
+`IHarness.Declaration`.
+
 ## Native library deployment
 
 `ResponsibleAI.AgentHooks` P/Invokes `libagent_hooks_ffi`. The NuGet
