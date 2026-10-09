@@ -64,11 +64,7 @@ pub fn apply_transform(target_json: String, path: String, value_json: String) ->
 }
 
 #[napi]
-pub fn apply_transform_ctx(
-    ctx_json: String,
-    path: String,
-    value_json: String,
-) -> Result<String> {
+pub fn apply_transform_ctx(ctx_json: String, path: String, value_json: String) -> Result<String> {
     core::apply_transform_ctx(&ctx_json, &path, &value_json).map_err(map_err)
 }
 
