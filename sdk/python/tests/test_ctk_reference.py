@@ -17,15 +17,11 @@ _VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vector
 # reference harness declares every value-domain capability and no
 # value-domain vector may skip. The streaming/incremental part (§12.1
 # exception) skips because the reference harness buffers caller-bound
-# output and does not declare incremental_output. Any other skip means
-# a capability regressed or a vector was quietly excluded; both must
-# fail the suite.
-EXPECTED_SKIPS: frozenset[str] = frozenset(
-    {"AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113"}
-    # declaration/* parts (spec §7.7.9): skipped until this harness
-    # declares host_declaration and builds its emitter through the loader.
-    | {f"AH-CTK-{n}" for n in range(120, 140)}
-)
+# output and does not declare incremental_output. The declaration/*
+# parts (§7.7.9) run: the harness declares host_declaration and builds
+# every emitter through the loader. Any other skip means a capability
+# regressed or a vector was quietly excluded; both must fail the suite.
+EXPECTED_SKIPS: frozenset[str] = frozenset({"AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113"})
 
 
 @pytest.mark.parametrize(
