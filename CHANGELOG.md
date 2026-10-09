@@ -48,6 +48,21 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `Capability` type is the closed list, and the reference harness
   declares `host_declaration`, builds every emitter through the loader
   and runs AH-CTK-120 to AH-CTK-139 (skip set unchanged). Additive.
+- .NET SDK: the host declaration loader (spec §7.7).
+  `InterceptionEmitter.FromDeclaration`, `FromDeclarationPath`,
+  `FromDeclarationJson` and `FromDeclarationNode` build a sealed emitter
+  from a document and a `HostRegistry` of kind resolvers, identity
+  providers, approval resolvers and redactors over a `HostSurface`;
+  `HostDeclaration.Builder()` is the code path. A refusal is a
+  `DeclarationException` with the `declaration_error:*` class, the
+  findings and the accepted versions. `Declaration.Version` and
+  `Declaration.SupportedVersions` sit next to `Spec.Version`. Records
+  carry `Declaration`; `Register` takes an optional point set. The
+  binding runs over the two new FFI symbols. The CTK `Capability` enum
+  gains `IncrementalOutput` and `HostDeclaration`, `IHarness` gains
+  `HostSurface`, `Declaration` and `SetupDeclared`, and the reference
+  harness builds every emitter through the loader and runs AH-CTK-120
+  to AH-CTK-139. Additive.
 - Spec §7.2 and §10.3: `on_transform_conflict` is consulted by
   `parallel/strictest` only, not by both parallel profiles. The text
   said "parallel profiles"; the core's `with_knob_defaults` and the

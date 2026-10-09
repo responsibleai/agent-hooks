@@ -17,6 +17,11 @@
 // serial dispatch over isolated snapshots — §7.2: parallel names
 // isolation semantics, not scheduling.
 //
+// A host may also build the emitter from a host declaration document
+// (§7.7): FromDeclaration and the path, JSON and node forms resolve
+// the document in the core, run the host's kind resolvers and yield a
+// sealed emitter whose records carry the contract version.
+//
 // Fail-closed defaults: an enforce-mode emission with zero registered
 // interceptors yields deny host_error:no_interceptor (§7), and EmitAsync
 // THROWS InterceptionBlockedException on any block — the ignorable-result
@@ -88,12 +93,45 @@ public sealed class InterceptionEmitter
     /// <summary>§7 RECOMMENDED interceptor/resolver timeout.</summary>
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromMilliseconds(5000);
 
-    private readonly List<IInterceptor> _interceptors = [];
-    private readonly List<string?> _names = [];
+    /// <summary>How one registration is bounded (§7, §7.7.5).</summary>
+    private enum BoundTimeout
+    {
+        /// <summary>The emitter-wide timeout.</summary>
+        Inherit,
+
+        /// <summary><c>timeout_ms: null</c> in a declaration.</summary>
+        Unbounded,
+
+        /// <summary>A per-binding bound from a declaration.</summary>
+        Bounded,
+    }
+
+    /// <summary>One registered interceptor with its binding facts
+    /// (§7.7.5): the payload-free name stamped on <c>verdicts[].name</c>,
+    /// the points it runs at (<c>null</c> = every point, the
+    /// pre-declaration behaviour) and its timeout.</summary>
+    private sealed record Bound(
+        IInterceptor Interceptor,
+        string? Name,
+        IReadOnlySet<InterceptionPoint>? At,
+        BoundTimeout TimeoutKind,
+        TimeSpan Timeout)
+    {
+        // An unparseable point never reaches dispatch (§4 validation
+        // denies first); count every binding so the record is
+        // conservative.
+        public bool RunsAt(InterceptionPoint? point) =>
+            At is null || point is null || At.Contains(point.Value);
+    }
+
+    private readonly List<Bound> _bound = [];
     private readonly List<InterceptionRecord> _records = [];
     private readonly IApprovalResolver? _resolver;
     private readonly EnforcementMode _mode;
     private readonly TimeSpan _timeout;
+    private readonly TimeSpan _resolverTimeout;
+    private readonly bool _sealed;
+    private readonly ResolvedDeclaration? _declaration;
     private CompositionConfig _composition = CompositionConfig.Default;
     private IdentityProvider _identity = IdentityProvider.JcsSha256;
     private Func<AgentContext, AgentContext>? _approvalRedactor;
@@ -116,17 +154,159 @@ public sealed class InterceptionEmitter
         _mode = mode;
         _resolver = resolver;
         _timeout = timeout ?? DefaultTimeout;
+        _resolverTimeout = _timeout;
     }
 
-    /// <summary>Race <paramref name="fn"/> against the §7 timeout.</summary>
-    private async ValueTask<T> WithTimeoutAsync<T>(
-        Func<CancellationToken, ValueTask<T>> fn, CancellationToken ct)
+    // ---- host declaration (§7.7) --------------------------------------------
+
+    /// <summary>Build an emitter from a declaration: steps 2 to 11 of
+    /// §7.7.6 (the core validates the document and resolves it against
+    /// the registry's surface and names, then every binding's kind
+    /// resolver runs). The result is sealed (§7.7.7) and stamps
+    /// <c>declaration</c> on every record (§7.7.8). A refusal is a
+    /// <see cref="DeclarationException"/>; no emitter exists then.</summary>
+    public static InterceptionEmitter FromDeclaration(HostDeclaration declaration, HostRegistry registry)
     {
-        if (_timeout == Timeout.InfiniteTimeSpan) return await fn(ct);
+        ArgumentNullException.ThrowIfNull(declaration);
+        ArgumentNullException.ThrowIfNull(registry);
+        return new InterceptionEmitter(declaration.Resolve(registry), registry);
+    }
+
+    /// <summary><see cref="HostDeclaration.FromPath"/> then <see cref="FromDeclaration"/>.</summary>
+    public static InterceptionEmitter FromDeclarationPath(string path, HostRegistry registry) =>
+        FromDeclaration(HostDeclaration.FromPath(path), registry);
+
+    /// <summary><see cref="HostDeclaration.FromJson"/> then <see cref="FromDeclaration"/>.</summary>
+    public static InterceptionEmitter FromDeclarationJson(string text, HostRegistry registry) =>
+        FromDeclaration(HostDeclaration.FromJson(text), registry);
+
+    /// <summary><see cref="HostDeclaration.FromNode"/> then <see cref="FromDeclaration"/>.</summary>
+    public static InterceptionEmitter FromDeclarationNode(JsonNode? node, HostRegistry registry) =>
+        FromDeclaration(HostDeclaration.FromNode(node), registry);
+
+    /// <summary>The resolved declaration this emitter runs under, when
+    /// it was built from one (§7.7.7). Its canonical JSON is the
+    /// equivalence oracle for the construction paths.</summary>
+    public ResolvedDeclaration? Declaration => _declaration;
+
+    /// <summary>Step 11 and construction. Every reference is looked up
+    /// again in the registry's own maps, so bookkeeping drift between
+    /// the names the core checked and what the registry holds fails
+    /// closed.</summary>
+    private InterceptionEmitter(ResolvedDeclaration resolved, HostRegistry registry)
+    {
+        static TimeSpan Limit(long? ms) =>
+            ms is { } v ? TimeSpan.FromMilliseconds(v) : Timeout.InfiniteTimeSpan;
+
+        _mode = resolved.Mode;
+        _composition = resolved.Composition;
+        _timeout = Limit(resolved.InterceptorTimeoutMs);
+        _resolverTimeout = Limit(resolved.ApprovalResolverTimeoutMs);
+        _maxRecords = resolved.MaxBufferedRecords is { } n ? (int)Math.Min(n, int.MaxValue) : null;
+
+        if (resolved.ApprovalResolver is { } resolverName)
+        {
+            _resolver = registry.ApprovalResolverFor(resolverName) ?? throw new DeclarationException(
+                DeclarationErrorClass.ReferenceUnresolved,
+                "/configuration/approval/resolver",
+                $"approval resolver \"{resolverName}\" vanished from the registry");
+        }
+        switch (resolved.IdentityProvider)
+        {
+            case null:
+                _identity = IdentityProvider.Null;
+                break;
+            case Spec.JcsSha256:
+                _identity = IdentityProvider.JcsSha256;
+                break;
+            case var name:
+                var f = registry.IdentityProviderFor(name) ?? throw new DeclarationException(
+                    DeclarationErrorClass.ReferenceUnresolved,
+                    "/configuration/identity_provider",
+                    $"identity provider \"{name}\" vanished from the registry");
+                try
+                {
+                    _identity = IdentityProvider.Custom(name, f);
+                }
+                catch (ArgumentException e)
+                {
+                    throw new DeclarationException(
+                        DeclarationErrorClass.InvalidField, "/configuration/identity_provider", e.Message);
+                }
+                break;
+        }
+        if (resolved.ApprovalRedactor is { } redactorName)
+        {
+            _approvalRedactor = registry.ApprovalRedactorFor(redactorName) ?? throw new DeclarationException(
+                DeclarationErrorClass.ReferenceUnresolved,
+                "/configuration/approval/redactor",
+                $"approval redactor \"{redactorName}\" vanished from the registry");
+        }
+
+        for (var i = 0; i < resolved.Bindings.Count; i++)
+        {
+            var b = resolved.Bindings[i];
+            var pointer = $"/bindings/{i}";
+            var resolve = registry.KindResolverFor(b.Kind) ?? throw new DeclarationException(
+                DeclarationErrorClass.KindUnknown,
+                $"{pointer}/kind",
+                $"kind \"{b.Kind}\" vanished from the registry");
+            var timeout = b.TimeoutMs is { } ms ? TimeSpan.FromMilliseconds(ms) : (TimeSpan?)null;
+            var context = new BindingContext(
+                b.Id, b.Kind, b.At, timeout, resolved.Host, resolved.Version);
+            // §7.7.5: a resolver exception or a non-interceptor return
+            // refuses the document; the detail is bounded and the
+            // config is never echoed by the loader.
+            IInterceptor? interceptor;
+            try
+            {
+                interceptor = resolve(b.Config, context);
+            }
+            catch (Exception e)
+            {
+                throw new DeclarationException(
+                    DeclarationErrorClass.BindingRejected,
+                    pointer,
+                    $"binding \"{b.Id}\" (kind \"{b.Kind}\") rejected: {e.Message}");
+            }
+            if (interceptor is null)
+            {
+                throw new DeclarationException(
+                    DeclarationErrorClass.BindingRejected,
+                    pointer,
+                    $"binding \"{b.Id}\" (kind \"{b.Kind}\") rejected: resolver returned no interceptor");
+            }
+            _bound.Add(new Bound(
+                interceptor,
+                b.Id,
+                b.At,
+                timeout is null ? BoundTimeout.Unbounded : BoundTimeout.Bounded,
+                timeout ?? Timeout.InfiniteTimeSpan));
+        }
+
+        _sealed = true;
+        _declaration = resolved;
+    }
+
+    /// <summary>§7.7.7: a declaration-built emitter refuses
+    /// reconfiguration; otherwise the declaration would not be what ran.</summary>
+    private void Unsealed(string what)
+    {
+        if (_sealed)
+            throw new InvalidOperationException(
+                $"{what}: this emitter was built from a host declaration and is sealed (see spec §7.7.7)");
+    }
+
+    /// <summary>Race <paramref name="fn"/> against <paramref name="limit"/>
+    /// (§7); <see cref="Timeout.InfiniteTimeSpan"/> runs unbounded.</summary>
+    private static async ValueTask<T> WithTimeoutAsync<T>(
+        TimeSpan limit, Func<CancellationToken, ValueTask<T>> fn, CancellationToken ct)
+    {
+        if (limit == Timeout.InfiniteTimeSpan) return await fn(ct);
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(_timeout);
+        cts.CancelAfter(limit);
         var task = fn(cts.Token).AsTask();
-        var completed = await Task.WhenAny(task, Task.Delay(_timeout, CancellationToken.None));
+        var completed = await Task.WhenAny(task, Task.Delay(limit, CancellationToken.None));
         if (completed != task) throw new TimeoutException();
         return await task;
     }
@@ -149,11 +329,20 @@ public sealed class InterceptionEmitter
 
     /// <summary>Register an interceptor, optionally with a host-chosen
     /// payload-free <paramref name="name"/> recorded on
-    /// <c>verdicts[].name</c> (§10.3).</summary>
-    public InterceptionEmitter Register(IInterceptor interceptor, string? name = null)
+    /// <c>verdicts[].name</c> (§10.3) and the points it runs
+    /// <paramref name="at"/> (<c>null</c> = every point). At point P the
+    /// interceptors that run are those bound there, in registration
+    /// order; <c>interceptors_registered</c>, <c>verdicts[].index</c>
+    /// and <c>decided_by</c> count and index that list (§7.7.8).
+    /// Refused on a sealed emitter (§7.7.7).</summary>
+    public InterceptionEmitter Register(
+        IInterceptor interceptor, string? name = null, IReadOnlySet<InterceptionPoint>? at = null)
     {
-        _interceptors.Add(interceptor);
-        _names.Add(name);
+        Unsealed("Register");
+        _bound.Add(new Bound(
+            interceptor, name,
+            at is null ? null : new HashSet<InterceptionPoint>(at),
+            BoundTimeout.Inherit, default));
         return this;
     }
 
@@ -166,6 +355,7 @@ public sealed class InterceptionEmitter
     /// See docs/PRODUCTION.md.</summary>
     public InterceptionEmitter SetComposition(CompositionConfig composition)
     {
+        Unsealed("SetComposition");
         _composition = composition;
         return this;
     }
@@ -173,6 +363,7 @@ public sealed class InterceptionEmitter
     /// <summary>Declare the identity provider (§10.1).</summary>
     public InterceptionEmitter SetIdentityProvider(IdentityProvider provider)
     {
+        Unsealed("SetIdentityProvider");
         _identity = provider;
         return this;
     }
@@ -185,6 +376,7 @@ public sealed class InterceptionEmitter
     /// as <c>host_error:approval_resolver_failed</c>.</summary>
     public InterceptionEmitter SetApprovalRedactor(Func<AgentContext, AgentContext> redactor)
     {
+        Unsealed("SetApprovalRedactor");
         _approvalRedactor = redactor;
         return this;
     }
@@ -192,7 +384,8 @@ public sealed class InterceptionEmitter
     /// <summary>Register a per-emission record callback (§10.3), invoked
     /// synchronously after every emission before buffering; a sink
     /// exception is swallowed (audit delivery is the host's liveness
-    /// concern, not the control plane's).</summary>
+    /// concern, not the control plane's). Allowed on a sealed emitter:
+    /// it changes where records go, not what they say.</summary>
     public InterceptionEmitter SetRecordSink(Action<InterceptionRecord> sink)
     {
         _recordSink = sink;
@@ -204,6 +397,7 @@ public sealed class InterceptionEmitter
     /// Unbounded by default.</summary>
     public InterceptionEmitter SetMaxRecords(int max)
     {
+        Unsealed("SetMaxRecords");
         _maxRecords = max;
         return this;
     }
@@ -246,6 +440,10 @@ public sealed class InterceptionEmitter
     public async ValueTask<InterceptionRecord> EmitUncheckedAsync(
         AgentContext ctx, CancellationToken ct = default)
     {
+        // §7.7.8: the interceptors bound at this context's point, in
+        // dispatch order; the record counts and indexes this list.
+        var active = Active(ctx);
+
         // §10.3: input identity binds to the context BEFORE dispatch, so
         // neither interceptor mutation nor fold-through can retroactively
         // alter what the record claims was evaluated.
@@ -272,7 +470,7 @@ public sealed class InterceptionEmitter
                 HostError.ContextInvalid,
                 $"identity provider failed: {e.GetType().Name} (see spec §10.1)");
         }
-        outcome ??= await DispatchAsync(ctx, ct);
+        outcome ??= await DispatchAsync(ctx, active, ct);
 
         var options = new JsonObject
         {
@@ -287,8 +485,9 @@ public sealed class InterceptionEmitter
                 outcome.Verdicts.Select(s => (JsonNode)s.ToWire()).ToArray()),
             ["fold_truncated"] = outcome.FoldTruncated,
             ["resolved_by"] = outcome.ResolvedBy,
-            ["interceptors_registered"] = _interceptors.Count,
+            ["interceptors_registered"] = active.Count,
         };
+        StampDeclaration(options);
         var recordJson = Native.Finalize(
             ctx.Json.ToJsonString(Compact),
             outcome.Combined.ToWire().ToJsonString(Compact),
@@ -350,14 +549,22 @@ public sealed class InterceptionEmitter
             ["verdicts"] = new JsonArray(),
             ["fold_truncated"] = null,
             ["resolved_by"] = null,
-            ["interceptors_registered"] = _interceptors.Count,
+            ["interceptors_registered"] = _bound.Count(b => b.RunsAt(point)),
         };
+        StampDeclaration(options);
         var recordJson = Native.Finalize(
             basis.ToJsonString(Compact),
             Verdict.FromHostError(HostError.ContextInvalid, detail).ToWire().ToJsonString(Compact),
             _mode == EnforcementMode.Enforce ? "enforce" : "evaluate_only",
             options.ToJsonString(Compact));
         return Deliver(RecordFromCore((JsonObject)JsonNode.Parse(recordJson)!));
+    }
+
+    /// <summary>§7.7.8: the contract version, present iff this emitter
+    /// was built from a declaration. Never defaulted.</summary>
+    private void StampDeclaration(JsonObject options)
+    {
+        if (_declaration is { } d) options["declaration"] = d.Version;
     }
 
     /// <summary>Deliver a record to the sink and the bounded buffer (§10.3).</summary>
@@ -408,10 +615,41 @@ public sealed class InterceptionEmitter
     private static bool IsHostSynthesized(Verdict v) =>
         v.Reason?.StartsWith("host_error:", StringComparison.Ordinal) == true;
 
-    /// <summary>Payload-free per-interceptor summaries for the record (§10.3).</summary>
-    private List<VerdictSummary> Summaries(IReadOnlyList<Verdict> verdicts) =>
+    private static InterceptionPoint? PointOf(AgentContext ctx)
+    {
+        if (ctx.Json["interception_point"] is not JsonValue v || !v.TryGetValue(out string? s))
+            return null;
+        try
+        {
+            return InterceptionPointExtensions.FromWireName(s);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The interceptors bound at the context's point, in
+    /// dispatch order (§7.7.8).</summary>
+    private List<Bound> Active(AgentContext ctx)
+    {
+        var point = PointOf(ctx);
+        return _bound.Where(b => b.RunsAt(point)).ToList();
+    }
+
+    private TimeSpan Limit(Bound b) => b.TimeoutKind switch
+    {
+        BoundTimeout.Inherit => _timeout,
+        BoundTimeout.Unbounded => Timeout.InfiniteTimeSpan,
+        _ => b.Timeout,
+    };
+
+    /// <summary>Payload-free per-interceptor summaries for the record
+    /// (§10.3), with the bound names attached positionally.</summary>
+    private static List<VerdictSummary> Summaries(
+        IReadOnlyList<Verdict> verdicts, IReadOnlyList<Bound> active) =>
         verdicts.Select((v, i) => new VerdictSummary(
-            i, v.Decision, v.Reason, i < _names.Count ? _names[i] : null)).ToList();
+            i, v.Decision, v.Reason, i < active.Count ? active[i].Name : null)).ToList();
 
     /// <summary>Apply the §7.3 metadata unions to a combined verdict:
     /// warnings from every verdict in the pool (first-seen order); labels
@@ -439,20 +677,22 @@ public sealed class InterceptionEmitter
 
     /// <summary>Profile dispatch (§7.4–§7.5). Returns the combined verdict
     /// and its record metadata.</summary>
-    private ValueTask<DispatchOutcome> DispatchAsync(AgentContext ctx, CancellationToken ct)
+    private ValueTask<DispatchOutcome> DispatchAsync(
+        AgentContext ctx, IReadOnlyList<Bound> active, CancellationToken ct)
     {
-        if (_interceptors.Count == 0)
+        if (active.Count == 0)
         {
             // §7: zero interceptors fails closed, profile-independent.
             // Register an explicit allow-all interceptor for a
-            // deliberate passthrough.
+            // deliberate passthrough. With per-point bindings (§7.7.5)
+            // this is per point: a surface point with no binding denies.
             return ValueTask.FromResult(DispatchOutcome.Synthesized(HostError.NoInterceptor));
         }
         return _composition.Profile switch
         {
-            CompositionProfile.SequentialFirstDeny => DispatchFirstDenyAsync(ctx, ct),
-            CompositionProfile.SequentialRunAll => DispatchRunAllAsync(ctx, ct),
-            _ => DispatchParallelAsync(ctx, ct),
+            CompositionProfile.SequentialFirstDeny => DispatchFirstDenyAsync(ctx, active, ct),
+            CompositionProfile.SequentialRunAll => DispatchRunAllAsync(ctx, active, ct),
+            _ => DispatchParallelAsync(ctx, active, ct),
         };
     }
 
@@ -461,12 +701,12 @@ public sealed class InterceptionEmitter
     /// alter enforcement) and cross the §5 gate. Failures come back as
     /// host-synthesized denies (§6.3, fail closed).</summary>
     private async ValueTask<Verdict> RunOneAsync(
-        IInterceptor interceptor, AgentContext basis, CancellationToken ct)
+        Bound bound, AgentContext basis, CancellationToken ct)
     {
         try
         {
             var copy = new AgentContext((JsonObject)basis.Json.DeepClone());
-            var v = await WithTimeoutAsync(t => interceptor.InterceptAsync(copy, t), ct);
+            var v = await WithTimeoutAsync(Limit(bound), t => bound.Interceptor.InterceptAsync(copy, t), ct);
             Native.ValidateVerdict(v.ToWire().ToJsonString(Compact)); // §5
             return v;
         }
@@ -492,9 +732,9 @@ public sealed class InterceptionEmitter
     /// (one entry per invoked interceptor, §10.3 summaries); <c>pool</c>
     /// additionally holds substituted resolutions for the §7.3 unions.</summary>
     private async ValueTask<DispatchOutcome> DispatchFirstDenyAsync(
-        AgentContext ctx, CancellationToken ct)
+        AgentContext ctx, IReadOnlyList<Bound> active, CancellationToken ct)
     {
-        var n = _interceptors.Count;
+        var n = active.Count;
         var onApproval = _composition.OnApproval ?? OnApproval.Stop;
         var perInterceptor = new List<Verdict>();
         var pool = new List<Verdict>();
@@ -504,7 +744,7 @@ public sealed class InterceptionEmitter
 
         for (var i = 0; i < n; i++)
         {
-            var v = await RunOneAsync(_interceptors[i], ctx, ct);
+            var v = await RunOneAsync(active[i], ctx, ct);
             perInterceptor.Add(v);
             pool.Add(v);
             if (IsHostSynthesized(v))
@@ -515,7 +755,7 @@ public sealed class InterceptionEmitter
                 // (§10.3 decided_by), matching the aggregation
                 // profiles.
                 return new DispatchOutcome(
-                    WithUnions(v, pool), i, Summaries(perInterceptor),
+                    WithUnions(v, pool), i, Summaries(perInterceptor, active),
                     Truncated(i), resolvedBy);
             }
 
@@ -527,7 +767,7 @@ public sealed class InterceptionEmitter
                         if (c is null)
                         {
                             return new DispatchOutcome(
-                                WithUnions(v, pool), i, Summaries(perInterceptor),
+                                WithUnions(v, pool), i, Summaries(perInterceptor, active),
                                 Truncated(i), resolvedBy);
                         }
                         if (!c.Permitted)
@@ -538,7 +778,7 @@ public sealed class InterceptionEmitter
                             return new DispatchOutcome(
                                 WithUnions(c.Verdict, pool),
                                 IsHostSynthesized(c.Verdict) ? null : i,
-                                Summaries(perInterceptor), Truncated(i), "rejection");
+                                Summaries(perInterceptor, active), Truncated(i), "rejection");
                         }
                         resolvedBy = "approval";
                         // §7.6: the permit resolution substitutes at this
@@ -550,7 +790,7 @@ public sealed class InterceptionEmitter
                         if (!sub.Decision.Permits())
                         {
                             return new DispatchOutcome(
-                                sub, null, Summaries(perInterceptor),
+                                sub, null, Summaries(perInterceptor, active),
                                 Truncated(i), resolvedBy);
                         }
                         pool.Add(sub);
@@ -560,7 +800,7 @@ public sealed class InterceptionEmitter
                             // verdict; the emission ends. fold_truncated makes
                             // the skip legible.
                             return new DispatchOutcome(
-                                WithUnions(sub, pool), i, Summaries(perInterceptor),
+                                WithUnions(sub, pool), i, Summaries(perInterceptor, active),
                                 Truncated(i), resolvedBy);
                         }
                         if (sub.Decision == Decision.Transform)
@@ -574,7 +814,7 @@ public sealed class InterceptionEmitter
                         {
                             // Transform failed closed (host-synthesized §5.2).
                             return new DispatchOutcome(
-                                folded, null, Summaries(perInterceptor),
+                                folded, null, Summaries(perInterceptor, active),
                                 Truncated(i), resolvedBy);
                         }
                         lastTransform = (i, folded);
@@ -588,7 +828,7 @@ public sealed class InterceptionEmitter
             ? (lt.V, (int?)lt.Idx)
             : (Verdict.Allow, null);
         return new DispatchOutcome(
-            WithUnions(combined, pool), decidedBy, Summaries(perInterceptor),
+            WithUnions(combined, pool), decidedBy, Summaries(perInterceptor, active),
             false, resolvedBy);
     }
 
@@ -598,14 +838,14 @@ public sealed class InterceptionEmitter
     /// (a liftable winner implies every deny in the emission is liftable —
     /// severity puts a plain deny above it).</summary>
     private async ValueTask<DispatchOutcome> DispatchRunAllAsync(
-        AgentContext ctx, CancellationToken ct)
+        AgentContext ctx, IReadOnlyList<Bound> active, CancellationToken ct)
     {
         var all = new List<Verdict>();
-        foreach (var interceptor in _interceptors)
+        foreach (var bound in active)
         {
             // §6.3 per-interceptor: a malformed verdict becomes that
             // interceptor's synthesized deny; the rest still run.
-            var v = await RunOneAsync(interceptor, ctx, ct);
+            var v = await RunOneAsync(bound, ctx, ct);
             if (v.Decision == Decision.Transform)
             {
                 var folded = FoldTransform(ctx, v);
@@ -614,7 +854,7 @@ public sealed class InterceptionEmitter
                     // §7.4: a transform that fails to apply short-circuits
                     // in both sequential profiles.
                     all.Add(folded);
-                    return new DispatchOutcome(folded, null, Summaries(all));
+                    return new DispatchOutcome(folded, null, Summaries(all, active));
                 }
                 all.Add(folded);
             }
@@ -623,7 +863,7 @@ public sealed class InterceptionEmitter
                 all.Add(v);
             }
         }
-        return await AggregateAndConsultAsync(ctx, all, ct);
+        return await AggregateAndConsultAsync(ctx, all, active, ct);
     }
 
     /// <summary>Parallel profiles (§7.5): isolated snapshots, no fold;
@@ -631,13 +871,13 @@ public sealed class InterceptionEmitter
     /// disagreement and transform-conflict synthesis happen inside
     /// ah_compose_aggregate per the profile knobs.</summary>
     private async ValueTask<DispatchOutcome> DispatchParallelAsync(
-        AgentContext ctx, CancellationToken ct)
+        AgentContext ctx, IReadOnlyList<Bound> active, CancellationToken ct)
     {
         var snapshot = new AgentContext((JsonObject)ctx.Json.DeepClone());
         var all = new List<Verdict>();
-        foreach (var interceptor in _interceptors)
-            all.Add(await RunOneAsync(interceptor, snapshot, ct));
-        return await AggregateAndConsultAsync(ctx, all, ct);
+        foreach (var bound in active)
+            all.Add(await RunOneAsync(bound, snapshot, ct));
+        return await AggregateAndConsultAsync(ctx, all, active, ct);
     }
 
     /// <summary>Severity-max aggregation (ah_compose_aggregate) + winner
@@ -647,7 +887,7 @@ public sealed class InterceptionEmitter
     /// the environment checks (resolver present, mode, shutdown) and the
     /// callbacks stay native.</summary>
     private async ValueTask<DispatchOutcome> AggregateAndConsultAsync(
-        AgentContext ctx, List<Verdict> all, CancellationToken ct)
+        AgentContext ctx, List<Verdict> all, IReadOnlyList<Bound> active, CancellationToken ct)
     {
         var agg = Canonical.ComposeAggregate(
             _composition,
@@ -656,7 +896,7 @@ public sealed class InterceptionEmitter
         var decidedBy = agg["decided_by"] is null ? null : (int?)agg["decided_by"]!;
         var verdicts = ((JsonArray)agg["verdicts"]!)
             .Select(s => VerdictSummary.FromWire((JsonObject)s!))
-            .Select(v => v with { Name = v.Index < _names.Count ? _names[v.Index] : null })
+            .Select(v => v with { Name = v.Index < active.Count ? active[v.Index].Name : null })
             .ToList();
         string? resolvedBy = null;
 
@@ -786,7 +1026,9 @@ public sealed class InterceptionEmitter
         ApprovalResolution res;
         try
         {
+            // §9: the resolver bound (`approval_resolver_ms`, §7.7.3).
             res = await WithTimeoutAsync(
+                _resolverTimeout,
                 t => _resolver.ResolveAsync(new ApprovalRequest(identity, ip, verdict, presented), t),
                 ct);
         }
@@ -853,6 +1095,7 @@ public sealed class InterceptionEmitter
             (string?)r["resolved_by"],
             (int?)r["interceptors_registered"] ?? 0,
             (string?)r["timestamp"],
-            r["trace"] is JsonObject t ? TraceContext.FromWire(t) : null);
+            r["trace"] is JsonObject t ? TraceContext.FromWire(t) : null,
+            (string?)r["declaration"]);
     }
 }

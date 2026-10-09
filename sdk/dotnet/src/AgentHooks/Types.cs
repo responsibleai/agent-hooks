@@ -448,8 +448,10 @@ public sealed record TraceContext(string? TraceId, string? SpanId)
 /// bind the record to the exact pre/post-composition context without
 /// duplicating the (possibly sensitive) payload into audit storage.
 /// <c>Composition</c> makes the record interpretable without out-of-band
-/// knowledge of host configuration. Hosts that need the raw transformed
-/// value log it at the callsite.</summary>
+/// knowledge of host configuration. <c>Declaration</c> is the host
+/// declaration contract version the emitter was built from (§7.7.8),
+/// present iff the emitter came from a declaration document. Hosts that
+/// need the raw transformed value log it at the callsite.</summary>
 public sealed record InterceptionRecord(
     InterceptionPoint InterceptionPoint,
     EnforcementMode Mode,
@@ -466,14 +468,16 @@ public sealed record InterceptionRecord(
     string? ResolvedBy,
     int InterceptorsRegistered = 0,
     string? Timestamp = null,
-    TraceContext? Trace = null)
+    TraceContext? Trace = null,
+    string? Declaration = null)
 {
     /// <summary>Whether the guarded action executes (§6, §8).</summary>
     public bool Proceeds => Mode == EnforcementMode.EvaluateOnly || Verdict.Decision.Permits();
 
     /// <summary>Wire shape per <c>spec/schema/interception-record.schema.json</c>.
     /// Mirrors the core's serde serialization: <c>verdicts</c> omitted when
-    /// empty; <c>fold_truncated</c>/<c>resolved_by</c> omitted when null.</summary>
+    /// empty; <c>declaration</c>, <c>fold_truncated</c> and
+    /// <c>resolved_by</c> omitted when null.</summary>
     public JsonObject ToWire()
     {
         var o = new JsonObject
@@ -489,6 +493,7 @@ public sealed record InterceptionRecord(
             ["decided_by"] = DecidedBy,
             ["composition"] = Composition.ToWire(),
         };
+        if (Declaration is not null) o["declaration"] = Declaration;
         if (Verdicts.Count > 0)
             o["verdicts"] = new JsonArray(Verdicts.Select(v => (JsonNode)v.ToWire()).ToArray());
         if (Timestamp is not null) o["timestamp"] = Timestamp;
