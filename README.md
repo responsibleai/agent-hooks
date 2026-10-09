@@ -119,7 +119,11 @@ document may name, and the surface its code supports:
 from agent_hooks import HostRegistry, HostSurface, InterceptionEmitter
 
 registry = (
-    HostRegistry(HostSurface.from_capabilities(["model_calls", "tool_calls", "host_declaration"]))
+    HostRegistry(
+        HostSurface.from_capabilities(
+            ["model_calls", "tool_calls", "int64_json", "host_declaration"]
+        )
+    )
     .kind("com.example.egress", lambda config, ctx: EgressGuard(**config))
     .kind("com.example.audit-log", lambda config, ctx: AuditLog(**config))
     .approval_resolver("operator-queue", OperatorQueue())
