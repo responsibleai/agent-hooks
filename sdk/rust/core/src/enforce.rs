@@ -106,6 +106,11 @@ pub struct FinalizeMeta {
     pub unchanged_since_input: bool,
     pub decided_by: Option<u32>,
     pub composition: CompositionConfig,
+    /// Declaration contract version the emitter was built from
+    /// (§7.7.8); `None` for an emitter configured in code. Never
+    /// defaulted here: a record claims a contract only when one
+    /// governed the host.
+    pub declaration: Option<String>,
     /// Per-interceptor summaries (multi-verdict profiles, §10.3).
     pub verdicts: Vec<VerdictSummary>,
     /// Sequential profiles (§7.4).
@@ -274,6 +279,7 @@ pub fn finalize(
         trace,
         decided_by,
         composition: meta.composition.with_knob_defaults(),
+        declaration: meta.declaration,
         verdicts: meta.verdicts,
         fold_truncated: meta.fold_truncated,
         resolved_by: meta.resolved_by,

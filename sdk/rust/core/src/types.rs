@@ -14,6 +14,16 @@ pub const SPEC_VERSION: &str = "agent-hooks/0.1";
 /// Name of the default identity provider (§10.1, §10.2).
 pub const JCS_SHA256: &str = "jcs-sha256";
 
+/// The host declaration contract version this crate writes and
+/// accepts (§7.7.2). Independent of [`SPEC_VERSION`] (the wire
+/// contract) and of the package version.
+pub const DECLARATION_VERSION: &str = "agent-hooks-declaration/1.0";
+
+/// Every declaration contract version this crate's loader accepts
+/// (§7.7.2). A document carrying any other `declaration` value is
+/// refused with `declaration_error:version_unsupported`.
+pub const SUPPORTED_DECLARATION_VERSIONS: &[&str] = &[DECLARATION_VERSION];
+
 /// §10.1 host-defined identity-provider name rules: must match
 /// `^[a-z][a-z0-9_-]*$` and must not begin with `jcs` (reserved so a
 /// custom provider cannot claim golden-vector semantics).
@@ -393,6 +403,13 @@ pub struct InterceptionRecord {
     pub decided_by: Option<u32>,
     /// The composition profile and knobs in effect (§7.1).
     pub composition: crate::composition::CompositionConfig,
+    /// The host declaration contract version the emitter was built
+    /// from (§7.7.8), e.g. `agent-hooks-declaration/1.0`. Present iff
+    /// the emitter was constructed from a declaration document;
+    /// absent for an emitter configured in code. One closed-grammar
+    /// string, so payload-free by construction.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub declaration: Option<String>,
     /// Per-interceptor summary; populated in multi-verdict profiles
     /// (`sequential/run_all`, `parallel/*`).
     #[serde(skip_serializing_if = "Vec::is_empty")]

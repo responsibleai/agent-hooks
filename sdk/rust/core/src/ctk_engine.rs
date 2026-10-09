@@ -163,6 +163,22 @@ pub struct IdentityPair {
     pub enforced_identity: Option<String>,
 }
 
+/// What loading the vector's host declaration produced (§7.7.9), as
+/// the runner records it: `outcome` is `"accepted"` or `"refused"`,
+/// `class` the `declaration_error:*` code on refusal, and
+/// `paths_equivalent` whether the value, JSON, file and builder paths
+/// resolved to one canonical form (or refused with one class).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LoadRecord {
+    pub outcome: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub class: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paths_equivalent: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
 /// Wire-shaped `RunRecord` the harness returns.
 #[derive(Debug, Default, Deserialize)]
 pub struct RunRecord {
@@ -192,6 +208,10 @@ pub struct RunRecord {
     /// key means the spec-default posture.
     #[serde(default)]
     pub postures: std::collections::BTreeMap<String, String>,
+    /// Set by the runner for vectors carrying `host_declaration`
+    /// (§7.7.9); absent otherwise.
+    #[serde(default)]
+    pub load: Option<LoadRecord>,
 }
 
 /// Result of one vector run.
@@ -534,6 +554,86 @@ fn assert_records(expect: &Value, rr: &RunRecord, failures: &mut Vec<String>) {
     }
 }
 
+/// `expect.load` (§7.7.9). Returns `true` when the remaining
+/// assertions do not apply: a refused load has no run to assert.
+fn assert_load(
+    expect: &Value,
+    recorded: &[Value],
+    rr: &RunRecord,
+    failures: &mut Vec<String>,
+) -> bool {
+    let want = expect.get("load");
+    let Some(got) = &rr.load else {
+        if want.is_some() {
+            failures.push("expect.load is set but the runner reported no load outcome".into());
+            return true;
+        }
+        return false;
+    };
+    // The runner proves the construction paths on every declaration
+    // vector; a divergence is always a failure (§7.7.7).
+    if got.paths_equivalent == Some(false) {
+        failures.push(format!(
+            "construction paths diverged: {}",
+            got.detail.as_deref().unwrap_or("no detail")
+        ));
+    }
+    let Some(want) = want else {
+        if got.outcome != "accepted" {
+            failures.push(format!(
+                "declaration refused ({}) but the vector expects a run: {}",
+                got.class.as_deref().unwrap_or("?"),
+                got.detail.as_deref().unwrap_or("")
+            ));
+            return true;
+        }
+        return false;
+    };
+    let want_outcome = want["outcome"].as_str().unwrap_or("accepted");
+    if got.outcome != want_outcome {
+        failures.push(format!(
+            "load.outcome == {:?}, want {want_outcome:?} ({})",
+            got.outcome,
+            got.detail.as_deref().unwrap_or("")
+        ));
+    }
+    if let Some(class) = want.get("class").and_then(Value::as_str) {
+        if got.class.as_deref() != Some(class) {
+            failures.push(format!(
+                "load.class == {:?}, want {class:?} ({})",
+                got.class,
+                got.detail.as_deref().unwrap_or("")
+            ));
+        }
+    }
+    if let Some(pe) = want.get("paths_equivalent").and_then(Value::as_bool) {
+        if got.paths_equivalent != Some(pe) {
+            failures.push(format!(
+                "load.paths_equivalent == {:?}, want {pe}",
+                got.paths_equivalent
+            ));
+        }
+    }
+    if want_outcome == "refused" {
+        // §7.7.6: refusal happens before any emitter exists and leaves
+        // no record and no interception.
+        if !recorded.is_empty() {
+            failures.push(format!(
+                "declaration refused but {} interception(s) were recorded",
+                recorded.len()
+            ));
+        }
+        if !rr.records.is_empty() {
+            failures.push(format!(
+                "declaration refused but {} record(s) were produced",
+                rr.records.len()
+            ));
+        }
+        return true;
+    }
+    false
+}
+
 fn assert_sequence(recorded: &[Value], failures: &mut Vec<String>) {
     let seq: Vec<i64> = recorded
         .iter()
@@ -580,6 +680,16 @@ pub fn assert_vector(vector: &Value, recorded: &[Value], rr: &RunRecord) -> Vect
         .to_owned();
 
     let mut failures = Vec::new();
+    if assert_load(&vector["expect"], recorded, rr, &mut failures) {
+        return VectorResult {
+            id,
+            title,
+            part,
+            status: if failures.is_empty() { "pass" } else { "fail" },
+            detail: String::new(),
+            failures,
+        };
+    }
     assert_interceptions(&vector["expect"], recorded, &mut failures);
     assert_record(&vector["expect"], rr, &mut failures);
     assert_records(&vector["expect"], rr, &mut failures);

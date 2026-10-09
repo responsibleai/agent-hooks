@@ -15,10 +15,11 @@ typedef struct {
     uint8_t ok;
     /* On success: JSON result. On error: detail message. UTF-8, NUL-terminated. */
     char *value;
-    /* On error: a host_error:* code, or "marshal_error" (invalid UTF-8
-     * argument / unmarshalable result) or "panic" (core defect caught at
-     * the boundary; the process is not aborted). NULL on success.
-     * UTF-8, NUL-terminated. */
+    /* On error: a host_error:* code, a declaration_error:* code (the two
+     * ah_declaration_* functions; value is then JSON findings), or
+     * "marshal_error" (invalid UTF-8 argument / unmarshalable result) or
+     * "panic" (core defect caught at the boundary; the process is not
+     * aborted). NULL on success. UTF-8, NUL-terminated. */
     char *error_code;
 } AhResult;
 
@@ -52,6 +53,18 @@ AhResult *ah_finalize(const char *ctx_json, const char *verdict_json,
  * apply_transform, verdicts}. */
 AhResult *ah_compose_aggregate(const char *composition_json,
                                const char *verdicts_json);
+
+/* Host declaration document (spec section 7.7).
+ * ah_declaration_versions: {"current": "...", "supported": [...]}.
+ * ah_declaration_resolve: steps 2 to 10 of section 7.7.6. document_json
+ * is the document text; host_json is {surface, identity_providers,
+ * approval_resolvers, approval_redactors, kinds}, the wrapper's code
+ * surface plus the names its registry holds. Ok value is the resolved
+ * declaration JSON; on refusal error_code is declaration_error:<class>
+ * and value is {"findings": [{pointer, detail}], "accepted": [...]}. */
+AhResult *ah_declaration_versions(void);
+AhResult *ah_declaration_resolve(const char *document_json,
+                                 const char *host_json);
 
 /* CTK engine (spec section 13.2) */
 AhResult *ah_ctk_scripted_intercept(const char *rules_json,

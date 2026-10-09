@@ -1,0 +1,360 @@
+{
+  "$comment": "Cross-SDK golden fixtures for the host declaration document (AGENT-HOOKS-0.1 §7.7). Each document is resolved against `surface` and `names` below (interceptor_timeout is taken from the running build, so fixtures write timeouts out), and expect.canonical_json is the RFC 8785 canonical form of the resolved declaration. Regenerate with AH_WRITE_GOLDEN=1 cargo test -p agent-hooks-sdk --test declaration.",
+  "fixtures": [
+    {
+      "document": {
+        "bindings": [
+          {
+            "id": "allow",
+            "kind": "com.example.allow"
+          }
+        ],
+        "declaration": "agent-hooks-declaration/1.0"
+      },
+      "expect": {
+        "canonical_json": "{\"bindings\":[{\"at\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"config\":{},\"id\":\"allow\",\"kind\":\"com.example.allow\",\"timeout_ms\":5000}],\"configuration\":{\"approval\":{\"redactor\":null,\"resolver\":null},\"composition\":{\"on_approval\":\"stop\",\"profile\":\"sequential/first_deny\"},\"identity_provider\":\"jcs-sha256\",\"mode\":\"enforce\",\"posture\":{\"tool_seam_host_error\":\"continue\"},\"records\":{\"max_buffered\":null},\"timeouts\":{\"approval_resolver_ms\":5000,\"interceptor_ms\":5000}},\"declaration\":\"agent-hooks-declaration/1.0\",\"extensions\":{},\"spec\":\"agent-hooks/0.1\",\"surface\":{\"buffered_output\":true,\"capabilities\":[\"host_declaration\",\"int64_json\",\"model_calls\",\"tool_calls\"],\"declaration_versions\":[\"agent-hooks-declaration/1.0\"],\"interception_points\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"profiles\":{\"parallel/strictest\":{\"on_transform_conflict\":[\"approval\",\"deny\"]},\"parallel/unanimous\":{\"on_disagreement\":[\"approval\",\"deny\"]},\"sequential/first_deny\":{\"on_approval\":[\"resume\",\"stop\"]},\"sequential/run_all\":{}}}}"
+      },
+      "id": "D-01-minimal"
+    },
+    {
+      "document": {
+        "$schema": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.0.schema.json",
+        "bindings": [
+          {
+            "at": [
+              "pre_tool_call",
+              "output"
+            ],
+            "config": {
+              "allow_hosts": [
+                "internal.example"
+              ]
+            },
+            "id": "egress-guard",
+            "kind": "com.example.egress",
+            "timeout_ms": 2000
+          },
+          {
+            "config": {
+              "sink": "stdout"
+            },
+            "id": "audit",
+            "kind": "com.example.audit-log"
+          }
+        ],
+        "configuration": {
+          "approval": {
+            "redactor": "strip-secrets",
+            "resolver": "operator-queue"
+          },
+          "composition": {
+            "on_disagreement": "approval",
+            "profile": "parallel/unanimous"
+          },
+          "identity_provider": "jcs-sha256",
+          "mode": "enforce",
+          "posture": {
+            "tool_seam_host_error": "continue"
+          },
+          "records": {
+            "max_buffered": 10000
+          },
+          "timeouts": {
+            "approval_resolver_ms": 30000,
+            "interceptor_ms": 5000
+          }
+        },
+        "declaration": "agent-hooks-declaration/1.0",
+        "extensions": {},
+        "host": {
+          "name": "example-runtime",
+          "version": "3.2.0"
+        },
+        "id": "prod-eu-strict",
+        "spec": "agent-hooks/0.1",
+        "surface": {
+          "buffered_output": true,
+          "capabilities": [
+            "model_calls",
+            "tool_calls",
+            "int64_json",
+            "host_declaration"
+          ],
+          "declaration_versions": [
+            "agent-hooks-declaration/1.0"
+          ],
+          "interception_points": [
+            "agent_startup",
+            "input",
+            "pre_model_call",
+            "post_model_call",
+            "pre_tool_call",
+            "post_tool_call",
+            "output",
+            "agent_shutdown"
+          ],
+          "profiles": {
+            "parallel/strictest": {
+              "on_transform_conflict": [
+                "deny",
+                "approval"
+              ]
+            },
+            "parallel/unanimous": {
+              "on_disagreement": [
+                "deny",
+                "approval"
+              ]
+            },
+            "sequential/first_deny": {
+              "on_approval": [
+                "stop",
+                "resume"
+              ]
+            },
+            "sequential/run_all": {}
+          }
+        }
+      },
+      "expect": {
+        "canonical_json": "{\"bindings\":[{\"at\":[\"pre_tool_call\",\"output\"],\"config\":{\"allow_hosts\":[\"internal.example\"]},\"id\":\"egress-guard\",\"kind\":\"com.example.egress\",\"timeout_ms\":2000},{\"at\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"config\":{\"sink\":\"stdout\"},\"id\":\"audit\",\"kind\":\"com.example.audit-log\",\"timeout_ms\":5000}],\"configuration\":{\"approval\":{\"redactor\":\"strip-secrets\",\"resolver\":\"operator-queue\"},\"composition\":{\"on_disagreement\":\"approval\",\"profile\":\"parallel/unanimous\"},\"identity_provider\":\"jcs-sha256\",\"mode\":\"enforce\",\"posture\":{\"tool_seam_host_error\":\"continue\"},\"records\":{\"max_buffered\":10000},\"timeouts\":{\"approval_resolver_ms\":30000,\"interceptor_ms\":5000}},\"declaration\":\"agent-hooks-declaration/1.0\",\"extensions\":{},\"host\":{\"name\":\"example-runtime\",\"version\":\"3.2.0\"},\"id\":\"prod-eu-strict\",\"spec\":\"agent-hooks/0.1\",\"surface\":{\"buffered_output\":true,\"capabilities\":[\"host_declaration\",\"int64_json\",\"model_calls\",\"tool_calls\"],\"declaration_versions\":[\"agent-hooks-declaration/1.0\"],\"interception_points\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"profiles\":{\"parallel/strictest\":{\"on_transform_conflict\":[\"approval\",\"deny\"]},\"parallel/unanimous\":{\"on_disagreement\":[\"approval\",\"deny\"]},\"sequential/first_deny\":{\"on_approval\":[\"resume\",\"stop\"]},\"sequential/run_all\":{}}}}"
+      },
+      "id": "D-02-full"
+    },
+    {
+      "document": {
+        "bindings": [
+          {
+            "at": [
+              "agent_startup",
+              "input",
+              "pre_model_call",
+              "post_model_call",
+              "pre_tool_call",
+              "post_tool_call",
+              "output",
+              "agent_shutdown"
+            ],
+            "config": {},
+            "id": "allow",
+            "kind": "com.example.allow",
+            "timeout_ms": 5000
+          }
+        ],
+        "configuration": {
+          "approval": {
+            "redactor": null,
+            "resolver": null
+          },
+          "composition": {
+            "on_approval": "stop",
+            "profile": "sequential/first_deny"
+          },
+          "identity_provider": "jcs-sha256",
+          "mode": "enforce",
+          "posture": {
+            "tool_seam_host_error": "continue"
+          },
+          "records": {
+            "max_buffered": null
+          },
+          "timeouts": {
+            "approval_resolver_ms": 5000,
+            "interceptor_ms": 5000
+          }
+        },
+        "declaration": "agent-hooks-declaration/1.0",
+        "extensions": {},
+        "spec": "agent-hooks/0.1",
+        "surface": {
+          "buffered_output": true,
+          "capabilities": [
+            "host_declaration",
+            "int64_json",
+            "model_calls",
+            "tool_calls"
+          ],
+          "declaration_versions": [
+            "agent-hooks-declaration/1.0"
+          ],
+          "interception_points": [
+            "agent_startup",
+            "input",
+            "pre_model_call",
+            "post_model_call",
+            "pre_tool_call",
+            "post_tool_call",
+            "output",
+            "agent_shutdown"
+          ],
+          "profiles": {
+            "parallel/strictest": {
+              "on_transform_conflict": [
+                "approval",
+                "deny"
+              ]
+            },
+            "parallel/unanimous": {
+              "on_disagreement": [
+                "approval",
+                "deny"
+              ]
+            },
+            "sequential/first_deny": {
+              "on_approval": [
+                "resume",
+                "stop"
+              ]
+            },
+            "sequential/run_all": {}
+          }
+        }
+      },
+      "expect": {
+        "canonical_json": "{\"bindings\":[{\"at\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"config\":{},\"id\":\"allow\",\"kind\":\"com.example.allow\",\"timeout_ms\":5000}],\"configuration\":{\"approval\":{\"redactor\":null,\"resolver\":null},\"composition\":{\"on_approval\":\"stop\",\"profile\":\"sequential/first_deny\"},\"identity_provider\":\"jcs-sha256\",\"mode\":\"enforce\",\"posture\":{\"tool_seam_host_error\":\"continue\"},\"records\":{\"max_buffered\":null},\"timeouts\":{\"approval_resolver_ms\":5000,\"interceptor_ms\":5000}},\"declaration\":\"agent-hooks-declaration/1.0\",\"extensions\":{},\"spec\":\"agent-hooks/0.1\",\"surface\":{\"buffered_output\":true,\"capabilities\":[\"host_declaration\",\"int64_json\",\"model_calls\",\"tool_calls\"],\"declaration_versions\":[\"agent-hooks-declaration/1.0\"],\"interception_points\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"profiles\":{\"parallel/strictest\":{\"on_transform_conflict\":[\"approval\",\"deny\"]},\"parallel/unanimous\":{\"on_disagreement\":[\"approval\",\"deny\"]},\"sequential/first_deny\":{\"on_approval\":[\"resume\",\"stop\"]},\"sequential/run_all\":{}}}}"
+      },
+      "id": "D-03-defaults-spelled-out"
+    },
+    {
+      "document": {
+        "bindings": [
+          {
+            "id": "allow",
+            "kind": "com.example.allow"
+          }
+        ],
+        "configuration": {
+          "composition": {
+            "profile": "sequential/run_all"
+          },
+          "identity_provider": null,
+          "timeouts": {
+            "interceptor_ms": null
+          }
+        },
+        "declaration": "agent-hooks-declaration/1.0"
+      },
+      "expect": {
+        "canonical_json": "{\"bindings\":[{\"at\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"config\":{},\"id\":\"allow\",\"kind\":\"com.example.allow\",\"timeout_ms\":null}],\"configuration\":{\"approval\":{\"redactor\":null,\"resolver\":null},\"composition\":{\"profile\":\"sequential/run_all\"},\"identity_provider\":null,\"mode\":\"enforce\",\"posture\":{\"tool_seam_host_error\":\"continue\"},\"records\":{\"max_buffered\":null},\"timeouts\":{\"approval_resolver_ms\":null,\"interceptor_ms\":null}},\"declaration\":\"agent-hooks-declaration/1.0\",\"extensions\":{},\"spec\":\"agent-hooks/0.1\",\"surface\":{\"buffered_output\":true,\"capabilities\":[\"host_declaration\",\"int64_json\",\"model_calls\",\"tool_calls\"],\"declaration_versions\":[\"agent-hooks-declaration/1.0\"],\"interception_points\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"profiles\":{\"parallel/strictest\":{\"on_transform_conflict\":[\"approval\",\"deny\"]},\"parallel/unanimous\":{\"on_disagreement\":[\"approval\",\"deny\"]},\"sequential/first_deny\":{\"on_approval\":[\"resume\",\"stop\"]},\"sequential/run_all\":{}}}}"
+      },
+      "id": "D-04-surface-absent"
+    },
+    {
+      "document": {
+        "bindings": [
+          {
+            "at": [
+              "output",
+              "pre_tool_call"
+            ],
+            "id": "a",
+            "kind": "com.example.egress",
+            "timeout_ms": null
+          },
+          {
+            "at": [
+              "agent_startup",
+              "input",
+              "output",
+              "agent_shutdown"
+            ],
+            "id": "b",
+            "kind": "com.example.allow"
+          },
+          {
+            "id": "c",
+            "kind": "com.example.audit-log",
+            "timeout_ms": 1
+          }
+        ],
+        "configuration": {
+          "approval": {
+            "resolver": "operator-queue"
+          },
+          "composition": {
+            "on_transform_conflict": "approval",
+            "profile": "parallel/strictest"
+          }
+        },
+        "declaration": "agent-hooks-declaration/1.0",
+        "extensions": {
+          "acme": {
+            "list": [
+              1,
+              2.5,
+              "x",
+              null,
+              true
+            ],
+            "team": "sec"
+          }
+        }
+      },
+      "expect": {
+        "canonical_json": "{\"bindings\":[{\"at\":[\"pre_tool_call\",\"output\"],\"config\":{},\"id\":\"a\",\"kind\":\"com.example.egress\",\"timeout_ms\":null},{\"at\":[\"agent_startup\",\"input\",\"output\",\"agent_shutdown\"],\"config\":{},\"id\":\"b\",\"kind\":\"com.example.allow\",\"timeout_ms\":5000},{\"at\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"config\":{},\"id\":\"c\",\"kind\":\"com.example.audit-log\",\"timeout_ms\":1}],\"configuration\":{\"approval\":{\"redactor\":null,\"resolver\":\"operator-queue\"},\"composition\":{\"on_transform_conflict\":\"approval\",\"profile\":\"parallel/strictest\"},\"identity_provider\":\"jcs-sha256\",\"mode\":\"enforce\",\"posture\":{\"tool_seam_host_error\":\"continue\"},\"records\":{\"max_buffered\":null},\"timeouts\":{\"approval_resolver_ms\":5000,\"interceptor_ms\":5000}},\"declaration\":\"agent-hooks-declaration/1.0\",\"extensions\":{\"acme\":{\"list\":[1,2.5,\"x\",null,true],\"team\":\"sec\"}},\"spec\":\"agent-hooks/0.1\",\"surface\":{\"buffered_output\":true,\"capabilities\":[\"host_declaration\",\"int64_json\",\"model_calls\",\"tool_calls\"],\"declaration_versions\":[\"agent-hooks-declaration/1.0\"],\"interception_points\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"profiles\":{\"parallel/strictest\":{\"on_transform_conflict\":[\"approval\",\"deny\"]},\"parallel/unanimous\":{\"on_disagreement\":[\"approval\",\"deny\"]},\"sequential/first_deny\":{\"on_approval\":[\"resume\",\"stop\"]},\"sequential/run_all\":{}}}}"
+      },
+      "id": "D-05-per-point-bindings"
+    }
+  ],
+  "names": {
+    "approval_redactors": [
+      "strip-secrets"
+    ],
+    "approval_resolvers": [
+      "operator-queue"
+    ],
+    "identity_providers": [
+      "hmac-sha256-k1"
+    ],
+    "kinds": [
+      "com.example.allow",
+      "com.example.audit-log",
+      "com.example.egress"
+    ]
+  },
+  "surface": {
+    "capabilities": [
+      "host_declaration",
+      "int64_json",
+      "model_calls",
+      "tool_calls"
+    ],
+    "declaration_versions": [
+      "agent-hooks-declaration/1.0"
+    ],
+    "interception_points": [
+      "agent_startup",
+      "input",
+      "pre_model_call",
+      "post_model_call",
+      "pre_tool_call",
+      "post_tool_call",
+      "output",
+      "agent_shutdown"
+    ],
+    "interceptor_timeout": "bounded",
+    "profiles": {
+      "parallel/strictest": {
+        "on_transform_conflict": [
+          "approval",
+          "deny"
+        ]
+      },
+      "parallel/unanimous": {
+        "on_disagreement": [
+          "approval",
+          "deny"
+        ]
+      },
+      "sequential/first_deny": {
+        "on_approval": [
+          "resume",
+          "stop"
+        ]
+      },
+      "sequential/run_all": {}
+    },
+    "streams_unbuffered": false,
+    "tool_seam_host_error": "continue"
+  }
+}

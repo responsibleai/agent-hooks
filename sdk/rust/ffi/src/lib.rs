@@ -7,7 +7,10 @@
 //! `ah_free_result`. `ok=1` means `value` holds the JSON result; `ok=0`
 //! means `error_code` holds the error code and `value` holds a detail
 //! message. The code is a §11 `host_error:*` string for contract
-//! failures, or one of two boundary codes: `marshal_error` (an argument
+//! failures, a §7.7.6 `declaration_error:*` string from the two
+//! declaration functions (the detail is then JSON:
+//! `{"findings": [{"pointer", "detail"}], "accepted": [...]}`), or
+//! one of two boundary codes: `marshal_error` (an argument
 //! was not valid UTF-8, or a result could not cross the boundary) and
 //! `panic` (a defect in the core; the process is NOT aborted — every
 //! entry point is wrapped in `catch_unwind`, because since Rust 1.81 a
@@ -302,6 +305,31 @@ pub unsafe extern "C" fn ah_ctk_should_skip(
     guarded(move || core::ctk_should_skip(a?, b?).map_err(core_err))
 }
 
+/// The declaration contract versions this core writes and accepts
+/// (§7.7.2): `{"current": "...", "supported": [...]}`.
+#[no_mangle]
+pub extern "C" fn ah_declaration_versions() -> *mut AhResult {
+    guarded(|| Ok(core::declaration_versions()))
+}
+
+/// Steps 2 to 10 of §7.7.6: validate a host declaration document and
+/// resolve it against the host's surface and registered names. On
+/// success `value` is the resolved declaration JSON; on refusal
+/// `error_code` is `declaration_error:<class>` and `value` the JSON
+/// findings.
+///
+/// # Safety
+/// All pointers must be null or valid NUL-terminated C strings.
+#[no_mangle]
+pub unsafe extern "C" fn ah_declaration_resolve(
+    document_json: *const c_char,
+    host_json: *const c_char,
+) -> *mut AhResult {
+    let a = from_c(document_json, "document_json");
+    let b = from_c(host_json, "host_json");
+    guarded(move || core::declaration_resolve(a?, b?).map_err(core_err))
+}
+
 /// # Safety
 /// All pointers must be null or valid NUL-terminated C strings.
 #[no_mangle]
@@ -384,6 +412,100 @@ mod tests {
                 detail.contains("string-encode 64-bit identifiers"),
                 "{detail}"
             );
+        }
+    }
+
+    unsafe fn call2(
+        f: unsafe extern "C" fn(*const c_char, *const c_char) -> *mut AhResult,
+        a: &str,
+        b: &str,
+    ) -> (u8, String, String) {
+        let ca = CString::new(a).unwrap();
+        let cb = CString::new(b).unwrap();
+        let r = f(ca.as_ptr(), cb.as_ptr());
+        let ok = (*r).ok;
+        let value = if (*r).value.is_null() {
+            String::new()
+        } else {
+            CStr::from_ptr((*r).value).to_string_lossy().into_owned()
+        };
+        let code = if (*r).error_code.is_null() {
+            String::new()
+        } else {
+            CStr::from_ptr((*r).error_code)
+                .to_string_lossy()
+                .into_owned()
+        };
+        ah_free_result(r);
+        (ok, value, code)
+    }
+
+    const HOST: &str = r#"{
+        "surface": {
+            "interception_points": ["agent_startup", "input", "output", "agent_shutdown"],
+            "capabilities": ["host_declaration"],
+            "profiles": {"sequential/first_deny": {"on_approval": ["stop", "resume"]}},
+            "tool_seam_host_error": "continue",
+            "streams_unbuffered": false,
+            "interceptor_timeout": "bounded",
+            "declaration_versions": ["agent-hooks-declaration/1.0"]
+        },
+        "kinds": ["com.example.allow"]
+    }"#;
+
+    #[test]
+    fn declaration_versions_lists_current_and_supported() {
+        let r = ah_declaration_versions();
+        unsafe {
+            assert_eq!((*r).ok, 1);
+            let v = CStr::from_ptr((*r).value).to_str().unwrap();
+            assert_eq!(
+                v,
+                r#"{"current":"agent-hooks-declaration/1.0","supported":["agent-hooks-declaration/1.0"]}"#
+            );
+            ah_free_result(r);
+        }
+    }
+
+    #[test]
+    fn declaration_resolve_accepts_and_refuses_through_c_abi() {
+        let doc = r#"{"declaration": "agent-hooks-declaration/1.0",
+                      "bindings": [{"id": "allow", "kind": "com.example.allow"}]}"#;
+        unsafe {
+            let (ok, value, _) = call2(ah_declaration_resolve, doc, HOST);
+            assert_eq!(ok, 1, "{value}");
+            assert!(value.contains("\"interceptor_ms\":5000"), "{value}");
+            assert!(
+                value
+                    .contains("\"at\":[\"agent_startup\",\"input\",\"output\",\"agent_shutdown\"]"),
+                "{value}"
+            );
+
+            let bad = r#"{"declaration": "agent-hooks-declaration/0.1", "bindings": []}"#;
+            let (ok, detail, code) = call2(ah_declaration_resolve, bad, HOST);
+            assert_eq!(ok, 0);
+            assert_eq!(code, "declaration_error:version_unsupported");
+            assert!(
+                detail.contains("\"accepted\":[\"agent-hooks-declaration/1.0\"]"),
+                "{detail}"
+            );
+            assert!(detail.contains("\"pointer\":\"/declaration\""), "{detail}");
+
+            let unknown_kind = r#"{"declaration": "agent-hooks-declaration/1.0",
+                                   "bindings": [{"id": "x", "kind": "com.example.none"}]}"#;
+            let (ok, detail, code) = call2(ah_declaration_resolve, unknown_kind, HOST);
+            assert_eq!(ok, 0);
+            assert_eq!(code, "declaration_error:kind_unknown");
+            assert!(detail.contains("/bindings/0/kind"), "{detail}");
+
+            // A null document is the empty string: malformed, not a crash.
+            let r = ah_declaration_resolve(std::ptr::null(), std::ptr::null());
+            assert_eq!((*r).ok, 0);
+            assert_eq!(
+                CStr::from_ptr((*r).error_code).to_str().unwrap(),
+                "declaration_error:surface_unsupported"
+            );
+            ah_free_result(r);
         }
     }
 

@@ -145,3 +145,65 @@ proptest! {
         prop_assert_eq!(a, b);
     }
 }
+
+// ---- host declaration (§7.7.6) ---------------------------------------------
+
+/// Member names that are never a known member at any level, so they
+/// are unknown wherever inserted.
+fn arb_unknown_key() -> impl Strategy<Value = String> {
+    "zz[a-z0-9_]{0,10}"
+}
+
+fn minimal_declaration() -> serde_json::Value {
+    serde_json::json!({
+        "declaration": agent_hooks::DECLARATION_VERSION,
+        "host": { "name": "h" },
+        "configuration": {
+            "composition": { "profile": "sequential/first_deny" },
+            "approval": {},
+            "posture": {},
+            "timeouts": {},
+            "records": {}
+        },
+        "surface": { "profiles": { "sequential/first_deny": {} } },
+        "bindings": [{ "id": "a", "kind": "com.example.a" }]
+    })
+}
+
+proptest! {
+    /// An unknown member at any closed level is refused as
+    /// `unknown_field` with one finding naming exactly that pointer.
+    #[test]
+    fn unknown_member_refused_at_its_pointer(
+        key in arb_unknown_key(),
+        value in arb_json(),
+        level in 0usize..9,
+    ) {
+        let mut doc = minimal_declaration();
+        let (slot, pointer): (&mut serde_json::Value, String) = match level {
+            0 => (&mut doc, format!("/{key}")),
+            1 => (&mut doc["host"], format!("/host/{key}")),
+            2 => (&mut doc["configuration"], format!("/configuration/{key}")),
+            3 => (&mut doc["configuration"]["composition"], format!("/configuration/composition/{key}")),
+            4 => (&mut doc["configuration"]["approval"], format!("/configuration/approval/{key}")),
+            5 => (&mut doc["configuration"]["timeouts"], format!("/configuration/timeouts/{key}")),
+            6 => (&mut doc["surface"], format!("/surface/{key}")),
+            7 => (&mut doc["surface"]["profiles"]["sequential/first_deny"], format!("/surface/profiles/sequential~1first_deny/{key}")),
+            _ => (&mut doc["bindings"][0], format!("/bindings/0/{key}")),
+        };
+        slot[key.as_str()] = value;
+        let e = agent_hooks::HostDeclaration::from_value(doc).unwrap_err();
+        prop_assert_eq!(e.class, agent_hooks::DeclarationErrorClass::UnknownField);
+        prop_assert_eq!(e.findings.len(), 1);
+        prop_assert_eq!(&e.findings[0].pointer, &pointer);
+    }
+
+    /// Arbitrary JSON never panics the loader: it is refused with a
+    /// documented class or accepted.
+    #[test]
+    fn arbitrary_json_never_panics(v in arb_json()) {
+        let _ = agent_hooks::HostDeclaration::from_value(v.clone());
+        let text = serde_json::to_string(&v).unwrap();
+        let _ = agent_hooks::HostDeclaration::from_json(&text);
+    }
+}

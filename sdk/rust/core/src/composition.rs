@@ -18,7 +18,7 @@ use crate::types::{Decision, Verdict, VerdictSummary, Warning};
 use serde::{Deserialize, Serialize};
 
 /// The closed profile set (§7.2).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum CompositionProfile {
     #[serde(rename = "sequential/first_deny")]
     SequentialFirstDeny,
@@ -45,11 +45,54 @@ impl CompositionProfile {
     pub fn is_sequential(self) -> bool {
         matches!(self, Self::SequentialFirstDeny | Self::SequentialRunAll)
     }
+
+    /// Every profile, in §7.2 table order.
+    pub const ALL: [Self; 4] = [
+        Self::SequentialFirstDeny,
+        Self::SequentialRunAll,
+        Self::ParallelStrictest,
+        Self::ParallelUnanimous,
+    ];
+
+    /// Parse a wire name; `None` for anything outside the closed set.
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|p| p.as_str() == s)
+    }
+
+    /// The knob members this profile consults (§7.2): the record
+    /// carries exactly these, and a declaration MUST NOT set any other
+    /// (§7.7.3).
+    pub fn consulted_knobs(self) -> &'static [&'static str] {
+        match self {
+            Self::SequentialFirstDeny => &["on_approval"],
+            Self::SequentialRunAll => &[],
+            Self::ParallelStrictest => &["on_transform_conflict"],
+            Self::ParallelUnanimous => &["on_disagreement"],
+        }
+    }
+}
+
+/// The closed value set of one knob member, by wire name (§7.2).
+pub fn knob_values(knob: &str) -> &'static [&'static str] {
+    match knob {
+        "on_approval" => &["stop", "resume"],
+        "on_disagreement" | "on_transform_conflict" => &["deny", "approval"],
+        _ => &[],
+    }
+}
+
+/// The §7.2 normative default of one knob member, by wire name.
+pub fn knob_default(knob: &str) -> Option<&'static str> {
+    match knob {
+        "on_approval" => Some("stop"),
+        "on_disagreement" | "on_transform_conflict" => Some("deny"),
+        _ => None,
+    }
 }
 
 /// `sequential/first_deny` knob (§7.4): what a permit resolution does
 /// to the rest of the fold.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OnApproval {
     /// The resolution becomes the combined verdict; the emission ends
@@ -62,11 +105,29 @@ pub enum OnApproval {
 
 /// `"deny" | "approval"` knob value (§7.5): synthesize a plain deny, or
 /// a liftable one and consult the seam.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SynthesisPolicy {
     Deny,
     Approval,
+}
+
+impl OnApproval {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Stop => "stop",
+            Self::Resume => "resume",
+        }
+    }
+}
+
+impl SynthesisPolicy {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Deny => "deny",
+            Self::Approval => "approval",
+        }
+    }
 }
 
 /// The composition profile and knobs in effect for one emission
@@ -399,7 +460,7 @@ mod tests {
     #[test]
     fn config_wire_names() {
         let c = CompositionConfig::default();
-        let j = serde_json::to_value(&c).unwrap();
+        let j = serde_json::to_value(c).unwrap();
         assert_eq!(j["profile"], "sequential/first_deny");
         assert_eq!(j["on_approval"], "stop");
         let c: CompositionConfig = serde_json::from_value(json!({

@@ -36,7 +36,10 @@ harness = false
 
 [features]
 default = []
-ctk = []
+# The CTK runner and reference harness. Pulls in tokio-timeout so the
+# reference harness is a bounded build and can honour a declared
+# interceptor timeout (spec section 7.7.6).
+ctk = ["tokio-timeout"]
 # §7 timeout wrappers for Rust-native hosts (TimeoutInterceptor /
 # TimeoutResolver); gated because the core is otherwise runtime-agnostic.
 tokio-timeout = ["dep:tokio"]
