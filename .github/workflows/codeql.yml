@@ -44,7 +44,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.22" }
       - if: matrix.language == 'go'
-        uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master
         with: { toolchain: stable }
       - if: matrix.language == 'go'
         name: Build ffi cdylib (cgo dependency)
