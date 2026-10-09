@@ -318,9 +318,12 @@ is pinned by per-SDK unit tests instead:
   own surface (`buffered_output: false` and its exposure bound), the
   wording of a finding on a filled member, and sealing. Vectors carry
   a document as a value and every
-  conformant host has the full default surface, so these are core and
-  per-SDK unit tests (`sdk/rust/core/tests/declaration.rs`,
-  `sdk/typescript/test/declaration.test.mjs`). The golden file
+  reference harness has the full default surface, so these are core
+  and per-SDK unit tests (`sdk/rust/core/tests/declaration.rs`,
+  `sdk/python/tests/test_declaration.py`,
+  `sdk/typescript/test/declaration.test.mjs`,
+  `sdk/dotnet/test/AgentHooks.Tests/DeclarationTests.cs`,
+  `sdk/go/agenthooks/declaration_test.go`). The golden file
   `conformance/golden/declaration.json` pins the resolved canonical
   form of five documents byte for byte in all five SDKs
   (`sdk/rust/core/tests/declaration.rs`,
