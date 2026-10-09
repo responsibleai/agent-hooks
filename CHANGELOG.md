@@ -21,10 +21,8 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `InterceptionEmitter::from_declaration*`), the FFI gains
   `ah_declaration_versions` and `ah_declaration_resolve`, and the Rust
   reference harness builds every emitter through the loader. The
-  contract version is tracked in `spec/DECLARATION-VERSIONS.md`. The
-  TypeScript, .NET and Go SDKs follow in a later change and skip the
-  new vectors until then. Wire version agent-hooks/0.1 unchanged.
-  Additive.
+  contract version is tracked in `spec/DECLARATION-VERSIONS.md`.
+  Wire version agent-hooks/0.1 unchanged. Additive.
 - Python SDK: the host declaration loader. `HostDeclaration`,
   `HostRegistry`, `HostSurface`, `DeclarationError` and
   `InterceptionEmitter.from_declaration`, `from_declaration_path`,
@@ -36,6 +34,20 @@ User-visible changes to the spec and SDKs. Versioning rules:
   AH-CTK-139. `DECLARATION_VERSION` and
   `SUPPORTED_DECLARATION_VERSIONS` are exported next to
   `SPEC_VERSION`. Additive.
+- TypeScript SDK: the host declaration loader (spec §7.7).
+  `HostDeclaration` (`fromPath`, `fromJson`, `fromValue`, `builder()`),
+  `HostRegistry`, `HostSurface`, `DeclarationError`,
+  `InterceptionEmitter.fromDeclaration` and its path, JSON and value
+  forms, `emitter.declaration`, `canonicalDeclaration`,
+  `DECLARATION_VERSION` and `SUPPORTED_DECLARATION_VERSIONS`.
+  `register` takes an `at` set; a declaration-built emitter is sealed
+  (`EmitterSealed`); its records carry `declaration`. The napi module
+  gains `declarationVersions`, `declarationValidate`,
+  `declarationResolve` and `declarationResolveSurface`. The CTK
+  `Harness` gains `hostSurface`, `declaration` and `setupDeclared`, the
+  `Capability` type is the closed list, and the reference harness
+  declares `host_declaration`, builds every emitter through the loader
+  and runs AH-CTK-120 to AH-CTK-139 (skip set unchanged). Additive.
 - Spec §7.2 and §10.3: `on_transform_conflict` is consulted by
   `parallel/strictest` only, not by both parallel profiles. The text
   said "parallel profiles"; the core's `with_knob_defaults` and the

@@ -19,7 +19,8 @@ const vectorsDir = resolve(here, "../../../conformance/vectors");
 // them, so TS declares neither int64_json nor bigint_json. The
 // streaming/incremental part (§12.1 exception) skips because the
 // reference harness buffers caller-bound output and does not declare
-// incremental_output.
+// incremental_output. The declaration parts (§7.7.9) run: the harness
+// declares host_declaration and builds every emitter through the loader.
 const EXPECTED_SKIPS = new Set([
   "AH-CTK-090",
   "AH-CTK-091",
@@ -28,9 +29,6 @@ const EXPECTED_SKIPS = new Set([
   "AH-CTK-111",
   "AH-CTK-112",
   "AH-CTK-113",
-  // declaration/* parts (spec §7.7.9): skipped until this harness
-  // declares host_declaration and builds its emitter through the loader.
-  ...Array.from({ length: 20 }, (_, i) => `AH-CTK-${120 + i}`),
 ]);
 
 const skipped = new Set();

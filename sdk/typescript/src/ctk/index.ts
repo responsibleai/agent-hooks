@@ -12,20 +12,37 @@ import type {
   ApprovalResolver,
   CompositionConfig,
   EnforcementMode,
+  HostRegistry,
+  HostSurface,
   Interceptor,
   JsonValue,
 } from "../index";
 
-export { loadVectors, runVector, runVectors, VectorResult } from "./runner";
-export { ReferenceHarness } from "./reference";
+export {
+  assessHarness,
+  loadVectors,
+  runVector,
+  runVectors,
+  VectorResult,
+  builderFromValue,
+  provePaths,
+} from "./runner";
+export type { AssessedSurface } from "./runner";
+export { ReferenceHarness, REFERENCE_DECLARATION } from "./reference";
 
-/** Host-declared capability subset (§3.2). */
+/** Host-declared capability subset (§3.2, §13.1): the closed list of
+ * `conformance/vectors.schema.json` with `host_declaration` (§7.7.9).
+ * `buffered_output` is a value, not a presence, and is not listed. */
 export type Capability =
   | "model_calls"
   | "tool_calls"
   | "parallel_tool_calls"
   | "streaming"
-  | "multi_turn";
+  | "multi_turn"
+  | "int64_json"
+  | "bigint_json"
+  | "incremental_output"
+  | "host_declaration";
 
 export type RunOutcome = "completed" | "blocked" | "suspended" | "error";
 
@@ -46,6 +63,18 @@ export interface Scenario {
   }>;
 }
 
+/** What loading the vector's host declaration produced (§7.7.9), as
+ * the runner records it. */
+export interface LoadRecord {
+  outcome: "accepted" | "refused";
+  /** The `declaration_error:*` code on refusal. */
+  class?: string;
+  /** Whether the value, JSON, file and builder paths resolved to one
+   * canonical form (or refused with one class). */
+  paths_equivalent?: boolean;
+  detail?: string;
+}
+
 /** What `Harness.run` returns to the CTK runner. */
 export interface RunRecord {
   outcome: RunOutcome;
@@ -59,6 +88,9 @@ export interface RunRecord {
   /** Wire-shaped `InterceptionRecord`s (§10.3), one per emission, in
    * order. Enables `expect.records` assertions. */
   records: JsonValue[];
+  /** Set by the runner for vectors carrying `host_declaration`
+   * (§7.7.9); a harness never fills it. */
+  load?: LoadRecord;
 }
 
 /** The single interface a framework adapter implements for the CTK. */
@@ -99,4 +131,29 @@ export interface Harness {
   run(): Promise<RunRecord>;
 
   teardown(): void;
+
+  /** The code surface (§7.7.4) a declaration is resolved against. When
+   * absent the runner derives it from `capabilities` and
+   * `toolSeamHostError` (`HostSurface.fromCapabilities`): the §3.2
+   * floor plus the model points iff `model_calls` plus the tool points
+   * iff `tool_calls`, every profile with every knob value. A host
+   * declaring `incremental_output` implements this to add its exposure
+   * bound; the derived surface alone is refused for such a host. */
+  hostSurface?(): HostSurface;
+
+  /** The host's own declaration document (§7.7.9), when it has one.
+   * The runner resolves it against the code surface and reads the
+   * capabilities and posture a run is assessed against from the
+   * resolved form, so what the CTK ran against is what a claim cites.
+   * Absent keeps the code-declared surface. */
+  declaration?(): JsonValue | undefined;
+
+  /** Wire one declaration vector (§7.7.9): the harness MUST build its
+   * emitter from `document` and `registry` through the loader
+   * (`InterceptionEmitter.fromDeclarationValue`) and let the
+   * `DeclarationError` propagate, never fall back to the field-based
+   * `setup`. The document and the registry carry the interceptors,
+   * resolver, composition and identity provider. Only harnesses
+   * declaring the `host_declaration` capability receive this call. */
+  setupDeclared?(scenario: Scenario, document: JsonValue, registry: HostRegistry): void;
 }

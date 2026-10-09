@@ -126,10 +126,9 @@ from a host declaration document through the loader. It gates the
 `declaration/load`, `declaration/bindings` and `declaration/refusal`
 parts (`AH-CTK-120` onwards). A harness that declares it implements
 the declaration seam below; one that does not skips those twenty
-vectors with a stated reason. Of the in-tree reference harnesses, the
-Rust and Python ones declare it and build every emitter through the
-loader. The TypeScript, .NET and Go harnesses skip the twenty vectors
-with a stated reason until their SDKs gain the loader.
+vectors with a stated reason. All five in-tree reference harnesses
+(Rust, Python, TypeScript, .NET and Go) declare it and build every
+emitter through the loader.
 
 Non-finite floats (NaN/Infinity) and lone surrogates cannot be
 expressed in a JSON vector at all — those §4.4 marshalling guards are
@@ -251,15 +250,14 @@ with one class, and a divergence fails the vector. It then records
 `expect.load` first; a refused load must leave no record and no
 interception.
 
-The Rust and Python reference harnesses each ship a declaration
+The five reference harnesses each ship a declaration
 document with an explicit surface and route the 51 field-based vectors
 through the loader too: each writes the vector's mode, composition and
 provider into a copy of its document and binds the scripted
 interceptors by index through a `ctk.instance` kind. Their skip
-manifests do not change. The other three reference harnesses keep
-their field-based construction and list `AH-CTK-120` to `AH-CTK-139`
-in their skip manifests until their SDKs gain the loader; those entries
-go when the loader lands.
+manifests do not change for that routing. Every reference harness
+runs `AH-CTK-120` to `AH-CTK-139`; none lists them in its skip
+manifest.
 
 ## Running
 
@@ -321,7 +319,10 @@ is pinned by per-SDK unit tests instead:
   wording of a finding on a filled member, and sealing. Vectors carry
   a document as a value and every
   conformant host has the full default surface, so these are core and
-  per-SDK unit tests (`sdk/rust/core/tests/declaration.rs`). The
-  golden file `conformance/golden/declaration.json` pins the resolved
-  canonical form of five documents byte for byte in the Rust core;
-  each other SDK asserts it when it gains the loader.
+  per-SDK unit tests (`sdk/rust/core/tests/declaration.rs`,
+  `sdk/typescript/test/declaration.test.mjs`). The golden file
+  `conformance/golden/declaration.json` pins the resolved canonical
+  form of five documents byte for byte in the Rust core and the
+  TypeScript SDK (`sdk/rust/core/tests/declaration.rs`,
+  `sdk/typescript/test/golden_declaration.test.mjs`); Python, .NET
+  and Go assert it when they gain the loader.

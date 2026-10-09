@@ -6,6 +6,13 @@
  * The simplest possible conformant agent loop; exists so the
  * CTK can self-test without a real framework. Port of
  * `sdk/python/python/agent_hooks/ctk/reference.py`.
+ *
+ * Every emitter it builds goes through the host declaration loader
+ * (§7.7): for a field-based vector it writes the vector's mode,
+ * composition and provider into a copy of its own document
+ * (`reference.declaration.json`) and binds the scripted interceptors
+ * through a `ctk.instance` kind, so the field-based vectors exercise
+ * the loader too.
  */
 
 import { randomUUID } from "node:crypto";
@@ -14,6 +21,8 @@ import {
   ApprovalResolver,
   CompositionConfig,
   EnforcementMode,
+  HostRegistry,
+  HostSurface,
   Interceptor,
   InterceptionBlocked,
   JsonValue,
@@ -21,18 +30,51 @@ import {
 import { AgentContextBuilder } from "../builder";
 import { InterceptionEmitter } from "../emitter";
 import type { Capability, Harness, RunOutcome, RunRecord, Scenario } from "./index";
-import { native } from "../native";
+import { redactPaths } from "./runner";
+import referenceDeclaration from "./reference.declaration.json";
 
 type ToolArgs = Record<string, JsonValue>;
 
+/** The reference harness's own declaration (§7.7.9), with an explicit
+ * surface a claim can cite. */
+export const REFERENCE_DECLARATION: Readonly<Record<string, JsonValue>> = Object.freeze(
+  referenceDeclaration as Record<string, JsonValue>,
+);
+
 export class ReferenceHarness implements Harness {
   readonly name = "reference-agent";
-  readonly capabilities: ReadonlySet<Capability> = new Set(["model_calls", "tool_calls"]);
+  // host_declaration: every emitter is built through the loader.
+  // JSON.parse rounds integers beyond 2^53 before any guard can run,
+  // so neither int64_json nor bigint_json is declared (§4.4).
+  readonly capabilities: ReadonlySet<Capability> = new Set<Capability>([
+    "model_calls",
+    "tool_calls",
+    "host_declaration",
+  ]);
 
   private scenario!: Scenario;
   private emitter!: InterceptionEmitter;
   private builder!: AgentContextBuilder;
   private toolLog: Array<{ name: string; args: ToolArgs }> = [];
+
+  hostSurface(): HostSurface {
+    return HostSurface.fromCapabilities(this.capabilities, "continue");
+  }
+
+  declaration(): JsonValue {
+    return JSON.parse(JSON.stringify(REFERENCE_DECLARATION)) as JsonValue;
+  }
+
+  private startSession(scenario: Scenario, emitter: InterceptionEmitter): void {
+    this.scenario = scenario;
+    this.toolLog = [];
+    this.emitter = emitter;
+    this.builder = new AgentContextBuilder({
+      agentId: "ref-agent",
+      framework: "reference-agent",
+      sessionId: randomUUID(),
+    });
+  }
 
   setup(
     scenario: Scenario,
@@ -43,40 +85,58 @@ export class ReferenceHarness implements Harness {
     identityProvider: 'jcs-sha256' | 'ctk-fault' | null,
     redactForApproval: string[] = [],
   ): void {
-    this.scenario = scenario;
-    this.toolLog = [];
-    const em = new InterceptionEmitter(mode, resolver);
-    em.setComposition(composition);
-    if (redactForApproval.length > 0) {
-      // §9 redaction seam, CTK convention: each listed path is replaced
-      // with "[redacted]" via the §5.2/§4.3 transform machinery;
-      // unresolvable paths are left untouched.
-      em.setApprovalRedactor((ctx) => {
-        let out = JSON.stringify(ctx);
-        for (const path of redactForApproval) {
-          try {
-            out = native.applyTransformCtx(out, path, '"[redacted]"');
-          } catch {
-            /* unresolvable at this point — skip */
-          }
-        }
-        return JSON.parse(out) as typeof ctx;
+    // Field-based vector: write the vector's configuration into a copy
+    // of the reference document and bind the interceptors by index
+    // through the `ctk.instance` kind.
+    const doc = this.declaration() as Record<string, JsonValue>;
+    const cfg = doc["configuration"] as Record<string, JsonValue>;
+    cfg["mode"] = mode;
+    cfg["composition"] = composition as unknown as JsonValue;
+    const registry = HostRegistry.forConformance(this.hostSurface());
+    if (identityProvider === "ctk-fault") {
+      // §13.2: "ctk-fault" is a custom provider that throws, pinning the
+      // §10.1 provider-failure rule (deny context_invalid pre-dispatch).
+      registry.identityProvider("ctk-fault", () => {
+        throw new Error("ctk scripted provider fault");
       });
     }
-    // §13.2: "ctk-fault" is a custom provider that throws, pinning the
-    // §10.1 provider-failure rule (deny context_invalid pre-dispatch).
-    em.setIdentityProvider(
-      identityProvider === 'ctk-fault'
-        ? { name: 'ctk-fault', fn: () => { throw new Error('ctk scripted provider fault'); } }
-        : identityProvider,
-    );
-    for (const i of interceptors) em.register(i);
-    this.emitter = em;
-    this.builder = new AgentContextBuilder({
-      agentId: "ref-agent",
-      framework: "reference-agent",
-      sessionId: randomUUID(),
+    cfg["identity_provider"] = identityProvider;
+    const approval: Record<string, JsonValue> = { resolver: null, redactor: null };
+    if (resolver !== null) {
+      registry.approvalResolver("ctk-scripted", resolver);
+      approval["resolver"] = "ctk-scripted";
+    }
+    if (redactForApproval.length > 0) {
+      const paths = [...redactForApproval];
+      registry.approvalRedactor("ctk-redact", (ctx) => redactPaths(ctx, paths));
+      approval["redactor"] = "ctk-redact";
+    }
+    cfg["approval"] = approval;
+
+    const slots: Array<Interceptor | undefined> = [...interceptors];
+    registry.kind("ctk.instance", (config, ctx) => {
+      const index = (config as Record<string, JsonValue> | null)?.["index"];
+      if (typeof index !== "number" || !Number.isInteger(index) || index < 0) {
+        throw new Error("config.index must be an unsigned integer");
+      }
+      const instance = slots[index];
+      if (instance === undefined) {
+        throw new Error(`no interceptor instance ${index} for binding ${ctx.id}`);
+      }
+      slots[index] = undefined;
+      return instance;
     });
+    doc["bindings"] = interceptors.map((_, i) => ({
+      id: `interceptor-${i}`,
+      kind: "ctk.instance",
+      config: { index: i },
+    }));
+    this.startSession(scenario, InterceptionEmitter.fromDeclarationValue(doc, registry));
+  }
+
+  setupDeclared(scenario: Scenario, document: JsonValue, registry: HostRegistry): void {
+    // A refusal (DeclarationError) propagates to the runner (§7.7.9).
+    this.startSession(scenario, InterceptionEmitter.fromDeclarationValue(document, registry));
   }
 
   async run(): Promise<RunRecord> {
