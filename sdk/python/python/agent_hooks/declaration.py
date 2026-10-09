@@ -885,16 +885,19 @@ class DeclarationBuilder:
         self,
         id: str,
         kind: str,
-        config: Any = None,
+        config: Any = _UNSET,
         *,
         at: Iterable[InterceptionPoint | str] | None = None,
         timeout_ms: int | None = _UNSET,
     ) -> DeclarationBuilder:
-        """Append one binding. ``config`` defaults to ``{}``; ``at=None``
-        binds at every surface point; ``timeout_ms`` left out inherits
-        the configured interceptor timeout, ``None`` writes ``null``
-        (unbounded), an integer bounds."""
-        b: dict[str, Any] = {"id": id, "kind": kind, "config": {} if config is None else config}
+        """Append one binding. ``config`` is written verbatim (``None``
+        writes ``null``) and left out takes the document default ``{}``;
+        ``at=None`` binds at every surface point; ``timeout_ms`` left
+        out inherits the configured interceptor timeout, ``None`` writes
+        ``null`` (unbounded), an integer bounds."""
+        b: dict[str, Any] = {"id": id, "kind": kind}
+        if config is not _UNSET:
+            b["config"] = config
         if at is not None:
             b["at"] = _points_sorted(_point(p) for p in at)
         if timeout_ms is not _UNSET:

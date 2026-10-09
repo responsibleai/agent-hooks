@@ -327,7 +327,11 @@ def _typed_bindings(b: DeclarationBuilder, items: list[Any]) -> bool:
             if t is not None and not _is_uint(t):
                 return False
             kw["timeout_ms"] = t
-        b.bind(item["id"], item["kind"], item.get("config", {}), at=at, **kw)
+        if "config" in item:
+            # Verbatim, ``null`` included: the builder must not collapse
+            # a stated value into the default.
+            kw["config"] = item["config"]
+        b.bind(item["id"], item["kind"], at=at, **kw)
     return True
 
 

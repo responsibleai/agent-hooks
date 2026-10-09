@@ -77,3 +77,20 @@ def test_structural_harness_without_setup_declared_fails_the_vector() -> None:
     result = asyncio.run(run_vector(Structural(), vector))  # type: ignore[arg-type]
     assert result.status == "fail"
     assert any("does not implement setup_declared" in f for f in result.failures)
+
+
+def test_prove_paths_keeps_a_null_binding_config() -> None:
+    """``config: null`` is a stated value; the builder path must rebuild
+    it verbatim so the four paths agree."""
+    from agent_hooks import HostRegistry, HostSurface
+    from agent_hooks.ctk.runner import prove_paths
+
+    reg = HostRegistry(HostSurface.from_capabilities(["host_declaration"])).kind(
+        "com.example.x",
+        lambda _c, _x: None,  # type: ignore[arg-type,return-value]
+    )
+    doc = {
+        "declaration": "agent-hooks-declaration/1.0",
+        "bindings": [{"id": "a", "kind": "com.example.x", "config": None}],
+    }
+    assert prove_paths(doc, reg, "test") == (True, "")

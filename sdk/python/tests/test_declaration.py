@@ -716,6 +716,33 @@ def test_builder_is_validated_like_a_file() -> None:
     assert e.error_class is DeclarationErrorClass.UNKNOWN_FIELD
 
 
+def test_builder_writes_config_verbatim_including_null() -> None:
+    # ``config: null`` is a valid member the core keeps as ``null``; the
+    # builder must not collapse it into the default ``{}``, or a file
+    # that states it could not be rebuilt (§7.7.7).
+    reg = registry()
+    doc = {
+        "declaration": DECLARATION_VERSION,
+        "bindings": [
+            {"id": "a", "kind": "com.example.scripted", "config": None},
+            {"id": "b", "kind": "com.example.scripted"},
+        ],
+    }
+    built = (
+        HostDeclaration.builder()
+        .bind("a", "com.example.scripted", None)
+        .bind("b", "com.example.scripted")
+        .build()
+    )
+    assert built.as_value()["bindings"][0]["config"] is None
+    assert "config" not in built.as_value()["bindings"][1]
+    canon = reg.resolve(HostDeclaration.from_value(doc)).canonical_json()
+    assert reg.resolve(built).canonical_json() == canon
+    resolved = reg.resolve(built)
+    assert resolved.bindings[0].config is None
+    assert resolved.bindings[1].config == {}
+
+
 # ---- registry and surface --------------------------------------------------------
 
 
