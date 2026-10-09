@@ -54,6 +54,8 @@ from agent_hooks.interceptor import Interceptor
 
 #: Largest document the text paths accept, in bytes.
 MAX_DOCUMENT_BYTES: Final[int] = 1 << 20
+#: Deepest nesting a document may have; the core's ``MAX_DEPTH``.
+MAX_DEPTH: Final[int] = 32
 #: Longest binding ``id``, reference name and document ``id``.
 MAX_ID_LEN: Final[int] = 64
 #: Longest binding ``kind``.
@@ -136,23 +138,34 @@ def _utf8_text(text: str) -> None:
         raise _single(DeclarationErrorClass.MALFORMED, "", "document is not valid UTF-8") from None
 
 
-def _non_string_key(value: Any, pointer: str = "") -> str | None:
-    """The JSON pointer of the first object whose key is not a string,
-    or ``None``. ``json.dumps`` would coerce such a key to text, so the
-    value path would accept a document no JSON text can carry."""
+def _too_deep(pointer: str) -> DeclarationError:
+    return _single(DeclarationErrorClass.MALFORMED, pointer, f"nesting deeper than {MAX_DEPTH}")
+
+
+def _check_value_shape(value: Any, pointer: str = "", depth: int = 0) -> None:
+    """Refuse a value the wire cannot carry before it is serialized: an
+    object key that is not a string (``json.dumps`` would coerce it to
+    text, so the value path would accept a document no JSON text can
+    carry) and nesting deeper than :data:`MAX_DEPTH` (the text path
+    refuses it in the core; here the walk stops at the bound, so
+    neither it nor ``json.dumps`` recurses past it). Raises
+    ``malformed`` naming the pointer of the offending container."""
     if isinstance(value, dict):
+        if depth + 1 > MAX_DEPTH:
+            raise _too_deep(pointer)
         for k, v in value.items():
             if not isinstance(k, str):
-                return pointer or "/"
-            found = _non_string_key(v, f"{pointer}/{_escape_pointer(k)}")
-            if found is not None:
-                return found
+                raise _single(
+                    DeclarationErrorClass.MALFORMED,
+                    pointer,
+                    "cannot serialize: object key is not a string",
+                )
+            _check_value_shape(v, f"{pointer}/{_escape_pointer(k)}", depth + 1)
     elif isinstance(value, (list, tuple)):
+        if depth + 1 > MAX_DEPTH:
+            raise _too_deep(pointer)
         for i, v in enumerate(value):
-            found = _non_string_key(v, f"{pointer}/{i}")
-            if found is not None:
-                return found
-    return None
+            _check_value_shape(v, f"{pointer}/{i}", depth + 1)
 
 
 def _escape_pointer(token: str) -> str:
@@ -693,6 +706,10 @@ class HostDeclaration:
             fd = os.open(path, flags)
         except OSError as e:
             raise unreadable(f"cannot open: {_io_class(e)}") from None
+        except ValueError:
+            # A path with an embedded NUL; the core reports the same
+            # input as unreadable.
+            raise unreadable("cannot open: InvalidFilename") from None
         try:
             meta = os.fstat(fd)
             if not stat.S_ISREG(meta.st_mode):
@@ -738,18 +755,14 @@ class HostDeclaration:
         handed to the text path, so size, depth and shape checks are the
         same core code on every path. A value the wire cannot carry (a
         non-finite number, a non-JSON type, an object key that is not a
-        string) is ``malformed``."""
-        pointer = _non_string_key(value)
-        if pointer is not None:
-            raise _single(
-                DeclarationErrorClass.MALFORMED,
-                pointer,
-                "cannot serialize: object key is not a string",
-            )
+        string, nesting deeper than :data:`MAX_DEPTH`) is ``malformed``."""
+        _check_value_shape(value)
         try:
             text = _compact(value)
         except (TypeError, ValueError) as e:
             raise _single(DeclarationErrorClass.MALFORMED, "", f"cannot serialize: {e}") from None
+        except RecursionError:
+            raise _too_deep("") from None
         return cls(text)
 
     @staticmethod

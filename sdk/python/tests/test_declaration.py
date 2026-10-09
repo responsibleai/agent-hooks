@@ -43,7 +43,7 @@ from agent_hooks import (
     _core,
 )
 from agent_hooks.context import AgentContext, AgentContextBuilder
-from agent_hooks.declaration import MAX_DOCUMENT_BYTES, valid_kind, valid_reference
+from agent_hooks.declaration import MAX_DEPTH, MAX_DOCUMENT_BYTES, valid_kind, valid_reference
 
 FIXED_TIME = "2026-10-09T00:00:00.000Z"
 
@@ -400,6 +400,11 @@ def test_unreadable_classes_from_path(tmp_path: pathlib.Path) -> None:
     e = refused(tmp_path / "does-not-exist.json")
     assert e.error_class is DeclarationErrorClass.UNREADABLE
     assert "NotFound" in e.findings[0].detail
+    # A path with an embedded NUL is unreadable, as in the core, not a
+    # bare ValueError from os.open.
+    e = refused(tmp_path / "nul\x00.json")
+    assert e.error_class is DeclarationErrorClass.UNREADABLE
+    assert "InvalidFilename" in e.findings[0].detail
     e = refused(tmp_path)
     assert e.error_class is DeclarationErrorClass.UNREADABLE
     assert "regular file" in e.findings[0].detail
@@ -468,6 +473,25 @@ def test_malformed_text_and_values() -> None:
     assert e.error_class is DeclarationErrorClass.MALFORMED
     assert e.findings[0].pointer == "/bindings/0/config"
     assert "key is not a string" in e.findings[0].detail
+    # Nesting past MAX_DEPTH is malformed on both paths, and the value
+    # path refuses it before serializing rather than recursing into it.
+    deep: Any = "leaf"
+    for _ in range(100):
+        deep = {"x": deep}
+    doc = {"declaration": DECLARATION_VERSION, "bindings": [], "extensions": {"x": deep}}
+    e = refusal(doc)
+    assert e.error_class is DeclarationErrorClass.MALFORMED
+    assert f"nesting deeper than {MAX_DEPTH}" in e.findings[0].detail
+    assert e.findings[0].pointer == "/extensions/x" + "/x" * (MAX_DEPTH - 2)
+    with pytest.raises(DeclarationError) as info:
+        InterceptionEmitter.from_declaration_json(json.dumps(doc), reg)
+    assert info.value.error_class is DeclarationErrorClass.MALFORMED
+    assert f"nesting deeper than {MAX_DEPTH}" in info.value.findings[0].detail
+    # Deep enough to exhaust the interpreter's stack if walked or dumped.
+    for _ in range(3000):
+        deep = {"x": deep}
+    e = refusal({"declaration": DECLARATION_VERSION, "bindings": [], "extensions": {"x": deep}})
+    assert e.error_class is DeclarationErrorClass.MALFORMED
 
 
 def test_non_ascii_document_is_measured_in_utf8_on_every_path(tmp_path: pathlib.Path) -> None:
