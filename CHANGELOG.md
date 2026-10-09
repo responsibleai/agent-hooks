@@ -24,6 +24,20 @@ User-visible changes to the spec and SDKs. Versioning rules:
   contract version is tracked in `spec/DECLARATION-VERSIONS.md`. The
   other SDKs follow in a later change and skip the new vectors until
   then. Wire version agent-hooks/0.1 unchanged. Additive.
+- TypeScript SDK: the host declaration loader (spec §7.7).
+  `HostDeclaration` (`fromPath`, `fromJson`, `fromValue`, `builder()`),
+  `HostRegistry`, `HostSurface`, `DeclarationError`,
+  `InterceptionEmitter.fromDeclaration` and its path, JSON and value
+  forms, `emitter.declaration`, `canonicalDeclaration`,
+  `DECLARATION_VERSION` and `SUPPORTED_DECLARATION_VERSIONS`.
+  `register` takes an `at` set; a declaration-built emitter is sealed
+  (`EmitterSealed`); its records carry `declaration`. The napi module
+  gains `declarationVersions`, `declarationValidate`,
+  `declarationResolve` and `declarationResolveSurface`. The CTK
+  `Harness` gains `hostSurface`, `declaration` and `setupDeclared`, the
+  `Capability` type is the closed list, and the reference harness
+  declares `host_declaration`, builds every emitter through the loader
+  and runs AH-CTK-120 to AH-CTK-139 (skip set unchanged). Additive.
 - Spec §7.2 and §10.3: `on_transform_conflict` is consulted by
   `parallel/strictest` only, not by both parallel profiles. The text
   said "parallel profiles"; the core's `with_knob_defaults` and the
