@@ -320,6 +320,7 @@ pub struct InterceptionEmitter {
     timeout: Option<std::time::Duration>,
     /// §9 resolver bound (`approval_resolver_ms`, §7.7.3); enforced
     /// only with the `tokio-timeout` feature.
+    #[cfg_attr(not(feature = "tokio-timeout"), allow(dead_code))]
     resolver_timeout: Option<std::time::Duration>,
     record_sink: Option<RecordSink>,
     max_records: Option<usize>,
