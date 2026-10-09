@@ -77,14 +77,17 @@ if err := reg.ApprovalResolver("operator-queue", queue); err != nil {
 
 // Three construction paths, one loader, the same records:
 e, err := agenthooks.NewInterceptionEmitterFromDeclarationPath("agent-hooks.declaration.json", reg)
-e, err = agenthooks.NewInterceptionEmitterFromDeclarationJSON(text, reg)
-e, err = agenthooks.NewInterceptionEmitterFromDeclaration(
-	agenthooks.NewDeclarationBuilder().
-		Composition(agenthooks.StrictestComposition("")).
-		ApprovalResolver("operator-queue").
-		Bind("egress", "com.example.egress", map[string]any{"allow_hosts": []string{"internal.example"}},
-			agenthooks.BindAt(agenthooks.PreToolCall, agenthooks.Output)).
-		Build())
+e, err = agenthooks.NewInterceptionEmitterFromDeclarationJSON([]byte(text), reg)
+decl, err := agenthooks.NewDeclarationBuilder().
+	Composition(agenthooks.StrictestComposition("")).
+	ApprovalResolver("operator-queue").
+	Bind("egress", "com.example.egress", map[string]any{"allow_hosts": []string{"internal.example"}},
+		agenthooks.BindAt(agenthooks.PreToolCall, agenthooks.Output)).
+	Build()
+if err != nil {
+	return err
+}
+e, err = agenthooks.NewInterceptionEmitterFromDeclaration(decl, reg)
 ```
 
 A refusal is a `*agenthooks.DeclarationError` with `Class`,

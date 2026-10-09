@@ -290,7 +290,7 @@ type CompositionConfig struct {
 	OnApproval OnApproval `json:"on_approval,omitempty"`
 	// OnDisagreement applies to parallel/unanimous only.
 	OnDisagreement SynthesisPolicy `json:"on_disagreement,omitempty"`
-	// OnTransformConflict applies to parallel profiles only.
+	// OnTransformConflict applies to parallel/strictest only.
 	OnTransformConflict SynthesisPolicy `json:"on_transform_conflict,omitempty"`
 }
 

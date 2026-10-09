@@ -22,15 +22,17 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `ah_declaration_versions` and `ah_declaration_resolve`, and the Rust
   reference harness builds every emitter through the loader. The
   contract version is tracked in `spec/DECLARATION-VERSIONS.md`. The
-  other SDKs follow in a later change and skip the new vectors until
-  then. Wire version agent-hooks/0.1 unchanged. Additive.
+  Python, TypeScript and .NET SDKs follow in a later change and skip
+  the new vectors until then. Wire version agent-hooks/0.1 unchanged.
+  Additive.
 - Go SDK: host declaration loader (spec §7.7). `LoadDeclarationPath`,
   `ParseDeclaration`, `DeclarationFromValue` and `DeclarationBuilder`
   feed `NewInterceptionEmitterFromDeclaration` and its path, JSON and
   value forms; `HostRegistry` holds the code surface, kind resolvers
   (Go funcs), identity providers, approval resolvers and redactors;
-  refusals are `*DeclarationError` with the eleven classes, read back
-  from the core's `ah_declaration_resolve`. Records carry
+  refusals are `*DeclarationError` with the eleven classes: nine read
+  back from the core's `ah_declaration_resolve`, `unreadable` and
+  `binding_rejected` from the Go loader (steps 1 and 11). Records carry
   `declaration`, interceptors bind per point (`RegisterAt`), and a
   declaration-built emitter is sealed. The Go reference harness
   declares `host_declaration`, builds every emitter through the loader

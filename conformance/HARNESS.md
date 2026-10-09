@@ -127,9 +127,9 @@ from a host declaration document through the loader. It gates the
 parts (`AH-CTK-120` onwards). A harness that declares it implements
 the declaration seam below; one that does not skips those twenty
 vectors with a stated reason. Of the in-tree reference harnesses, the
-Rust one declares it and builds every emitter through the loader. The
-Python, TypeScript, .NET and Go harnesses skip the twenty vectors with
-a stated reason until their SDKs gain the loader.
+Rust and Go ones declare it and build every emitter through the
+loader. The Python, TypeScript and .NET harnesses skip the twenty
+vectors with a stated reason until their SDKs gain the loader.
 
 Non-finite floats (NaN/Infinity) and lone surrogates cannot be
 expressed in a JSON vector at all — those §4.4 marshalling guards are
