@@ -15,8 +15,12 @@ using System.Runtime.InteropServices;
 namespace AgentHooks;
 
 /// <summary>Thrown by every native-backed function on failure.
-/// <see cref="Code"/> is the §11 <c>host_error:*</c> wire string;
-/// <see cref="Detail"/> the core's remediation message.</summary>
+/// <see cref="Code"/> is the §11 <c>host_error:*</c> wire string, a
+/// §7.7.6 <c>declaration_error:*</c> code (the two declaration
+/// functions; <see cref="Detail"/> is then the JSON findings, which
+/// <see cref="DeclarationException"/> rebuilds), or one of the boundary
+/// codes <c>marshal_error</c> and <c>panic</c>; otherwise
+/// <see cref="Detail"/> is the core's remediation message.</summary>
 public sealed class AgentHooksCoreException(string code, string detail)
     : InvalidOperationException($"{code}: {detail}")
 {
@@ -69,6 +73,14 @@ internal static partial class Native
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
     private static partial IntPtr ah_compose_aggregate(string compositionJson, string verdictsJson);
 
+    // ---- host declaration (§7.7) --------------------------------------------
+
+    [LibraryImport(Lib)]
+    private static partial IntPtr ah_declaration_versions();
+
+    [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
+    private static partial IntPtr ah_declaration_resolve(string documentJson, string hostJson);
+
     // ---- CTK engine (§13.2) ------------------------------------------------
 
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
@@ -120,6 +132,17 @@ internal static partial class Native
         Unwrap(ah_finalize(ctxJson, verdictJson, mode, optionsJson));
     internal static string ComposeAggregate(string compositionJson, string verdictsJson) =>
         Unwrap(ah_compose_aggregate(compositionJson, verdictsJson));
+
+    /// <summary>§7.7.2: <c>{"current": "...", "supported": [...]}</c>.</summary>
+    internal static string DeclarationVersions() => Unwrap(ah_declaration_versions());
+
+    /// <summary>§7.7.6 steps 2 to 10: validate a declaration document
+    /// and resolve it against the host description (surface plus
+    /// registered names). Returns the resolved declaration JSON; a
+    /// refusal surfaces as <see cref="AgentHooksCoreException"/> with a
+    /// <c>declaration_error:*</c> code and the JSON findings as detail.</summary>
+    internal static string DeclarationResolve(string documentJson, string hostJson) =>
+        Unwrap(ah_declaration_resolve(documentJson, hostJson));
 
     internal static string CtkScriptedIntercept(string rulesJson, string ctxJson) =>
         Unwrap(ah_ctk_scripted_intercept(rulesJson, ctxJson));
