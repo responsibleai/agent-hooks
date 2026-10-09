@@ -17,7 +17,7 @@ text. This package provides:
   returns a :class:`InterceptionRecord` (§6–§10)
 - :class:`IdentityProvider`, :func:`canonical_json`, :func:`context_identity` — §10
 - :class:`HostDeclaration`, :class:`HostRegistry`, :class:`HostSurface`,
-  :class:`DeclarationError` and ``InterceptionEmitter.from_declaration*`` —
+  :class:`DeclarationError` and ``InterceptionEmitter.from_declaration*``:
   the host declaration document (§7.7), a versioned contract of its own
   (:data:`DECLARATION_VERSION`, :data:`SUPPORTED_DECLARATION_VERSIONS`)
 - :mod:`agent_hooks.ctk` — Conformance Test Kit (§13)

@@ -57,9 +57,9 @@ emitter = InterceptionEmitter.from_declaration_path("agent-hooks.declaration.jso
 ```
 
 `from_declaration_json(text, registry)`, `from_declaration_value(obj, registry)`
-and `from_declaration(HostDeclaration.builder()....build(), registry)` build the
-same emitter from JSON text, a parsed value or code; equal documents yield
-byte-identical records. A document that names anything the registry cannot
+and `from_declaration(HostDeclaration.builder().mode("enforce").bind(...).build(),
+registry)` build the same emitter from JSON text, a parsed value or code; equal
+documents yield byte-identical records. A document that names anything the registry cannot
 honour is refused before any emission with `DeclarationError`, which carries
 `.code` (`declaration_error:<class>`), `.findings` (JSON pointer and detail)
 and, for an unsupported version, `.accepted`. The emitter is then sealed:
