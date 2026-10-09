@@ -1074,8 +1074,8 @@ so a given document yields one refusal class on every SDK:
 | 4 | `spec`, when present, has the loader's major and a minor no greater than the loader's | `spec_unsupported` |
 | 5 | No unknown member at any closed level | `unknown_field` |
 | 6 | Types, enums, patterns, ranges, required-iff rules | `invalid_field` |
-| 7 | Internal consistency (§7.7.3, §7.7.4, §7.7.5): the floor and pairs, knobs under the consulting profile, the composition inside the surface, `incremental_output` with `buffered_output: false`, the own version in `declaration_versions`, `at` within the surface, unique binding ids | `inconsistent` |
-| 8 | Everything the surface and configuration name is honoured by the host's code, including the filled defaults; a numeric timeout on a build that cannot bound execution | `surface_unsupported` |
+| 7 | Internal consistency (§7.7.3, §7.7.4, §7.7.5): the floor and pairs, knobs under the consulting profile, the composition inside a stated `surface.profiles`, `incremental_output` with `buffered_output: false`, the own version in `declaration_versions`, `at` within the surface, unique binding ids | `inconsistent` |
+| 8 | Everything the surface and configuration name is honoured by the host's code, including the filled defaults and the configured profile and knob values against the host's profiles; a numeric timeout on a build that cannot bound execution | `surface_unsupported` |
 | 9 | The custom identity provider, approval resolver and approval redactor named are registered | `reference_unresolved` |
 | 10 | Every binding kind has a registered resolver (all checked before any runs) | `kind_unknown` |
 | 11 | Resolvers run in array order; the first error, exception or non-interceptor return | `binding_rejected` |

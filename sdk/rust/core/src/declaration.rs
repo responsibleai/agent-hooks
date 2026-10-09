@@ -22,8 +22,8 @@
 //! | 4 | same | `spec` compatible with the loader | `spec_unsupported` |
 //! | 5 | same | no unknown member at a closed level | `unknown_field` |
 //! | 6 | same | types, enums, patterns, ranges | `invalid_field` |
-//! | 7 | same, and again in [`resolve`] on the filled surface | internal consistency | `inconsistent` |
-//! | 8 | [`resolve`] | surface and configuration honoured by the host's [`HostSurface`] | `surface_unsupported` |
+//! | 7 | same, and again in [`resolve`] with the filled surface for the floor, pairs and `at` | internal consistency; the composition against a stated `surface.profiles` | `inconsistent` |
+//! | 8 | [`resolve`] | surface and configuration, the configured composition included, honoured by the host's [`HostSurface`] | `surface_unsupported` |
 //! | 9 | [`resolve`] | named provider, resolver and redactor registered | `reference_unresolved` |
 //! | 10 | [`resolve`] | every binding kind registered | `kind_unknown` |
 //! | 11 | `InterceptionEmitter::from_declaration` | kind resolvers run | `binding_rejected` |
@@ -2006,12 +2006,13 @@ fn check_consistency(
         .as_ref()
         .map(|s| s.capabilities.clone())
         .or_else(|| stated_surface.and_then(|s| str_set(s, "capabilities")));
-    let profiles: Option<BTreeMap<CompositionProfile, KnobSupport>> =
-        surface.as_ref().map(|s| s.profiles.clone()).or_else(|| {
-            stated_surface
-                .and_then(|s| get_obj(s, "profiles"))
-                .map(stated_profiles)
-        });
+    // The composition is checked against `surface.profiles` only when
+    // the document states it; against the host's profiles it is a step
+    // 8 check (`check_surface`), so the finding never points at a
+    // member the document did not write.
+    let profiles: Option<BTreeMap<CompositionProfile, KnobSupport>> = stated_surface
+        .and_then(|s| get_obj(s, "profiles"))
+        .map(stated_profiles);
     let versions: Option<BTreeSet<String>> = surface
         .as_ref()
         .map(|s| s.declaration_versions.clone())
@@ -2236,6 +2237,47 @@ fn check_surface(
             "/surface/declaration_versions",
             format!("the host does not accept {v:?}"),
         );
+    }
+    let composition = &resolved.configuration.composition;
+    match code.profiles.get(&composition.profile) {
+        None => bad(
+            "/configuration/composition/profile",
+            format!(
+                "the host does not support profile {}",
+                composition.profile.as_str()
+            ),
+        ),
+        Some(support) => {
+            let values: [(&str, Option<String>); 3] = [
+                (
+                    "on_approval",
+                    composition.on_approval.map(|v| v.as_str().to_owned()),
+                ),
+                (
+                    "on_disagreement",
+                    composition.on_disagreement.map(|v| v.as_str().to_owned()),
+                ),
+                (
+                    "on_transform_conflict",
+                    composition
+                        .on_transform_conflict
+                        .map(|v| v.as_str().to_owned()),
+                ),
+            ];
+            for (knob, value) in values {
+                if let Some(v) = value {
+                    if !support.knob(knob).contains(&v) {
+                        bad(
+                            &ptr("/configuration/composition", knob),
+                            format!(
+                                "the host does not support {knob} value {v:?} under {}",
+                                composition.profile.as_str()
+                            ),
+                        );
+                    }
+                }
+            }
+        }
     }
     if !s.buffered_output && !code.streams_unbuffered {
         bad(
@@ -3089,6 +3131,67 @@ mod tests {
         let e = resolve(&d, &surface(), &names()).unwrap_err();
         assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
         assert_eq!(e.findings[0].pointer, "/surface/buffered_output");
+    }
+
+    #[test]
+    fn composition_against_host_profiles_without_stated_surface_profiles() {
+        // No `surface.profiles` in the document: the composition is
+        // checked against the host's profiles in step 8, and the
+        // finding names the host, not a member the document never wrote.
+        let mut narrow = surface();
+        narrow
+            .profiles
+            .remove(&CompositionProfile::ParallelUnanimous);
+        let mut v = minimal();
+        v["configuration"] = json!({"composition": {"profile": "parallel/unanimous"}});
+        let d = HostDeclaration::from_value(v).unwrap();
+        let e = resolve(&d, &narrow, &names()).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+        assert_eq!(e.findings.len(), 1, "{e}");
+        assert_eq!(e.findings[0].pointer, "/configuration/composition/profile");
+        assert_eq!(
+            e.findings[0].detail,
+            "the host does not support profile parallel/unanimous"
+        );
+        assert!(!e.findings[0].detail.contains("surface.profiles"));
+
+        let mut stop_only = surface();
+        stop_only.profiles.insert(
+            CompositionProfile::SequentialFirstDeny,
+            KnobSupport {
+                on_approval: ["stop".to_owned()].into_iter().collect(),
+                ..KnobSupport::default()
+            },
+        );
+        let mut v = minimal();
+        v["configuration"] = json!({"composition": {"on_approval": "resume"}});
+        let d = HostDeclaration::from_value(v).unwrap();
+        let e = resolve(&d, &stop_only, &names()).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+        assert_eq!(e.findings.len(), 1, "{e}");
+        assert_eq!(
+            e.findings[0].pointer,
+            "/configuration/composition/on_approval"
+        );
+        assert_eq!(
+            e.findings[0].detail,
+            "the host does not support on_approval value \"resume\" under sequential/first_deny"
+        );
+        // The same document with a `surface` that states no `profiles`
+        // member resolves the same way.
+        let mut v = minimal();
+        v["surface"] = json!({"capabilities": ["host_declaration", "model_calls", "tool_calls", "int64_json"]});
+        v["configuration"] = json!({"composition": {"on_approval": "resume"}});
+        let d = HostDeclaration::from_value(v).unwrap();
+        let e = resolve(&d, &stop_only, &names()).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+        assert_eq!(
+            e.findings[0].pointer,
+            "/configuration/composition/on_approval"
+        );
+        // The supported default value loads.
+        let d = HostDeclaration::from_value(minimal()).unwrap();
+        assert!(resolve(&d, &stop_only, &names()).is_ok());
     }
 
     #[test]
