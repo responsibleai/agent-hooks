@@ -22,8 +22,9 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `ah_declaration_versions` and `ah_declaration_resolve`, and the Rust
   reference harness builds every emitter through the loader. The
   contract version is tracked in `spec/DECLARATION-VERSIONS.md`. The
-  other SDKs follow in a later change and skip the new vectors until
-  then. Wire version agent-hooks/0.1 unchanged. Additive.
+  TypeScript, .NET and Go SDKs follow in a later change and skip the
+  new vectors until then. Wire version agent-hooks/0.1 unchanged.
+  Additive.
 - Python SDK: the host declaration loader. `HostDeclaration`,
   `HostRegistry`, `HostSurface`, `DeclarationError` and
   `InterceptionEmitter.from_declaration`, `from_declaration_path`,
