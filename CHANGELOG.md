@@ -22,8 +22,20 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `ah_declaration_versions` and `ah_declaration_resolve`, and the Rust
   reference harness builds every emitter through the loader. The
   contract version is tracked in `spec/DECLARATION-VERSIONS.md`. The
-  other SDKs follow in a later change and skip the new vectors until
-  then. Wire version agent-hooks/0.1 unchanged. Additive.
+  TypeScript, .NET and Go SDKs follow in a later change and skip the
+  new vectors until then. Wire version agent-hooks/0.1 unchanged.
+  Additive.
+- Python SDK: the host declaration loader. `HostDeclaration`,
+  `HostRegistry`, `HostSurface`, `DeclarationError` and
+  `InterceptionEmitter.from_declaration`, `from_declaration_path`,
+  `from_declaration_json` and `from_declaration_value`; kind resolvers
+  are Python callables; `register` takes `at` for per-point bindings;
+  a declaration-built emitter is sealed (`EmitterSealed`). The
+  reference harness declares `host_declaration` and builds every
+  emitter through the loader, so the Python CTK runs AH-CTK-120 to
+  AH-CTK-139. `DECLARATION_VERSION` and
+  `SUPPORTED_DECLARATION_VERSIONS` are exported next to
+  `SPEC_VERSION`. Additive.
 - Spec §7.2 and §10.3: `on_transform_conflict` is consulted by
   `parallel/strictest` only, not by both parallel profiles. The text
   said "parallel profiles"; the core's `with_knob_defaults` and the
