@@ -8,7 +8,7 @@
  * (§7.1, §8, §10.1, §13.1), its declared surface (§13.1) and its
  * interceptor bindings. It is a versioned contract of its own
  * (`agent-hooks-declaration/<major>.<minor>`, §7.7.2), separate from
- * the wire version {@link SPEC_VERSION} and from the package version.
+ * the wire version `SPEC_VERSION` and from the package version.
  *
  * Every normative check lives in the Rust core. This module does the
  * two things only the wrapper can do: read a file (step 1 of §7.7.6)
@@ -195,10 +195,10 @@ function declarationCall<T>(fn: () => T): T {
   } catch (e) {
     if (e instanceof AgentHooksCoreError) {
       if (e.code.startsWith("declaration_error:")) {
-        throw DeclarationError.fromCore(e.code, e.message.slice(e.code.length + 2));
+        throw DeclarationError.fromCore(e.code, e.detail);
       }
       if (e.code === "marshal_error") {
-        throw new HostRegistryError(e.message.slice(e.code.length + 2));
+        throw new HostRegistryError(e.detail);
       }
     }
     throw e;
@@ -530,7 +530,14 @@ export class HostRegistry {
  * stated. Not yet checked against any host; `InterceptionEmitter.
  * fromDeclaration` does that. */
 export class HostDeclaration {
-  private constructor(private readonly doc: Record<string, JsonValue>) {}
+  /** `text` is the core's serialization of the validated document and
+   * is what every later core call receives, so integers beyond 2^53
+   * inside `bindings[].config` reach steps 8 to 10 as the file had
+   * them. `doc` is the JavaScript view of the same text. */
+  private constructor(
+    private readonly doc: Record<string, JsonValue>,
+    private readonly text: string,
+  ) {}
 
   /** Step 1 then {@link HostDeclaration.fromJson}: open exactly `path`,
    * require a regular file of at most {@link MAX_DOCUMENT_BYTES},
@@ -588,7 +595,7 @@ export class HostDeclaration {
   /** Steps 2 to 7 over JSON text, in the core. */
   static fromJson(text: string): HostDeclaration {
     const validated = declarationCall(() => native.declarationValidate(text));
-    return new HostDeclaration(JSON.parse(validated) as Record<string, JsonValue>);
+    return new HostDeclaration(JSON.parse(validated) as Record<string, JsonValue>, validated);
   }
 
   /** Steps 2 to 7 over an in-memory value: serialized and handed to
@@ -636,14 +643,17 @@ export class HostDeclaration {
     return typeof v === "string" ? v : "";
   }
 
-  /** The validated document, verbatim (including `$schema`). A copy. */
+  /** The validated document, verbatim (including `$schema`). A copy.
+   * Integers beyond 2^53 inside `bindings[].config` are rounded in this
+   * view; {@link HostDeclaration.toJson} keeps them exact. */
   toValue(): Record<string, JsonValue> {
-    return JSON.parse(JSON.stringify(this.doc)) as Record<string, JsonValue>;
+    return JSON.parse(this.text) as Record<string, JsonValue>;
   }
 
-  /** @internal The validated document as JSON text. */
+  /** @internal The validated document as JSON text, as the core
+   * serialized it. */
   toJson(): string {
-    return JSON.stringify(this.doc);
+    return this.text;
   }
 }
 

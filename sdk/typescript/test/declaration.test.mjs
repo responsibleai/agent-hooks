@@ -210,6 +210,17 @@ test("builderFromValue keeps an explicit config: null", () => {
   assert.equal(viaValue.declaration.bindings[0].config, null);
 });
 
+test("a validated document keeps integers beyond 2^53 for the core", () => {
+  const big = "18446744073709551615";
+  const text = `{"declaration":"${V}","bindings":[{"id":"a","kind":"com.example.allow","config":{"key":${big}}}]}`;
+  const decl = HostDeclaration.fromJson(text);
+  assert.ok(decl.toJson().includes(big));
+  // The resolved form is a JavaScript value and rounds; the load
+  // checks ran on the exact text.
+  const em = InterceptionEmitter.fromDeclarationJson(text, registry());
+  assert.equal(em.declaration.bindings[0].id, "a");
+});
+
 test("builder writes what a file would and is validated like one", () => {
   const b = new DeclarationBuilder()
     .spec("agent-hooks/0.1")

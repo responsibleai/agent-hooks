@@ -39,7 +39,7 @@ const binding = require("../binding.js") as {
 export class AgentHooksCoreError extends Error {
   constructor(
     public readonly code: string,
-    detail: string,
+    public readonly detail: string,
   ) {
     super(`${code}: ${detail}`);
     this.name = "AgentHooksCoreError";

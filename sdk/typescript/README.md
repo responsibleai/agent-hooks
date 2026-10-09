@@ -45,6 +45,11 @@ const ctx = builder.preToolCall("tc-1", "http_get", { url });
 await emitter.emit(ctx); // throws InterceptionBlocked on a combined deny
 ```
 
+`register(interceptor, name?, at?)` also takes the points an
+interceptor runs at. At a point, `interceptors_registered`,
+`verdicts[].index` and `decided_by` count and index the interceptors
+bound there, in registration order.
+
 ## Host declaration
 
 A host can load its configuration, declared surface and interceptor
@@ -100,16 +105,15 @@ Records from such an emitter carry `declaration:
 "agent-hooks-declaration/1.0"`; records from an emitter configured in
 code do not and are unchanged.
 
-`register(interceptor, name?, at?)` also takes the points an
-interceptor runs at. At a point, `interceptors_registered`,
-`verdicts[].index` and `decided_by` count and index the interceptors
-bound there, in registration order.
-
 **JavaScript value-domain caveat (spec §4.4):** `JSON.parse` rounds
 integers beyond 2^53 before any guard can run, so this SDK cannot claim
 the `int64_json`/`bigint_json` CTK capabilities — string-encode
 64-bit identifiers at the adapter boundary. Non-finite numbers are
-rejected fail-closed by a pre-serialization scan.
+rejected fail-closed by a pre-serialization scan. The same rounding
+applies to `bindings[].config`: the loader hands the core the validated
+text, so the load checks see the integers the file had, but the
+resolved form and a kind resolver receive JavaScript values. String-
+encode 64-bit values in binding configuration too.
 
 ## Native module deployment
 
