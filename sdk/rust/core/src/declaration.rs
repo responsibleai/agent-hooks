@@ -295,16 +295,15 @@ impl fmt::Display for RegistryError {
 
 impl std::error::Error for RegistryError {}
 
-fn truncate(mut s: String) -> String {
-    if s.len() > MAX_DETAIL_LEN {
-        let mut cut = MAX_DETAIL_LEN;
-        while !s.is_char_boundary(cut) {
-            cut -= 1;
-        }
-        s.truncate(cut);
-        s.push('…');
+/// Bound a detail at [`MAX_DETAIL_LEN`] characters, the ellipsis
+/// included, so a truncated detail never exceeds the §7.7.3 bound.
+fn truncate(s: String) -> String {
+    if s.chars().count() <= MAX_DETAIL_LEN {
+        return s;
     }
-    s
+    let mut out: String = s.chars().take(MAX_DETAIL_LEN - 1).collect();
+    out.push('…');
+    out
 }
 
 /// RFC 6901 pointer segment escaping.
@@ -3192,6 +3191,16 @@ mod tests {
         // The supported default value loads.
         let d = HostDeclaration::from_value(minimal()).unwrap();
         assert!(resolve(&d, &stop_only, &names()).is_ok());
+    }
+
+    #[test]
+    fn truncate_keeps_details_within_the_bound() {
+        let long = "é".repeat(MAX_DETAIL_LEN + 40);
+        let t = truncate(long);
+        assert_eq!(t.chars().count(), MAX_DETAIL_LEN);
+        assert!(t.ends_with('…'));
+        let exact = "a".repeat(MAX_DETAIL_LEN);
+        assert_eq!(truncate(exact.clone()), exact);
     }
 
     #[test]
