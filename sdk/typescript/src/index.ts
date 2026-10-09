@@ -186,7 +186,7 @@ export interface CompositionConfig {
   on_approval?: OnApproval;
   /** `parallel/unanimous` only. */
   on_disagreement?: SynthesisPolicy;
-  /** Parallel profiles only. */
+  /** `parallel/strictest` only. */
   on_transform_conflict?: SynthesisPolicy;
 }
 
@@ -295,6 +295,11 @@ export interface InterceptionRecord {
   decided_by: number | null;
   /** The composition profile and knobs in effect (§7.1). */
   composition: CompositionConfig;
+  /** The host declaration contract version the emitter was built from
+   * (§7.7.8), e.g. `agent-hooks-declaration/1.0`. Present iff the
+   * emitter was constructed from a declaration document; absent for
+   * an emitter configured in code. */
+  declaration?: string;
   /** Per-interceptor summary; populated in multi-verdict profiles
    * (`sequential/run_all`, `parallel/*`). */
   verdicts?: VerdictSummary[];
@@ -306,7 +311,7 @@ export interface InterceptionRecord {
    * resolution substituted; `"rejection"` iff consulted without a
    * lift; absent iff never consulted. */
   resolved_by?: "approval" | "rejection" | null;
-  /** Interceptors registered at emission time (§10.3). */
+  /** Interceptors bound at the emitted point (§10.3, §7.7.8). */
   interceptors_registered: number;
 }
 
@@ -455,6 +460,10 @@ export interface FinalizeMeta {
   decided_by?: number | null;
   /** REQUIRED: the profile and knobs in effect (§7.1). */
   composition: CompositionConfig;
+  /** The declaration contract version the emitter was built from
+   * (§7.7.8); absent or `null` for an emitter configured in code. The
+   * core never defaults it. */
+  declaration?: string | null;
   /** Per-interceptor summaries (multi-verdict profiles, §10.3). */
   verdicts?: VerdictSummary[] | null;
   /** Sequential profiles (§7.4). */
@@ -486,6 +495,7 @@ export function finalize(
         enforced_identity: meta.enforced_identity ?? null,
         decided_by: meta.decided_by ?? null,
         composition: meta.composition,
+        declaration: meta.declaration ?? null,
         verdicts: meta.verdicts ?? null,
         fold_truncated: meta.fold_truncated ?? null,
         resolved_by: meta.resolved_by ?? null,
@@ -512,8 +522,40 @@ export function composeAggregate(
 }
 
 export { AgentContextBuilder } from "./builder";
-export { InterceptionEmitter } from "./emitter";
+export { InterceptionEmitter, EmitterSealed } from "./emitter";
 export type { HostFailure } from "./emitter";
+export {
+  CAPABILITIES,
+  DECLARATION_VERSION,
+  DeclarationBuilder,
+  DeclarationError,
+  DeclarationErrorClass,
+  HostDeclaration,
+  HostRegistry,
+  HostRegistryError,
+  HostSurface,
+  MAX_DOCUMENT_BYTES,
+  SUPPORTED_DECLARATION_VERSIONS,
+  canonicalDeclaration,
+  declarationVersions,
+  fullKnobSupport,
+  validKind,
+  validReference,
+} from "./declaration";
+export type {
+  BindingContext,
+  Finding,
+  HostInfo,
+  KindResolver,
+  KnobSupport,
+  RegistryNames,
+  ResolvedBinding,
+  ResolvedConfiguration,
+  ResolvedDeclaration,
+  ResolvedSurface,
+  TimeoutSupport,
+  ToolSeamPosture,
+} from "./declaration";
 
 /** Raised by a host when a verdict blocks the guarded action (§6). */
 /** Returned by `InterceptionEmitter.emit` on a proceeding emission:
