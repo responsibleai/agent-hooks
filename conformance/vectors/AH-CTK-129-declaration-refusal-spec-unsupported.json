@@ -1,0 +1,53 @@
+{
+  "id": "AH-CTK-129",
+  "title": "§7.7.6: a document written for another wire major is refused as spec_unsupported",
+  "spec_clause": "7.7.6",
+  "part": "declaration/refusal",
+  "capabilities": [
+    "host_declaration"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.0",
+    "spec": "agent-hooks/9.0",
+    "bindings": [
+      {
+        "id": "allow",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        }
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "hi",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "UNREACHED",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "refused",
+      "class": "declaration_error:spec_unsupported"
+    }
+  }
+}

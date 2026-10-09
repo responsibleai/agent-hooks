@@ -1,0 +1,58 @@
+{
+  "id": "AH-CTK-135",
+  "title": "§7.7.2: a surface that accepts a contract version the host does not is refused as surface_unsupported",
+  "spec_clause": "7.7.2, 7.7.4",
+  "part": "declaration/refusal",
+  "capabilities": [
+    "host_declaration"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.0",
+    "surface": {
+      "declaration_versions": [
+        "agent-hooks-declaration/0.1",
+        "agent-hooks-declaration/1.0"
+      ]
+    },
+    "bindings": [
+      {
+        "id": "allow",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        }
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "hi",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "UNREACHED",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "refused",
+      "class": "declaration_error:surface_unsupported"
+    }
+  }
+}

@@ -652,7 +652,7 @@ assessed against exactly the profiles a host declares.
 | `parallel/strictest` | parallel | Snapshot isolation; severity-max aggregate. |
 | `parallel/unanimous` | parallel | Snapshot isolation; anything but unanimous `allow` is a disagreement. Knob: `on_disagreement: "deny" \| "approval"`. |
 
-Knobs for parallel-mode transform conflicts:
+Knob for `parallel/strictest` transform conflicts:
 `on_transform_conflict: "deny" | "approval"` (§7.5).
 
 **Knob defaults are normative.** When the host does not set a knob the
@@ -817,6 +817,372 @@ verdict's position in the profile's semantics. `decided_by` (§10.3)
 remains the index of the interceptor whose liftable deny was consulted
 (or `null` for a synthesized one); `resolved_by: "approval"` records
 the substitution.
+
+### 7.7 Host declaration document
+
+[Pure Specification]
+
+#### 7.7.1 Purpose and scope
+
+A host MAY load its configuration (§7.1, §8, §10.1, §13.1), its
+declared surface (§13.1) and its interceptor bindings from one JSON
+document, the **host declaration**. The document is validated by
+`spec/schema/host-declaration-1.0.schema.json` and by the rules of this
+section, which the schema cannot express. It selects behaviour the
+host already implements. It MUST NOT add behaviour, load code, or
+widen the surface beyond what the host's code reports. A declaration
+that names anything the host cannot honour is refused at load, before
+any emission (§7.7.6); nothing is narrowed, defaulted past the code's
+capability, or partially applied.
+
+Configuration in code without a declaration remains conformant. Such a
+host's records carry no `declaration` member (§7.7.8).
+
+#### 7.7.2 Version and compatibility
+
+The declaration is a contract with its own version, independent of the
+wire version `agent-hooks/X.Y` and of package versions. Every document
+carries the REQUIRED member `declaration`, a closed identifier of the
+form `agent-hooks-declaration/<major>.<minor>`. This revision of the
+specification defines one version: `agent-hooks-declaration/1.0`.
+Major 0 is reserved for the conformance kit; no loader accepts it, so
+a vector can name it and get the same refusal on every host.
+
+A **minor** change adds an OPTIONAL member, adds an enum value whose
+absence keeps the earlier meaning, adds a refusal class that fires only
+on new members, or makes a fixed bound tunable. A **major** change
+removes or repurposes a member, narrows an enum, changes a default,
+changes the validation order, changes what a refusal class covers,
+changes the binding envelope, changes the equivalence rule (§7.7.7), or
+changes the lifecycle floor (§3.2).
+
+A loader:
+
+- MUST publish the exact set of versions it accepts, and MUST refuse
+  any other `declaration` value (missing, not a string, an unknown
+  major, or a minor above the highest it knows) with
+  `declaration_error:version_unsupported` and a message naming the
+  accepted set. This check runs before every other check except
+  reading and parsing.
+- MUST NOT guess, downgrade, rewrite or partially apply a document. A
+  higher minor is refused even when the document uses no new member,
+  because an older loader cannot know which new member changes the
+  meaning of an old one.
+- MUST treat the schema as closed under an accepted version: an unknown
+  member at any closed level is `declaration_error:unknown_field`. A
+  newer document is therefore never misread by an older loader.
+- MUST accept every version in its set, including older minors of a
+  major it supports, and bring each older minor to the current one
+  through an explicit, tested migration step, one per version. The
+  resolved form (§7.7.3) and the record (§7.7.8) carry the document's
+  own version string, not the migrated one, so an audit sees what the
+  host was given.
+- MUST NOT move a document to a newer minor on its own. A document opts
+  in by writing the newer version string.
+
+Across a major, the specification revision that introduces the new
+major ships a migration step for each supported older major, in every
+SDK that implements the loader and as written steps in
+`spec/DECLARATION-VERSIONS.md`. A loader
+MAY accept more than one major during a deprecation window of at least
+two SDK minor releases; its accepted set says which. A host MUST re-run
+the CTK after migrating a document.
+
+An SDK that implements the loader exports the current version and the
+accepted set next to its `SPEC_VERSION` (`DECLARATION_VERSION` and
+`SUPPORTED_DECLARATION_VERSIONS` in the Rust core).
+`spec/DECLARATION-VERSIONS.md` maps each contract version to its schema
+file and each SDK release to the versions it accepts.
+
+#### 7.7.3 Members and defaults
+
+One JSON object, UTF-8. Every object is closed except
+`bindings[].config` and the values under `extensions`. Members whose
+order carries no meaning are sets; `bindings` is an ordered list.
+
+| Member | Type | Required | Default |
+| --- | --- | --- | --- |
+| `$schema` | string | no | absent; ignored by the loader |
+| `declaration` | `agent-hooks-declaration/<major>.<minor>` | yes | none |
+| `spec` | `agent-hooks/<major>.<minor>` | no | the loader's `SPEC_VERSION` |
+| `id` | `^[a-z0-9][a-z0-9._-]{0,63}$` | no | absent; an operator label for logs |
+| `host` | `{name, version?}` | no | absent; informative, never checked |
+| `configuration` | object, below | no | all defaults |
+| `surface` | object, §7.7.4 | no | the host's own surface |
+| `bindings` | array of §7.7.5 envelopes, 0 to 256 | yes | none |
+| `extensions` | object, keys `^[a-z][a-z0-9_]*$` | no | `{}` |
+
+`host.name` follows the `agent.framework` grammar (§4.1). `extensions`
+is kept verbatim and never read by the loader, which checks the key
+grammar only and does not check namespaces; the reserved namespaces of
+§4.6 bind the writer of the document, not the loader. This differs
+from binding kinds on purpose. A kind is a key the loader resolves, so
+a reserved segment would let a host kind shadow a kind this
+specification or the conformance kit defines later, and the registry
+refuses it (§7.7.5). An extension value is never read or resolved by
+the loader, only carried, and a later revision of this specification
+MAY define content under its own namespaces; a loader that refused
+those keys today would refuse such documents. Integer members
+are written as JSON integers without a fraction or an exponent
+(`5000`, not `5000.0` or `5e3`); the loader refuses the other forms as
+`invalid_field` even where a schema validator accepts them.
+
+`configuration`:
+
+| Member | Values | Default | Notes |
+| --- | --- | --- | --- |
+| `mode` | `enforce`, `evaluate_only` | `enforce` | §8 |
+| `composition.profile` | the §7.2 profiles | `sequential/first_deny` | |
+| `composition.on_approval` | `stop`, `resume` | `stop` | `sequential/first_deny` only |
+| `composition.on_disagreement` | `deny`, `approval` | `deny` | `parallel/unanimous` only |
+| `composition.on_transform_conflict` | `deny`, `approval` | `deny` | `parallel/strictest` only |
+| `identity_provider` | `"jcs-sha256"`, a registered custom name, `null` | `"jcs-sha256"` | §10.1 name rules; `null` is identity-unbound |
+| `approval.resolver` | a registered name, `null` | `null` | §9; `null` means liftable denies stay denies |
+| `approval.redactor` | a registered name, `null` | `null` | §9 redaction seam |
+| `posture.tool_seam_host_error` | `continue`, `terminate` | `continue` | §13.1; MUST equal the posture the code implements |
+| `timeouts.interceptor_ms` | integer 1 to 3600000, `null` | `5000` | §7; `null` is unbounded and MUST be written out |
+| `timeouts.approval_resolver_ms` | integer 1 to 3600000, `null` | the value of `interceptor_ms` | §9 |
+| `records.max_buffered` | integer ≥ 1, `null` | `null` | in-memory record buffer bound |
+
+Registered names match `^[a-z][a-z0-9_-]{0,63}$`.
+
+Every member except `declaration` and `bindings` is OPTIONAL. Defaults
+are the values this specification already names (§7.2, §8, §10.1,
+§13.1) and fail closed. A knob the declared profile does not consult
+MUST be refused, never cleared. A consulted knob left unset takes its
+§7.2 default, and the resolved value is what §10.3 records.
+
+**Resolved form.** Loading produces the resolved declaration: every
+default filled, composition knobs resolved exactly as §7.2 resolves
+them, `surface` filled from the host when absent, each binding's `at`
+and `timeout_ms` filled, `$schema` dropped, sets sorted (interception
+points in §3 lifecycle order, everything else lexically), bindings in
+document order, `host`, `id` and `extensions` verbatim. Its RFC 8785
+canonical JSON is the equivalence oracle of §7.7.7.
+
+**Bounds.** A document is at most 1 MiB of text (the value path is
+measured after serialization), nests at most 32 levels, and carries at
+most 256 bindings. Ids and registered names are at most 64 characters,
+kinds 128, `exposure_bound` and refusal details 512. Exceeding a bound
+is a refusal, never a truncation.
+
+#### 7.7.4 Surface
+
+`surface` is the §13.1 declared surface in file form:
+
+| Member | Type | Default |
+| --- | --- | --- |
+| `interception_points` | set of §3 point names, 4 to 8 | the host's points |
+| `capabilities` | set from the closed capability list | the host's capabilities |
+| `profiles` | map from profile to the knob values supported | the host's profiles |
+| `buffered_output` | boolean | `true` |
+| `exposure_bound` | string, 1 to 512 characters; present iff `buffered_output` is `false` | absent |
+| `declaration_versions` | set of contract identifiers, 1 or more | the host's accepted set |
+
+`profiles` values are objects whose only members are the knobs that
+profile consults, each a non-empty set of supported values. An absent
+knob member means the default value only. The capability list is the
+`conformance/vectors.schema.json` enum with `buffered_output` removed
+(it is the boolean member above) and `host_declaration` added
+(§7.7.9).
+
+The surface MUST satisfy the §3.2 floor (`agent_startup`, `input`,
+`output`, `agent_shutdown` present; model and tool points omitted only
+in pairs), and `model_calls` is listed iff both model points are,
+`tool_calls` iff both tool points are. `incremental_output` requires
+`buffered_output: false`. The configured composition MUST sit inside
+the declared surface: the profile present, each resolved knob value in
+the supported set. `declaration_versions` MUST include the document's
+own `declaration`.
+
+Every stated member MUST be a subset of what the host's code reports,
+and the configured posture MUST equal the one the code implements.
+When `surface` is absent the resolved document carries the host's own
+surface verbatim, streaming posture included: a host that mediates
+incrementally resolves to `buffered_output: false` with the exposure
+bound its code enforces. That default is always honourable and never a
+guess. When `surface` is present, a member it omits is filled from the
+host's surface (`buffered_output` defaults to `true`), and a finding
+on a filled or defaulted member MUST say that the document does not
+state it. A document a conformance claim cites MUST carry an explicit
+`surface`, so the file stands on its own.
+
+This version defines no includes, overlays or layering: the host loads
+one document, and the channel that delivers it decides which. A vendor
+whose code knows its surface ships the document a claim cites; an
+operator's document may omit `surface` and state configuration and
+bindings only.
+
+#### 7.7.5 Bindings
+
+A binding is the open envelope
+`{id, kind, config?, at?, timeout_ms?}`:
+
+| Member | Type | Required | Default |
+| --- | --- | --- | --- |
+| `id` | `^[a-z][a-z0-9_-]{0,63}$`, unique in the array | yes | none |
+| `kind` | `^[a-z][a-z0-9_-]*(\.[a-z][a-z0-9_-]*)+$`, at most 128 characters | yes | none |
+| `config` | any JSON value | no | `{}` |
+| `at` | set of point names, 1 or more, each in the surface | no | every surface point |
+| `timeout_ms` | integer 1 to 3600000, `null` | no | `configuration.timeouts.interceptor_ms` |
+
+`kind` is a lookup key into the host's registry and nothing more. It is
+never a path, class name, URL or module the loader interprets. At least
+one dot is required so every kind carries a namespace the host
+controls. The first segments `agent_hooks` and `ctk` are reserved: this
+specification owns the first, the conformance kit the second. This
+specification defines no kinds. An SDK MAY ship an allow-all
+interceptor as a helper a host registers under a kind it names; that is
+the explicit passthrough §7 asks for, active only when the host
+registered it.
+
+The host registers **kind resolvers** in code. A kind resolver turns
+`(config, binding context)` into one interceptor or refuses. The
+binding context carries the binding's `id`, `kind`, resolved `at` set
+and resolved timeout, the `host` block and the contract version.
+Resolvers run at load, with host trust, once per binding, in array
+order, after every kind has been checked to exist. A resolver that
+returns an error, raises, or returns something other than an
+interceptor refuses the document (`declaration_error:binding_rejected`)
+and all work is discarded. A resolver MUST validate its config and
+refuse anything it does not understand, MUST NOT execute content from
+the document, and SHOULD do no I/O before the interceptor's first call.
+The interceptor it returns is the trusted in-process callable of §7; if
+it fronts a remote service, transport and authentication are the
+resolver's concern, as today. Refusal messages, from the loader and
+from resolvers, MUST NOT echo `config`.
+
+Array order is dispatch order. At point P the interceptors that run are
+the bindings whose `at` includes P, in array order.
+`interceptors_registered` on the record at P is the count of that list;
+`verdicts[].index` and `decided_by` index into it; `verdicts[].name` is
+the binding `id`. A surface point with no binding behaves per §7: in
+`enforce` mode every emission there is `deny host_error:no_interceptor`.
+`bindings` is REQUIRED so that an empty-deny host (zero bindings) is
+written down rather than arrived at by omission.
+
+#### 7.7.6 Loading and refusal
+
+Loading is a pipeline. Each step runs only if the one before it passed,
+so a given document yields one refusal class on every SDK:
+
+| Step | Check | Class |
+| --- | --- | --- |
+| 1 | Read (path only): regular file, at most 1 MiB, strict UTF-8, no byte-order mark | `unreadable` |
+| 2 | Parse: one JSON object, no duplicate keys, depth at most 32, at most 1 MiB of text | `malformed` |
+| 3 | `declaration` present and in the accepted set | `version_unsupported` |
+| 4 | `spec`, when present, has the loader's major and a minor no greater than the loader's | `spec_unsupported` |
+| 5 | No unknown member at any closed level | `unknown_field` |
+| 6 | Types, enums, patterns, ranges, required-iff rules | `invalid_field` |
+| 7 | Internal consistency (§7.7.3, §7.7.4, §7.7.5): the floor and pairs, knobs under the consulting profile, the composition inside a stated `surface.profiles`, `incremental_output` with `buffered_output: false`, the own version in `declaration_versions`, `at` within the surface, unique binding ids | `inconsistent` |
+| 8 | Everything the surface and configuration name is honoured by the host's code, including the filled defaults and the configured profile and knob values against the host's profiles; a numeric timeout on a build that cannot bound execution | `surface_unsupported` |
+| 9 | The custom identity provider, approval resolver and approval redactor named are registered | `reference_unresolved` |
+| 10 | Every binding kind has a registered resolver (all checked before any runs) | `kind_unknown` |
+| 11 | Resolvers run in array order; the first error, exception or non-interceptor return | `binding_rejected` |
+| 12 | Construct the emitter and seal it (§7.7.7) | none |
+
+Refusals are construction errors, not verdicts. The §11 reasons are
+the vocabulary of a synthesized deny on an emission that happened; a
+refused document happens before any emitter exists, so there is no
+context, record or verdict to carry a reason, and a load failure MUST
+NOT look like an emission result in an audit log. Refusal has its own
+closed namespace, `declaration_error:<class>`, with eleven classes:
+
+| Class | Covers |
+| --- | --- |
+| `declaration_error:unreadable` | not a regular file, over 1 MiB, not strict UTF-8, byte-order mark, I/O error |
+| `declaration_error:malformed` | not JSON, root not an object, duplicate key, depth over 32, text over 1 MiB, non-finite number from the value path |
+| `declaration_error:version_unsupported` | `declaration` missing, not a string, or not in the accepted set |
+| `declaration_error:spec_unsupported` | `spec` present with another major, a higher minor than the loader's, or a malformed value |
+| `declaration_error:unknown_field` | an unknown member at any closed level |
+| `declaration_error:invalid_field` | wrong type, enum, pattern, range, or a required-iff rule |
+| `declaration_error:inconsistent` | a step 7 rule |
+| `declaration_error:surface_unsupported` | a step 8 mismatch |
+| `declaration_error:reference_unresolved` | an unregistered provider, resolver or redactor name |
+| `declaration_error:kind_unknown` | a binding kind with no resolver |
+| `declaration_error:binding_rejected` | a resolver refused |
+
+An error carries the class, a list of findings (a JSON pointer such as
+`/bindings/1/kind` and a detail) and, for `version_unsupported`, the
+accepted set. A document with several problems at one step reports
+them all under that step's class. Findings name pointers, members,
+kinds and ids; they MUST NOT echo `config`, because load errors are
+logged and `config` may hold secrets. Refusal MUST happen before any
+emitter exists and MUST leave no record. A loader MUST NOT narrow a
+document, default it past the code's capability, or apply it in part.
+
+Duplicate keys are refused on text input (steps 1 and 2) so a schema
+validator in a settings pipeline and the loader cannot disagree on
+which value loaded. The value path cannot see them; the host's parser
+already collapsed them.
+
+The machine-readable inventory is `spec/declaration-errors.json`.
+
+#### 7.7.7 Equivalence and sealing
+
+An emitter built from a declaration is a function of the resolved
+declaration and the host's registry. Three construction paths yield
+the same emitter:
+
+- from a file path: step 1, then the JSON text path;
+- from JSON text: steps 2 to 11;
+- from a value built in code, through a builder with one setter per
+  member and one call per binding: the value is serialized and handed
+  to the JSON text path, so the code path is validated by the same
+  function, with the same classes, as a file.
+
+Equal resolved declarations and equal registries MUST yield
+byte-identical interception records for the same context sequence.
+Timing is excluded; records never carry it.
+
+An emitter built from a declaration is **sealed**: it MUST refuse later
+registration and reconfiguration (composition, identity provider,
+timeouts, approval redactor, record bound). Otherwise the declaration
+would not be what ran. Changing where records go (the record sink,
+draining the buffer) stays allowed; it changes delivery, not content.
+
+The constructor and setters a host uses today stay a conformant way to
+configure a host. They do not pass through the loader, carry no
+declaration, are not sealed, and their records are unchanged.
+
+#### 7.7.8 Records
+
+The §10.3 record gains one OPTIONAL member, `declaration`: the contract
+version the emitter was built from, for example
+`agent-hooks-declaration/1.0`. It is present iff the emitter was built
+from a declaration through any of the three paths and absent for an
+emitter configured in code. The host MUST NOT default it: a record
+claims a contract only when one governed the host. It is one string
+from a closed grammar, so it is payload-free by construction. Nothing
+else from the document reaches the record: not the `id`, a digest, the
+path, kinds, configs, the host name or resolver names.
+
+With per-point bindings (§7.7.5), `interceptors_registered` is the
+number of interceptors bound at the emitted point, `verdicts[].index`
+and `decided_by` index into that list in dispatch order, and
+`verdicts[].name` is the binding `id`. For a host without `at`
+filters the values equal what they are today.
+
+A host SHOULD log the contract version, the document `id` and the
+`jcs-sha256` digest of the document once at load, outside the record
+stream, so an operator can match a running host to a pushed document.
+
+#### 7.7.9 Conformance
+
+The CTK capability `host_declaration` declares that the host builds its
+emitter from a declaration document through the loader. A host that
+declares it MUST build its emitter from the declaration the CTK
+supplies, together with the CTK's registry, and MUST surface refusal
+as a load outcome, never as a run. The `declaration/*` vector parts
+(`conformance/vectors/AH-CTK-120` onwards) are gated on it. The
+runner proves the construction paths of §7.7.7 on every such vector
+and refuses to pass a vector whose paths diverge.
+
+A host MAY present its §13.1 surface as a host declaration document
+with an explicit `surface`. When it does, the CTK resolves that
+document against the host's code surface before any vector runs and
+assesses the run against the resolved surface, so what the CTK ran
+against is what the claim cites (§13.3).
 
 ---
 
@@ -1063,8 +1429,9 @@ of the record.
              | "parallel/strictest" | "parallel/unanimous",
     "on_approval": "stop" | "resume",              // sequential/first_deny only
     "on_disagreement": "deny" | "approval",        // parallel/unanimous only
-    "on_transform_conflict": "deny" | "approval"   // parallel profiles only
+    "on_transform_conflict": "deny" | "approval"   // parallel/strictest only
   },
+  "declaration": "agent-hooks-declaration/1.0",       // present iff built from a host declaration (§7.7.8)
   "verdicts": [ { "index": 0, "decision": "allow", "reason": "string", "name": "string" }, ... ],
   "fold_truncated": false,
   "resolved_by": "approval" | "rejection" | null,
@@ -1082,10 +1449,11 @@ of the record.
 | `trace` | OPTIONAL. `{trace_id?, span_id?}` echoed from the context's optional `trace` block (§4.5, W3C Trace Context). Payload-free identifiers only; absent when the context carried neither member. Lets a record join the host's distributed trace without out-of-band stitching. |
 | `decided_by` | Registration index of the interceptor whose verdict won the aggregation (§7.3) or whose liftable deny was consulted (§7.6). A §6.3 failure deny (`interceptor_failed`, `interceptor_timeout`, `verdict_invalid`) carries the **failing interceptor's** index, in every profile. `null` is reserved for pure-allow combinations, §5.2 transform-application failures, and profile-synthesized verdicts (`transform_conflict`, `composition_disagreement`, `no_interceptor`, identity-provider rejection). |
 | `composition` | The profile and knobs in effect (§7.1). REQUIRED. Knob members the profile consults MUST be present with their **resolved** values (the §7.2 defaults filled in when the host left them unset); knobs the profile never consults MUST be absent. |
+| `declaration` | OPTIONAL. The host declaration contract version the emitter was built from (§7.7.8), e.g. `agent-hooks-declaration/1.0`. Present iff the emitter was built from a declaration document; absent for a host configured in code. Never defaulted. |
 | `verdicts` | Payload-free per-interceptor summary `{index, decision, reason?, name?}`. REQUIRED in multi-verdict profiles (`sequential/run_all`, `parallel/*`); OPTIONAL in `sequential/first_deny`. `name` is the host-chosen registration identifier for the interceptor at `index` (§7); it MUST be payload-free. |
 | `fold_truncated` | `true` iff one or more registered interceptors were never invoked in this emission — a first-deny short-circuit, an approval-stop, or a failed fold-transform (§7.4). Defined for the sequential profiles. |
 | `resolved_by` | Consultation outcome (§7.6): `"approval"` iff a permit resolution substituted for a verdict; `"rejection"` iff the seam was consulted and did **not** lift the deny (reject, unresolved, resolver failure, or echo violation); absent iff the seam was never consulted. A record reader can therefore always answer "was a human consulted, and did they permit?". |
-| `interceptors_registered` | Number of interceptors registered at emission time. Together with `verdicts`/`fold_truncated` this makes skipped interceptors detectable from the record alone. |
+| `interceptors_registered` | Number of interceptors registered at emission time; with per-point bindings (§7.7.5), the number bound at the emitted point. Together with `verdicts`/`fold_truncated` this makes skipped interceptors detectable from the record alone. |
 
 **Host projection failure.** The reserved reasons of §11 assume an
 emission: a context reached the emitter and something about it or its
@@ -1331,6 +1699,10 @@ There are no conformance tiers, levels, or baseline profiles. A host
   against this declaration, so each declared surface is tested against
   a single expected outcome.
 
+A host MAY present this surface as a host declaration document
+(§7.7) with an explicit `surface` block; the CTK then assesses the run
+against the resolved document (§7.7.9).
+
 A host is **conformant** when it passes 100% of the CTK vectors
 applicable to its declaration. The CTK emits a **conformance report**
 that enumerates, per declared part (each profile, each knob value, the
@@ -1373,7 +1745,10 @@ that a `deny` at `output` cannot retract already-streamed content
 exception, MUST state the exposure bound its accounting discipline
 enforces (§12.1a) and MUST declare `incremental_output` so the
 `streaming/incremental` vectors run against that discipline rather
-than being skipped.
+than being skipped. A claim that cites a host declaration document (§7.7)
+MUST cite the file whose resolved surface the CTK run used, and that
+document MUST carry an explicit `surface`; the §13.3 tuple is
+unchanged.
 
 ---
 
@@ -1419,6 +1794,15 @@ threat→mitigation→test traceability is `docs/THREAT-MODEL.md`.
   custom provider via the §10.1 seam (see docs/THREAT-MODEL.md TM-24).
 - `evaluate_only` mode MUST NOT be presented to downstream systems as
   enforcement; doing so is a compliance hazard.
+- A host declaration document (§7.7) is host configuration at host
+  trust, equal to code. It selects among behaviours the code already
+  has; a binding `kind` is a key into code the host loaded, never code
+  the file brought, and the loader follows no reference, include or
+  expansion. The loader does not make an untrusted file safe to load.
+  The host decides where it reads from; a managed-settings channel
+  keeps that decision with the administrator, and a load log of the
+  contract version, document `id` and `jcs-sha256` digest lets an
+  operator match a running host to a pushed document.
 
 ---
 

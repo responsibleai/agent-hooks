@@ -18,6 +18,14 @@
 //! `ctk` feature) the CTK runner and [`ctk::ReferenceHarness`]. The
 //! other languages implement the same per-language pieces over the FFI.
 //!
+//! A host can also load its configuration, declared surface and
+//! interceptor bindings from a host declaration document (spec §7.7):
+//! [`HostDeclaration`] validates it, [`HostRegistry`] holds what the
+//! host's code can honour, and [`InterceptionEmitter::from_declaration`]
+//! (or the path, JSON and value forms) builds the emitter. The
+//! document is a versioned contract of its own ([`DECLARATION_VERSION`],
+//! [`SUPPORTED_DECLARATION_VERSIONS`]), independent of [`SPEC_VERSION`].
+//!
 //! # Trust model
 //!
 //! agent-hooks is a **cooperative contract, not a security boundary**:
@@ -53,6 +61,7 @@
 mod builder;
 mod canonical;
 pub mod composition;
+pub mod declaration;
 mod emitter;
 mod enforce;
 mod jcs;
@@ -72,12 +81,17 @@ pub use composition::{
     aggregate_strictest, severity, Aggregate, CompositionConfig, CompositionProfile, OnApproval,
     SynthesisPolicy,
 };
+pub use declaration::{
+    DeclarationBuilder, DeclarationError, DeclarationErrorClass, HostDeclaration, HostRegistry,
+    HostSurface, KindResolver, ResolvedDeclaration,
+};
 pub use emitter::{HostFailure, IdentityProvider, InterceptionBlocked, InterceptionEmitter};
 pub use enforce::{apply_transform_to_ctx, finalize, validate_transform, FinalizeMeta};
 pub use path::{apply as apply_transform_path, parse as parse_transform_path, resolve, Segment};
 pub use types::{
     AgentContext, ApprovalOutcome, ApprovalRequest, ApprovalResolution, ApprovalResolver, Decision,
     EnforcementMode, Evidence, HostError, InterceptionPoint, InterceptionRecord, Interceptor,
-    Transform, Verdict, VerdictSummary, Warning, EVIDENCE_MAX_BYTES, JCS_SHA256, SPEC_VERSION,
+    Transform, Verdict, VerdictSummary, Warning, DECLARATION_VERSION, EVIDENCE_MAX_BYTES,
+    JCS_SHA256, SPEC_VERSION, SUPPORTED_DECLARATION_VERSIONS,
 };
 pub use verdict::from_wire as verdict_from_wire;

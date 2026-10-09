@@ -1,0 +1,160 @@
+{
+  "id": "AH-CTK-123",
+  "title": "§7.7.7: the value, JSON, file and builder paths resolve one declaration to one canonical form and one set of records",
+  "spec_clause": "7.7.7, 7.7.3, 10.3",
+  "part": "declaration/load",
+  "capabilities": [
+    "host_declaration",
+    "model_calls",
+    "tool_calls"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.0",
+    "configuration": {
+      "composition": {
+        "profile": "parallel/strictest"
+      },
+      "timeouts": {
+        "interceptor_ms": 4000
+      }
+    },
+    "bindings": [
+      {
+        "id": "audit",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        },
+        "timeout_ms": 2000
+      },
+      {
+        "id": "rewrite",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 1
+        },
+        "at": [
+          "pre_tool_call",
+          "output"
+        ]
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "ok"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow",
+          "warnings": [
+            {
+              "reason": "ctk:audited"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "transform",
+          "transform": {
+            "path": "$target.url",
+            "value": "https://safe"
+          }
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "accepted",
+      "paths_equivalent": true
+    },
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "input",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.0",
+          "interceptors_registered": 1,
+          "verdicts[0].name": "audit"
+        }
+      },
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.0",
+          "composition.profile": "parallel/strictest",
+          "composition.on_transform_conflict": "deny",
+          "interceptors_registered": 2,
+          "verdicts[0].name": "audit",
+          "verdicts[1].name": "rewrite",
+          "decided_by": 1,
+          "verdict.decision": "transform",
+          "verdict.warnings[0].reason": "ctk:audited"
+        },
+        "absent": [
+          "composition.on_approval",
+          "composition.on_disagreement"
+        ]
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://safe"
+        }
+      }
+    ],
+    "run_outcome": "completed",
+    "identities_equal": false
+  }
+}

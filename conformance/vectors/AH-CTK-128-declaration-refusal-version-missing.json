@@ -1,0 +1,52 @@
+{
+  "id": "AH-CTK-128",
+  "title": "§7.7.2: a document without a declaration version is refused as version_unsupported",
+  "spec_clause": "7.7.2, 7.7.6",
+  "part": "declaration/refusal",
+  "capabilities": [
+    "host_declaration"
+  ],
+  "host_declaration_invalid": true,
+  "host_declaration": {
+    "bindings": [
+      {
+        "id": "allow",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        }
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "hi",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "UNREACHED",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "refused",
+      "class": "declaration_error:version_unsupported"
+    }
+  }
+}

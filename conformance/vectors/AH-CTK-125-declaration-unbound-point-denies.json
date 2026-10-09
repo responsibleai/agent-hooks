@@ -1,0 +1,80 @@
+{
+  "id": "AH-CTK-125",
+  "title": "§7.7.5: a surface point with no binding fails closed in enforce mode (host_error:no_interceptor) and the record still stamps the contract",
+  "spec_clause": "7.7.5, 7, 11",
+  "part": "declaration/bindings",
+  "capabilities": [
+    "host_declaration",
+    "model_calls",
+    "tool_calls"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.0",
+    "bindings": [
+      {
+        "id": "only-tools",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        },
+        "at": [
+          "pre_tool_call"
+        ]
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "hi",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "UNREACHED",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "accepted"
+    },
+    "sequence_strict": true,
+    "interceptions": [],
+    "records": [
+      {
+        "interception_point": "agent_startup",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.0",
+          "interceptors_registered": 0,
+          "verdict.decision": "deny",
+          "verdict.reason": "host_error:no_interceptor",
+          "decided_by": null
+        }
+      },
+      {
+        "interception_point": "agent_shutdown",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.0",
+          "interceptors_registered": 0,
+          "verdict.reason": "host_error:no_interceptor"
+        }
+      }
+    ],
+    "run_outcome": "blocked",
+    "final_output": null
+  }
+}

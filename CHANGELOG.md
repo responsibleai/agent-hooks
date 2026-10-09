@@ -5,6 +5,31 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+- Host declaration document (spec §7.7): a versioned JSON contract,
+  `agent-hooks-declaration/1.0`, for host configuration, declared
+  surface and interceptor bindings, with one loader behind file, JSON
+  and code construction and eleven fail-closed refusal classes
+  (`declaration_error:*`, inventoried in `spec/declaration-errors.json`).
+  The binding model is open: a kind string plus a kind-specific config,
+  resolved by code the host registers. Records gain an optional
+  `declaration` member and per-point binding semantics for
+  `interceptors_registered`, `verdicts[]` and `decided_by`. New schema
+  `spec/schema/host-declaration-1.0.schema.json`, new capability
+  `host_declaration`, vectors AH-CTK-120 to AH-CTK-139 and the golden
+  file `conformance/golden/declaration.json`. The Rust core implements
+  the loader (`HostDeclaration`, `HostRegistry`, `HostSurface`,
+  `InterceptionEmitter::from_declaration*`), the FFI gains
+  `ah_declaration_versions` and `ah_declaration_resolve`, and the Rust
+  reference harness builds every emitter through the loader. The
+  contract version is tracked in `spec/DECLARATION-VERSIONS.md`. The
+  other SDKs follow in a later change and skip the new vectors until
+  then. Wire version agent-hooks/0.1 unchanged. Additive.
+- Spec §7.2 and §10.3: `on_transform_conflict` is consulted by
+  `parallel/strictest` only, not by both parallel profiles. The text
+  said "parallel profiles"; the core's `with_knob_defaults` and the
+  record stamp always treated the knob this way, so this is a wording
+  fix with no behaviour change. Clarification.
+
 ## 0.1.0-beta.1 — 2026-10-02 — tag `v0.1.0-beta.1`
 
 - **Promote the SDKs and specification maturity from alpha to beta.**

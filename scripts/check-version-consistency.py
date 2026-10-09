@@ -58,7 +58,51 @@ def read_versions() -> dict[str, str]:
     return versions
 
 
+def check_declaration_versions() -> int:
+    """The host declaration contract version (spec section 7.7.2): the
+    Rust constant must have a row in both tables of
+    spec/DECLARATION-VERSIONS.md, and the supported set must list it."""
+    types_rs = (ROOT / "sdk/rust/core/src/types.rs").read_text(encoding="utf-8")
+    m = re.search(r'pub const DECLARATION_VERSION: &str = "([^"]+)"', types_rs)
+    assert m, "no DECLARATION_VERSION in sdk/rust/core/src/types.rs"
+    current = m.group(1)
+    m = re.search(
+        r"pub const SUPPORTED_DECLARATION_VERSIONS: &\[&str\] = &\[([^\]]*)\]", types_rs
+    )
+    assert m, "no SUPPORTED_DECLARATION_VERSIONS in sdk/rust/core/src/types.rs"
+    if "DECLARATION_VERSION" not in m.group(1) and f'"{current}"' not in m.group(1):
+        print(f"::error::SUPPORTED_DECLARATION_VERSIONS does not list {current}")
+        return 1
+    table = (ROOT / "spec/DECLARATION-VERSIONS.md").read_text(encoding="utf-8")
+    rows = [
+        line
+        for line in table.splitlines()
+        if line.startswith("|") and f"`{current}`" in line
+    ]
+    if not any("current" in r for r in rows):
+        print(f"::error::spec/DECLARATION-VERSIONS.md has no current row for {current}")
+        return 1
+    # An SDK release row starts with a backticked tag such as
+    # `v0.1.0-beta.2`; the contract-version table never does.
+    release_row = re.compile(r"^\|\s*`v\d+\.\d+\.\d+[^`]*`")
+    if not any(release_row.match(r) for r in rows):
+        print(
+            f"::error::spec/DECLARATION-VERSIONS.md has no SDK release row accepting {current}"
+        )
+        return 1
+    schema = (
+        ROOT / "spec/schema" / f"host-declaration-{current.split('/')[1]}.schema.json"
+    )
+    if not schema.exists():
+        print(f"::error::{schema.relative_to(ROOT)} is missing for {current}")
+        return 1
+    print(f"declaration contract version agrees: {current}")
+    return 0
+
+
 def main() -> int:
+    if check_declaration_versions() != 0:
+        return 1
     versions = read_versions()
     normalized = {path: normalize(v) for path, v in versions.items()}
     if len(set(normalized.values())) == 1:

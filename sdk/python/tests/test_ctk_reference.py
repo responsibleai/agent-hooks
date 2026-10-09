@@ -20,7 +20,12 @@ _VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vector
 # output and does not declare incremental_output. Any other skip means
 # a capability regressed or a vector was quietly excluded; both must
 # fail the suite.
-EXPECTED_SKIPS: frozenset[str] = frozenset({"AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113"})
+EXPECTED_SKIPS: frozenset[str] = frozenset(
+    {"AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113"}
+    # declaration/* parts (spec §7.7.9): skipped until this harness
+    # declares host_declaration and builds its emitter through the loader.
+    | {f"AH-CTK-{n}" for n in range(120, 140)}
+)
 
 
 @pytest.mark.parametrize(

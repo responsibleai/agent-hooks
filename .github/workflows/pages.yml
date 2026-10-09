@@ -31,6 +31,7 @@ jobs:
           cp spec/schema/*.json docs-site/docs/schema/v0.1/
           cp spec/schema/agent-context/*.json docs-site/docs/schema/v0.1/agent-context/
           cp spec/reserved-reasons.json docs-site/docs/schema/v0.1/
+          cp spec/declaration-errors.json docs-site/docs/schema/v0.1/
           cp conformance/vectors.schema.json docs-site/docs/schema/v0.1/conformance/
           .mkdocs-venv/bin/mkdocs build --strict -f docs-site/mkdocs.yml -d "$PWD/site"
       - name: Upload Pages artifact

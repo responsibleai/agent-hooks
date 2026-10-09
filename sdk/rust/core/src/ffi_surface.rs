@@ -10,7 +10,9 @@
 //! Errors are returned as `Err((host_error_code, detail))` where
 //! `host_error_code` is the §11 wire string (e.g.
 //! `"host_error:verdict_invalid"`); bindings raise a native exception
-//! carrying both.
+//! carrying both. The declaration functions use the
+//! `declaration_error:*` family instead (§7.7.6), with a JSON detail
+//! `{"findings": [{pointer, detail}], "accepted": [...]}`.
 
 use crate::composition::{
     aggregate_strictest, is_unanimous_allow, summaries, with_unions, Aggregate, CompositionConfig,
@@ -273,6 +275,10 @@ pub fn finalize(
         unchanged_since_input: bool,
         #[serde(default)]
         interceptors_registered: u32,
+        /// §7.7.8: present iff the wrapper's emitter was built from a
+        /// declaration. Never defaulted here.
+        #[serde(default)]
+        declaration: Option<String>,
     }
     let opts: FinalizeOptions = serde_json::from_str(options_json)
         .map_err(|e| err(HostError::ContextInvalid, format!("options: {e}")))?;
@@ -297,6 +303,16 @@ pub fn finalize(
     // the fail-closed record for exactly these contexts.
     let jcs_input_rejected = opts.identity_provider.as_deref() == Some("jcs-sha256")
         && canonical::scan_projection_raw(ctx_json).is_err();
+    if let Some(d) = opts.declaration.as_deref() {
+        if crate::declaration::parse_declaration_version(d).is_none() {
+            return Err(err(
+                HostError::ContextInvalid,
+                format!(
+                    "options.declaration: {d:?} (want agent-hooks-declaration/<major>.<minor>)"
+                ),
+            ));
+        }
+    }
     let meta = FinalizeMeta {
         input_identity: opts.input_identity,
         identity_provider: opts.identity_provider,
@@ -305,6 +321,7 @@ pub fn finalize(
         unchanged_since_input: opts.unchanged_since_input,
         decided_by: opts.decided_by,
         composition: opts.composition,
+        declaration: opts.declaration,
         verdicts: opts.verdicts.unwrap_or_default(),
         fold_truncated: opts.fold_truncated,
         resolved_by,
@@ -338,6 +355,59 @@ pub fn validate_envelope(ctx_json: &str) -> Result<String, FfiError> {
 /// Version stamp for binding sanity checks.
 pub fn spec_version() -> &'static str {
     crate::SPEC_VERSION
+}
+
+// ---- host declaration (§7.7) -----------------------------------------------
+
+/// The declaration contract versions this core writes and accepts
+/// (§7.7.2): `{"current": "...", "supported": ["..."]}`.
+pub fn declaration_versions() -> String {
+    serde_json::json!({
+        "current": crate::DECLARATION_VERSION,
+        "supported": crate::SUPPORTED_DECLARATION_VERSIONS,
+    })
+    .to_string()
+}
+
+/// Steps 2 to 10 of §7.7.6 for the wrapper SDKs: validate
+/// `document_json` and resolve it against `host_json`, the wrapper's
+/// code surface plus the names its registry holds
+/// (`{surface, identity_providers, approval_resolvers,
+/// approval_redactors, kinds}`, derived from registration). Returns
+/// the resolved declaration as JSON; the wrapper then runs step 11
+/// (its kind resolvers) itself and builds its emitter from the
+/// resolved form. Errors carry a `declaration_error:*` code and the
+/// findings as JSON detail.
+pub fn declaration_resolve(document_json: &str, host_json: &str) -> Result<String, FfiError> {
+    use crate::declaration::{self as decl, DeclarationError};
+    let as_ffi = |e: DeclarationError| (e.code().to_owned(), e.detail_json());
+    // `host_json` is the wrapper's own description of its code, not the
+    // document under test. One that does not parse is a wrapper defect
+    // and crosses the boundary as `marshal_error`, never as a
+    // `declaration_error:*` refusal of the document.
+    let host: decl::HostDescription = serde_json::from_str(host_json).map_err(|e| {
+        (
+            "marshal_error".to_owned(),
+            format!("host description does not parse: {e}"),
+        )
+    })?;
+    // A surface that parses but breaks the §3.2 floor, the pairs or a
+    // closed vocabulary is the same kind of defect: the wrapper, not the
+    // document, is wrong, so it does not come back as a refusal either.
+    host.surface.validate().map_err(|e| {
+        let detail: Vec<String> = e
+            .findings
+            .iter()
+            .map(|f| format!("{} {}", f.pointer, f.detail))
+            .collect();
+        (
+            "marshal_error".to_owned(),
+            format!("host description surface is invalid: {}", detail.join("; ")),
+        )
+    })?;
+    let document = decl::HostDeclaration::from_json(document_json).map_err(as_ffi)?;
+    let resolved = decl::resolve(&document, &host.surface, &host.names()).map_err(as_ffi)?;
+    Ok(serde_json::to_string(&resolved).expect("resolved declaration serializes"))
 }
 
 // ---- CTK engine (§13.2) ----------------------------------------------------

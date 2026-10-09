@@ -46,9 +46,10 @@
           "int64_json",
           "bigint_json",
           "buffered_output",
-          "incremental_output"
+          "incremental_output",
+          "host_declaration"
         ],
-        "description": "int64_json marks vectors whose JSON carries integers beyond 2^53 (within i64/u64): a JavaScript harness cannot even load such a file without silent rounding (JSON.parse), so it omits the capability and skips. bigint_json marks vectors carrying integers beyond u64/i64, which additionally exceed serde_json's integer range — only harness languages whose JSON layer preserves raw numeric tokens (Python int, Go json.Number, .NET JsonNode) can claim it. buffered_output is declaration-only (§12.1a): it appears in a host's declared surface and claim, never as a vector requirement — the CTK's mocked I/O cannot exercise streaming egress. incremental_output marks the streaming/incremental vector part (§12.1 exception): the host declares buffered_output: false, mediates post_model_call incrementally with watermark-gated release (declared exposure bound: none), and its harness can drive a chunked mock stream (scenario respond.stream) and report released_output and persisted content. A host that buffers (buffered_output: true, the default) does not declare it and skips these vectors."
+        "description": "int64_json marks vectors whose JSON carries integers beyond 2^53 (within i64/u64): a JavaScript harness cannot even load such a file without silent rounding (JSON.parse), so it omits the capability and skips. bigint_json marks vectors carrying integers beyond u64/i64, which additionally exceed serde_json's integer range — only harness languages whose JSON layer preserves raw numeric tokens (Python int, Go json.Number, .NET JsonNode) can claim it. buffered_output is declaration-only (§12.1a): it appears in a host's declared surface and claim, never as a vector requirement — the CTK's mocked I/O cannot exercise streaming egress. incremental_output marks the streaming/incremental vector part (§12.1 exception): the host declares buffered_output: false, mediates post_model_call incrementally with watermark-gated release (declared exposure bound: none), and its harness can drive a chunked mock stream (scenario respond.stream) and report released_output and persisted content. A host that buffers (buffered_output: true, the default) does not declare it and skips these vectors. host_declaration marks the declaration parts (§7.7.9): the host builds its emitter from the host declaration document the vector carries, through the loader, and surfaces refusal as a load outcome."
       },
       "default": []
     },
@@ -140,6 +141,15 @@
         "pattern": "^\\$target(\\.|\\[|$)"
       },
       "description": "§9 redaction seam: the harness MUST register an approval redactor that replaces each listed §5.2 path in the request context's target with the string \"[redacted]\" (write-back mirrored per §4.3). The request identity is computed over the redacted context."
+    },
+    "host_declaration": {
+      "type": "object",
+      "description": "§7.7.9: the host declaration document under test. The harness MUST build its emitter from this document and the CTK registry (kind ctk.scripted with config {\"script\": i} selecting interceptor_scripts[i], identity provider ctk-fault, approval resolver ctk-scripted, redactor ctk-redact) through the loader, and report the load outcome in RunRecord.load. Validated against the published host-declaration schema unless host_declaration_invalid is true."
+    },
+    "host_declaration_invalid": {
+      "type": "boolean",
+      "default": false,
+      "description": "True on a refusal vector whose document deliberately breaks the host-declaration JSON schema (a reserved version, a missing version, an unknown member, an enum violation), so schema-lint does not validate it against that schema. The loader's refusal class is still pinned by expect.load."
     }
   },
   "$defs": {
@@ -370,10 +380,6 @@
     "expect": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "interceptions",
-        "run_outcome"
-      ],
       "properties": {
         "interceptions": {
           "type": "array",
@@ -512,6 +518,44 @@
           "type": "boolean",
           "description": "Assert input_identity == enforced_identity for all interception points (false to assert they differ at some interception point)."
         },
+        "load": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "outcome"
+          ],
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "accepted",
+                "refused"
+              ]
+            },
+            "class": {
+              "type": "string",
+              "enum": [
+                "declaration_error:unreadable",
+                "declaration_error:malformed",
+                "declaration_error:version_unsupported",
+                "declaration_error:spec_unsupported",
+                "declaration_error:unknown_field",
+                "declaration_error:invalid_field",
+                "declaration_error:inconsistent",
+                "declaration_error:surface_unsupported",
+                "declaration_error:reference_unresolved",
+                "declaration_error:kind_unknown",
+                "declaration_error:binding_rejected"
+              ],
+              "description": "The refusal class the loader MUST report (§7.7.6); meaningful with outcome refused."
+            },
+            "paths_equivalent": {
+              "type": "boolean",
+              "description": "Pin that the value, JSON text, file and builder construction paths resolved the document to one canonical form (§7.7.7). The runner proves this on every declaration vector; a divergence always fails."
+            }
+          },
+          "description": "§7.7.9: the expected load outcome for a vector carrying host_declaration. With outcome refused the vector has no run: interceptions and run_outcome are absent, and the engine asserts that no record and no interception exists."
+        },
         "records": {
           "type": "array",
           "items": {
@@ -527,7 +571,7 @@
               "assert": {
                 "type": "object",
                 "additionalProperties": true,
-                "description": "Dotted-path -> expected-value assertions against the wire-shaped InterceptionRecord (§10.3): verdict.*, composition.*, verdicts[i].*, fold_truncated, resolved_by, identity_provider, input_identity/enforced_identity (null for the null provider)."
+                "description": "Dotted-path -> expected-value assertions against the wire-shaped InterceptionRecord (§10.3): verdict.*, composition.*, verdicts[i].*, fold_truncated, resolved_by, identity_provider, input_identity/enforced_identity (null for the null provider). A path may name declaration (§7.7.8)."
               },
               "absent": {
                 "type": "array",
@@ -547,7 +591,33 @@
           },
           "description": "Forward-scan-ordered record assertions, matched by interception_point."
         }
-      }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "interceptions",
+            "run_outcome"
+          ]
+        },
+        {
+          "required": [
+            "load"
+          ],
+          "properties": {
+            "load": {
+              "type": "object",
+              "required": [
+                "outcome"
+              ],
+              "properties": {
+                "outcome": {
+                  "const": "refused"
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   },
   "oneOf": [
@@ -560,6 +630,32 @@
       "required": [
         "interceptor_scripts"
       ]
+    }
+  ],
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "host_declaration"
+        ],
+        "not": {
+          "properties": {
+            "host_declaration_invalid": {
+              "const": true
+            }
+          },
+          "required": [
+            "host_declaration_invalid"
+          ]
+        }
+      },
+      "then": {
+        "properties": {
+          "host_declaration": {
+            "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.0.schema.json"
+          }
+        }
+      }
     }
   ]
 }
