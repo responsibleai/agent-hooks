@@ -16,6 +16,10 @@ text. This package provides:
   per the declared composition profile, applies the combined verdict, and
   returns a :class:`InterceptionRecord` (§6–§10)
 - :class:`IdentityProvider`, :func:`canonical_json`, :func:`context_identity` — §10
+- :class:`HostDeclaration`, :class:`HostRegistry`, :class:`HostSurface`,
+  :class:`DeclarationError` and ``InterceptionEmitter.from_declaration*`` —
+  the host declaration document (§7.7), a versioned contract of its own
+  (:data:`DECLARATION_VERSION`, :data:`SUPPORTED_DECLARATION_VERSIONS`)
 - :mod:`agent_hooks.ctk` — Conformance Test Kit (§13)
 """
 
@@ -23,8 +27,10 @@ from __future__ import annotations
 
 from agent_hooks._types import (
     ALLOW,
+    DECLARATION_VERSION,
     JCS_SHA256,
     SPEC_VERSION,
+    SUPPORTED_DECLARATION_VERSIONS,
     Decision,
     EnforcementMode,
     Evidence,
@@ -50,27 +56,52 @@ from agent_hooks.composition import (
     SynthesisPolicy,
 )
 from agent_hooks.context import AgentContext, AgentContextBuilder
+from agent_hooks.declaration import (
+    BindingContext,
+    DeclarationBuilder,
+    DeclarationError,
+    DeclarationErrorClass,
+    Finding,
+    HostDeclaration,
+    HostRegistry,
+    HostSurface,
+    KindResolver,
+    KnobSupport,
+    ResolvedBinding,
+    ResolvedDeclaration,
+)
 from agent_hooks.emitter import EmitOutcome, IdentityProvider, InterceptionEmitter
-from agent_hooks.exceptions import InterceptionBlocked, InterceptionSuspended
+from agent_hooks.exceptions import EmitterSealed, InterceptionBlocked, InterceptionSuspended
 from agent_hooks.interceptor import Interceptor
 
 __all__ = [
     "ALLOW",
+    "DECLARATION_VERSION",
     "JCS_SHA256",
     "SPEC_VERSION",
+    "SUPPORTED_DECLARATION_VERSIONS",
     "AgentContext",
     "AgentContextBuilder",
     "ApprovalOutcome",
     "ApprovalRequest",
     "ApprovalResolution",
     "ApprovalResolver",
+    "BindingContext",
     "CompositionConfig",
     "CompositionProfile",
     "Decision",
+    "DeclarationBuilder",
+    "DeclarationError",
+    "DeclarationErrorClass",
     "EmitOutcome",
+    "EmitterSealed",
     "EnforcementMode",
     "Evidence",
+    "Finding",
+    "HostDeclaration",
     "HostError",
+    "HostRegistry",
+    "HostSurface",
     "IdentityProvider",
     "InterceptionBlocked",
     "InterceptionEmitter",
@@ -78,7 +109,11 @@ __all__ = [
     "InterceptionRecord",
     "InterceptionSuspended",
     "Interceptor",
+    "KindResolver",
+    "KnobSupport",
     "OnApproval",
+    "ResolvedBinding",
+    "ResolvedDeclaration",
     "SynthesisPolicy",
     "Transform",
     "Verdict",

@@ -31,6 +31,15 @@ Concurrency (§12.2): emissions for different tool calls may interleave
 on the event loop; ``sequence`` assignment and record append are atomic
 under a single-threaded asyncio runtime. Sharing one emitter across OS
 threads is not supported.
+
+A host can also build the emitter from a host declaration document
+(§7.7): :meth:`InterceptionEmitter.from_declaration_path`,
+:meth:`~InterceptionEmitter.from_declaration_json`,
+:meth:`~InterceptionEmitter.from_declaration_value` and
+:meth:`~InterceptionEmitter.from_declaration` resolve the document
+against a :class:`~agent_hooks.declaration.HostRegistry` (steps 2 to 10
+in the core), run the host's kind resolvers (step 11), and return a
+sealed emitter that stamps ``declaration`` on every record (§7.7.8).
 """
 
 from __future__ import annotations
@@ -41,12 +50,14 @@ import copy
 import dataclasses
 import inspect
 import json
+import os
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
 
 from agent_hooks import _core
+from agent_hooks import declaration as _declaration
 from agent_hooks._marshal import dumps
 from agent_hooks._types import (
     JCS_SHA256,
@@ -66,7 +77,16 @@ from agent_hooks.approval import (
 )
 from agent_hooks.composition import CompositionConfig, CompositionProfile, OnApproval
 from agent_hooks.context import AgentContext
-from agent_hooks.exceptions import InterceptionBlocked
+from agent_hooks.declaration import (
+    BindingContext,
+    DeclarationError,
+    DeclarationErrorClass,
+    Finding,
+    HostDeclaration,
+    HostRegistry,
+    ResolvedDeclaration,
+)
+from agent_hooks.exceptions import EmitterSealed, InterceptionBlocked
 from agent_hooks.interceptor import Interceptor
 
 #: §7 RECOMMENDED interceptor/resolver timeout (seconds).
@@ -190,6 +210,41 @@ def _envelope_only(ctx: AgentContext) -> dict[str, Any]:
 
 
 @dataclass(slots=True)
+class _Bound:
+    """One registered interceptor with its binding facts (§7.7.5): the
+    payload-free name stamped on ``verdicts[].name``, the points it runs
+    at (``None`` = every point, the pre-declaration behaviour) and its
+    timeout (``inherit_timeout`` selects the emitter-wide value)."""
+
+    interceptor: Interceptor
+    name: str | None = None
+    at: frozenset[InterceptionPoint] | None = None
+    inherit_timeout: bool = True
+    timeout: float | None = None
+
+    def runs_at(self, point: InterceptionPoint | None) -> bool:
+        if self.at is None:
+            return True
+        # An unparseable point never reaches dispatch (§4 validation
+        # denies first); count every binding so the record is
+        # conservative.
+        return point is None or point in self.at
+
+
+def _point_of(ctx: AgentContext) -> InterceptionPoint | None:
+    try:
+        return InterceptionPoint(ctx.get("interception_point"))
+    except ValueError:
+        return None
+
+
+def _at_set(at: Iterable[InterceptionPoint | str] | None) -> frozenset[InterceptionPoint] | None:
+    if at is None:
+        return None
+    return frozenset(p if isinstance(p, InterceptionPoint) else InterceptionPoint(p) for p in at)
+
+
+@dataclass(slots=True)
 class _Outcome:
     """Internal result of one profile dispatch."""
 
@@ -226,20 +281,27 @@ class InterceptionEmitter:
     ``"jcs-sha256"`` (default, computed by the core), an
     :class:`IdentityProvider` (custom name + function), or ``None``
     (identity-unbound records).
+
+    This constructor and the setters are configuration in code without
+    a declaration (§7.7.7): the records carry no ``declaration`` member
+    and the emitter is not sealed. The ``from_declaration*`` class
+    methods build an emitter from a host declaration document instead.
     """
 
     __slots__ = (
         "_approval_redactor",
         "_composition",
+        "_declaration",
         "_identity",
         "_interceptors",
         "_max_records",
         "_mode",
-        "_names",
         "_record_sink",
         "_records",
         "_records_dropped",
         "_resolver",
+        "_resolver_timeout",
+        "_sealed",
         "_timeout",
     )
 
@@ -252,18 +314,179 @@ class InterceptionEmitter:
         composition: CompositionConfig | None = None,
         identity_provider: str | IdentityProvider | None = JCS_SHA256,
     ) -> None:
-        self._interceptors: list[Interceptor] = []
+        self._interceptors: list[_Bound] = []
         self._resolver = resolver
         self._mode = mode
         self._records: list[InterceptionRecord] = []
         self._timeout = timeout
+        #: §9 resolver bound; the constructor path shares ``timeout``,
+        #: a declaration sets ``approval_resolver_ms`` (§7.7.3).
+        self._resolver_timeout: float | None = timeout
         self._composition = composition if composition is not None else CompositionConfig.default()
         self._identity = self._check_provider(identity_provider)
-        self._names: list[str | None] = []
         self._approval_redactor: Callable[[AgentContext], AgentContext] | None = None
         self._record_sink: Callable[[InterceptionRecord], None] | None = None
         self._max_records: int | None = None
         self._records_dropped = 0
+        #: §7.7.7: a declaration-built emitter refuses reconfiguration.
+        self._sealed = False
+        self._declaration: ResolvedDeclaration | None = None
+
+    # ---- host declaration (§7.7) ---------------------------------------------
+
+    @classmethod
+    def from_declaration(
+        cls, declaration: HostDeclaration, registry: HostRegistry
+    ) -> InterceptionEmitter:
+        """Build an emitter from a declaration document: steps 2 to 10 of
+        §7.7.6 in the core (:meth:`HostRegistry.resolve`), then step 11
+        (every binding's kind resolver, in array order). The result is
+        sealed (§7.7.7) and stamps ``declaration`` on every record
+        (§7.7.8). Raises :class:`DeclarationError` on refusal; no
+        emitter exists then and no record is left behind."""
+        return cls._from_resolved(registry.resolve(declaration), registry)
+
+    @classmethod
+    def from_declaration_path(
+        cls, path: str | os.PathLike[str], registry: HostRegistry
+    ) -> InterceptionEmitter:
+        """:meth:`HostDeclaration.from_path` then :meth:`from_declaration`."""
+        return cls.from_declaration(HostDeclaration.from_path(path), registry)
+
+    @classmethod
+    def from_declaration_json(cls, text: str, registry: HostRegistry) -> InterceptionEmitter:
+        """:meth:`HostDeclaration.from_json` then :meth:`from_declaration`."""
+        return cls.from_declaration(HostDeclaration.from_json(text), registry)
+
+    @classmethod
+    def from_declaration_value(cls, value: Any, registry: HostRegistry) -> InterceptionEmitter:
+        """:meth:`HostDeclaration.from_value` then :meth:`from_declaration`."""
+        return cls.from_declaration(HostDeclaration.from_value(value), registry)
+
+    @property
+    def declaration(self) -> ResolvedDeclaration | None:
+        """The resolved declaration this emitter runs under, when it was
+        built from one (§7.7.7). Its ``canonical_json()`` is the
+        equivalence oracle for the construction paths."""
+        return self._declaration
+
+    @classmethod
+    def _from_resolved(
+        cls, resolved: ResolvedDeclaration, registry: HostRegistry
+    ) -> InterceptionEmitter:
+        """Step 11 and construction. Every reference is looked up again
+        in the registry's own maps, so bookkeeping drift between the
+        names the core checked and what the registry holds fails
+        closed."""
+        cfg = resolved.configuration
+        approval = cfg["approval"]
+
+        def vanished(
+            error_class: DeclarationErrorClass, pointer: str, detail: str
+        ) -> DeclarationError:
+            return DeclarationError(error_class, Finding(pointer=pointer, detail=detail))
+
+        resolver: ApprovalResolver | None = None
+        if approval["resolver"] is not None:
+            name = approval["resolver"]
+            resolver = registry._approval_resolver_ref(name)
+            if resolver is None:
+                raise vanished(
+                    DeclarationErrorClass.REFERENCE_UNRESOLVED,
+                    "/configuration/approval/resolver",
+                    f"approval resolver {_declaration._q(name)} vanished from the registry",
+                )
+        provider_name = resolved.identity_provider
+        identity: str | IdentityProvider | None
+        if provider_name is None:
+            identity = None
+        elif provider_name == JCS_SHA256:
+            identity = JCS_SHA256
+        else:
+            fn = registry._identity_fn(provider_name)
+            if fn is None:
+                raise vanished(
+                    DeclarationErrorClass.REFERENCE_UNRESOLVED,
+                    "/configuration/identity_provider",
+                    f"identity provider {_declaration._q(provider_name)} vanished "
+                    "from the registry",
+                )
+            identity = IdentityProvider(provider_name, fn)
+        redactor: Callable[[AgentContext], AgentContext] | None = None
+        if approval["redactor"] is not None:
+            name = approval["redactor"]
+            redactor = registry._redactor_fn(name)
+            if redactor is None:
+                raise vanished(
+                    DeclarationErrorClass.REFERENCE_UNRESOLVED,
+                    "/configuration/approval/redactor",
+                    f"approval redactor {_declaration._q(name)} vanished from the registry",
+                )
+
+        bounds: list[_Bound] = []
+        for i, b in enumerate(resolved.bindings):
+            pointer = f"/bindings/{i}"
+            kind_resolver = registry._kind_resolver(b.kind)
+            if kind_resolver is None:
+                raise vanished(
+                    DeclarationErrorClass.KIND_UNKNOWN,
+                    f"{pointer}/kind",
+                    f"kind {_declaration._q(b.kind)} vanished from the registry",
+                )
+            timeout = _declaration._ms_to_seconds(b.timeout_ms)
+            bctx = BindingContext(
+                id=b.id,
+                kind=b.kind,
+                at=b.at,
+                timeout=timeout,
+                host=resolved.host,
+                declaration_version=resolved.version,
+            )
+            # §7.7.5: a resolver that raises or returns something other
+            # than an interceptor refuses the document; the detail is
+            # bounded and the loader never echoes the config.
+            rejected = (
+                f"binding {_declaration._q(b.id)} (kind {_declaration._q(b.kind)}) rejected: "
+            )
+            try:
+                built = kind_resolver(b.config, bctx)
+            except Exception as e:  # noqa: BLE001 - any resolver failure refuses the document
+                raise vanished(
+                    DeclarationErrorClass.BINDING_REJECTED,
+                    pointer,
+                    _declaration._truncate(rejected + (str(e) or type(e).__name__)),
+                ) from None
+            if not callable(getattr(built, "intercept", None)):
+                raise vanished(
+                    DeclarationErrorClass.BINDING_REJECTED,
+                    pointer,
+                    _declaration._truncate(
+                        rejected + f"resolver returned {type(built).__name__}, not an interceptor"
+                    ),
+                )
+            bounds.append(_Bound(built, b.id, b.at, inherit_timeout=False, timeout=timeout))
+
+        timeouts = cfg["timeouts"]
+        em = cls(
+            mode=resolved.mode,
+            resolver=resolver,
+            timeout=_declaration._ms_to_seconds(timeouts["interceptor_ms"]),
+            composition=resolved.composition,
+            identity_provider=identity,
+        )
+        em._resolver_timeout = _declaration._ms_to_seconds(timeouts["approval_resolver_ms"])
+        em._interceptors = bounds
+        em._approval_redactor = redactor
+        em._max_records = cfg["records"]["max_buffered"]
+        em._declaration = resolved
+        em._sealed = True
+        return em
+
+    def _unsealed(self, what: str) -> None:
+        """§7.7.7: a declaration-built emitter refuses reconfiguration;
+        otherwise the declaration would not be what ran."""
+        if self._sealed:
+            raise EmitterSealed(what)
 
     @staticmethod
     def _check_provider(
@@ -304,11 +527,21 @@ class InterceptionEmitter:
         """All interception records emitted so far in this session, in order."""
         return list(self._records)
 
-    def register(self, interceptor: Interceptor, name: str | None = None) -> InterceptionEmitter:
+    def register(
+        self,
+        interceptor: Interceptor,
+        name: str | None = None,
+        at: Iterable[InterceptionPoint | str] | None = None,
+    ) -> InterceptionEmitter:
         """Register an interceptor, optionally with a host-chosen
-        payload-free ``name`` recorded on ``verdicts[].name`` (§10.3)."""
-        self._interceptors.append(interceptor)
-        self._names.append(name)
+        payload-free ``name`` recorded on ``verdicts[].name`` (§10.3)
+        and the points it runs ``at`` (``None`` = every point). At point
+        P the interceptors that run are those bound there, in
+        registration order; ``interceptors_registered``,
+        ``verdicts[].index`` and ``decided_by`` count and index that
+        list (§7.7.8). Refused on a sealed emitter (§7.7.7)."""
+        self._unsealed("register")
+        self._interceptors.append(_Bound(interceptor, name, _at_set(at)))
         return self
 
     def set_composition(self, composition: CompositionConfig) -> InterceptionEmitter:
@@ -321,11 +554,13 @@ class InterceptionEmitter:
         Register must-run controls first, or use ``sequential/run_all``
         / a parallel profile. See docs/PRODUCTION.md.
         """
+        self._unsealed("set_composition")
         self._composition = composition
         return self
 
     def set_identity_provider(self, provider: str | IdentityProvider | None) -> InterceptionEmitter:
         """Declare the identity provider (§10.1)."""
+        self._unsealed("set_identity_provider")
         self._identity = self._check_provider(provider)
         return self
 
@@ -338,6 +573,7 @@ class InterceptionEmitter:
         approval to what the approver saw); the record's identities are
         unaffected. A redactor that raises fails the consultation closed
         as ``host_error:approval_resolver_failed``."""
+        self._unsealed("set_approval_redactor")
         self._approval_redactor = redactor
         return self
 
@@ -353,6 +589,7 @@ class InterceptionEmitter:
         """Bound the in-memory record buffer: when full, the OLDEST
         record is dropped and :attr:`records_dropped` increments.
         Unbounded by default."""
+        self._unsealed("set_max_records")
         self._max_records = max_records
         return self
 
@@ -501,8 +738,11 @@ class InterceptionEmitter:
             "verdicts": [],
             "fold_truncated": None,
             "resolved_by": None,
-            "interceptors_registered": len(self._interceptors),
+            "interceptors_registered": sum(
+                1 for b in self._interceptors if b.runs_at(_point_of(basis))
+            ),
         }
+        self._stamp_declaration(options)
         record_json = _core.finalize(
             dumps(basis), dumps(verdict.to_wire()), self._mode.value, dumps(options)
         )
@@ -532,6 +772,19 @@ class InterceptionEmitter:
             return self._identity.name
         return JCS_SHA256
 
+    def _stamp_declaration(self, options: dict[str, Any]) -> None:
+        """§7.7.8: the contract version, present iff this emitter was
+        built from a declaration. Never defaulted: a record claims a
+        contract only when one governed the host."""
+        if self._declaration is not None:
+            options["declaration"] = self._declaration.version
+
+    def _active(self, ctx: AgentContext) -> list[_Bound]:
+        """The interceptors bound at the context's point, in dispatch
+        order (§7.7.8)."""
+        point = _point_of(ctx)
+        return [b for b in self._interceptors if b.runs_at(point)]
+
     def _compute_identity(self, ctx: AgentContext) -> str | None:
         """Provider output for ``ctx`` (§10.1); ``None`` iff the provider
         is ``None``. Raises on a §10.2 value-domain rejection."""
@@ -557,8 +810,9 @@ class InterceptionEmitter:
             "verdicts": [s.to_wire() for s in outcome.verdicts],
             "fold_truncated": outcome.fold_truncated,
             "resolved_by": outcome.resolved_by,
-            "interceptors_registered": len(self._interceptors),
+            "interceptors_registered": len(self._active(ctx)),
         }
+        self._stamp_declaration(options)
         if isinstance(self._identity, IdentityProvider) and input_identity is not None:
             try:
                 options["enforced_identity"] = self._identity.fn(ctx)
@@ -586,30 +840,33 @@ class InterceptionEmitter:
     async def _dispatch(self, ctx: AgentContext) -> _Outcome:
         """Profile dispatch (§7.4–§7.5). Returns the combined verdict
         and its record metadata."""
-        if not self._interceptors:
+        active = self._active(ctx)
+        if not active:
             # §7: zero interceptors fails closed, profile-independent.
             # Register an explicit allow-all interceptor for a
-            # deliberate passthrough.
+            # deliberate passthrough. With per-point bindings (§7.7.5)
+            # this is per point: a surface point with no binding denies.
             return _Outcome(Verdict.host_error(HostError.NO_INTERCEPTOR))
         profile = self._composition.profile
         if profile is CompositionProfile.SEQUENTIAL_FIRST_DENY:
-            return await self._dispatch_first_deny(ctx)
+            return await self._dispatch_first_deny(ctx, active)
         if profile is CompositionProfile.SEQUENTIAL_RUN_ALL:
-            return await self._dispatch_run_all(ctx)
-        return await self._dispatch_parallel(ctx)
+            return await self._dispatch_run_all(ctx, active)
+        return await self._dispatch_parallel(ctx, active)
 
-    async def _invoke(self, interceptor: Interceptor, ctx: AgentContext) -> Verdict:
+    async def _invoke(self, bound: _Bound, ctx: AgentContext) -> Verdict:
         """Invoke one interceptor on its own deep copy of the context
         (§7) and normalize the return through the §5 gate; every failure
         maps to the §6.3 host-synthesized deny."""
+        limit = self._timeout if bound.inherit_timeout else bound.timeout
         try:
             # §7: each interceptor gets its own deep copy — an in-place
             # mutation of the copy cannot alter enforcement.
-            raw = interceptor.intercept(copy.deepcopy(ctx))
+            raw = bound.interceptor.intercept(copy.deepcopy(ctx))
             if inspect.isawaitable(raw):
                 # §7 timeout: only the awaitable path is preemptible.
-                if self._timeout is not None:
-                    raw = await asyncio.wait_for(raw, self._timeout)
+                if limit is not None:
+                    raw = await asyncio.wait_for(raw, limit)
                 else:
                     raw = await raw
         except (TimeoutError, asyncio.TimeoutError):
@@ -625,13 +882,13 @@ class InterceptionEmitter:
         except Exception as e:  # noqa: BLE001 — non-JSON return etc.
             return Verdict.host_error(HostError.VERDICT_INVALID, str(e))
 
-    async def _dispatch_first_deny(self, ctx: AgentContext) -> _Outcome:
+    async def _dispatch_first_deny(self, ctx: AgentContext, active: list[_Bound]) -> _Outcome:
         """``sequential/first_deny`` (§7.4): fold-through, first deny
         short-circuits; a liftable deny consults the seam, then ``stop``
         or ``resume`` per the knob."""
-        n = len(self._interceptors)
+        n = len(active)
         on_approval = self._composition.on_approval or OnApproval.STOP
-        names = self._names
+        names = [b.name for b in active]
         per: list[Verdict] = []  # index-aligned §10.3 summaries
         pool: list[Verdict] = []  # + substituted resolutions, §7.3 unions
         last_transform: tuple[int, Verdict] | None = None
@@ -640,8 +897,8 @@ class InterceptionEmitter:
         def truncated(i: int) -> bool:
             return i + 1 < n
 
-        for i, interceptor in enumerate(self._interceptors):
-            v = await self._invoke(interceptor, ctx)
+        for i, bound in enumerate(active):
+            v = await self._invoke(bound, ctx)
             per.append(v)
             pool.append(v)
             if _is_host_synthesized(v):
@@ -711,39 +968,41 @@ class InterceptionEmitter:
             _with_unions(combined, pool), decided_by, _summaries(per, names), False, resolved_by
         )
 
-    async def _dispatch_run_all(self, ctx: AgentContext) -> _Outcome:
+    async def _dispatch_run_all(self, ctx: AgentContext, active: list[_Bound]) -> _Outcome:
         """``sequential/run_all`` (§7.4): everything runs, transforms
         fold through for visibility, severity-max aggregate; the seam is
         consulted at most once, only when the winner is liftable."""
         all_v: list[Verdict] = []
-        for interceptor in self._interceptors:
+        for bound in active:
             # §6.3 per-interceptor: a malformed verdict becomes that
             # interceptor's synthesized deny; the rest still run.
-            v = await self._invoke(interceptor, ctx)
+            v = await self._invoke(bound, ctx)
             if v.decision is Decision.TRANSFORM:
                 folded = self._fold_transform(ctx, v)
                 all_v.append(folded)
                 if not folded.decision.permits:
                     # §7.4: a transform that fails to apply
                     # short-circuits in both sequential profiles.
-                    return _Outcome(folded, None, _summaries(all_v, self._names))
+                    return _Outcome(folded, None, _summaries(all_v, [b.name for b in active]))
             else:
                 all_v.append(v)
-        return await self._aggregate_and_consult(ctx, all_v)
+        return await self._aggregate_and_consult(ctx, all_v, active)
 
-    async def _dispatch_parallel(self, ctx: AgentContext) -> _Outcome:
+    async def _dispatch_parallel(self, ctx: AgentContext, active: list[_Bound]) -> _Outcome:
         """Parallel profiles (§7.5): isolated deep-copied snapshots of
         the same untransformed context, no fold; serial dispatch
         (isolation semantics, not scheduling)."""
         snapshot = copy.deepcopy(ctx)
         all_v: list[Verdict] = []
-        for interceptor in self._interceptors:
+        for bound in active:
             # _invoke deep-copies again, so each interceptor receives
             # its own copy of the identical snapshot.
-            all_v.append(await self._invoke(interceptor, snapshot))
-        return await self._aggregate_and_consult(ctx, all_v)
+            all_v.append(await self._invoke(bound, snapshot))
+        return await self._aggregate_and_consult(ctx, all_v, active)
 
-    async def _aggregate_and_consult(self, ctx: AgentContext, all_v: list[Verdict]) -> _Outcome:
+    async def _aggregate_and_consult(
+        self, ctx: AgentContext, all_v: list[Verdict], active: list[_Bound]
+    ) -> _Outcome:
         """Severity-max aggregation (§7.3, core-side) + winner handling,
         shared by ``sequential/run_all`` and the parallel profiles.
 
@@ -762,7 +1021,7 @@ class InterceptionEmitter:
         verdicts = tuple(
             dataclasses.replace(
                 VerdictSummary.from_wire(s),
-                name=self._names[i] if i < len(self._names) else None,
+                name=active[i].name if i < len(active) else None,
             )
             for i, s in enumerate(agg["verdicts"])
         )
@@ -879,10 +1138,10 @@ class InterceptionEmitter:
                 )
             )
             if inspect.isawaitable(raw):
-                # §7 timeout applies to the resolver too; only the
-                # awaitable path is preemptible.
-                if self._timeout is not None:
-                    res = await asyncio.wait_for(raw, self._timeout)
+                # §7/§9 resolver bound (``approval_resolver_ms`` under a
+                # declaration); only the awaitable path is preemptible.
+                if self._resolver_timeout is not None:
+                    res = await asyncio.wait_for(raw, self._resolver_timeout)
                 else:
                     res = await raw
             else:
