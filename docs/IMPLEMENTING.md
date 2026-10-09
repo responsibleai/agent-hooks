@@ -1,6 +1,6 @@
 # Implementing Agent Hooks
 
-What a harness or gateway maintainer takes on when it exposes the contract.
+What a harness or gateway maintainer takes on to expose the contract.
 
 This guide is informative. The normative text is
 [spec/AGENT-HOOKS-0.1.md](../spec/AGENT-HOOKS-0.1.md); section numbers
@@ -87,37 +87,35 @@ setters stay conformant; their records carry no `declaration` member.
 
 ### What a kind is
 
-A kind is a namespaced lookup key you control, for
-example `com.example.egress`. The loader never treats it as a path,
-class name, URL or module. The spec defines no kinds. Your resolver
-validates its own `config`, refuses what it does not understand, and
-never echoes the config in an error, because load errors are logged
-and config may hold secrets (§7.7.5).
+A kind is a namespaced lookup key you control, for example
+`com.example.egress`. The loader never treats it as a path, class name,
+URL or module. The spec defines no kinds. Your resolver validates its
+own `config`, refuses what it does not understand, and never echoes the
+config in an error, because load errors are logged and config may hold
+secrets (§7.7.5).
 
 ### What fails at load
 
-The loader refuses a document that names
-anything your code cannot honour: a point you do not emit, a profile
-or knob value you do not support, a capability you lack, a provider or
-resolver you did not register, a kind with no resolver, a version it
-does not accept, an unknown member, or a knob under a profile that
-does not consult it. Refusal is a construction error with one of
-eleven `declaration_error:*` classes, a list of findings with JSON
-pointers, and for an unsupported version the accepted set. It happens
-before any emission and leaves no record. Nothing is narrowed,
-defaulted past the code, or applied in part (§7.7.6). After a
-successful load the emitter is sealed: registration and
-reconfiguration are refused, so the document is what ran.
+The loader refuses a document that names anything your code cannot
+honour: a point you do not emit, a profile or knob value you do not
+support, a capability you lack, a provider or resolver you did not
+register, a kind with no resolver, a version it does not accept, an
+unknown member, or a knob under a profile that does not consult it.
+Refusal is a construction error with one of eleven `declaration_error:*`
+classes, a list of findings with JSON pointers, and for an unsupported
+version the accepted set. It happens before any emission and leaves no
+record. Nothing is narrowed, defaulted past the code, or applied in part
+(§7.7.6). After a successful load the emitter is sealed: registration
+and reconfiguration are refused, so the document is what ran.
 
 ### Versioning
 
-A loader accepts a published set of contract versions
-and refuses every other value, including a higher minor it has not
-seen. Within an accepted version the schema is closed, so a newer
-document is never misread by an older loader. Log the contract
-version, the document `id` and its `jcs-sha256` digest once at load
-so an operator can match a running host to a pushed document
-(§7.7.2, §7.7.8).
+A loader accepts a published set of contract versions and refuses every
+other value, including a higher minor it has not seen. Within an
+accepted version the schema is closed, so a newer document is never
+misread by an older loader. Log the contract version, the document `id`
+and its `jcs-sha256` digest once at load so an operator can match a
+running host to a pushed document (§7.7.2, §7.7.8).
 
 ## The surface declaration and the claim
 
@@ -231,9 +229,7 @@ as enforcement (§8).
    pytest --agent-hooks-harness=your_pkg:YourHarness
    ```
 
-   The other SDKs ship their runner under `sdk/<lang>/` (§13.2);
-   [conformance/HARNESS.md](../conformance/HARNESS.md) gives the
-   `Harness` interface in each language.
+   The other SDKs ship their runner under `sdk/<lang>/` (§13.2).
 4. Read the report. It lists, per part, which vectors ran, passed,
    failed or were skipped, and why. Fix every failure; a skip is
    acceptable only when the capability it needs is one you do not
