@@ -411,7 +411,9 @@ function typedBindings(b: DeclarationBuilder, items: JsonValue[]): DeclarationBu
     const id = item["id"];
     const kind = item["kind"];
     if (typeof id !== "string" || typeof kind !== "string") return undefined;
-    const config = item["config"] ?? {};
+    // An explicit `null` is a value the spec allows; only an absent
+    // member takes the default, as in the Rust runner.
+    const config = "config" in item ? item["config"] : {};
     let at: InterceptionPoint[] | undefined;
     if (item["at"] !== undefined) {
       at = pointsOf(item["at"]);

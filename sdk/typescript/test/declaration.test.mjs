@@ -29,6 +29,7 @@ import {
   canonicalDeclaration,
   declarationVersions,
 } from "../dist/index.js";
+import { builderFromValue } from "../dist/ctk/index.js";
 
 const V = "agent-hooks-declaration/1.0";
 
@@ -195,6 +196,18 @@ test("value, JSON, file and builder paths resolve to one canonical form", async 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("builderFromValue keeps an explicit config: null", () => {
+  // `null` is a value the spec allows for `config`; only an absent
+  // member takes the `{}` default. The builder path must agree with
+  // the value path, as it does in the Rust runner.
+  const doc = { declaration: V, bindings: [{ id: "a", kind: "com.example.allow", config: null }] };
+  const reg = registry();
+  const viaValue = InterceptionEmitter.fromDeclarationValue(doc, reg);
+  const viaBuilder = InterceptionEmitter.fromDeclaration(builderFromValue(doc).build(), reg);
+  assert.equal(canonicalDeclaration(viaBuilder.declaration), canonicalDeclaration(viaValue.declaration));
+  assert.equal(viaValue.declaration.bindings[0].config, null);
 });
 
 test("builder writes what a file would and is validated like one", () => {
