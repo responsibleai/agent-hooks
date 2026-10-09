@@ -97,7 +97,10 @@ func (s *scripts) registry(surface agenthooks.HostSurface) (*agenthooks.HostRegi
 		if err := json.Unmarshal(config, &cfg); err != nil {
 			return nil, errors.New("config must be an object")
 		}
-		i, err := strconv.ParseUint(string(cfg["script"]), 10, 32)
+		// Bit size 31 bounds the value so the conversion to int cannot
+		// overflow on any platform; the range check against the script
+		// count still follows.
+		i, err := strconv.ParseUint(string(cfg["script"]), 10, 31)
 		if err != nil {
 			return nil, errors.New("config.script must be an unsigned integer index")
 		}

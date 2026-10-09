@@ -705,6 +705,12 @@ class HostDeclaration:
         try:
             fd = os.open(path, flags)
         except OSError as e:
+            # Windows refuses to open a directory (PermissionDenied)
+            # before the type check below can run; report it as the
+            # core does on every platform. Nothing is read here, so
+            # the stat cannot steer what is read.
+            if os.path.isdir(path):
+                raise unreadable("not a regular file") from None
             raise unreadable(f"cannot open: {_io_class(e)}") from None
         except ValueError:
             # A path with an embedded NUL; the core reports the same

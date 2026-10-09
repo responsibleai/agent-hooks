@@ -4,6 +4,7 @@
 package conformance
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -81,4 +82,33 @@ func TestReferenceSetupKeysIdentityOnTheName(t *testing.T) {
 		t.Fatalf("default provider: %v", err)
 	}
 	h.Teardown()
+}
+
+// TestScriptedConfigIndexBounds: config.script is parsed within the int
+// range, so an index past 2^31-1 is refused as an invalid index, never
+// converted; an in-range index past the script count is out of range.
+func TestScriptedConfigIndexBounds(t *testing.T) {
+	sc := scriptsOf(map[string]any{"interceptor_script": []any{[]any{}}})
+	reg, err := sc.registry(NewReferenceHarness().HostSurface())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ script, want string }{
+		{"2147483648", "unsigned integer index"},
+		{"4294967295", "unsigned integer index"},
+		{"18446744073709551616", "unsigned integer index"},
+		{"2147483647", "out of range"},
+		{"1", "out of range"},
+	} {
+		doc := map[string]any{
+			"declaration": agenthooks.DeclarationVersion,
+			"bindings": []any{
+				map[string]any{"id": "a", "kind": "ctk.scripted", "config": map[string]any{"script": json.Number(tc.script)}},
+			},
+		}
+		_, err := agenthooks.NewInterceptionEmitterFromDeclarationValue(doc, reg)
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("script %s: expected %q, got %v", tc.script, tc.want, err)
+		}
+	}
 }
