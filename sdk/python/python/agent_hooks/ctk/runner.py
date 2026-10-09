@@ -356,8 +356,11 @@ def builder_from_value(doc: Any) -> DeclarationBuilder:
             and isinstance(v, dict)
             and set(v) <= {"name", "version"}
             and isinstance(v.get("name"), str)
-            and (v.get("version") is None or isinstance(v.get("version"), str))
+            and ("version" not in v or isinstance(v["version"], str))
         ):
+            # An explicit ``"version": null`` is not expressible through
+            # ``host()`` (it would be dropped, and the other paths refuse
+            # it), so it falls through to ``raw`` and stays verbatim.
             b.host(v["name"], v.get("version"))
         elif k == "configuration" and isinstance(v, dict):
             trial = DeclarationBuilder.empty()
