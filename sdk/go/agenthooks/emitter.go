@@ -24,6 +24,12 @@ package agenthooks
 // interceptors yields deny host_error:no_interceptor (§7), and Emit
 // returns InterceptionBlocked on any block — the ignorable-record
 // variant is the explicitly named EmitUnchecked.
+//
+// An emitter can also be built from a host declaration document
+// (NewInterceptionEmitterFromDeclaration and the path, JSON and value
+// forms, spec §7.7). Such an emitter binds interceptors per point,
+// stamps the contract version on every record and is sealed against
+// later reconfiguration.
 
 import (
 	"context"
@@ -111,15 +117,37 @@ type dispatchOutcome struct {
 	resolvedBy    *string
 }
 
+// bound is one registered interceptor with its binding facts (§7.7.5):
+// the payload-free name stamped on verdicts[].name, the points it runs
+// at (nil = every point, the pre-declaration behaviour) and its bound.
+type bound struct {
+	interceptor Interceptor
+	name        string
+	at          []InterceptionPoint
+	// inherit selects the emitter-wide Timeout; otherwise timeout is
+	// the per-binding bound from a declaration (0 = unbounded).
+	inherit bool
+	timeout time.Duration
+}
+
+// runsAt reports whether the binding dispatches at point. An
+// unparseable point never reaches dispatch (§4 validation denies
+// first); every binding counts then, so the record is conservative.
+func (b *bound) runsAt(point InterceptionPoint) bool {
+	if b.at == nil || !containsPoint(allPoints, point) {
+		return true
+	}
+	return containsPoint(b.at, point)
+}
+
 // InterceptionEmitter implements §6–§10 once so adapters do not have to.
 // One instance per session.
 type InterceptionEmitter struct {
-	interceptors []Interceptor
-	names        []string
-	resolver     ApprovalResolver
-	mode         EnforcementMode
-	composition  CompositionConfig
-	identity     *IdentityProvider
+	bound       []*bound
+	resolver    ApprovalResolver
+	mode        EnforcementMode
+	composition CompositionConfig
+	identity    *IdentityProvider
 
 	// Timeout bounds each interceptor Intercept and resolver Resolve call
 	// (§7, RECOMMENDED default 5000 ms); breach fails closed with
@@ -127,8 +155,15 @@ type InterceptionEmitter struct {
 	// callee receives a cancelled context on breach, but if it ignores
 	// cancellation its goroutine keeps running detached until it
 	// returns. Set to 0 (or negative) to disable enforcement. Set
-	// before the first Emit; not synchronized.
+	// before the first Emit; not synchronized. An emitter built from a
+	// host declaration sets it from configuration.timeouts and treats
+	// it as read-only (§7.7.7): a per-binding timeout_ms overrides it
+	// for that binding.
 	Timeout time.Duration
+	// resolverTimeout, when non-nil, bounds the resolver instead of
+	// Timeout (configuration.timeouts.approval_resolver_ms, §7.7.3);
+	// 0 is unbounded.
+	resolverTimeout *time.Duration
 
 	// approvalRedactor, when set, produces the context placed in every
 	// ApprovalRequest (§9/§14). Set before the first Emit; not
@@ -148,6 +183,30 @@ type InterceptionEmitter struct {
 	// calls may run concurrently (§12.2).
 	records        []InterceptionRecord
 	recordsDropped uint64
+
+	// sealed: a declaration-built emitter refuses reconfiguration
+	// (§7.7.7); otherwise the declaration would not be what ran.
+	sealed bool
+	// declaration is the resolved document this emitter was built
+	// from, when it was built from one; it feeds the record's
+	// `declaration` member (§7.7.8).
+	declaration *ResolvedDeclaration
+}
+
+// Declaration returns the resolved declaration this emitter runs under,
+// or nil when it was configured in code (§7.7.7).
+func (e *InterceptionEmitter) Declaration() *ResolvedDeclaration { return e.declaration }
+
+// Sealed reports whether the emitter was built from a host declaration
+// and refuses reconfiguration (§7.7.7).
+func (e *InterceptionEmitter) Sealed() bool { return e.sealed }
+
+// unsealed panics when a setter whose signature has no error channel
+// is called on a sealed emitter.
+func (e *InterceptionEmitter) unsealed(what string) {
+	if e.sealed {
+		panic("agenthooks: " + what + ": " + ErrEmitterSealed.Error())
+	}
 }
 
 // callRecovered runs fn, converting a panic into an error (§6.3: a
@@ -240,6 +299,9 @@ func (e *InterceptionEmitter) Mode() EnforcementMode { return e.mode }
 // controls first, or use sequential/run_all / a parallel profile.
 // See docs/PRODUCTION.md.
 func (e *InterceptionEmitter) SetComposition(c CompositionConfig) (*InterceptionEmitter, error) {
+	if e.sealed {
+		return nil, fmt.Errorf("SetComposition: %w", ErrEmitterSealed)
+	}
 	if c.Profile == "" {
 		c = DefaultComposition()
 	}
@@ -259,6 +321,9 @@ func (e *InterceptionEmitter) SetComposition(c CompositionConfig) (*Interception
 // provider with a nil Compute is also rejected — a named provider
 // that cannot compute would silently unbind every emission.
 func (e *InterceptionEmitter) SetIdentityProvider(p *IdentityProvider) (*InterceptionEmitter, error) {
+	if e.sealed {
+		return nil, fmt.Errorf("SetIdentityProvider: %w", ErrEmitterSealed)
+	}
 	if p != nil && p.Name != JCSSHA256 {
 		if p.Compute == nil {
 			return nil, fmt.Errorf("identity provider %q has no Compute function (see spec 10.1)", p.Name)
@@ -274,15 +339,15 @@ func (e *InterceptionEmitter) SetIdentityProvider(p *IdentityProvider) (*Interce
 // providerNameRe is the §10.1 host-defined provider-name pattern.
 var providerNameRe = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
-// Register appends an interceptor and returns the emitter for chaining.
 // SetApprovalRedactor registers the §9/§14 approval redactor: a pure
 // function producing the context to place in every ApprovalRequest.
 // The §9 identity is computed over the redacted context (binding the
 // approval to what the approver saw); the record's identities are
 // unaffected. A panicking redactor fails the consultation closed as
 // host_error:approval_resolver_failed. Set before the first Emit; not
-// synchronized.
+// synchronized. Panics on a sealed emitter (§7.7.7).
 func (e *InterceptionEmitter) SetApprovalRedactor(f func(AgentContext) AgentContext) *InterceptionEmitter {
+	e.unsealed("SetApprovalRedactor")
 	e.approvalRedactor = f
 	return e
 }
@@ -299,8 +364,10 @@ func (e *InterceptionEmitter) SetRecordSink(sink func(InterceptionRecord)) *Inte
 
 // SetMaxRecords bounds the in-memory record buffer: when full, the
 // OLDEST record is dropped and RecordsDropped increments. Unbounded by
-// default. Set before the first Emit; not synchronized.
+// default. Set before the first Emit; not synchronized. Panics on a
+// sealed emitter (§7.7.7).
 func (e *InterceptionEmitter) SetMaxRecords(maxRecords int) *InterceptionEmitter {
+	e.unsealed("SetMaxRecords")
 	e.maxRecords = maxRecords
 	return e
 }
@@ -322,17 +389,81 @@ func (e *InterceptionEmitter) TakeRecords() []InterceptionRecord {
 	return out
 }
 
+// Register appends an interceptor at every interception point, unnamed,
+// and returns the emitter for chaining. Registration order is dispatch
+// order (§7). Panics on a sealed emitter (§7.7.7).
 func (e *InterceptionEmitter) Register(i Interceptor) *InterceptionEmitter {
 	return e.RegisterNamed(i, "")
 }
 
 // RegisterNamed appends an interceptor with a host-chosen payload-free
 // name recorded on verdicts[].name (§10.3). An empty name records
-// nothing.
+// nothing. Panics on a sealed emitter (§7.7.7).
 func (e *InterceptionEmitter) RegisterNamed(i Interceptor, name string) *InterceptionEmitter {
-	e.interceptors = append(e.interceptors, i)
-	e.names = append(e.names, name)
+	e.unsealed("Register")
+	e.bound = append(e.bound, &bound{interceptor: i, name: name, inherit: true})
 	return e
+}
+
+// RegisterAt appends an interceptor with a payload-free name at the
+// given points only; nil or empty means every point. At point P the
+// interceptors that run are those bound there, in registration order;
+// interceptors_registered, verdicts[].index and decided_by count and
+// index that list (§7.7.8). Returns ErrEmitterSealed on a sealed
+// emitter and an error for a point name outside §3.
+func (e *InterceptionEmitter) RegisterAt(i Interceptor, name string, at []InterceptionPoint) error {
+	if e.sealed {
+		return fmt.Errorf("RegisterAt: %w", ErrEmitterSealed)
+	}
+	var points []InterceptionPoint
+	for _, p := range at {
+		if !containsPoint(allPoints, p) {
+			return fmt.Errorf("RegisterAt: unknown interception point %q (see spec 3)", p)
+		}
+		if !containsPoint(points, p) {
+			points = append(points, p)
+		}
+	}
+	e.bound = append(e.bound, &bound{interceptor: i, name: name, at: points, inherit: true})
+	return nil
+}
+
+// active returns the interceptors bound at the context's point, in
+// dispatch order (§7.7.8).
+func (e *InterceptionEmitter) active(point InterceptionPoint) []*bound {
+	out := make([]*bound, 0, len(e.bound))
+	for _, b := range e.bound {
+		if b.runsAt(point) {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// limit is the §7 bound for one binding: the emitter-wide Timeout
+// unless a declaration bound it on its own.
+func (e *InterceptionEmitter) limit(b *bound) time.Duration {
+	if b.inherit {
+		return e.Timeout
+	}
+	return b.timeout
+}
+
+// resolverLimit is the §9 bound for the approval resolver.
+func (e *InterceptionEmitter) resolverLimit() time.Duration {
+	if e.resolverTimeout != nil {
+		return *e.resolverTimeout
+	}
+	return e.Timeout
+}
+
+// declarationVersion is the §7.7.8 record stamp, or nil.
+func (e *InterceptionEmitter) declarationVersion() *string {
+	if e.declaration == nil {
+		return nil
+	}
+	v := e.declaration.Declaration
+	return &v
 }
 
 // EmitOutcome is returned by Emit on a proceeding emission: the record
@@ -407,7 +538,12 @@ func (e *InterceptionEmitter) EmitUnchecked(ctx context.Context, actx AgentConte
 		"verdicts":                outcome.verdicts,
 		"fold_truncated":          outcome.foldTruncated,
 		"resolved_by":             outcome.resolvedBy,
-		"interceptors_registered": len(e.interceptors),
+		"interceptors_registered": len(e.active(actx.InterceptionPoint())),
+	}
+	if d := e.declarationVersion(); d != nil {
+		// §7.7.8: present iff the emitter was built from a declaration;
+		// never defaulted.
+		opts["declaration"] = *d
 	}
 	if e.identity != nil && e.identity.Compute != nil {
 		// Custom providers only: finalize cannot invoke the host
@@ -507,7 +643,10 @@ func (e *InterceptionEmitter) RecordHostFailure(point InterceptionPoint, failure
 		"verdicts":                []VerdictSummary{},
 		"fold_truncated":          nil,
 		"resolved_by":             nil,
-		"interceptors_registered": len(e.interceptors),
+		"interceptors_registered": len(e.active(point)),
+	}
+	if d := e.declarationVersion(); d != nil {
+		opts["declaration"] = *d
 	}
 	basisJSON, err := json.Marshal(basis)
 	if err != nil {
@@ -558,20 +697,22 @@ func (e *InterceptionEmitter) deliver(rec InterceptionRecord) InterceptionRecord
 // dispatch runs the declared profile (§7.4–§7.5). Every failure becomes
 // a host_error deny verdict (§6.3); dispatch never returns an error.
 func (e *InterceptionEmitter) dispatch(ctx context.Context, actx AgentContext) dispatchOutcome {
-	if len(e.interceptors) == 0 {
+	active := e.active(actx.InterceptionPoint())
+	if len(active) == 0 {
 		// §7: zero interceptors fails closed, profile-independent.
 		// Register an explicit allow-all interceptor for a deliberate
-		// passthrough.
+		// passthrough. With per-point bindings (§7.7.5) this is per
+		// point: a surface point with no binding denies.
 		return dispatchOutcome{combined: HostErrorVerdict(ErrNoInterceptor,
 			"register an explicit allow-all interceptor for a deliberate passthrough")}
 	}
 	switch e.composition.Profile {
 	case SequentialRunAll:
-		return e.dispatchRunAll(ctx, actx)
+		return e.dispatchRunAll(ctx, actx, active)
 	case ParallelStrictest, ParallelUnanimous:
-		return e.dispatchParallel(ctx, actx)
+		return e.dispatchParallel(ctx, actx, active)
 	case SequentialFirstDeny:
-		return e.dispatchFirstDeny(ctx, actx)
+		return e.dispatchFirstDeny(ctx, actx, active)
 	default:
 		// Unreachable through the public API: the constructor sets
 		// DefaultComposition and SetComposition validates against the
@@ -585,14 +726,15 @@ func (e *InterceptionEmitter) dispatch(ctx context.Context, actx AgentContext) d
 // invoke runs one interceptor on its own deep copy of actx under the §7
 // timeout and the §5 wire gate, returning either its (core-normalized)
 // verdict or a host-synthesized deny — never an error.
-func (e *InterceptionEmitter) invoke(ctx context.Context, ic Interceptor, actx AgentContext) Verdict {
+func (e *InterceptionEmitter) invoke(ctx context.Context, b *bound, actx AgentContext) Verdict {
 	// §7/N05: each interceptor gets its own deep copy — an in-place
 	// mutation of the copy cannot alter enforcement.
 	cp, err := DeepCopyContext(actx)
 	if err != nil {
 		return HostErrorVerdict(ErrContextInvalid, err.Error())
 	}
-	v, err, timedOut := callWithTimeout(ctx, e.Timeout,
+	ic := b.interceptor
+	v, err, timedOut := callWithTimeout(ctx, e.limit(b),
 		func(c context.Context) (Verdict, error) { return ic.Intercept(c, cp) })
 	if timedOut {
 		return HostErrorVerdict(ErrInterceptorTimeout, "") // §7
@@ -622,8 +764,8 @@ func (e *InterceptionEmitter) invoke(ctx context.Context, ic Interceptor, actx A
 // perInterceptor stays index-aligned with registration order (one entry
 // per invoked interceptor, §10.3 summaries); pool additionally holds
 // substituted resolutions for the §7.3 unions.
-func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentContext) dispatchOutcome {
-	n := len(e.interceptors)
+func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentContext, active []*bound) dispatchOutcome {
+	n := len(active)
 	onApproval := e.composition.OnApproval
 	if onApproval == "" {
 		onApproval = OnApprovalStop
@@ -634,8 +776,8 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 	var resolvedBy *string
 	truncated := func(i int) *bool { b := i+1 < n; return &b }
 
-	for i, ic := range e.interceptors {
-		v := e.invoke(ctx, ic, actx)
+	for i, b := range active {
+		v := e.invoke(ctx, b, actx)
 		perInterceptor = append(perInterceptor, v)
 		pool = append(pool, v)
 		if isHostSynthesized(v) {
@@ -647,7 +789,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 			return dispatchOutcome{
 				combined:      withUnions(v, pool),
 				decidedBy:     &idx,
-				verdicts:      e.named(summaries(perInterceptor)),
+				verdicts:      named(summaries(perInterceptor), active),
 				foldTruncated: truncated(i),
 				resolvedBy:    resolvedBy,
 			}
@@ -661,7 +803,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 				return dispatchOutcome{
 					combined:      withUnions(v, pool),
 					decidedBy:     &idx,
-					verdicts:      e.named(summaries(perInterceptor)),
+					verdicts:      named(summaries(perInterceptor), active),
 					foldTruncated: truncated(i),
 					resolvedBy:    resolvedBy,
 				}
@@ -679,7 +821,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 				return dispatchOutcome{
 					combined:      withUnions(verdict, pool),
 					decidedBy:     decidedBy,
-					verdicts:      e.named(summaries(perInterceptor)),
+					verdicts:      named(summaries(perInterceptor), active),
 					foldTruncated: truncated(i),
 					resolvedBy:    &rej,
 				}
@@ -695,7 +837,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 			if !sub.Decision.Permits() {
 				return dispatchOutcome{
 					combined:      sub,
-					verdicts:      e.named(summaries(perInterceptor)),
+					verdicts:      named(summaries(perInterceptor), active),
 					foldTruncated: truncated(i),
 					resolvedBy:    resolvedBy,
 				}
@@ -709,7 +851,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 				return dispatchOutcome{
 					combined:      withUnions(sub, pool),
 					decidedBy:     &idx,
-					verdicts:      e.named(summaries(perInterceptor)),
+					verdicts:      named(summaries(perInterceptor), active),
 					foldTruncated: truncated(i),
 					resolvedBy:    resolvedBy,
 				}
@@ -725,7 +867,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 				// Transform failed closed (host-synthesized §5.2).
 				return dispatchOutcome{
 					combined:      v,
-					verdicts:      e.named(summaries(perInterceptor)),
+					verdicts:      named(summaries(perInterceptor), active),
 					foldTruncated: truncated(i),
 					resolvedBy:    resolvedBy,
 				}
@@ -744,7 +886,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 	return dispatchOutcome{
 		combined:      withUnions(combined, pool),
 		decidedBy:     decidedBy,
-		verdicts:      e.named(summaries(perInterceptor)),
+		verdicts:      named(summaries(perInterceptor), active),
 		foldTruncated: &f,
 		resolvedBy:    resolvedBy,
 	}
@@ -754,55 +896,55 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 // transforms fold through for visibility, severity-max aggregate; the
 // seam is consulted at most once, only when the winner is liftable
 // (which, by severity, implies every deny in the emission is liftable).
-func (e *InterceptionEmitter) dispatchRunAll(ctx context.Context, actx AgentContext) dispatchOutcome {
+func (e *InterceptionEmitter) dispatchRunAll(ctx context.Context, actx AgentContext, active []*bound) dispatchOutcome {
 	var all []Verdict
-	for _, ic := range e.interceptors {
+	for _, b := range active {
 		// §6.3 per-interceptor: a malformed verdict becomes that
 		// interceptor's synthesized deny; the rest still run.
-		v := e.invoke(ctx, ic, actx)
+		v := e.invoke(ctx, b, actx)
 		if v.Decision == Transform {
 			folded := e.foldTransform(actx, v)
 			if !folded.Decision.Permits() {
 				// §7.4: a transform that fails to apply short-circuits
 				// in both sequential profiles.
 				all = append(all, folded)
-				return dispatchOutcome{combined: folded, verdicts: e.named(summaries(all))}
+				return dispatchOutcome{combined: folded, verdicts: named(summaries(all), active)}
 			}
 			v = folded
 		}
 		all = append(all, v)
 	}
-	return e.aggregateAndConsult(ctx, actx, all)
+	return e.aggregateAndConsult(ctx, actx, all, active)
 }
 
 // dispatchParallel implements the parallel profiles (§7.5): isolated
 // snapshots, no fold; serial dispatch (isolation semantics, not
 // scheduling). actx is not mutated during dispatch, so each invoke deep
 // copy IS the identical untransformed snapshot.
-func (e *InterceptionEmitter) dispatchParallel(ctx context.Context, actx AgentContext) dispatchOutcome {
-	all := make([]Verdict, 0, len(e.interceptors))
-	for _, ic := range e.interceptors {
-		all = append(all, e.invoke(ctx, ic, actx))
+func (e *InterceptionEmitter) dispatchParallel(ctx context.Context, actx AgentContext, active []*bound) dispatchOutcome {
+	all := make([]Verdict, 0, len(active))
+	for _, b := range active {
+		all = append(all, e.invoke(ctx, b, actx))
 	}
-	return e.aggregateAndConsult(ctx, actx, all)
+	return e.aggregateAndConsult(ctx, actx, all, active)
 }
 
 // aggregateAndConsult delegates the §7.3/§7.5 aggregation (including
 // parallel/unanimous disagreement and transform-conflict synthesis) to
 // the core, then handles the environment-dependent follow-ups natively:
 // applying a single winning parallel transform and consulting the seam.
-func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx AgentContext, all []Verdict) dispatchOutcome {
+func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx AgentContext, all []Verdict, active []*bound) dispatchOutcome {
 	cfgJSON, err := json.Marshal(e.composition)
 	if err != nil {
-		return dispatchOutcome{combined: HostErrorVerdict(ErrContextInvalid, err.Error()), verdicts: e.named(summaries(all))}
+		return dispatchOutcome{combined: HostErrorVerdict(ErrContextInvalid, err.Error()), verdicts: named(summaries(all), active)}
 	}
 	allJSON, err := json.Marshal(all)
 	if err != nil {
-		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: e.named(summaries(all))}
+		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: named(summaries(all), active)}
 	}
 	out, err := nativeComposeAggregate(string(cfgJSON), string(allJSON))
 	if err != nil {
-		return dispatchOutcome{combined: coreErrVerdict(err, ErrVerdictInvalid), verdicts: e.named(summaries(all))}
+		return dispatchOutcome{combined: coreErrVerdict(err, ErrVerdictInvalid), verdicts: named(summaries(all), active)}
 	}
 	var agg struct {
 		Combined       Verdict          `json:"combined"`
@@ -812,7 +954,7 @@ func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx Agen
 		Verdicts       []VerdictSummary `json:"verdicts"`
 	}
 	if err := json.Unmarshal([]byte(out), &agg); err != nil {
-		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: e.named(summaries(all))}
+		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: named(summaries(all), active)}
 	}
 	combined, decidedBy := agg.Combined, agg.DecidedBy
 	var resolvedBy *string
@@ -822,9 +964,9 @@ func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx Agen
 		// (nothing folded during dispatch).
 		folded := e.foldTransform(actx, combined)
 		if !folded.Decision.Permits() {
-			return dispatchOutcome{combined: folded, verdicts: e.named(agg.Verdicts)}
+			return dispatchOutcome{combined: folded, verdicts: named(agg.Verdicts, active)}
 		}
-		return dispatchOutcome{combined: folded, decidedBy: decidedBy, verdicts: e.named(agg.Verdicts)}
+		return dispatchOutcome{combined: folded, decidedBy: decidedBy, verdicts: named(agg.Verdicts, active)}
 	}
 
 	if agg.Consult {
@@ -857,7 +999,7 @@ func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx Agen
 			}
 		}
 	}
-	return dispatchOutcome{combined: combined, decidedBy: decidedBy, verdicts: e.named(agg.Verdicts), resolvedBy: resolvedBy}
+	return dispatchOutcome{combined: combined, decidedBy: decidedBy, verdicts: named(agg.Verdicts, active), resolvedBy: resolvedBy}
 }
 
 // foldTransform applies (enforce) or validates (evaluate_only) one
@@ -946,7 +1088,7 @@ func (e *InterceptionEmitter) consult(ctx context.Context, actx AgentContext, ve
 		return coreErrVerdict(err, ErrContextInvalid), true, false
 	}
 
-	res, err, timedOut := callWithTimeout(ctx, e.Timeout,
+	res, err, timedOut := callWithTimeout(ctx, e.resolverLimit(),
 		func(c context.Context) (ApprovalResolution, error) {
 			return e.resolver.Resolve(c, ApprovalRequest{
 				ContextIdentity:   identity,
@@ -1020,11 +1162,12 @@ func summaries(verdicts []Verdict) []VerdictSummary {
 	return out
 }
 
-// named attaches the hosts' registration names positionally (§10.3).
-func (e *InterceptionEmitter) named(sums []VerdictSummary) []VerdictSummary {
+// named attaches the bound names positionally (§10.3): the
+// registration name, or the binding id under a declaration (§7.7.8).
+func named(sums []VerdictSummary, active []*bound) []VerdictSummary {
 	for i := range sums {
-		if idx := sums[i].Index; idx < len(e.names) && e.names[idx] != "" {
-			sums[i].Name = e.names[idx]
+		if idx := sums[i].Index; idx < len(active) && active[idx].name != "" {
+			sums[i].Name = active[idx].name
 		}
 	}
 	return sums
