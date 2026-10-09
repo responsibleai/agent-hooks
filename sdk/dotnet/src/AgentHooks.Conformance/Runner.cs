@@ -247,7 +247,9 @@ public static class Runner
                 }
                 finally
                 {
-                    try { File.Delete(path); } catch (IOException) { }
+                    // A cleanup problem must not fail the vector.
+                    try { File.Delete(path); }
+                    catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
                 }
             }),
             Outcome("builder", () => BuilderFromNode(document).Build().Resolve(registry)),

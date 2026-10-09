@@ -642,7 +642,12 @@ public sealed class HostDeclaration
 
     /// <summary>Step 1: open exactly <paramref name="path"/>, require a
     /// regular file of at most <see cref="Declaration.MaxDocumentBytes"/>
-    /// bytes, strict UTF-8 without a byte-order mark, read once.</summary>
+    /// bytes, strict UTF-8 without a byte-order mark, read once. The
+    /// regular-file check is <see cref="Directory.Exists"/> only: .NET
+    /// has no portable file-type test, so a FIFO, socket or character
+    /// device passes it where the core refuses with "not a regular
+    /// file". A FIFO blocks at open; a device is read to the bound and
+    /// refused as oversize.</summary>
     public static HostDeclaration FromPath(string path)
     {
         ArgumentNullException.ThrowIfNull(path);
@@ -666,7 +671,7 @@ public sealed class HostDeclaration
                 total += n;
             if (total > Declaration.MaxDocumentBytes)
                 throw Unreadable(
-                    $"document is {Math.Max(total, stream.Length)} bytes; the bound is {Declaration.MaxDocumentBytes}");
+                    $"document is at least {total} bytes; the bound is {Declaration.MaxDocumentBytes}");
             bytes = buffer.AsSpan(0, total).ToArray();
         }
         catch (UnauthorizedAccessException)
@@ -735,11 +740,6 @@ public sealed class HostDeclaration
     public ResolvedDeclaration Resolve(HostRegistry registry)
     {
         ArgumentNullException.ThrowIfNull(registry);
-        try
-        {
-            var json = Native.DeclarationResolve(Text, host.ToJsonString());
-            return new ResolvedDeclaration(json);
-        }
         return Resolve(registry.ToHostWire());
     }
 
@@ -764,16 +764,16 @@ public sealed class HostDeclaration
 
     private ResolvedDeclaration Resolve(JsonObject host)
     {
+        try
+        {
+            var json = Native.DeclarationResolve(Text, host.ToJsonString());
+            return new ResolvedDeclaration(json);
+        }
         catch (AgentHooksCoreException e) when (DeclarationException.FromCore(e) is { } refused)
         {
             throw refused;
         }
     }
-}
-
-/// <summary>One binding with <c>at</c> and <c>timeout_ms</c> filled.</summary>
-public sealed record ResolvedBinding(
-    string Id,
 
     /// <summary>Add to <paramref name="host"/> the registry names this
     /// document references, read leniently: a document the core will
@@ -819,6 +819,11 @@ public sealed record ResolvedBinding(
         host["approval_redactors"] = KnobSupport.Sorted(redactors);
         host["kinds"] = KnobSupport.Sorted(kinds);
     }
+}
+
+/// <summary>One binding with <c>at</c> and <c>timeout_ms</c> filled.</summary>
+public sealed record ResolvedBinding(
+    string Id,
     string Kind,
     JsonNode? Config,
     IReadOnlySet<InterceptionPoint> At,
