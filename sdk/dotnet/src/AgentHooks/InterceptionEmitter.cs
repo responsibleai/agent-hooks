@@ -252,8 +252,13 @@ public sealed class InterceptionEmitter
                 $"{pointer}/kind",
                 $"kind \"{b.Kind}\" vanished from the registry");
             var timeout = b.TimeoutMs is { } ms ? TimeSpan.FromMilliseconds(ms) : (TimeSpan?)null;
+            // The dispatch set is fixed before the resolver runs and the
+            // context carries its own copy, so a resolver cannot widen
+            // its own binding (the Rust core hands out `&BTreeSet` for
+            // the same reason).
+            var at = new HashSet<InterceptionPoint>(b.At);
             var context = new BindingContext(
-                b.Id, b.Kind, b.At, timeout, resolved.Host, resolved.Version);
+                b.Id, b.Kind, new HashSet<InterceptionPoint>(b.At), timeout, resolved.Host, resolved.Version);
             // §7.7.5: a resolver exception or a non-interceptor return
             // refuses the document; the detail is bounded and the
             // config is never echoed by the loader.
@@ -279,7 +284,7 @@ public sealed class InterceptionEmitter
             _bound.Add(new Bound(
                 interceptor,
                 b.Id,
-                b.At,
+                at,
                 timeout is null ? BoundTimeout.Unbounded : BoundTimeout.Bounded,
                 timeout ?? Timeout.InfiniteTimeSpan));
         }

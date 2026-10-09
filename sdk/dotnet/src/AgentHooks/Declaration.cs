@@ -860,7 +860,12 @@ public sealed class ResolvedDeclaration
             (string)cfg["posture"]!["tool_seam_host_error"]!);
         InterceptorTimeoutMs = (long?)timeouts["interceptor_ms"];
         ApprovalResolverTimeoutMs = (long?)timeouts["approval_resolver_ms"];
-        MaxBufferedRecords = (long?)cfg["records"]!["max_buffered"];
+        // The core accepts any integer in [1, u64::MAX]; a long cast
+        // would throw FormatException above long.MaxValue. A stated
+        // bound must never become no bound, so clamp instead.
+        MaxBufferedRecords = cfg["records"]!["max_buffered"] is JsonNode mb
+            ? (long)Math.Min((ulong)mb, long.MaxValue)
+            : null;
         SurfaceInterceptionPoints = new HashSet<InterceptionPoint>(
             ((JsonArray)surface["interception_points"]!)
                 .Select(n => InterceptionPointExtensions.FromWireName((string)n!)));
@@ -1103,24 +1108,50 @@ public sealed class DeclarationBuilder
         return this;
     }
 
-    /// <summary>Append one binding. <paramref name="at"/> <c>null</c>
-    /// binds at every surface point. <paramref name="timeoutMs"/>
-    /// <c>null</c> inherits the configured interceptor timeout;
+    /// <summary>Append one binding without a <c>config</c> member (the
+    /// core fills <c>{}</c>). <paramref name="at"/> <c>null</c> binds at
+    /// every surface point. <paramref name="timeoutMs"/> <c>null</c>
+    /// inherits the configured interceptor timeout;
     /// <paramref name="unbounded"/> writes <c>timeout_ms: null</c>.</summary>
     public DeclarationBuilder Bind(
         string id,
         string kind,
-        JsonNode? config = null,
         IEnumerable<InterceptionPoint>? at = null,
         long? timeoutMs = null,
-        bool unbounded = false)
+        bool unbounded = false) =>
+        Bind(id, kind, at, timeoutMs, unbounded, configSet: false, config: null);
+
+    /// <summary>Append one binding with <paramref name="config"/> written
+    /// verbatim. A <c>null</c> config writes <c>"config": null</c>, which
+    /// the core keeps as null; use the overload without
+    /// <paramref name="config"/> to omit the member. (A bare <c>null</c>
+    /// argument is ambiguous between the overloads: name it,
+    /// <c>config: null</c>.) The other parameters are as in that
+    /// overload.</summary>
+    public DeclarationBuilder Bind(
+        string id,
+        string kind,
+        JsonNode? config,
+        IEnumerable<InterceptionPoint>? at = null,
+        long? timeoutMs = null,
+        bool unbounded = false) =>
+        Bind(id, kind, at, timeoutMs, unbounded, configSet: true, config);
+
+    private DeclarationBuilder Bind(
+        string id,
+        string kind,
+        IEnumerable<InterceptionPoint>? at,
+        long? timeoutMs,
+        bool unbounded,
+        bool configSet,
+        JsonNode? config)
     {
         var b = new JsonObject
         {
             ["id"] = id,
             ["kind"] = kind,
-            ["config"] = config?.DeepClone() ?? new JsonObject(),
         };
+        if (configSet) b["config"] = config?.DeepClone();
         if (at is not null) b["at"] = Points(at);
         if (unbounded) b["timeout_ms"] = null;
         else if (timeoutMs is { } t) b["timeout_ms"] = t;

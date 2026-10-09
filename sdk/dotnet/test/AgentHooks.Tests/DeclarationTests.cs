@@ -765,6 +765,94 @@ public sealed class DeclarationTests
         Assert.Equal(20, seen);
     }
 
+    [Fact]
+    public void BuilderWritesConfigVerbatimIncludingNull()
+    {
+        // `config: null` is a valid member the core keeps as null; the
+        // builder must not collapse it into the default `{}`, or a file
+        // that states it could not be rebuilt (§7.7.7).
+        var doc = (JsonObject)JsonNode.Parse("""
+            {"declaration": "agent-hooks-declaration/1.0",
+             "bindings": [
+               {"id": "a", "kind": "com.example.allow", "config": null},
+               {"id": "b", "kind": "com.example.allow"}
+             ]}
+            """)!;
+        var builder = HostDeclaration.Builder()
+            .Bind("a", "com.example.allow", config: null)
+            .Bind("b", "com.example.allow");
+        var node = builder.ToNode();
+        var built = builder.Build();
+        Assert.True(node["bindings"]![0]!.AsObject().ContainsKey("config"));
+        Assert.Null(node["bindings"]![0]!["config"]);
+        Assert.False(node["bindings"]![1]!.AsObject().ContainsKey("config"));
+
+        var canon = HostDeclaration.FromNode(doc).Resolve(Registry()).CanonicalJson();
+        var resolved = built.Resolve(Registry());
+        Assert.Equal(canon, resolved.CanonicalJson());
+        Assert.Null(resolved.Bindings[0].Config);
+        Assert.True(JsonNode.DeepEquals(new JsonObject(), resolved.Bindings[1].Config));
+    }
+
+    [Fact]
+    public void ProvePathsKeepsANullBindingConfig()
+    {
+        // The four construction paths must agree on a stated null.
+        var doc = (JsonObject)JsonNode.Parse("""
+            {"declaration": "agent-hooks-declaration/1.0",
+             "bindings": [{"id": "a", "kind": "com.example.allow", "config": null}]}
+            """)!;
+        var (equivalent, detail) = Runner.ProvePaths(doc, Registry(), "null-config");
+        Assert.True(equivalent, detail);
+        Assert.Equal("", detail);
+        var rebuilt = Runner.BuilderFromNode(doc).ToNode();
+        Assert.True(JsonNode.DeepEquals(doc, rebuilt));
+    }
+
+    [Fact]
+    public void MaxBufferedRecordsAtTheCoreMaximumLoadsAndClamps()
+    {
+        // The core bounds max_buffered at [1, u64::MAX]; a value above
+        // long.MaxValue must load cleanly and stay a bound.
+        var em = InterceptionEmitter.FromDeclarationJson("""
+            {"declaration": "agent-hooks-declaration/1.0",
+             "configuration": {"records": {"max_buffered": 18446744073709551615}},
+             "bindings": [{"id": "allow", "kind": "com.example.allow"}]}
+            """, Registry());
+        Assert.Equal(long.MaxValue, em.Declaration!.MaxBufferedRecords);
+        Assert.Equal(18446744073709551615UL, (ulong)em.Declaration.ToWire()["configuration"]!["records"]!["max_buffered"]!);
+        em.RecordHostFailure(InterceptionPoint.Output);
+        Assert.Single(em.Records);
+        Assert.Equal(0, em.RecordsDropped);
+    }
+
+    [Fact]
+    public async Task ResolverCannotWidenItsOwnBinding()
+    {
+        // The context carries a copy of the dispatch set; a resolver
+        // that mutates it changes neither dispatch nor the resolved form.
+        var reg = Registry().Kind("com.example.widen", (_, ctx) =>
+        {
+            Assert.IsType<HashSet<InterceptionPoint>>(ctx.At, exactMatch: false);
+            foreach (var p in AllPoints) ((HashSet<InterceptionPoint>)ctx.At).Add(p);
+            return new Scripted(Verdict.Deny("ctk:dangerous_tool"));
+        });
+        var em = InterceptionEmitter.FromDeclarationJson("""
+            {"declaration": "agent-hooks-declaration/1.0",
+             "bindings": [{"id": "deny", "kind": "com.example.widen", "at": ["pre_tool_call"]}]}
+            """, reg);
+        Assert.Equal([InterceptionPoint.PreToolCall], em.Declaration!.Bindings[0].At);
+
+        var atInput = await em.EmitUncheckedAsync(Ctx("input"));
+        Assert.Equal(0, atInput.InterceptorsRegistered);
+        Assert.Equal(HostError.NoInterceptor, atInput.Verdict.Reason);
+        Assert.Empty(atInput.Verdicts);
+        var atTool = await em.EmitUncheckedAsync(Ctx("pre_tool_call", 1));
+        Assert.False(atTool.Proceeds);
+        Assert.Equal(1, atTool.InterceptorsRegistered);
+        Assert.Equal("deny", atTool.Verdicts[0].Name);
+    }
+
     // ---- golden --------------------------------------------------------------
 
     [Fact]

@@ -540,7 +540,11 @@ public static class Runner
                 || !IsString(o["id"], out var id)
                 || !IsString(o["kind"], out var kind))
                 return null;
-            var config = o["config"]?.DeepClone() ?? new JsonObject();
+            // Bind without config omits the member; a present
+            // `"config": null` must round-trip as null so the builder
+            // path equals the text path.
+            var configSet = o.ContainsKey("config");
+            var config = o["config"]?.DeepClone();
             List<InterceptionPoint>? at = null;
             if (o.ContainsKey("at") && (at = PointsOf(o["at"])) is null) return null;
             long? timeout = null;
@@ -551,7 +555,11 @@ public static class Runner
                 else if (IsUInt(o["timeout_ms"], out var t)) timeout = t;
                 else return null;
             }
-            apply.Add(b => b.Bind(id, kind, config, at, timeout, unbounded));
+            apply.Add(b =>
+            {
+                if (configSet) b.Bind(id, kind, config, at, timeout, unbounded);
+                else b.Bind(id, kind, at, timeout, unbounded);
+            });
         }
         return apply;
     }
