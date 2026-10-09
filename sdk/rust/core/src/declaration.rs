@@ -406,6 +406,15 @@ impl KnobSupport {
 /// What the host's code can honour (§7.7.4, §13.1): the one value the
 /// loader checks a document against and the CTK derives the harness
 /// surface from. A document may select a subset of this, never more.
+///
+/// A Rust host builds this through [`HostSurface::sdk_default`],
+/// [`HostSurface::new`] and the `with_*` methods, which fill
+/// `interceptor_timeout` from the build. The JSON form (`Deserialize`)
+/// exists for the FFI `host_json` a wrapper SDK sends, where the
+/// wrapper states the timeout support of its own runtime, and for the
+/// golden fixtures. A Rust host that deserializes a surface claiming
+/// `"interceptor_timeout": "bounded"` on a build without
+/// `tokio-timeout` claims a bound this crate will not enforce.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HostSurface {
