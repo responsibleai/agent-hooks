@@ -50,6 +50,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::io::Read as _;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -975,7 +976,15 @@ impl HostDeclaration {
                 meta.len()
             )));
         }
-        let bytes = std::fs::read(path)
+        // Read through a bounded reader: a file that grows between the
+        // stat and the read is still loaded only up to the bound plus
+        // one byte, then refused.
+        let mut bytes = Vec::new();
+        std::fs::File::open(path)
+            .and_then(|f| {
+                f.take(MAX_DOCUMENT_BYTES as u64 + 1)
+                    .read_to_end(&mut bytes)
+            })
             .map_err(|e| unreadable(format!("cannot read: {}", io_class(&e))))?;
         if bytes.len() > MAX_DOCUMENT_BYTES {
             return Err(unreadable(format!(
