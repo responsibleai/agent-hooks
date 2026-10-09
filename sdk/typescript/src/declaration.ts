@@ -137,9 +137,14 @@ export class DeclarationError extends Error {
     findings: readonly Finding[],
     accepted: readonly string[] = [],
   ) {
-    super(DeclarationError.describe(code, findings));
+    // Bound the findings before anything reads them: the message, the
+    // `findings` list and every log line built from either carry the
+    // same 512-character detail (§7.7.6), so a resolver cannot push an
+    // unbounded string into a host's log through `.message`.
+    const bounded = DeclarationError.bound(findings);
+    super(DeclarationError.describe(code, bounded));
     this.name = "DeclarationError";
-    this.findings = findings.map((f) => ({ pointer: f.pointer, detail: truncate(f.detail) }));
+    this.findings = bounded;
     this.accepted = [...accepted];
   }
 
@@ -162,6 +167,11 @@ export class DeclarationError extends Error {
       findings = [{ pointer: "", detail }];
     }
     return new DeclarationError(code as DeclarationErrorClass, findings, accepted);
+  }
+
+  /** Copy `findings` with every detail truncated to {@link MAX_DETAIL_LEN}. */
+  private static bound(findings: readonly Finding[]): Finding[] {
+    return findings.map((f) => ({ pointer: f.pointer, detail: truncate(f.detail) }));
   }
 
   /** `code: pointer: detail; pointer: detail` (the Rust `Display`). */
