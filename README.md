@@ -35,6 +35,7 @@ the normative statement.
 | --- | --- |
 | [`spec/AGENT-HOOKS-0.1.md`](spec/AGENT-HOOKS-0.1.md) | Normative RFC-2119 spec |
 | [`spec/schema/`](spec/schema/) | Machine-readable JSON Schemas (interception-point, agent-context, verdict, …) |
+| [`spec/schema/host-declaration-1.0.schema.json`](spec/schema/host-declaration-1.0.schema.json) | Host declaration document (spec §7.7): the configuration, declared surface and interceptor bindings a host loads from one JSON file; versioned as `agent-hooks-declaration/1.0` ([`spec/DECLARATION-VERSIONS.md`](spec/DECLARATION-VERSIONS.md)) |
 | [`conformance/vectors/`](conformance/vectors/) | Language-agnostic CTK test vectors |
 | [`conformance/HARNESS.md`](conformance/HARNESS.md) | How to write a harness for your framework |
 | [`sdk/python/`](sdk/python/) | Reference SDK: types + emitter + **complete CTK runner** |

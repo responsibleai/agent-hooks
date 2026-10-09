@@ -56,6 +56,20 @@ decision, recorded in [RELEASING.md](RELEASING.md).
 Each SDK exports `SPEC_VERSION = "agent-hooks/X.Y"` matching the
 `AgentContext.spec` value it emits and validates.
 
+A new optional artefact under `spec/` with its own schema and new
+vectors (the host declaration document, spec §7.7) is MINOR.
+
+## Three independent axes
+
+Three versions move independently: the wire version (`agent-hooks/X.Y`,
+above), the host declaration contract version
+(`agent-hooks-declaration/X.Y`, spec §7.7.2) and the package version
+(the root tag). Each SDK exports `DECLARATION_VERSION` and
+`SUPPORTED_DECLARATION_VERSIONS` next to `SPEC_VERSION`.
+[spec/DECLARATION-VERSIONS.md](spec/DECLARATION-VERSIONS.md) maps
+contract versions to schema files and SDK releases to the contract
+versions they accept.
+
 A conformance claim is the tuple
 `(<framework>, <adapter-version>, agent-hooks/<spec-version>, <capabilities>, <profiles>, <identity-provider>, <sdk-lang>@<sdk-version>)`
 plus the attached CTK per-part report (spec §13.3). There are no

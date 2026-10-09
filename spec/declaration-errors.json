@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/declaration-errors.json",
+  "title": "Agent Hooks — host declaration refusal classes",
+  "description": "The closed set of declaration_error:* classes a loader reports when it refuses a host declaration document (AGENT-HOOKS-0.1 §7.7.6). A refusal is a construction error, never a verdict: no emitter exists yet, so there is no record or §11 reason to carry it. Classes are listed in pipeline order; a loader reports exactly one class per document, the first step that fails.",
+  "classes": [
+    {
+      "id": "declaration_error:unreadable",
+      "step": 1,
+      "cause": "The path is not a regular file, exceeds 1 MiB, is not strict UTF-8, starts with a byte-order mark, or an I/O error occurred."
+    },
+    {
+      "id": "declaration_error:malformed",
+      "step": 2,
+      "cause": "The text is not one JSON object, holds a duplicate key, nests deeper than 32 levels, exceeds 1 MiB, or (value path) carries a non-finite number."
+    },
+    {
+      "id": "declaration_error:version_unsupported",
+      "step": 3,
+      "cause": "declaration is missing, not a string, or not in the loader's accepted set (§7.7.2). The error names the accepted set."
+    },
+    {
+      "id": "declaration_error:spec_unsupported",
+      "step": 4,
+      "cause": "spec is present with another wire major, a minor above the loader's, or a malformed value."
+    },
+    {
+      "id": "declaration_error:unknown_field",
+      "step": 5,
+      "cause": "An unknown member at any closed level of the document."
+    },
+    {
+      "id": "declaration_error:invalid_field",
+      "step": 6,
+      "cause": "A member has the wrong type, a value outside its closed set, a pattern or range violation, or breaks a required-iff rule."
+    },
+    {
+      "id": "declaration_error:inconsistent",
+      "step": 7,
+      "cause": "An internal consistency rule failed: the §3.2 floor, the omission pairs, a knob the profile does not consult, a composition outside the declared surface, incremental_output without buffered_output: false, the document's own version missing from its accepted set, a binding at a point outside the surface, or a duplicate binding id."
+    },
+    {
+      "id": "declaration_error:surface_unsupported",
+      "step": 8,
+      "cause": "The surface or configuration names a point, capability, profile, knob value, contract version, posture, unbuffered output or numeric timeout the host's code cannot honour."
+    },
+    {
+      "id": "declaration_error:reference_unresolved",
+      "step": 9,
+      "cause": "The identity provider, approval resolver or approval redactor the document names is not registered."
+    },
+    {
+      "id": "declaration_error:kind_unknown",
+      "step": 10,
+      "cause": "A binding names a kind with no registered resolver."
+    },
+    {
+      "id": "declaration_error:binding_rejected",
+      "step": 11,
+      "cause": "A kind resolver returned an error, raised, panicked, or returned something that is not an interceptor."
+    }
+  ]
+}

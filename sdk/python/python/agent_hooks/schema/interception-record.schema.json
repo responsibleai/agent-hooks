@@ -166,6 +166,11 @@
       },
       "description": "The composition profile and knobs in effect for this emission (§7.1)."
     },
+    "declaration": {
+      "type": "string",
+      "pattern": "^agent-hooks-declaration/[0-9]+\\.[0-9]+$",
+      "description": "OPTIONAL. The host declaration contract version the emitter was built from (§7.7.8), e.g. agent-hooks-declaration/1.0. Present iff the emitter was constructed from a declaration document; absent for a host configured in code. One closed-grammar string, so payload-free by construction."
+    },
     "verdicts": {
       "type": "array",
       "items": {

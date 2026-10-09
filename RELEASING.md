@@ -31,6 +31,10 @@ environment.
    on drift.
    Run `python3 scripts/check-version-consistency.py`; the CI `lint`
    job runs the same check.
+   Add a row for the tag to the SDK-release table in
+   `spec/DECLARATION-VERSIONS.md` when the accepted host declaration
+   versions or the current one change (spec §7.7.2); the same script
+   checks that the current version has a row.
 2. Run the bench suite and compare against the latency budget in
    [ARCHITECTURE.md](ARCHITECTURE.md#latency-budget). CI does not gate
    on it; this step is the regression check.

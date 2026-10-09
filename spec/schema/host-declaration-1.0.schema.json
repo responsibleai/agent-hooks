@@ -1,0 +1,431 @@
+{
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.0.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Hooks — host declaration document (agent-hooks-declaration/1.0)",
+  "description": "A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that fixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface (§13.1) and its interceptor bindings. The document is a versioned contract of its own, separate from the wire version agent-hooks/0.1 and from package versions; this file describes agent-hooks-declaration/1.0. Every object is closed except bindings[].config and the values under extensions. This schema is self-contained so a settings validator can use it alone. Rules it cannot express (knob consistency, the §3.2 floor, surface against the host's code, registered names) live in the loader (§7.7.6).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "declaration",
+    "bindings"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Ignored by the loader; kept for editors."
+    },
+    "declaration": {
+      "type": "string",
+      "enum": [
+        "agent-hooks-declaration/1.0"
+      ],
+      "description": "The declaration contract version (§7.7.2). A loader refuses any value outside the set it accepts with declaration_error:version_unsupported. Major 0 is reserved for the conformance kit."
+    },
+    "spec": {
+      "type": "string",
+      "pattern": "^agent-hooks/[0-9]+\\.[0-9]+$",
+      "description": "OPTIONAL. The wire version the document was written for; the loader's major, and a minor no greater than the loader's. Defaults to the loader's SPEC_VERSION."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+      "description": "OPTIONAL. An operator label for logs. Never stamped on records."
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]{1,64}$",
+          "description": "Same grammar as agent.framework (§4.1)."
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      },
+      "description": "OPTIONAL and informative; never checked against code."
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "enforce",
+            "evaluate_only"
+          ],
+          "default": "enforce",
+          "description": "§8."
+        },
+        "composition": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "profile": {
+              "type": "string",
+              "enum": [
+                "sequential/first_deny",
+                "sequential/run_all",
+                "parallel/strictest",
+                "parallel/unanimous"
+              ],
+              "default": "sequential/first_deny"
+            },
+            "on_approval": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "resume"
+              ],
+              "description": "Consulted by sequential/first_deny only; refused under any other profile (§7.7.3)."
+            },
+            "on_disagreement": {
+              "type": "string",
+              "enum": [
+                "deny",
+                "approval"
+              ],
+              "description": "Consulted by parallel/unanimous only."
+            },
+            "on_transform_conflict": {
+              "type": "string",
+              "enum": [
+                "deny",
+                "approval"
+              ],
+              "description": "Consulted by parallel/strictest only."
+            }
+          },
+          "description": "§7.2. A knob the declared profile does not consult is refused, never cleared; a consulted knob left unset takes the §7.2 default."
+        },
+        "identity_provider": {
+          "description": "§10.1: \"jcs-sha256\" (the default), a registered custom provider name (^[a-z][a-z0-9_-]{0,63}$, never a jcs prefix), or null (identity-unbound).",
+          "anyOf": [
+            {
+              "const": null
+            },
+            {
+              "const": "jcs-sha256"
+            },
+            {
+              "allOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+                },
+                {
+                  "not": {
+                    "type": "string",
+                    "pattern": "^jcs"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "resolver": {
+              "description": "§9. A registered approval resolver by reference, or null: liftable denies stay denies.",
+              "anyOf": [
+                {
+                  "const": null
+                },
+                {
+                  "$ref": "#/$defs/reference"
+                }
+              ]
+            },
+            "redactor": {
+              "description": "§9 redaction seam. A registered approval redactor by reference, or null.",
+              "anyOf": [
+                {
+                  "const": null
+                },
+                {
+                  "$ref": "#/$defs/reference"
+                }
+              ]
+            }
+          }
+        },
+        "posture": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tool_seam_host_error": {
+              "type": "string",
+              "enum": [
+                "continue",
+                "terminate"
+              ],
+              "default": "continue",
+              "description": "§13.1. Must equal the posture the host's code implements."
+            }
+          }
+        },
+        "timeouts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "interceptor_ms": {
+              "$ref": "#/$defs/timeout_ms",
+              "description": "§7 interceptor bound; default 5000. null means unbounded and must be written out."
+            },
+            "approval_resolver_ms": {
+              "$ref": "#/$defs/timeout_ms",
+              "description": "§9 resolver bound; defaults to the value of interceptor_ms."
+            }
+          }
+        },
+        "records": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_buffered": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "description": "In-memory record buffer bound; null (the default) is unbounded."
+            }
+          }
+        }
+      },
+      "description": "Host configuration (§7.1). Every member is OPTIONAL; defaults are the values the specification already names and fail closed."
+    },
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "interception_points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/interception_point"
+          },
+          "uniqueItems": true,
+          "minItems": 4,
+          "maxItems": 8,
+          "description": "Points the host emits; always includes agent_startup, input, output and agent_shutdown (§3.2), and omits the model or tool points only in pairs."
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/capability"
+          },
+          "uniqueItems": true
+        },
+        "profiles": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sequential/first_deny": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "on_approval": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "stop",
+                      "resume"
+                    ]
+                  },
+                  "uniqueItems": true,
+                  "minItems": 1
+                }
+              }
+            },
+            "sequential/run_all": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            },
+            "parallel/strictest": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "on_transform_conflict": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "deny",
+                      "approval"
+                    ]
+                  },
+                  "uniqueItems": true,
+                  "minItems": 1
+                }
+              }
+            },
+            "parallel/unanimous": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "on_disagreement": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "deny",
+                      "approval"
+                    ]
+                  },
+                  "uniqueItems": true,
+                  "minItems": 1
+                }
+              }
+            }
+          },
+          "description": "Profiles and the knob values supported under each (§13.1). Only the knobs a profile consults may appear; an absent knob member means the §7.2 default value only."
+        },
+        "buffered_output": {
+          "type": "boolean",
+          "default": true,
+          "description": "§12.1a. false must be declared explicitly and requires exposure_bound."
+        },
+        "exposure_bound": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "§12.1a. Present iff buffered_output is false."
+        },
+        "declaration_versions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^agent-hooks-declaration/[0-9]+\\.[0-9]+$"
+          },
+          "uniqueItems": true,
+          "minItems": 1,
+          "description": "Contract versions the host accepts (§7.7.2); includes the document's own."
+        }
+      },
+      "if": {
+        "properties": {
+          "buffered_output": {
+            "const": false
+          }
+        },
+        "required": [
+          "buffered_output"
+        ]
+      },
+      "then": {
+        "required": [
+          "exposure_bound"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "exposure_bound"
+          ]
+        }
+      },
+      "description": "The declared surface (§13.1) in file form. OPTIONAL: when absent the host's own code surface applies. Every stated member must be a subset of what the host's code reports; a document a conformance claim cites carries this block explicitly."
+    },
+    "bindings": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/binding"
+      },
+      "description": "Ordered: array order is dispatch order. REQUIRED, so an empty-deny host (zero bindings) is written down rather than arrived at by omission. Binding ids are unique."
+    },
+    "extensions": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "description": "Host-specific extras, kept verbatim and never read by the loader. Keys follow the §4.6 namespace rule; the §4.6 reserved namespaces apply."
+    }
+  },
+  "$defs": {
+    "interception_point": {
+      "type": "string",
+      "enum": [
+        "agent_startup",
+        "input",
+        "pre_model_call",
+        "post_model_call",
+        "pre_tool_call",
+        "post_tool_call",
+        "output",
+        "agent_shutdown"
+      ]
+    },
+    "capability": {
+      "type": "string",
+      "enum": [
+        "model_calls",
+        "tool_calls",
+        "parallel_tool_calls",
+        "streaming",
+        "multi_turn",
+        "int64_json",
+        "bigint_json",
+        "incremental_output",
+        "host_declaration"
+      ],
+      "description": "The conformance capability vocabulary (§13.1, conformance/vectors.schema.json) less buffered_output, which is the boolean surface member, plus host_declaration."
+    },
+    "reference": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+    },
+    "timeout_ms": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 3600000
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/reference",
+          "description": "Unique in the array; stamped on verdicts[].name (§10.3)."
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)+$",
+          "maxLength": 128,
+          "description": "A lookup key into the host's kind registry and nothing more: never a path, class name, URL or module the loader interprets. At least one dot, so every kind carries a namespace the host controls. The first segments agent_hooks and ctk are reserved. This specification defines no kinds."
+        },
+        "config": {
+          "description": "Kind-specific; handed to the kind resolver unchanged and never read by the loader. Default {}."
+        },
+        "at": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/interception_point"
+          },
+          "uniqueItems": true,
+          "minItems": 1,
+          "description": "Points this binding runs at, each in the surface. Default: every surface point."
+        },
+        "timeout_ms": {
+          "$ref": "#/$defs/timeout_ms",
+          "description": "Per-binding bound. Default: configuration.timeouts.interceptor_ms; null is unbounded."
+        }
+      }
+    }
+  }
+}
