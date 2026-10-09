@@ -35,7 +35,7 @@ except InterceptionBlocked as e:
 result = invoke_tool(ctx["tool_call"]["args"])  # post-transform args
 ```
 
-## Loading a host declaration
+## Host declaration
 
 A host can load its configuration, declared surface and interceptor
 bindings from a host declaration document (spec §7.7) instead of
