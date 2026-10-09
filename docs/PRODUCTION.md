@@ -5,14 +5,14 @@ running agent-hooks in production. Each row names the normative clause;
 the [operations runbook](OPERATIONS.md) covers day-2 concerns
 (monitoring, rollout, incident response). This document is informative.
 
-Rows 1 to 6 and 10 are members of the host declaration document (spec
-§7.7): `configuration.mode`, `configuration.timeouts.interceptor_ms`,
-`configuration.composition`, `configuration.identity_provider`,
-`configuration.records.max_buffered`, `configuration.approval.redactor`
-and `bindings`. A host that loads a declaration writes these decisions
-down once, and the loader refuses a document that names anything the
-code cannot honour. The decisions below still have to be made; the
-document is where they are recorded.
+Rows 1 to 6 and 10 each have a member in the host declaration document
+(spec §7.7): `configuration.mode`,
+`configuration.timeouts.interceptor_ms`, `configuration.composition`,
+`configuration.identity_provider`, `configuration.records.max_buffered`,
+`configuration.approval.redactor` and `bindings`. A host that loads a
+declaration writes these decisions down once, and the loader refuses a
+document that names anything the code cannot honour. The decisions below
+still have to be made; the document is where they are recorded.
 
 ## Checklist
 
