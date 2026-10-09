@@ -11,6 +11,13 @@ from typing import Any, Protocol
 from agent_hooks._types import EnforcementMode
 from agent_hooks.approval import ApprovalResolver
 from agent_hooks.composition import CompositionConfig
+from agent_hooks.declaration import (
+    DeclarationError,
+    DeclarationErrorClass,
+    Finding,
+    HostRegistry,
+    HostSurface,
+)
 from agent_hooks.interceptor import Interceptor
 
 
@@ -31,6 +38,10 @@ class Capability(str, Enum):
     #: watermark-gated release; gates the streaming/incremental vector
     #: part. Buffered hosts (the default) omit this and skip it.
     INCREMENTAL_OUTPUT = "incremental_output"
+    #: The host builds its emitter from a host declaration document
+    #: through the loader (§7.7.9) and implements
+    #: :meth:`Harness.setup_declared`; gates the declaration/* parts.
+    HOST_DECLARATION = "host_declaration"
 
 
 class RunOutcome(str, Enum):
@@ -107,6 +118,31 @@ class Scenario:
 
 
 @dataclass(slots=True)
+class LoadRecord:
+    """What loading a vector's host declaration produced (§7.7.9), as
+    the runner records it: ``outcome`` is ``"accepted"`` or
+    ``"refused"``, ``error_class`` the ``declaration_error:*`` code on
+    refusal, and ``paths_equivalent`` whether the value, JSON, file and
+    builder paths resolved to one canonical form (or refused with one
+    class)."""
+
+    outcome: str
+    error_class: str | None = None
+    paths_equivalent: bool | None = None
+    detail: str | None = None
+
+    def to_wire(self) -> dict[str, Any]:
+        out: dict[str, Any] = {"outcome": self.outcome}
+        if self.error_class is not None:
+            out["class"] = self.error_class
+        if self.paths_equivalent is not None:
+            out["paths_equivalent"] = self.paths_equivalent
+        if self.detail is not None:
+            out["detail"] = self.detail
+        return out
+
+
+@dataclass(slots=True)
 class RunRecord:
     """What :meth:`Harness.run` returns to the CTK runner."""
 
@@ -121,6 +157,9 @@ class RunRecord:
     #: Wire-shaped ``InterceptionRecord`` dicts (§10.3), one per emission,
     #: in order. Enables ``expect.records`` assertions.
     records: list[dict[str, Any]] = field(default_factory=list)
+    #: Set by the runner for vectors carrying ``host_declaration``
+    #: (§7.7.9); the harness leaves it ``None``.
+    load: LoadRecord | None = None
 
 
 class Harness(Protocol):
@@ -152,3 +191,49 @@ class Harness(Protocol):
     async def run(self) -> RunRecord: ...
 
     def teardown(self) -> None: ...
+
+    # ---- host declaration seam (§7.7.9) -------------------------------------
+    # The runner reads these with ``getattr`` and falls back to the
+    # defaults below, so a structural Harness that predates them keeps
+    # working: it skips the declaration/* parts with a stated reason.
+
+    def host_surface(self) -> HostSurface:
+        """The code surface (§7.7.4) a declaration is resolved against.
+        The default derives it from :attr:`capabilities` and
+        :attr:`tool_seam_host_error`: the §3.2 floor plus the model
+        points iff ``model_calls`` plus the tool points iff
+        ``tool_calls``, every profile with every knob value. A host
+        declaring ``incremental_output`` overrides this to add its
+        exposure bound (:meth:`HostSurface.with_exposure_bound`)."""
+        return HostSurface.from_capabilities(
+            sorted(c.value for c in self.capabilities),
+            getattr(self, "tool_seam_host_error", "continue"),
+        )
+
+    def declaration(self) -> dict[str, Any] | None:
+        """The host's own declaration document (§7.7.9), when it has
+        one. The runner resolves it against :meth:`host_surface` and
+        reads the capabilities and posture a run is assessed against
+        from the resolved form, so what the CTK ran against is what a
+        claim cites. ``None`` keeps the code-declared surface."""
+        return None
+
+    def setup_declared(
+        self, scenario: Scenario, document: dict[str, Any], registry: HostRegistry
+    ) -> None:
+        """Wire one declaration vector (§7.7.9): the harness MUST build
+        its emitter from ``document`` and ``registry`` through the
+        loader (``InterceptionEmitter.from_declaration_value``) and let
+        the :class:`DeclarationError` propagate, never fall back to the
+        field-based :meth:`setup`. The document and the registry carry
+        the interceptors, resolver, composition and provider. Only
+        harnesses declaring :attr:`Capability.HOST_DECLARATION` receive
+        this call."""
+        raise DeclarationError(
+            DeclarationErrorClass.SURFACE_UNSUPPORTED,
+            Finding(
+                pointer="",
+                detail=f"harness defect: harness {self.name!r} declares host_declaration "
+                "but does not implement setup_declared",
+            ),
+        )

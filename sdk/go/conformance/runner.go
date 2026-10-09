@@ -61,21 +61,20 @@ func LoadVectors(dir string) ([]map[string]any, error) {
 	return out, nil
 }
 
-// scriptedInterceptor wraps agenthooks.CtkScriptedIntercept; when record
+// scriptedInterceptor wraps agenthooks.CtkScriptedIntercept; when rec
 // is set it also records every context it is handed.
 type scriptedInterceptor struct {
 	rulesJSON string
-	record    bool
-	recorded  []agenthooks.AgentContext
+	rec       *recorder
 }
 
 func (s *scriptedInterceptor) Intercept(_ context.Context, actx agenthooks.AgentContext) (agenthooks.Verdict, error) {
-	if s.record {
+	if s.rec != nil {
 		cp, err := agenthooks.DeepCopyContext(actx)
 		if err != nil {
 			return agenthooks.Verdict{}, err
 		}
-		s.recorded = append(s.recorded, cp)
+		s.rec.recorded = append(s.rec.recorded, cp)
 	}
 	return agenthooks.CtkScriptedIntercept(s.rulesJSON, actx)
 }
@@ -115,7 +114,7 @@ func runRecordToWire(rr RunRecord, postures map[string]string) string {
 	if records == nil {
 		records = []agenthooks.InterceptionRecord{}
 	}
-	return mustJSON(map[string]any{
+	wire := map[string]any{
 		"outcome":          string(rr.Outcome),
 		"final_output":     rr.FinalOutput,
 		"tool_invocations": invs,
@@ -125,7 +124,12 @@ func runRecordToWire(rr RunRecord, postures map[string]string) string {
 		// Harness *declarations* (§13.1), not observed behavior: the
 		// engine selects expect.run_outcome_by_posture entries by them.
 		"postures": postures,
-	})
+	}
+	if rr.Load != nil {
+		// §7.7.9: the load outcome of a declaration vector.
+		wire["load"] = rr.Load
+	}
+	return mustJSON(wire)
 }
 
 // RunVector drives one vector against a fresh harness instance.
@@ -134,9 +138,27 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 	id, _ := vector["id"].(string)
 	title, _ := vector["title"].(string)
 
-	caps := make([]string, 0, len(h.Capabilities()))
-	for c := range h.Capabilities() {
-		caps = append(caps, string(c))
+	// §13.1 posture declaration; a Harness that does not implement the
+	// optional declarer interface declares the spec default.
+	posture := "continue"
+	if d, ok := h.(ToolSeamHostErrorDeclarer); ok {
+		posture = d.ToolSeamHostError()
+	}
+	// §7.7.9: a harness with its own declaration is assessed against
+	// the resolved document, so what ran is what a claim cites.
+	surface := codeSurface(h, posture)
+	var caps []string
+	if d, ok := h.(DeclarationDeclarer); ok && d.Declaration() != nil {
+		resolvedCaps, resolvedPosture, err := cachedResolvedSurface(d.Declaration(), surface)
+		if err != nil {
+			return VectorResult{ID: id, Title: title, Status: "fail",
+				Failures: []string{fmt.Sprintf("harness declaration refused: %v", err)}}, nil
+		}
+		caps, posture = resolvedCaps, resolvedPosture
+	} else {
+		for c := range h.Capabilities() {
+			caps = append(caps, string(c))
+		}
 	}
 	sort.Strings(caps)
 	if reason, err := agenthooks.CtkShouldSkip(vectorJSON, caps); err != nil {
@@ -154,26 +176,23 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 	// expect.interceptions describes each emission as the first-registered
 	// interceptor saw it. An empty interceptor_scripts registers zero
 	// interceptors (§7 fail-closed vector).
-	var scripts []any
-	if ss, ok := vector["interceptor_scripts"].([]any); ok {
-		scripts = ss
-	} else {
-		scripts = []any{vector["interceptor_script"]}
-	}
-	var first *scriptedInterceptor
-	interceptors := make([]agenthooks.Interceptor, 0, len(scripts))
-	for i, s := range scripts {
-		si := &scriptedInterceptor{rulesJSON: mustJSON(s), record: i == 0}
-		if i == 0 {
-			first = si
+	sc := scriptsOf(vector)
+	postures := map[string]string{"tool_seam_host_error": posture}
+
+	// §7.7.9: a declaration vector builds the emitter through the
+	// loader. The runner proves the construction paths itself, then
+	// hands the document and the CTK registry to the harness.
+	if document, ok := vector["host_declaration"].(map[string]any); ok {
+		rr, err := runDeclared(ctx, h, scenario, document, sc, surface, id)
+		if err != nil {
+			return VectorResult{ID: id, Title: title, Status: "fail",
+				Failures: []string{fmt.Sprintf("harness (declaration): %v", err)}}, nil
 		}
-		interceptors = append(interceptors, si)
+		return agenthooks.CtkAssert(vectorJSON, sc.rec.recorded, runRecordToWire(rr, postures))
 	}
 
-	var resolver agenthooks.ApprovalResolver
-	if approval, ok := vector["approval_script"].([]any); ok && len(approval) > 0 {
-		resolver = &scriptedResolver{rulesJSON: mustJSON(approval)}
-	}
+	interceptors := sc.interceptors()
+	resolver := sc.resolver()
 	mode := agenthooks.Enforce
 	if m, _ := vector["mode"].(string); m != "" {
 		mode = agenthooks.EnforcementMode(m)
@@ -206,17 +225,8 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 		}
 	}
 
-	var redactForApproval []string
-	if raw, ok := vector["redact_for_approval"].([]any); ok {
-		for _, p := range raw {
-			if sp, ok := p.(string); ok {
-				redactForApproval = append(redactForApproval, sp)
-			}
-		}
-	}
-
 	if err := h.Setup(scenario, interceptors, resolver, mode, composition, identityProvider,
-		redactForApproval); err != nil {
+		sc.redact); err != nil {
 		return VectorResult{ID: id, Title: title, Status: "fail",
 			Failures: []string{fmt.Sprintf("harness.Setup: %v", err)}}, nil
 	}
@@ -227,18 +237,7 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 			Failures: []string{fmt.Sprintf("harness.Run: %v", runErr)}}, nil
 	}
 
-	recorded := []agenthooks.AgentContext{}
-	if first != nil {
-		recorded = first.recorded
-	}
-	// §13.1 posture declaration; a Harness that does not implement the
-	// optional declarer interface declares the spec default.
-	posture := "continue"
-	if d, ok := h.(ToolSeamHostErrorDeclarer); ok {
-		posture = d.ToolSeamHostError()
-	}
-	postures := map[string]string{"tool_seam_host_error": posture}
-	return agenthooks.CtkAssert(vectorJSON, recorded, runRecordToWire(rr, postures))
+	return agenthooks.CtkAssert(vectorJSON, sc.rec.recorded, runRecordToWire(rr, postures))
 }
 
 func scenarioFromWire(s map[string]any) Scenario {

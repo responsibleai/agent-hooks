@@ -4,7 +4,9 @@
 //!
 //! Thin wrapper over `agent_hooks::ffi_surface`. All functions take and
 //! return Python `str` (UTF-8 JSON); errors raise `AgentHooksCoreError`
-//! with `.code` set to the §11 `host_error:*` string.
+//! with `.code` set to the §11 `host_error:*` string (or, from the two
+//! declaration functions, a §7.7.6 `declaration_error:*` string) and
+//! `.detail` set to the core's detail text.
 
 use agent_hooks::ffi_surface as core;
 use pyo3::create_exception;
@@ -17,8 +19,10 @@ fn map_err(py: Python<'_>, e: core::FfiError) -> PyErr {
     let (code, detail) = e;
     let exc = AgentHooksCoreError::new_err(format!("{code}: {detail}"));
     // Attach .code so the Python wrapper can map to HostError enum without
-    // parsing the message.
+    // parsing the message, and .detail so a declaration refusal's JSON
+    // findings can be rebuilt without parsing it either.
     let _ = exc.value(py).setattr("code", code);
+    let _ = exc.value(py).setattr("detail", detail);
     exc
 }
 
@@ -98,6 +102,22 @@ fn compose_aggregate(
     core::compose_aggregate(composition_json, verdicts_json).map_err(|e| map_err(py, e))
 }
 
+// ---- host declaration (§7.7) ---------------------------------------------
+
+/// §7.7.2: `{"current": "...", "supported": [...]}`.
+#[pyfunction]
+fn declaration_versions() -> String {
+    core::declaration_versions()
+}
+
+/// Steps 2 to 10 of §7.7.6: validate a document and resolve it against
+/// the host's surface and registered names. Raises `AgentHooksCoreError`
+/// with a `declaration_error:*` code and JSON findings in `.detail`.
+#[pyfunction]
+fn declaration_resolve(py: Python<'_>, document_json: &str, host_json: &str) -> PyResult<String> {
+    core::declaration_resolve(document_json, host_json).map_err(|e| map_err(py, e))
+}
+
 // ---- CTK engine (§13.2) ---------------------------------------------------
 
 #[pyfunction]
@@ -148,6 +168,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_transform_ctx, m)?)?;
     m.add_function(wrap_pyfunction!(finalize, m)?)?;
     m.add_function(wrap_pyfunction!(compose_aggregate, m)?)?;
+    m.add_function(wrap_pyfunction!(declaration_versions, m)?)?;
+    m.add_function(wrap_pyfunction!(declaration_resolve, m)?)?;
     m.add_function(wrap_pyfunction!(ctk_scripted_intercept, m)?)?;
     m.add_function(wrap_pyfunction!(ctk_scripted_resolve, m)?)?;
     m.add_function(wrap_pyfunction!(ctk_should_skip, m)?)?;

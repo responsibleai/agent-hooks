@@ -19,8 +19,15 @@
  * serial dispatch over isolated snapshots — §7.2: parallel names
  * isolation semantics, not scheduling.
  *
- * Fail-closed defaults: an `enforce`-mode emission with zero registered
- * interceptors yields `deny host_error:no_interceptor` (§7), and
+ * An emitter can also be built from a host declaration document (§7.7)
+ * through {@link InterceptionEmitter.fromDeclaration} and the path, JSON
+ * and value forms. The document is validated and resolved by the Rust
+ * core; this module runs the host's kind resolvers (step 11 of §7.7.6),
+ * seals the emitter (§7.7.7) and stamps the contract version on every
+ * record (§7.7.8).
+ *
+ * Fail-closed defaults: an `enforce`-mode emission with zero interceptors
+ * bound at the point yields `deny host_error:no_interceptor` (§7), and
  * {@link InterceptionEmitter.emit} **throws** {@link InterceptionBlocked}
  * on any block — the ignorable-result variant is the explicitly named
  * {@link InterceptionEmitter.emitUnchecked}.
@@ -48,6 +55,7 @@ import {
   InterceptionRecord,
   Interceptor,
   JCS_SHA256,
+  JsonValue,
   Verdict,
   VerdictSummary,
   Warning,
@@ -59,6 +67,15 @@ import {
   permits,
   proceeds,
 } from "./index";
+import {
+  BindingContext,
+  DeclarationError,
+  DeclarationErrorClass,
+  HostDeclaration,
+  HostRegistry,
+  ResolvedDeclaration,
+  resolveDeclaration,
+} from "./declaration";
 import { AgentHooksCoreError, native } from "./native";
 
 /** §7 RECOMMENDED interceptor/resolver timeout (milliseconds). */
@@ -69,6 +86,26 @@ class InterceptTimeout extends Error {
   constructor() {
     super("interceptor/resolver timeout");
     this.name = "InterceptTimeout";
+  }
+}
+
+/** Thrown when a setter or `register` is called on an emitter built
+ * from a host declaration (§7.7.7): the declaration must stay what ran. */
+/** Recursively freeze a JSON-shaped value in place and return it. */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const v of Object.values(value as Record<string, unknown>)) deepFreeze(v);
+  }
+  return value;
+}
+
+export class EmitterSealed extends Error {
+  constructor(what: string) {
+    super(
+      `${what}: this emitter was built from a host declaration and is sealed (see spec §7.7.7)`,
+    );
+    this.name = "EmitterSealed";
   }
 }
 
@@ -130,6 +167,17 @@ function summaries(verdicts: Verdict[]): VerdictSummary[] {
   }));
 }
 
+/** One registered interceptor with its binding facts (§7.7.5): the
+ * payload-free name stamped on `verdicts[].name`, the points it runs at
+ * (`null` = every point, the pre-declaration behaviour) and its
+ * timeout (`undefined` = the emitter-wide value, `null` = unbounded). */
+interface Bound {
+  interceptor: Interceptor;
+  name: string | null;
+  at: ReadonlySet<InterceptionPoint> | null;
+  timeoutMs: number | null | undefined;
+}
+
 /** Internal result of one profile dispatch. */
 interface DispatchOutcome {
   combined: Verdict;
@@ -181,16 +229,35 @@ export interface HostFailure {
   timestamp?: string;
 }
 
+/** Whether `v` looks like an interceptor (§7): an object with an
+ * `intercept` method. */
+function isInterceptor(v: unknown): v is Interceptor {
+  return (
+    v !== null &&
+    (typeof v === "object" || typeof v === "function") &&
+    typeof (v as { intercept?: unknown }).intercept === "function"
+  );
+}
+
 export class InterceptionEmitter {
-  private readonly interceptors: Interceptor[] = [];
+  private readonly interceptors: Bound[] = [];
   private _records: InterceptionRecord[] = [];
   private composition: CompositionConfig = Composition.default();
   private identity: IdentityProvider = JCS_SHA256;
-  private readonly names: Array<string | null> = [];
   private approvalRedactor: ((ctx: AgentContext) => AgentContext) | null = null;
   private recordSink: ((record: InterceptionRecord) => void) | null = null;
   private maxRecords: number | null = null;
   private _recordsDropped = 0;
+  private readonly mode: EnforcementMode;
+  private resolver: ApprovalResolver | null;
+  /** §7 emitter-wide interceptor bound; `null` disables enforcement. */
+  private timeoutMs: number | null;
+  /** §9 resolver bound (`approval_resolver_ms`, §7.7.3); `null` disables. */
+  private resolverTimeoutMs: number | null;
+  /** §7.7.7: a declaration-built emitter refuses reconfiguration. */
+  private sealed = false;
+  /** The resolved declaration this emitter was built from, if any. */
+  private _declaration: ResolvedDeclaration | null = null;
 
   /**
    * `timeoutMs` bounds each interceptor `intercept()` and resolver
@@ -201,20 +268,195 @@ export class InterceptionEmitter {
    * loop cannot be interrupted. `timeoutMs: null` disables enforcement.
    */
   constructor(
-    private readonly mode: EnforcementMode = EnforcementMode.Enforce,
-    private readonly resolver: ApprovalResolver | null = null,
-    private readonly timeoutMs: number | null = DEFAULT_TIMEOUT_MS,
-  ) {}
+    mode: EnforcementMode = EnforcementMode.Enforce,
+    resolver: ApprovalResolver | null = null,
+    timeoutMs: number | null = DEFAULT_TIMEOUT_MS,
+  ) {
+    this.mode = mode;
+    this.resolver = resolver;
+    this.timeoutMs = timeoutMs;
+    this.resolverTimeoutMs = timeoutMs;
+  }
 
-  /** Race `fn`'s result against the §7 timeout. */
-  private async withTimeout<T>(fn: () => T | Promise<T>): Promise<T> {
-    if (this.timeoutMs === null) return fn();
+  // ---- host declaration (§7.7) ----------------------------------------------
+
+  /** Build an emitter from a validated declaration: steps 8 to 11 of
+   * §7.7.6 (resolve against the registry's surface and names in the
+   * core, then run every binding's kind resolver). The result is
+   * sealed (§7.7.7) and stamps `declaration` on every record (§7.7.8).
+   * Throws {@link DeclarationError} on refusal; no emitter exists then. */
+  static fromDeclaration(declaration: HostDeclaration, registry: HostRegistry): InterceptionEmitter {
+    const resolved = resolveDeclaration(declaration, registry);
+    return InterceptionEmitter.fromResolved(resolved, registry);
+  }
+
+  /** {@link HostDeclaration.fromPath} then {@link fromDeclaration}. */
+  static async fromDeclarationPath(
+    path: string,
+    registry: HostRegistry,
+  ): Promise<InterceptionEmitter> {
+    return InterceptionEmitter.fromDeclaration(await HostDeclaration.fromPath(path), registry);
+  }
+
+  /** {@link HostDeclaration.fromJson} then {@link fromDeclaration}. */
+  static fromDeclarationJson(text: string, registry: HostRegistry): InterceptionEmitter {
+    return InterceptionEmitter.fromDeclaration(HostDeclaration.fromJson(text), registry);
+  }
+
+  /** {@link HostDeclaration.fromValue} then {@link fromDeclaration}. */
+  static fromDeclarationValue(value: unknown, registry: HostRegistry): InterceptionEmitter {
+    return InterceptionEmitter.fromDeclaration(HostDeclaration.fromValue(value), registry);
+  }
+
+  /** The resolved declaration this emitter runs under, when it was
+   * built from one (§7.7.7). Its canonical JSON is the equivalence
+   * oracle for the construction paths. The value is frozen all the
+   * way down: writing through it has no effect on dispatch or records.
+   * `null` for an emitter configured in code. */
+  get declaration(): ResolvedDeclaration | null {
+    return this._declaration;
+  }
+
+  /** Step 11 and construction. Every reference is looked up again in
+   * the registry's own maps, so bookkeeping drift between the names the
+   * core checked and what the registry holds fails closed. */
+  private static fromResolved(
+    resolved: ResolvedDeclaration,
+    registry: HostRegistry,
+  ): InterceptionEmitter {
+    const cfg = resolved.configuration;
+    let resolver: ApprovalResolver | null = null;
+    if (cfg.approval.resolver !== null) {
+      const name = cfg.approval.resolver;
+      const r = registry.approvalResolverRef(name);
+      if (r === undefined) {
+        throw DeclarationError.single(
+          DeclarationErrorClass.ReferenceUnresolved,
+          "/configuration/approval/resolver",
+          `approval resolver ${JSON.stringify(name)} vanished from the registry`,
+        );
+      }
+      resolver = r;
+    }
+    let identity: IdentityProvider;
+    if (cfg.identity_provider === null) {
+      identity = null;
+    } else if (cfg.identity_provider === JCS_SHA256) {
+      identity = JCS_SHA256;
+    } else {
+      const name = cfg.identity_provider;
+      const fn = registry.identityFn(name);
+      if (fn === undefined) {
+        throw DeclarationError.single(
+          DeclarationErrorClass.ReferenceUnresolved,
+          "/configuration/identity_provider",
+          `identity provider ${JSON.stringify(name)} vanished from the registry`,
+        );
+      }
+      identity = { name, fn };
+    }
+    let approvalRedactor: ((ctx: AgentContext) => AgentContext) | null = null;
+    if (cfg.approval.redactor !== null) {
+      const name = cfg.approval.redactor;
+      const fn = registry.redactorFn(name);
+      if (fn === undefined) {
+        throw DeclarationError.single(
+          DeclarationErrorClass.ReferenceUnresolved,
+          "/configuration/approval/redactor",
+          `approval redactor ${JSON.stringify(name)} vanished from the registry`,
+        );
+      }
+      approvalRedactor = fn;
+    }
+
+    const bound: Bound[] = [];
+    resolved.bindings.forEach((b, i) => {
+      const pointer = `/bindings/${i}`;
+      const resolverFn = registry.kindResolver(b.kind);
+      if (resolverFn === undefined) {
+        throw DeclarationError.single(
+          DeclarationErrorClass.KindUnknown,
+          `${pointer}/kind`,
+          `kind ${JSON.stringify(b.kind)} vanished from the registry`,
+        );
+      }
+      // The dispatch set is fixed before the resolver runs and the
+      // context carries a frozen copy, so a resolver cannot widen its
+      // own binding (the Rust core hands out `&BTreeSet` for the same
+      // reason).
+      const at = new Set(b.at);
+      const context: BindingContext = {
+        id: b.id,
+        kind: b.kind,
+        at: Object.freeze([...b.at]),
+        timeoutMs: b.timeout_ms,
+        host: resolved.host ?? null,
+        declarationVersion: resolved.declaration,
+      };
+      // §7.7.5: a resolver that throws or returns a non-interceptor
+      // refuses the document; the message is bounded and the config is
+      // never echoed by the loader.
+      let interceptor: unknown;
+      try {
+        interceptor = resolverFn(b.config, context);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "resolver threw a non-Error value";
+        throw DeclarationError.single(
+          DeclarationErrorClass.BindingRejected,
+          pointer,
+          `binding ${JSON.stringify(b.id)} (kind ${JSON.stringify(b.kind)}) rejected: ${msg}`,
+        );
+      }
+      if (!isInterceptor(interceptor)) {
+        const why =
+          interceptor instanceof Promise
+            ? "resolver returned a Promise; kind resolvers are synchronous"
+            : "resolver did not return an interceptor";
+        throw DeclarationError.single(
+          DeclarationErrorClass.BindingRejected,
+          pointer,
+          `binding ${JSON.stringify(b.id)} (kind ${JSON.stringify(b.kind)}) rejected: ${why}`,
+        );
+      }
+      bound.push({
+        interceptor,
+        name: b.id,
+        at,
+        timeoutMs: b.timeout_ms,
+      });
+    });
+
+    const em = new InterceptionEmitter(cfg.mode, resolver, cfg.timeouts.interceptor_ms);
+    em.resolverTimeoutMs = cfg.timeouts.approval_resolver_ms;
+    // The emitter owns its own copy of the composition and the
+    // declaration it exposes is frozen all the way down, so the seal
+    // cannot be bypassed by writing through `emitter.declaration`.
+    em.composition = { ...cfg.composition };
+    em.identity = identity;
+    em.approvalRedactor = approvalRedactor;
+    em.maxRecords = cfg.records.max_buffered;
+    em.interceptors.push(...bound);
+    em._declaration = deepFreeze(resolved);
+    em.sealed = true;
+    return em;
+  }
+
+  /** §7.7.7: a declaration-built emitter refuses reconfiguration;
+   * otherwise the declaration would not be what ran. */
+  private unsealed(what: string): void {
+    if (this.sealed) throw new EmitterSealed(what);
+  }
+
+  /** Race `fn`'s result against a timeout (§7). `limitMs: null` runs
+   * unbounded. */
+  private async withTimeout<T>(fn: () => T | Promise<T>, limitMs: number | null): Promise<T> {
+    if (limitMs === null) return fn();
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
         (async () => fn())(),
         new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new InterceptTimeout()), this.timeoutMs!);
+          timer = setTimeout(() => reject(new InterceptTimeout()), limitMs);
         }),
       ]);
     } finally {
@@ -227,10 +469,40 @@ export class InterceptionEmitter {
   }
 
   /** Register an interceptor, optionally with a host-chosen
-   * payload-free `name` recorded on `verdicts[].name` (§10.3). */
-  register(interceptor: Interceptor, name?: string): this {
-    this.interceptors.push(interceptor);
-    this.names.push(name ?? null);
+   * payload-free `name` recorded on `verdicts[].name` (§10.3) and the
+   * points it runs at (`at`; omitted = every point). At point P the
+   * interceptors that run are those bound there, in registration
+   * order; `interceptors_registered`, `verdicts[].index` and
+   * `decided_by` count and index that list (§7.7.8). Throws
+   * {@link EmitterSealed} on a declaration-built emitter. */
+  register(interceptor: Interceptor, name?: string, at?: Iterable<InterceptionPoint>): this {
+    this.unsealed("register");
+    let points: Set<InterceptionPoint> | null = null;
+    if (at !== undefined) {
+      // The compile-time type does not protect plain-JS callers: a
+      // misspelled point must not bind nowhere without a word.
+      points = new Set();
+      const known: readonly string[] = Object.values(InterceptionPoint);
+      for (const p of at) {
+        if (!known.includes(p)) {
+          throw new RangeError(
+            `unknown interception point ${JSON.stringify(p)}: the point set is closed (§3)`,
+          );
+        }
+        points.add(p);
+      }
+      if (points.size === 0) {
+        throw new RangeError(
+          "at must name at least one interception point; omit it to bind every point (§7.7.5)",
+        );
+      }
+    }
+    this.interceptors.push({
+      interceptor,
+      name: name ?? null,
+      at: points,
+      timeoutMs: undefined,
+    });
     return this;
   }
 
@@ -249,6 +521,7 @@ export class InterceptionEmitter {
    * profile. See docs/PRODUCTION.md.
    */
   setComposition(composition: CompositionConfig): this {
+    this.unsealed("setComposition");
     const profiles: string[] = Object.values(CompositionProfile);
     if (!profiles.includes(composition.profile)) {
       throw new RangeError(
@@ -276,6 +549,7 @@ export class InterceptionEmitter {
    * `^[a-z][a-z0-9_-]*$` and must not begin with `jcs` (reserved so a
    * custom function can never claim golden-vector semantics). */
   setIdentityProvider(provider: IdentityProvider): this {
+    this.unsealed("setIdentityProvider");
     if (provider !== null && provider !== JCS_SHA256) {
       if (!/^[a-z][a-z0-9_-]*$/.test(provider.name) || provider.name.startsWith("jcs")) {
         throw new RangeError(
@@ -294,6 +568,7 @@ export class InterceptionEmitter {
    * redactor that throws fails the consultation closed as
    * `host_error:approval_resolver_failed`. */
   setApprovalRedactor(redactor: (ctx: AgentContext) => AgentContext): this {
+    this.unsealed("setApprovalRedactor");
     this.approvalRedactor = redactor;
     return this;
   }
@@ -301,7 +576,8 @@ export class InterceptionEmitter {
   /** Register a per-emission record callback (§10.3), invoked
    * synchronously after every emission before buffering; a sink
    * exception is swallowed (audit delivery is the host's liveness
-   * concern, not the control plane's). */
+   * concern, not the control plane's). Allowed on a sealed emitter: it
+   * changes where records go, not what they say (§7.7.7). */
   setRecordSink(sink: (record: InterceptionRecord) => void): this {
     this.recordSink = sink;
     return this;
@@ -311,6 +587,7 @@ export class InterceptionEmitter {
    * is dropped and {@link recordsDropped} increments. Unbounded by
    * default. */
   setMaxRecords(max: number): this {
+    this.unsealed("setMaxRecords");
     this.maxRecords = max;
     return this;
   }
@@ -367,7 +644,8 @@ export class InterceptionEmitter {
       }
     }
     const identityFailed = outcome !== null;
-    if (outcome === null) outcome = await this.dispatch(ctx);
+    const active = this.active(ctx);
+    if (outcome === null) outcome = await this.dispatch(ctx, active);
 
     const providerName =
       this.identity === null ? null : this.identity === JCS_SHA256 ? JCS_SHA256 : this.identity.name;
@@ -383,13 +661,15 @@ export class InterceptionEmitter {
           : null,
       decided_by: outcome.decidedBy,
       composition: this.composition,
+      declaration: this._declaration?.declaration ?? null,
+      // §10.3 summaries with the bound names attached positionally.
       verdicts: outcome.verdicts.map((v) => ({
         ...v,
-        ...(this.names[v.index] != null ? { name: this.names[v.index] as string } : {}),
+        ...(active[v.index]?.name != null ? { name: active[v.index].name as string } : {}),
       })),
       fold_truncated: outcome.foldTruncated,
       resolved_by: outcome.resolvedBy,
-      interceptors_registered: this.interceptors.length,
+      interceptors_registered: active.length,
     };
 
     let record: InterceptionRecord;
@@ -455,10 +735,11 @@ export class InterceptionEmitter {
         enforced_identity: null,
         decided_by: null,
         composition: this.composition,
+        declaration: this._declaration?.declaration ?? null,
         verdicts: null,
         fold_truncated: null,
         resolved_by: null,
-        interceptors_registered: this.interceptors.length,
+        interceptors_registered: this.interceptors.filter((b) => runsAt(b, point)).length,
       },
     );
     return this.deliver(record);
@@ -486,23 +767,36 @@ export class InterceptionEmitter {
 
   // ---------------------------------------------------------------------------
 
+  /** The interceptors bound at the context's point, in dispatch order
+   * (§7.7.8). */
+  private active(ctx: AgentContext): Bound[] {
+    const point = pointOf(ctx);
+    return this.interceptors.filter((b) => runsAt(b, point));
+  }
+
+  /** The bound a registration runs under: its own, else the emitter's. */
+  private limit(b: Bound): number | null {
+    return b.timeoutMs === undefined ? this.timeoutMs : b.timeoutMs;
+  }
+
   /** Profile dispatch (§7.4–§7.5). Returns the combined verdict and
    * its record metadata. */
-  private async dispatch(ctx: AgentContext): Promise<DispatchOutcome> {
-    if (this.interceptors.length === 0) {
+  private async dispatch(ctx: AgentContext, active: Bound[]): Promise<DispatchOutcome> {
+    if (active.length === 0) {
       // §7: zero interceptors fails closed, profile-independent.
       // Register an explicit allow-all interceptor for a deliberate
-      // passthrough.
+      // passthrough. With per-point bindings (§7.7.5) this is per
+      // point: a surface point with no binding denies.
       return synthesized(HostError.NoInterceptor);
     }
     switch (this.composition.profile) {
       case CompositionProfile.SequentialFirstDeny:
-        return this.dispatchFirstDeny(ctx);
+        return this.dispatchFirstDeny(ctx, active);
       case CompositionProfile.SequentialRunAll:
-        return this.dispatchRunAll(ctx);
+        return this.dispatchRunAll(ctx, active);
       case CompositionProfile.ParallelStrictest:
       case CompositionProfile.ParallelUnanimous:
-        return this.dispatchParallel(ctx);
+        return this.dispatchParallel(ctx, active);
       default:
         // Unreachable through the public API: setComposition validates
         // against the closed §7.2 set. Fail closed rather than silently
@@ -514,12 +808,15 @@ export class InterceptionEmitter {
   /** Invoke one interceptor on its own copy of `ctx` (§7) and pass the
    * result through the §5 gate. Never throws: every failure becomes the
    * §6.3 synthesized deny. */
-  private async invoke(interceptor: Interceptor, ctx: AgentContext): Promise<Verdict> {
+  private async invoke(bound: Bound, ctx: AgentContext): Promise<Verdict> {
     let v: Verdict;
     try {
       // §7: each interceptor gets its own copy — in-place mutation of
       // the copy cannot alter enforcement.
-      v = await this.withTimeout(() => interceptor.intercept(structuredClone(ctx)));
+      v = await this.withTimeout(
+        () => bound.interceptor.intercept(structuredClone(ctx)),
+        this.limit(bound),
+      );
     } catch (e) {
       if (e instanceof InterceptTimeout) {
         return hostErrorVerdict(HostError.InterceptorTimeout);
@@ -550,11 +847,11 @@ export class InterceptionEmitter {
    * short-circuits; a liftable deny consults the seam, then `stop` or
    * `resume` per the knob.
    *
-   * `perInterceptor` stays index-aligned with registration order (one
+   * `perInterceptor` stays index-aligned with dispatch order (one
    * entry per invoked interceptor, §10.3 summaries); `pool`
    * additionally holds substituted resolutions for the §7.3 unions. */
-  private async dispatchFirstDeny(ctx: AgentContext): Promise<DispatchOutcome> {
-    const n = this.interceptors.length;
+  private async dispatchFirstDeny(ctx: AgentContext, active: Bound[]): Promise<DispatchOutcome> {
+    const n = active.length;
     const onApproval = this.composition.on_approval ?? "stop";
     const perInterceptor: Verdict[] = [];
     const pool: Verdict[] = [];
@@ -563,7 +860,7 @@ export class InterceptionEmitter {
     const truncated = (i: number) => i + 1 < n;
 
     for (let i = 0; i < n; i++) {
-      let v = await this.invoke(this.interceptors[i], ctx);
+      let v = await this.invoke(active[i], ctx);
       perInterceptor.push(v);
       pool.push(v);
       if (isHostSynthesized(v)) {
@@ -663,12 +960,12 @@ export class InterceptionEmitter {
    * consulted at most once, only when the winner is liftable (which
    * implies every deny in the emission is liftable — a single plain
    * deny already won the severity order). */
-  private async dispatchRunAll(ctx: AgentContext): Promise<DispatchOutcome> {
+  private async dispatchRunAll(ctx: AgentContext, active: Bound[]): Promise<DispatchOutcome> {
     const all: Verdict[] = [];
-    for (const interceptor of this.interceptors) {
+    for (const bound of active) {
       // §6.3 per-interceptor: a malformed verdict becomes that
       // interceptor's synthesized deny; the rest still run.
-      const v = await this.invoke(interceptor, ctx);
+      const v = await this.invoke(bound, ctx);
       if (v.decision === Decision.Transform) {
         const folded = this.foldTransform(ctx, v);
         if (!permits(folded.decision)) {
@@ -693,13 +990,13 @@ export class InterceptionEmitter {
 
   /** Parallel profiles (§7.5): isolated snapshots, no fold; serial
    * dispatch (isolation semantics, not scheduling). */
-  private async dispatchParallel(ctx: AgentContext): Promise<DispatchOutcome> {
+  private async dispatchParallel(ctx: AgentContext, active: Bound[]): Promise<DispatchOutcome> {
     // Every interceptor receives its own copy of the same untransformed
     // snapshot ({@link invoke} clones per call).
     const snapshot = structuredClone(ctx);
     const all: Verdict[] = [];
-    for (const interceptor of this.interceptors) {
-      all.push(await this.invoke(interceptor, snapshot));
+    for (const bound of active) {
+      all.push(await this.invoke(bound, snapshot));
     }
     return this.aggregateAndConsult(ctx, all);
   }
@@ -797,9 +1094,6 @@ export class InterceptionEmitter {
     return v;
   }
 
-  /** The declared provider's output for `ctx` (§10.1); `null` iff the
-   * provider is `null`. Throws {@link AgentHooksCoreError} iff the
-   * provider rejected the context (§10.2 fail-closed value domain). */
   /** Custom-provider identity, or null when the provider fails (the
    * emission has already been decided at this point). */
   private tryCustomIdentity(ctx: AgentContext): string | null {
@@ -810,6 +1104,9 @@ export class InterceptionEmitter {
     }
   }
 
+  /** The declared provider's output for `ctx` (§10.1); `null` iff the
+   * provider is `null`. Throws {@link AgentHooksCoreError} iff the
+   * provider rejected the context (§10.2 fail-closed value domain). */
   private identityOf(ctx: AgentContext): string | null {
     if (this.identity === null) return null;
     if (this.identity === JCS_SHA256) return native.contextIdentity(JSON.stringify(ctx));
@@ -869,13 +1166,15 @@ export class InterceptionEmitter {
 
     let res;
     try {
-      res = await this.withTimeout(() =>
-        this.resolver!.resolve({
-          context_identity: identity,
-          interception_point: ctx.interception_point,
-          verdict,
-          context: presented,
-        }),
+      res = await this.withTimeout(
+        () =>
+          this.resolver!.resolve({
+            context_identity: identity,
+            interception_point: ctx.interception_point,
+            verdict,
+            context: presented,
+          }),
+        this.resolverTimeoutMs,
       );
     } catch (e) {
       if (e instanceof InterceptTimeout) {
@@ -908,6 +1207,24 @@ export class InterceptionEmitter {
     }
     return { consulted: true, verdict: rv, permitted };
   }
+}
+
+/** The context's interception point when it names one. */
+function pointOf(ctx: AgentContext): InterceptionPoint | null {
+  const p = (ctx as Record<string, JsonValue | undefined>)["interception_point"];
+  return typeof p === "string" && (Object.values(InterceptionPoint) as string[]).includes(p)
+    ? (p as InterceptionPoint)
+    : null;
+}
+
+/** Whether a registration runs at `point` (§7.7.5). A registration
+ * without an `at` filter runs everywhere. An unparseable point never
+ * reaches dispatch (§4 validation denies first); every binding counts
+ * then so the record is conservative. */
+function runsAt(b: Bound, point: InterceptionPoint | null): boolean {
+  if (b.at === null) return true;
+  if (point === null) return true;
+  return b.at.has(point);
 }
 
 /** `(code, detail)` of a native failure; anything else maps to

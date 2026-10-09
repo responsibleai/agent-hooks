@@ -27,6 +27,31 @@ export declare function ctkScriptedResolve(rulesJson: string, ctxJson: string, i
 
 export declare function ctkShouldSkip(vectorJson: string, harnessCapsJson: string): string
 
+/**
+ * Steps 2 to 10 of §7.7.6 against the wrapper's host description
+ * (`{surface, identity_providers, approval_resolvers,
+ * approval_redactors, kinds}`). Returns the resolved declaration JSON.
+ */
+export declare function declarationResolve(documentJson: string, hostJson: string): string
+
+/**
+ * Steps 2 to 8 of §7.7.6 against a code surface alone, no registry:
+ * what the CTK runner needs to read a harness's own document
+ * (§7.7.9). A surface that does not parse or that the core rejects is
+ * a wrapper defect and comes back as `marshal_error`, never as a
+ * refusal of the document.
+ */
+export declare function declarationResolveSurface(documentJson: string, surfaceJson: string): string
+
+/**
+ * Steps 2 to 7 of §7.7.6 over JSON text. Returns the validated
+ * document as JSON (verbatim, `$schema` included).
+ */
+export declare function declarationValidate(documentJson: string): string
+
+/** `{"current": "...", "supported": [...]}` (§7.7.2). */
+export declare function declarationVersions(): string
+
 export declare function finalize(ctxJson: string, verdictJson: string, mode: string, optionsJson: string): string
 
 export declare function specVersion(): string

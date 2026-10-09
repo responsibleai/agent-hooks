@@ -40,3 +40,19 @@ class InterceptionSuspended(RuntimeError):
             f"{result.interception_point.value} suspended pending approval "
             f"({result.verdict.reason or 'no reason'})"
         )
+
+
+class EmitterSealed(RuntimeError):
+    """Raised when a host reconfigures an emitter built from a host
+    declaration (§7.7.7): registration, composition, identity provider,
+    approval redactor and the record bound are fixed by the document,
+    or the declaration would not be what ran. Changing where records go
+    (the record sink, draining the buffer) stays allowed.
+    """
+
+    def __init__(self, what: str) -> None:
+        self.what = what
+        super().__init__(
+            f"{what}: this emitter was built from a host declaration and is sealed "
+            "(see spec §7.7.7)"
+        )

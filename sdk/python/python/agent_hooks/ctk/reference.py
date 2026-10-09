@@ -4,23 +4,39 @@
 
 This is the simplest possible conformant agent loop: it exists so the
 CTK can self-test without depending on any real framework.
+
+Every emitter it builds goes through the host declaration loader
+(§7.7): for a field-based vector it writes the vector's mode,
+composition and provider into a copy of its own document
+(``reference.declaration.json``) and binds the scripted interceptors
+through a ``ctk.instance`` kind, so the field-based vectors exercise
+the loader too.
 """
 
 from __future__ import annotations
 
+import copy
 import json
 import uuid
+from importlib.resources import files
 from typing import Any, ClassVar
 
-from agent_hooks import _core
 from agent_hooks._types import EnforcementMode
 from agent_hooks.approval import ApprovalResolver
 from agent_hooks.composition import CompositionConfig
-from agent_hooks.context import AgentContextBuilder
+from agent_hooks.context import AgentContext, AgentContextBuilder
 from agent_hooks.ctk.harness import Capability, RunOutcome, RunRecord, Scenario
-from agent_hooks.emitter import IdentityProvider, InterceptionEmitter
+from agent_hooks.ctk.scripted import redact_paths
+from agent_hooks.declaration import BindingContext, HostRegistry, HostSurface
+from agent_hooks.emitter import InterceptionEmitter
 from agent_hooks.exceptions import InterceptionBlocked
 from agent_hooks.interceptor import Interceptor
+
+#: The reference harness's own declaration (§7.7.9), with an explicit
+#: surface a claim can cite.
+REFERENCE_DECLARATION: dict[str, Any] = json.loads(
+    files("agent_hooks.ctk").joinpath("reference.declaration.json").read_text(encoding="utf-8")
+)
 
 
 class ReferenceHarness:
@@ -35,8 +51,11 @@ class ReferenceHarness:
             # Python ints are arbitrary precision: beyond-u64 literals
             # survive vector loading and emission byte-faithfully.
             Capability.BIGINT_JSON,
+            # Every emitter is built through the loader.
+            Capability.HOST_DECLARATION,
         }
     )
+    tool_seam_host_error = "continue"
 
     def __init__(self) -> None:
         self._scenario: Scenario | None = None
@@ -45,6 +64,14 @@ class ReferenceHarness:
         self._tool_log: list[dict[str, Any]] = []
 
     # ---- Harness protocol ---------------------------------------------------
+
+    def host_surface(self) -> HostSurface:
+        return HostSurface.from_capabilities(
+            sorted(c.value for c in self.capabilities), self.tool_seam_host_error
+        )
+
+    def declaration(self) -> dict[str, Any]:
+        return copy.deepcopy(REFERENCE_DECLARATION)
 
     def setup(
         self,
@@ -56,33 +83,62 @@ class ReferenceHarness:
         identity_provider: str | None = "jcs-sha256",
         redact_for_approval: list[str] | None = None,
     ) -> None:
+        # Field-based vector: write the vector's configuration into a
+        # copy of the reference document and bind the interceptors by
+        # index through the ``ctk.instance`` kind.
+        doc = self.declaration()
+        cfg = doc["configuration"]
+        cfg["mode"] = mode.value
+        cfg["composition"] = (composition or CompositionConfig.default()).to_wire()
+        registry = HostRegistry.for_conformance(self.host_surface())
+        if identity_provider == "ctk-fault":
+            # §13.2: a custom provider that raises, pinning the §10.1
+            # provider-failure rule.
+            def _boom(_ctx: AgentContext) -> str:
+                raise RuntimeError("ctk scripted provider fault")
+
+            registry.identity_provider("ctk-fault", _boom)
+        cfg["identity_provider"] = identity_provider
+        if resolver is not None:
+            registry.approval_resolver("ctk-scripted", resolver)
+        paths = list(redact_for_approval or [])
+        if paths:
+            registry.approval_redactor("ctk-redact", lambda ctx: redact_paths(ctx, paths))
+        cfg["approval"] = {
+            "resolver": "ctk-scripted" if resolver is not None else None,
+            "redactor": "ctk-redact" if paths else None,
+        }
+        slots: list[Interceptor | None] = list(interceptors)
+
+        def instance(config: Any, ctx: BindingContext) -> Interceptor:
+            i = config.get("index") if isinstance(config, dict) else None
+            if not isinstance(i, int) or isinstance(i, bool) or i < 0:
+                raise ValueError("config.index must be an unsigned integer")
+            if i >= len(slots) or slots[i] is None:
+                raise ValueError(f"no interceptor instance {i} for binding {ctx.id}")
+            out = slots[i]
+            slots[i] = None
+            assert out is not None
+            return out
+
+        registry.kind("ctk.instance", instance)
+        doc["bindings"] = [
+            {"id": f"interceptor-{i}", "kind": "ctk.instance", "config": {"index": i}}
+            for i in range(len(slots))
+        ]
+        self._start(scenario, InterceptionEmitter.from_declaration_value(doc, registry))
+
+    def setup_declared(
+        self, scenario: Scenario, document: dict[str, Any], registry: HostRegistry
+    ) -> None:
+        # A refusal propagates: the runner records it as the load
+        # outcome and never calls run (§7.7.9).
+        self._start(scenario, InterceptionEmitter.from_declaration_value(document, registry))
+
+    def _start(self, scenario: Scenario, emitter: InterceptionEmitter) -> None:
         self._scenario = scenario
         self._tool_log = []
-        em = InterceptionEmitter(
-            mode=mode,
-            resolver=resolver,
-            composition=composition,
-            identity_provider=_provider_of(identity_provider),
-        )
-        if redact_for_approval:
-            # §9 redaction seam, CTK convention: each listed path is
-            # replaced with "[redacted]" via the §5.2/§4.3 transform
-            # machinery; unresolvable paths are left untouched.
-            paths = list(redact_for_approval)
-
-            def _redact(ctx: dict[str, Any]) -> dict[str, Any]:
-                out = json.dumps(ctx)
-                for path in paths:
-                    try:
-                        out = _core.apply_transform_ctx(out, path, '"[redacted]"')
-                    except Exception:  # noqa: BLE001 — skip unresolvable
-                        continue
-                return json.loads(out)
-
-            em.set_approval_redactor(_redact)
-        for i in interceptors:
-            em.register(i)
-        self._emitter = em
+        self._emitter = emitter
         self._builder = AgentContextBuilder(
             agent_id="ref-agent",
             framework="reference-agent",
@@ -165,16 +221,3 @@ class ReferenceHarness:
             )
         )
         messages.append({"role": "tool", "content": value})
-
-
-def _provider_of(declared: str | None):
-    """Map the vector's identity_provider to an emitter provider
-    (§13.2): "ctk-fault" is a custom provider that raises, pinning the
-    §10.1 provider-failure rule."""
-    if declared == "ctk-fault":
-
-        def _boom(_ctx: object) -> str:
-            raise RuntimeError("ctk scripted provider fault")
-
-        return IdentityProvider("ctk-fault", _boom)
-    return declared

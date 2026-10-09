@@ -4,13 +4,33 @@
 
 from __future__ import annotations
 
-from agent_hooks.ctk.harness import Capability, Harness, RunOutcome, RunRecord, Scenario
-from agent_hooks.ctk.runner import VectorResult, load_vectors, run_vector, run_vectors
-from agent_hooks.ctk.scripted import RecordingInterceptor, ScriptedInterceptor, ScriptedResolver
+from agent_hooks.ctk.harness import (
+    Capability,
+    Harness,
+    LoadRecord,
+    RunOutcome,
+    RunRecord,
+    Scenario,
+)
+from agent_hooks.ctk.runner import (
+    VectorResult,
+    builder_from_value,
+    load_vectors,
+    prove_paths,
+    run_vector,
+    run_vectors,
+)
+from agent_hooks.ctk.scripted import (
+    RecordingInterceptor,
+    ScriptedInterceptor,
+    ScriptedResolver,
+    redact_paths,
+)
 
 __all__ = [
     "Capability",
     "Harness",
+    "LoadRecord",
     "RecordingInterceptor",
     "RunOutcome",
     "RunRecord",
@@ -18,7 +38,10 @@ __all__ = [
     "ScriptedInterceptor",
     "ScriptedResolver",
     "VectorResult",
+    "builder_from_value",
     "load_vectors",
+    "prove_paths",
+    "redact_paths",
     "run_vector",
     "run_vectors",
 ]

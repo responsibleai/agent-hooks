@@ -21,9 +21,61 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `InterceptionEmitter::from_declaration*`), the FFI gains
   `ah_declaration_versions` and `ah_declaration_resolve`, and the Rust
   reference harness builds every emitter through the loader. The
-  contract version is tracked in `spec/DECLARATION-VERSIONS.md`. The
-  other SDKs follow in a later change and skip the new vectors until
-  then. Wire version agent-hooks/0.1 unchanged. Additive.
+  contract version is tracked in `spec/DECLARATION-VERSIONS.md`.
+  Wire version agent-hooks/0.1 unchanged. Additive.
+- Python SDK: the host declaration loader. `HostDeclaration`,
+  `HostRegistry`, `HostSurface`, `DeclarationError` and
+  `InterceptionEmitter.from_declaration`, `from_declaration_path`,
+  `from_declaration_json` and `from_declaration_value`; kind resolvers
+  are Python callables; `register` takes `at` for per-point bindings;
+  a declaration-built emitter is sealed (`EmitterSealed`). The
+  reference harness declares `host_declaration` and builds every
+  emitter through the loader, so the Python CTK runs AH-CTK-120 to
+  AH-CTK-139. `DECLARATION_VERSION` and
+  `SUPPORTED_DECLARATION_VERSIONS` are exported next to
+  `SPEC_VERSION`. Additive.
+- TypeScript SDK: the host declaration loader (spec §7.7).
+  `HostDeclaration` (`fromPath`, `fromJson`, `fromValue`, `builder()`),
+  `HostRegistry`, `HostSurface`, `DeclarationError`,
+  `InterceptionEmitter.fromDeclaration` and its path, JSON and value
+  forms, `emitter.declaration`, `canonicalDeclaration`,
+  `DECLARATION_VERSION` and `SUPPORTED_DECLARATION_VERSIONS`.
+  `register` takes an `at` set; a declaration-built emitter is sealed
+  (`EmitterSealed`); its records carry `declaration`. The napi module
+  gains `declarationVersions`, `declarationValidate`,
+  `declarationResolve` and `declarationResolveSurface`. The CTK
+  `Harness` gains `hostSurface`, `declaration` and `setupDeclared`, the
+  `Capability` type is the closed list, and the reference harness
+  declares `host_declaration`, builds every emitter through the loader
+  and runs AH-CTK-120 to AH-CTK-139 (skip set unchanged). Additive.
+- .NET SDK: the host declaration loader (spec §7.7).
+  `InterceptionEmitter.FromDeclaration`, `FromDeclarationPath`,
+  `FromDeclarationJson` and `FromDeclarationNode` build a sealed emitter
+  from a document and a `HostRegistry` of kind resolvers, identity
+  providers, approval resolvers and redactors over a `HostSurface`;
+  `HostDeclaration.Builder()` is the code path. A refusal is a
+  `DeclarationException` with the `declaration_error:*` class, the
+  findings and the accepted versions. `Declaration.Version` and
+  `Declaration.SupportedVersions` sit next to `Spec.Version`. Records
+  carry `Declaration`; `Register` takes an optional point set. The
+  binding runs over the two new FFI symbols. The CTK `Capability` enum
+  gains `IncrementalOutput` and `HostDeclaration`, `IHarness` gains
+  `HostSurface`, `Declaration` and `SetupDeclared`, and the reference
+  harness builds every emitter through the loader and runs AH-CTK-120
+  to AH-CTK-139. Additive.
+- Go SDK: host declaration loader (spec §7.7). `LoadDeclarationPath`,
+  `ParseDeclaration`, `DeclarationFromValue` and `DeclarationBuilder`
+  feed `NewInterceptionEmitterFromDeclaration` and its path, JSON and
+  value forms; `HostRegistry` holds the code surface, kind resolvers
+  (Go funcs), identity providers, approval resolvers and redactors;
+  refusals are `*DeclarationError` with the eleven classes: nine read
+  back from the core's `ah_declaration_resolve`, `unreadable` and
+  `binding_rejected` from the Go loader (steps 1 and 11). Records carry
+  `declaration`, interceptors bind per point (`RegisterAt`), and a
+  declaration-built emitter is sealed. The Go reference harness
+  declares `host_declaration`, builds every emitter through the loader
+  and runs AH-CTK-120 to AH-CTK-139; its skip manifest is back to the
+  four streaming vectors. Additive.
 - Spec §7.2 and §10.3: `on_transform_conflict` is consulted by
   `parallel/strictest` only, not by both parallel profiles. The text
   said "parallel profiles"; the core's `with_knob_defaults` and the
