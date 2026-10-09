@@ -1,0 +1,33 @@
+{
+  "$schema": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.0.schema.json",
+  "declaration": "agent-hooks-declaration/1.0",
+  "spec": "agent-hooks/0.1",
+  "id": "reference-agent",
+  "host": { "name": "reference-agent", "version": "0.1.0" },
+  "configuration": {
+    "mode": "enforce",
+    "composition": { "profile": "sequential/first_deny", "on_approval": "stop" },
+    "identity_provider": "jcs-sha256",
+    "approval": { "resolver": null, "redactor": null },
+    "posture": { "tool_seam_host_error": "continue" },
+    "timeouts": { "interceptor_ms": 5000, "approval_resolver_ms": 5000 },
+    "records": { "max_buffered": null }
+  },
+  "surface": {
+    "interception_points": [
+      "agent_startup", "input", "pre_model_call", "post_model_call",
+      "pre_tool_call", "post_tool_call", "output", "agent_shutdown"
+    ],
+    "capabilities": ["bigint_json", "host_declaration", "int64_json", "model_calls", "tool_calls"],
+    "profiles": {
+      "sequential/first_deny": { "on_approval": ["resume", "stop"] },
+      "sequential/run_all": {},
+      "parallel/strictest": { "on_transform_conflict": ["approval", "deny"] },
+      "parallel/unanimous": { "on_disagreement": ["approval", "deny"] }
+    },
+    "buffered_output": true,
+    "declaration_versions": ["agent-hooks-declaration/1.0"]
+  },
+  "bindings": [],
+  "extensions": {}
+}

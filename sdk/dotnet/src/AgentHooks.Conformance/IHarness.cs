@@ -12,8 +12,21 @@ using System.Text.Json.Nodes;
 
 namespace AgentHooks.Conformance;
 
-/// <summary>Host-declared capability subset (§3.2).</summary>
-public enum Capability { ModelCalls, ToolCalls, ParallelToolCalls, Streaming, MultiTurn, Int64Json, BigintJson }
+/// <summary>Host-declared capability subset (§3.2, §13.1). The wire
+/// names are the closed list the vector schema and the host
+/// declaration surface share (§7.7.4).</summary>
+public enum Capability
+{
+    ModelCalls,
+    ToolCalls,
+    ParallelToolCalls,
+    Streaming,
+    MultiTurn,
+    Int64Json,
+    BigintJson,
+    IncrementalOutput,
+    HostDeclaration,
+}
 
 public static class CapabilityExtensions
 {
@@ -28,6 +41,12 @@ public static class CapabilityExtensions
         // losslessly (§4.4). JavaScript harnesses omit this.
         Capability.Int64Json => "int64_json",
         Capability.BigintJson => "bigint_json",
+        // §12.1 exception: the host mediates post_model_call
+        // incrementally and declares buffered_output: false.
+        Capability.IncrementalOutput => "incremental_output",
+        // §7.7.9: the host builds its emitter from a host declaration
+        // document through the loader.
+        Capability.HostDeclaration => "host_declaration",
         _ => throw new ArgumentOutOfRangeException(nameof(c)),
     };
 }
@@ -124,6 +143,26 @@ public interface IHarness
     /// to the single outcome this surface must produce.</summary>
     string ToolSeamHostError => "continue";
 
+    /// <summary>The code surface (§7.7.4) a declaration is resolved
+    /// against. The default derives it from <see cref="Capabilities"/>
+    /// and <see cref="ToolSeamHostError"/>: the §3.2 floor plus the model
+    /// points iff <c>model_calls</c> plus the tool points iff
+    /// <c>tool_calls</c>, every profile with every knob value, this SDK's
+    /// timeout support and every accepted contract version. A host
+    /// declaring <c>incremental_output</c> overrides this to add its
+    /// exposure bound (<see cref="AgentHooks.HostSurface.WithExposureBound"/>);
+    /// the derived surface alone is refused for such a host.</summary>
+    HostSurface HostSurface => AgentHooks.HostSurface.FromCapabilities(
+        Capabilities.Select(c => c.ToWireName()),
+        ToolSeamHostError == "terminate" ? ToolSeamPosture.Terminate : ToolSeamPosture.Continue);
+
+    /// <summary>The host's own declaration document (§7.7.9), when it
+    /// has one. The runner resolves it against <see cref="HostSurface"/>
+    /// and reads the capabilities and posture a run is assessed against
+    /// from the resolved form, so what the CTK ran against is what a
+    /// claim cites. <c>null</c> keeps the code-declared surface.</summary>
+    JsonObject? Declaration => null;
+
     /// <summary>Wire the scenario's mock model + tools into the framework,
     /// register the interceptors and resolver, set the enforcement mode,
     /// the vector's composition profile (§7.1), and its identity provider
@@ -142,6 +181,21 @@ public interface IHarness
         CompositionConfig composition,
         string? identityProvider,
         IReadOnlyList<string>? redactForApproval = null);
+
+    /// <summary>Wire one declaration vector (§7.7.9): the harness MUST
+    /// build its emitter from <paramref name="document"/> and
+    /// <paramref name="registry"/> through the loader
+    /// (<see cref="InterceptionEmitter.FromDeclarationNode"/>) and let the
+    /// <see cref="DeclarationException"/> propagate on refusal, never fall
+    /// back to the field-based <see cref="Setup"/>. The document and the
+    /// registry carry the interceptors, resolver, composition and
+    /// identity provider. Only harnesses declaring the
+    /// <c>host_declaration</c> capability receive this call.</summary>
+    void SetupDeclared(Scenario scenario, JsonObject document, HostRegistry registry) =>
+        throw new DeclarationException(
+            DeclarationErrorClass.SurfaceUnsupported,
+            "",
+            $"harness \"{Name}\" declares host_declaration but does not implement SetupDeclared");
 
     Task<RunRecord> RunAsync(CancellationToken ct = default);
 

@@ -30,11 +30,13 @@ public sealed class CtkReferenceTests
     // buffers caller-bound output and does not declare
     // incremental_output. An unexpected skip fails; a stale manifest
     // (expected-but-not-skipped) fails the aggregate test.
-    private static readonly IReadOnlySet<string> ExpectedSkips = new HashSet<string>(
-        new[] { "AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113" }
-            // declaration/* parts (spec §7.7.9): skipped until this harness
-            // declares host_declaration and builds its emitter through the loader.
-            .Concat(Enumerable.Range(120, 20).Select(n => $"AH-CTK-{n}")));
+    private static readonly IReadOnlySet<string> ExpectedSkips = new HashSet<string>
+    {
+        "AH-CTK-110",
+        "AH-CTK-111",
+        "AH-CTK-112",
+        "AH-CTK-113",
+    };
 
     [Theory]
     [MemberData(nameof(Vectors))]
