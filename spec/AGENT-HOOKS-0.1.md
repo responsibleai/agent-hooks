@@ -652,7 +652,7 @@ assessed against exactly the profiles a host declares.
 | `parallel/strictest` | parallel | Snapshot isolation; severity-max aggregate. |
 | `parallel/unanimous` | parallel | Snapshot isolation; anything but unanimous `allow` is a disagreement. Knob: `on_disagreement: "deny" \| "approval"`. |
 
-Knobs for parallel-mode transform conflicts:
+Knob for `parallel/strictest` transform conflicts:
 `on_transform_conflict: "deny" | "approval"` (§7.5).
 
 **Knob defaults are normative.** When the host does not set a knob the
@@ -912,8 +912,12 @@ order carries no meaning are sets; `bindings` is an ordered list.
 | `extensions` | object, keys `^[a-z][a-z0-9_]*$` | no | `{}` |
 
 `host.name` follows the `agent.framework` grammar (§4.1). `extensions`
-is kept verbatim and never read by the loader; the reserved namespaces
-of §4.6 apply.
+is kept verbatim and never read by the loader, which checks the key
+grammar only and does not check namespaces; the reserved namespaces of
+§4.6 bind the writer of the document, not the loader. Integer members
+are written as JSON integers without a fraction or an exponent
+(`5000`, not `5000.0` or `5e3`); the loader refuses the other forms as
+`invalid_field` even where a schema validator accepts them.
 
 `configuration`:
 
@@ -986,9 +990,14 @@ own `declaration`.
 Every stated member MUST be a subset of what the host's code reports,
 and the configured posture MUST equal the one the code implements.
 When `surface` is absent the resolved document carries the host's own
-surface verbatim; that default is always honourable and never a guess.
-A document a conformance claim cites MUST carry an explicit `surface`,
-so the file stands on its own.
+surface verbatim, streaming posture included: a host that mediates
+incrementally resolves to `buffered_output: false` with the exposure
+bound its code enforces. That default is always honourable and never a
+guess. When `surface` is present, a member it omits is filled from the
+host's surface (`buffered_output` defaults to `true`), and a finding
+on a filled or defaulted member MUST say that the document does not
+state it. A document a conformance claim cites MUST carry an explicit
+`surface`, so the file stands on its own.
 
 This version defines no includes, overlays or layering: the host loads
 one document, and the channel that delivers it decides which. A vendor

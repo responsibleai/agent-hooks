@@ -64,8 +64,9 @@ vectors (the host declaration document, spec §7.7) is MINOR.
 Three versions move independently: the wire version (`agent-hooks/X.Y`,
 above), the host declaration contract version
 (`agent-hooks-declaration/X.Y`, spec §7.7.2) and the package version
-(the root tag). Each SDK exports `DECLARATION_VERSION` and
-`SUPPORTED_DECLARATION_VERSIONS` next to `SPEC_VERSION`.
+(the root tag). The Rust core exports `DECLARATION_VERSION` and
+`SUPPORTED_DECLARATION_VERSIONS` next to `SPEC_VERSION`; each other
+SDK exports the same two constants once it gains the loader.
 [spec/DECLARATION-VERSIONS.md](spec/DECLARATION-VERSIONS.md) maps
 contract versions to schema files and SDK releases to the contract
 versions they accept.

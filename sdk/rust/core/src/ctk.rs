@@ -208,7 +208,10 @@ pub trait Harness: Send {
     /// [`Self::tool_seam_host_error`]: the §3.2 floor plus the model
     /// points iff `model_calls` plus the tool points iff `tool_calls`,
     /// every profile with every knob value, this build's timeout
-    /// support and every accepted contract version.
+    /// support and every accepted contract version. A host declaring
+    /// `incremental_output` overrides this to add its exposure bound
+    /// (`HostSurface::with_exposure_bound`); the derived surface alone
+    /// is refused for such a host.
     fn host_surface(&self) -> HostSurface {
         let posture = if self.tool_seam_host_error() == "terminate" {
             ToolSeamPosture::Terminate

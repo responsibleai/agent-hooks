@@ -82,10 +82,10 @@ def check_declaration_versions() -> int:
     if not any("current" in r for r in rows):
         print(f"::error::spec/DECLARATION-VERSIONS.md has no current row for {current}")
         return 1
-    if not any(
-        "Current" not in r and r.count(f"`{current}`") >= 1 and "v" in r.split("|")[1]
-        for r in rows
-    ):
+    # An SDK release row starts with a backticked tag such as
+    # `v0.1.0-beta.2`; the contract-version table never does.
+    release_row = re.compile(r"^\|\s*`v\d+\.\d+\.\d+[^`]*`")
+    if not any(release_row.match(r) for r in rows):
         print(
             f"::error::spec/DECLARATION-VERSIONS.md has no SDK release row accepting {current}"
         )

@@ -419,6 +419,12 @@ pub struct HostSurface {
     pub tool_seam_host_error: ToolSeamPosture,
     /// Whether the host may declare `buffered_output: false` (§12.1a).
     pub streams_unbuffered: bool,
+    /// The §12.1a exposure bound the host enforces. Required when
+    /// `capabilities` names `incremental_output`; a document that
+    /// states no `surface` resolves to `buffered_output: false` with
+    /// this bound (§7.7.4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exposure_bound: Option<String>,
     /// Whether this build bounds execution; filled by the SDK.
     pub interceptor_timeout: TimeoutSupport,
     /// Contract versions the host accepts; a subset of
@@ -450,6 +456,7 @@ impl HostSurface {
                 .collect(),
             tool_seam_host_error: ToolSeamPosture::Continue,
             streams_unbuffered: false,
+            exposure_bound: None,
             interceptor_timeout: build_timeout_support(),
             declaration_versions: SUPPORTED_DECLARATION_VERSIONS
                 .iter()
@@ -460,12 +467,16 @@ impl HostSurface {
 
     /// Build and validate a surface. `interceptor_timeout` is filled
     /// from this build; a host never claims a bound it cannot keep.
+    /// `exposure_bound` is required iff `capabilities` names
+    /// `incremental_output`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         interception_points: impl IntoIterator<Item = InterceptionPoint>,
         capabilities: impl IntoIterator<Item = String>,
         profiles: BTreeMap<CompositionProfile, KnobSupport>,
         tool_seam_host_error: ToolSeamPosture,
         streams_unbuffered: bool,
+        exposure_bound: Option<String>,
         declaration_versions: impl IntoIterator<Item = String>,
     ) -> Result<Self, DeclarationError> {
         let s = Self {
@@ -474,6 +485,7 @@ impl HostSurface {
             profiles,
             tool_seam_host_error,
             streams_unbuffered,
+            exposure_bound,
             interceptor_timeout: build_timeout_support(),
             declaration_versions: declaration_versions.into_iter().collect(),
         };
@@ -493,9 +505,21 @@ impl HostSurface {
         self
     }
 
+    /// State the §12.1a exposure bound an incremental host enforces.
+    /// Also marks the host as able to declare `buffered_output: false`.
+    pub fn with_exposure_bound(mut self, bound: impl Into<String>) -> Self {
+        self.exposure_bound = Some(bound.into());
+        self.streams_unbuffered = true;
+        self
+    }
+
     /// The surface the CTK derives from a harness's capability list
     /// and posture (§7.7.9): the floor plus the model points iff
-    /// `model_calls` plus the tool points iff `tool_calls`.
+    /// `model_calls` plus the tool points iff `tool_calls`. A list
+    /// naming `incremental_output` yields a surface without its
+    /// exposure bound, which [`validate`](Self::validate) refuses; such
+    /// a host states the bound with
+    /// [`with_exposure_bound`](Self::with_exposure_bound).
     pub fn from_capabilities(
         caps: impl IntoIterator<Item = String>,
         posture: ToolSeamPosture,
@@ -543,6 +567,29 @@ impl HostSurface {
                     pointer: "/surface/capabilities".into(),
                     detail: format!("host surface names an unknown capability {c:?}"),
                 });
+            }
+        }
+        if self.capabilities.contains("incremental_output") {
+            if !self.streams_unbuffered {
+                findings.push(Finding {
+                    pointer: "/surface/capabilities".into(),
+                    detail: "host surface names incremental_output but cannot declare buffered_output: false".into(),
+                });
+            }
+            match &self.exposure_bound {
+                None => findings.push(Finding {
+                    pointer: "/surface/exposure_bound".into(),
+                    detail: "host surface names incremental_output without an exposure bound (see spec §12.1a)".into(),
+                }),
+                Some(b) if b.is_empty() || b.chars().count() > MAX_DETAIL_LEN => {
+                    findings.push(Finding {
+                        pointer: "/surface/exposure_bound".into(),
+                        detail: format!(
+                            "host surface exposure bound must be 1 to {MAX_DETAIL_LEN} characters"
+                        ),
+                    })
+                }
+                Some(_) => {}
             }
         }
         for v in &self.declaration_versions {
@@ -1786,12 +1833,20 @@ fn resolve_surface(
     let stated = get_obj(doc, "surface");
     let code = code?;
     let Some(s) = stated else {
+        // §7.7.4: the host's own surface verbatim, including its
+        // streaming posture. A host that mediates incrementally is
+        // unbuffered and carries its exposure bound.
+        let incremental = code.capabilities.contains("incremental_output");
         return Some(ResolvedSurface {
             interception_points: code.interception_points.clone(),
             capabilities: code.capabilities.clone(),
             profiles: code.profiles.clone(),
-            buffered_output: true,
-            exposure_bound: None,
+            buffered_output: !incremental,
+            exposure_bound: if incremental {
+                code.exposure_bound.clone()
+            } else {
+                None
+            },
             declaration_versions: code.declaration_versions.clone(),
         });
     };
@@ -1840,13 +1895,32 @@ fn check_consistency(
     code: Option<&HostSurface>,
 ) -> Result<(), DeclarationError> {
     let mut f = Vec::new();
+    let stated_surface = get_obj(doc, "surface");
+    // A finding on a surface member the document did not write names
+    // the member as filled from the host surface (or defaulted), so an
+    // operator is never pointed at text that is not there (§7.7.4).
+    let filled_note = |pointer: &str| -> Option<String> {
+        let member = pointer.strip_prefix("/surface/")?.split('/').next()?;
+        if stated_surface.is_some_and(|s| s.contains_key(member)) {
+            return None;
+        }
+        Some(match member {
+            "buffered_output" | "exposure_bound" if stated_surface.is_some() => {
+                format!(" (the document does not state /surface/{member}; the default applies)")
+            }
+            _ => format!(" (the document does not state /surface/{member}; it was filled from the host surface)"),
+        })
+    };
     let mut bad = |pointer: &str, detail: String| {
+        let detail = match filled_note(pointer) {
+            Some(note) => format!("{detail}{note}"),
+            None => detail,
+        };
         f.push(Finding {
             pointer: pointer.to_owned(),
             detail: truncate(detail),
         })
     };
-    let stated_surface = get_obj(doc, "surface");
     let surface = resolve_surface(doc, code);
     let points: Option<BTreeSet<InterceptionPoint>> = surface
         .as_ref()
@@ -3192,6 +3266,92 @@ mod tests {
             .contains(&InterceptionPoint::PreToolCall));
         assert_eq!(s.tool_seam_host_error, ToolSeamPosture::Terminate);
         assert!(s.validate().is_ok());
+    }
+
+    fn incremental_surface() -> HostSurface {
+        let mut s = HostSurface::from_capabilities(
+            [
+                "model_calls".to_owned(),
+                "incremental_output".to_owned(),
+                "host_declaration".to_owned(),
+            ],
+            ToolSeamPosture::Continue,
+        )
+        .with_exposure_bound("one chunk");
+        s.interceptor_timeout = TimeoutSupport::Bounded;
+        s
+    }
+
+    #[test]
+    fn incremental_host_surface_requires_its_exposure_bound() {
+        let mut s = incremental_surface();
+        s.exposure_bound = None;
+        let e = s.validate().unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+        assert_eq!(e.findings[0].pointer, "/surface/exposure_bound");
+        let mut s = incremental_surface();
+        s.streams_unbuffered = false;
+        assert_eq!(
+            s.validate().unwrap_err().findings[0].pointer,
+            "/surface/capabilities"
+        );
+        assert!(incremental_surface().validate().is_ok());
+    }
+
+    #[test]
+    fn absent_surface_carries_the_incremental_host_surface_verbatim() {
+        // §7.7.4: a document that states no surface resolves to the
+        // host's own surface, streaming posture included, and is
+        // never refused for a member it did not write.
+        let d = HostDeclaration::from_value(minimal()).unwrap();
+        let r = resolve(&d, &incremental_surface(), &names()).unwrap();
+        assert!(!r.surface.buffered_output);
+        assert_eq!(r.surface.exposure_bound.as_deref(), Some("one chunk"));
+        assert!(r.surface.capabilities.contains("incremental_output"));
+        assert_eq!(r.surface.interception_points.len(), 6);
+        // The same document on a buffering host stays buffered.
+        let r = load(minimal()).unwrap();
+        assert!(r.surface.buffered_output);
+        assert_eq!(r.surface.exposure_bound, None);
+    }
+
+    #[test]
+    fn findings_on_filled_surface_members_say_so() {
+        // Points stated, capabilities filled from an incremental host:
+        // the stated default buffered_output: true contradicts the
+        // filled incremental_output, and the finding names the fill.
+        let mut v = minimal();
+        v["surface"] = json!({
+            "interception_points": [
+                "agent_startup", "input", "pre_model_call", "post_model_call",
+                "output", "agent_shutdown"
+            ]
+        });
+        let d = HostDeclaration::from_value(v).unwrap();
+        let e = resolve(&d, &incremental_surface(), &names()).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::Inconsistent);
+        assert_eq!(e.findings.len(), 1, "{e}");
+        assert_eq!(e.findings[0].pointer, "/surface/capabilities");
+        assert!(
+            e.findings[0].detail.contains(
+                "does not state /surface/capabilities; it was filled from the host surface"
+            ),
+            "{}",
+            e.findings[0].detail
+        );
+        // A stated member gets no such note.
+        let mut v = minimal();
+        v["surface"] =
+            json!({"capabilities": ["incremental_output", "host_declaration", "model_calls"]});
+        let e = HostDeclaration::from_value(v).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::Inconsistent);
+        let f = e
+            .findings
+            .iter()
+            .find(|f| f.pointer == "/surface/capabilities")
+            .unwrap();
+        assert!(!f.detail.contains("filled from"), "{}", f.detail);
+        assert!(f.detail.contains("buffered_output: false"), "{}", f.detail);
     }
 
     #[test]

@@ -126,8 +126,10 @@ from a host declaration document through the loader. It gates the
 `declaration/load`, `declaration/bindings` and `declaration/refusal`
 parts (`AH-CTK-120` onwards). A harness that declares it implements
 the declaration seam below; one that does not skips those twenty
-vectors with a stated reason. Every in-tree reference harness declares
-it and builds every emitter through the loader.
+vectors with a stated reason. Of the in-tree reference harnesses, the
+Rust one declares it and builds every emitter through the loader. The
+Python, TypeScript, .NET and Go harnesses skip the twenty vectors with
+a stated reason until their SDKs gain the loader.
 
 Non-finite floats (NaN/Infinity) and lone surrogates cannot be
 expressed in a JSON vector at all — those §4.4 marshalling guards are
@@ -212,11 +214,14 @@ own casing):
 - `host_surface()` returns the host's code surface (§7.7.4): the
   points it emits, its capabilities, the profiles and knob values it
   supports, its posture, whether it may declare `buffered_output:
-  false`, whether the build bounds execution, and the contract versions
-  it accepts. The default derives it from `capabilities()` and the
-  posture: the §3.2 floor plus the model points iff `model_calls` plus
-  the tool points iff `tool_calls`, every profile with every knob
-  value.
+  false` and the exposure bound it then enforces, whether the build
+  bounds execution, and the contract versions it accepts. The default
+  derives it from `capabilities()` and the posture: the §3.2 floor plus
+  the model points iff `model_calls` plus the tool points iff
+  `tool_calls`, every profile with every knob value. A host declaring
+  `incremental_output` overrides it to add its exposure bound; a
+  document that states no `surface` then resolves to that host's
+  surface, `buffered_output: false` and bound included.
 - `declaration()` returns the host's own declaration document, or
   nothing. When present the runner resolves it against `host_surface()`
   and reads the capabilities and posture a run is assessed against
@@ -246,12 +251,14 @@ with one class, and a divergence fails the vector. It then records
 `expect.load` first; a refused load must leave no record and no
 interception.
 
-The reference harnesses ship `reference.declaration.json` with an
-explicit surface and route the 51 field-based vectors through the
-loader too: the harness writes the vector's mode, composition and
-provider into a copy of its document and binds the scripted
-interceptors by index through a `ctk.instance` kind. The skip
-manifests do not change.
+The Rust reference harness ships a declaration document with an
+explicit surface and routes the 51 field-based vectors through the
+loader too: it writes the vector's mode, composition and provider into
+a copy of its document and binds the scripted interceptors by index
+through a `ctk.instance` kind. Its skip manifest does not change. The
+other four reference harnesses keep their field-based construction and
+list `AH-CTK-120` to `AH-CTK-139` in their skip manifests until their
+SDKs gain the loader; those entries go when the loader lands.
 
 ## Running
 
@@ -308,7 +315,10 @@ is pinned by per-SDK unit tests instead:
   minor refused as `version_unsupported`, `surface_unsupported` for
   points, capabilities, profiles, knob values, posture,
   `buffered_output: false` and timeouts against a narrowed host
-  surface, and sealing. Vectors carry a document as a value and every
+  surface, the fill of an absent `surface` from an incremental host's
+  own surface (`buffered_output: false` and its exposure bound), the
+  wording of a finding on a filled member, and sealing. Vectors carry
+  a document as a value and every
   conformant host has the full default surface, so these are core and
   per-SDK unit tests (`sdk/rust/core/tests/declaration.rs`). The
   golden file `conformance/golden/declaration.json` pins the resolved

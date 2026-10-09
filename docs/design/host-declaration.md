@@ -4,8 +4,12 @@ A versioned JSON contract that fixes a host's configuration, declared surface
 and interceptor bindings, loaded from a file, from JSON text or built in code,
 with one loader and one set of fail-closed rules behind all three.
 
-Status: design, not yet implemented. Target: spec 0.1 (wire version
-`agent-hooks/0.1` unchanged), contract version `agent-hooks-declaration/1.0`.
+Status: implemented in spec 0.1 as section 7.7 (wire version
+`agent-hooks/0.1` unchanged), contract version
+`agent-hooks-declaration/1.0`. The spec section, the schema and the
+Rust core are normative; this document records the reasoning and is
+not kept in step with later changes. Where the two differ, the spec
+wins.
 
 ## Context
 
@@ -87,10 +91,7 @@ A complete, valid 1.0 document:
       "sequential/first_deny": { "on_approval": ["stop", "resume"] },
       "sequential/run_all": {},
       "parallel/strictest": { "on_transform_conflict": ["deny", "approval"] },
-      "parallel/unanimous": {
-        "on_disagreement": ["deny", "approval"],
-        "on_transform_conflict": ["deny", "approval"]
-      }
+      "parallel/unanimous": { "on_disagreement": ["deny", "approval"] }
     },
     "buffered_output": true,
     "declaration_versions": ["agent-hooks-declaration/1.0"]
@@ -159,7 +160,7 @@ to 64 characters). It is informative and never checked against code.
 | `composition.profile` | the four §7.2 profiles | `sequential/first_deny` | |
 | `composition.on_approval` | `stop`, `resume` | `stop` | consulted by `sequential/first_deny` only |
 | `composition.on_disagreement` | `deny`, `approval` | `deny` | consulted by `parallel/unanimous` only |
-| `composition.on_transform_conflict` | `deny`, `approval` | `deny` | consulted by the parallel profiles only |
+| `composition.on_transform_conflict` | `deny`, `approval` | `deny` | consulted by `parallel/strictest` only |
 | `identity_provider` | `"jcs-sha256"`, custom name, `null` | `"jcs-sha256"` | custom name `^[a-z][a-z0-9_-]{0,63}$`, not starting with `jcs` (§10.1); must be registered |
 | `approval.resolver` | reference or `null` | `null` | reference `^[a-z][a-z0-9_-]{0,63}$`; must be registered; `null` means liftable denies stay denies (§9) |
 | `approval.redactor` | reference or `null` | `null` | same grammar; must be registered |
@@ -189,8 +190,8 @@ knobs; the loader has its own strict composition type and the lenient paths
 `surface.profiles` values are objects whose only members are the knobs that
 profile consults, each a non-empty set of the values supported:
 `sequential/first_deny` has `on_approval`, `parallel/strictest` has
-`on_transform_conflict`, `parallel/unanimous` has `on_disagreement` and
-`on_transform_conflict`, `sequential/run_all` has none. An absent knob member
+`on_transform_conflict`, `parallel/unanimous` has `on_disagreement`,
+`sequential/run_all` has none. An absent knob member
 means the default value only. This matches §13.1, which asks for "profiles
 and knob values supported", and lets the loader check that the configured
 composition sits inside the declared surface.
@@ -759,7 +760,7 @@ the document) and never depend on what a particular harness lacks.
 | Id | Part | Scenario |
 |---|---|---|
 | AH-CTK-120 | load | Minimal document: `declaration` and one `ctk.scripted` allow binding. Run completes. Every record asserts `declaration` is `agent-hooks-declaration/1.0`, `composition.profile` `sequential/first_deny`, `composition.on_approval` `stop`, `identity_provider` `jcs-sha256`, `mode` `enforce`, `interceptors_registered` 1, `verdicts[0].name` the binding id. |
-| AH-CTK-121 | load | Full document: `parallel/unanimous` with `on_disagreement: approval`, two bindings `a` and `b`, resolver `ctk-scripted`, explicit surface. The pre_tool_call record asserts `on_disagreement` `approval`, `on_transform_conflict` `deny`, `on_approval` absent, `interceptors_registered` 2, `verdicts[0].name` `a`, `verdicts[1].name` `b`, `resolved_by` present. |
+| AH-CTK-121 | load | Full document: `parallel/unanimous` with `on_disagreement: approval`, two bindings `a` and `b`, resolver `ctk-scripted`, explicit surface. The pre_tool_call record asserts `on_disagreement` `approval`, `on_transform_conflict` absent, `on_approval` absent, `interceptors_registered` 2, `verdicts[0].name` `a`, `verdicts[1].name` `b`, `resolved_by` present. |
 | AH-CTK-122 | load | `mode: evaluate_only` with a transform binding. Record `mode` `evaluate_only`, `verdict.decision` `transform`, tool invoked with the original args, `declaration` stamped. |
 | AH-CTK-123 | load | Three-path equivalence: `parallel/strictest` with two bindings and a custom `timeout_ms`; `expect.load.paths_equivalent` true; records pin `on_transform_conflict` `deny` filled in, `declaration`, names and `decided_by`. |
 | AH-CTK-124 | bindings | `a` (deny) at `pre_tool_call` only, `b` (allow) at every point, order `[a, b]`. The input record shows `interceptors_registered` 1 and `verdicts[0].name` `b`; the pre_tool_call record shows `interceptors_registered` 2, `decided_by` 0, `verdicts[0].name` `a`; run blocked. |
