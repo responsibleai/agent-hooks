@@ -49,3 +49,31 @@ def test_skip_set_matches_manifest() -> None:
     assert skipped == set(EXPECTED_SKIPS), (
         "expected-but-not-skipped vectors mean the manifest is stale"
     )
+
+
+def test_structural_harness_without_setup_declared_fails_the_vector() -> None:
+    """A harness that declares host_declaration but lacks the seam fails
+    the vector with a stated detail; it must not abort the run."""
+    from typing import Any, ClassVar
+
+    from agent_hooks.ctk import Capability, RunRecord, Scenario
+
+    class Structural:
+        name = "structural"
+        capabilities: ClassVar[frozenset[Capability]] = frozenset(
+            {Capability.MODEL_CALLS, Capability.TOOL_CALLS, Capability.HOST_DECLARATION}
+        )
+
+        def setup(self, scenario: Scenario, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError("field-based setup must not be used for a declaration vector")
+
+        async def run(self) -> RunRecord:
+            raise AssertionError("run must not be reached")
+
+        def teardown(self) -> None:
+            pass
+
+    vector = next(v for v in load_vectors(_VECTORS) if v["id"] == "AH-CTK-120")
+    result = asyncio.run(run_vector(Structural(), vector))  # type: ignore[arg-type]
+    assert result.status == "fail"
+    assert any("does not implement setup_declared" in f for f in result.failures)

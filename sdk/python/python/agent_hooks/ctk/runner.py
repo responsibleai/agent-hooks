@@ -526,8 +526,18 @@ async def run_vector(harness: Harness, vector: dict[str, Any]) -> VectorResult:
         document = vector["host_declaration"]
         registry = scripts.registry(code_surface)
         paths_equivalent, path_detail = prove_paths(document, registry, vid)
+        # A structural harness may declare host_declaration without the
+        # seam; that fails the vector, not the run.
+        setup_declared = getattr(harness, "setup_declared", None)
+        if not callable(setup_declared):
+            return fail(
+                [
+                    f"harness {harness.name!r} declares host_declaration but does not "
+                    "implement setup_declared"
+                ]
+            )
         try:
-            harness.setup_declared(scenario, document, registry)
+            setup_declared(scenario, document, registry)
         except DeclarationError as e:
             harness.teardown()
             rr = RunRecord(outcome=RunOutcome.ERROR, final_output=None, error=str(e))
