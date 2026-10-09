@@ -516,7 +516,7 @@ async def run_vector(harness: Harness, vector: dict[str, Any]) -> VectorResult:
     else:
         caps = sorted(c.value for c in harness.capabilities)
         # §13.1 posture declaration; getattr keeps structural
-        # (non-subclass) Harness implementations working — absent means
+        # (non-subclass) Harness implementations working, absent means
         # the spec default.
         posture = getattr(harness, "tool_seam_host_error", "continue")
 
@@ -538,7 +538,13 @@ async def run_vector(harness: Harness, vector: dict[str, Any]) -> VectorResult:
         # §7.7.9: the runner proves the construction paths itself, then
         # hands the document and the CTK registry to the harness.
         document = vector["host_declaration"]
-        registry = scripts.registry(code_surface)
+        try:
+            registry = scripts.registry(code_surface)
+        except ValueError as e:
+            # The harness's own surface does not validate (a harness
+            # defect, not a document refusal): fail the vector, not
+            # the run.
+            return fail([f"harness defect: host surface rejected: {e}"])
         paths_equivalent, path_detail = prove_paths(document, registry, vid)
         # A structural harness may declare host_declaration without the
         # seam; that fails the vector, not the run.
@@ -546,8 +552,8 @@ async def run_vector(harness: Harness, vector: dict[str, Any]) -> VectorResult:
         if not callable(setup_declared):
             return fail(
                 [
-                    f"harness {harness.name!r} declares host_declaration but does not "
-                    "implement setup_declared"
+                    f"harness defect: harness {harness.name!r} declares host_declaration "
+                    "but does not implement setup_declared"
                 ]
             )
         try:

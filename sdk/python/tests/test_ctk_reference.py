@@ -79,6 +79,44 @@ def test_structural_harness_without_setup_declared_fails_the_vector() -> None:
     assert any("does not implement setup_declared" in f for f in result.failures)
 
 
+def test_harness_with_an_invalid_surface_fails_the_vector() -> None:
+    """A harness whose own surface does not validate (incremental_output
+    without an exposure bound, no host_surface override) fails the
+    declaration vector with a stated defect instead of aborting the
+    run."""
+    from typing import Any, ClassVar
+
+    from agent_hooks.ctk import Capability, RunRecord, Scenario
+
+    class BadSurface:
+        name = "bad-surface"
+        capabilities: ClassVar[frozenset[Capability]] = frozenset(
+            {
+                Capability.MODEL_CALLS,
+                Capability.TOOL_CALLS,
+                Capability.INCREMENTAL_OUTPUT,
+                Capability.HOST_DECLARATION,
+            }
+        )
+
+        def setup(self, scenario: Scenario, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError("setup must not be reached")
+
+        def setup_declared(self, *args: Any) -> None:
+            raise AssertionError("setup_declared must not be reached")
+
+        async def run(self) -> RunRecord:
+            raise AssertionError("run must not be reached")
+
+        def teardown(self) -> None:
+            pass
+
+    vector = next(v for v in load_vectors(_VECTORS) if v["id"] == "AH-CTK-120")
+    result = asyncio.run(run_vector(BadSurface(), vector))  # type: ignore[arg-type]
+    assert result.status == "fail"
+    assert any("harness defect: host surface rejected" in f for f in result.failures)
+
+
 def test_prove_paths_keeps_a_null_binding_config() -> None:
     """``config: null`` is a stated value; the builder path must rebuild
     it verbatim so the four paths agree."""

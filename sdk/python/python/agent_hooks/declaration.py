@@ -684,18 +684,34 @@ class HostDeclaration:
         def unreadable(detail: str) -> DeclarationError:
             return _single(DeclarationErrorClass.UNREADABLE, "", detail)
 
+        # Open first, then inspect the open descriptor, so the file
+        # checked is the file read. O_NONBLOCK keeps the open from
+        # hanging on a FIFO, which the type check then refuses; it has
+        # no effect on a regular file.
+        flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0)
         try:
-            meta = os.stat(path)
+            fd = os.open(path, flags)
         except OSError as e:
-            raise unreadable(f"cannot stat: {_io_class(e)}") from None
-        if not stat.S_ISREG(meta.st_mode):
-            raise unreadable("not a regular file")
-        if meta.st_size > MAX_DOCUMENT_BYTES:
-            raise unreadable(f"document is {meta.st_size} bytes; the bound is {MAX_DOCUMENT_BYTES}")
+            raise unreadable(f"cannot open: {_io_class(e)}") from None
+        try:
+            meta = os.fstat(fd)
+            if not stat.S_ISREG(meta.st_mode):
+                raise unreadable("not a regular file")
+            if meta.st_size > MAX_DOCUMENT_BYTES:
+                raise unreadable(
+                    f"document is {meta.st_size} bytes; the bound is {MAX_DOCUMENT_BYTES}"
+                )
+            f = os.fdopen(fd, "rb")
+        except OSError as e:
+            os.close(fd)
+            raise unreadable(f"cannot read: {_io_class(e)}") from None
+        except DeclarationError:
+            os.close(fd)
+            raise
         # A bounded read: a file that grows between the stat and the
         # read is still loaded only up to the bound plus one byte.
         try:
-            with open(path, "rb") as f:
+            with f:
                 data = f.read(MAX_DOCUMENT_BYTES + 1)
         except OSError as e:
             raise unreadable(f"cannot read: {_io_class(e)}") from None

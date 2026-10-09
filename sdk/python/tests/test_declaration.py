@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import pathlib
 from typing import Any
 
@@ -262,6 +263,15 @@ def test_register_at_filters_points_and_names_verdicts() -> None:
     assert tool["fold_truncated"] is True
 
 
+def test_register_refuses_an_empty_at() -> None:
+    # The declaration path refuses an empty ``at`` as invalid_field; the
+    # code path must not register an interceptor that never runs.
+    em = InterceptionEmitter()
+    with pytest.raises(ValueError, match="at least one interception point"):
+        em.register(Scripted(Verdict.allow()), at=[])
+    assert em._interceptors == []
+
+
 def test_point_without_binding_denies_no_interceptor() -> None:
     em = load(
         {
@@ -393,6 +403,15 @@ def test_unreadable_classes_from_path(tmp_path: pathlib.Path) -> None:
     e = refused(tmp_path)
     assert e.error_class is DeclarationErrorClass.UNREADABLE
     assert "regular file" in e.findings[0].detail
+    if hasattr(os, "mkfifo"):
+        # Opened without blocking and refused on the open descriptor,
+        # so a swap between the type check and the read cannot hang
+        # the loader.
+        fifo = tmp_path / "fifo.json"
+        os.mkfifo(fifo)
+        e = refused(fifo)
+        assert e.error_class is DeclarationErrorClass.UNREADABLE
+        assert "regular file" in e.findings[0].detail
     big = tmp_path / "big.json"
     big.write_bytes(b" " * (MAX_DOCUMENT_BYTES + 1))
     e = refused(big)

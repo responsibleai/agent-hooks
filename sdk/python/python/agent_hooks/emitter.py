@@ -544,7 +544,13 @@ class InterceptionEmitter:
         ``verdicts[].index`` and ``decided_by`` count and index that
         list (§7.7.8). Refused on a sealed emitter (§7.7.7)."""
         self._unsealed("register")
-        self._interceptors.append(_Bound(interceptor, name, _at_set(at)))
+        bound_at = _at_set(at)
+        if bound_at is not None and not bound_at:
+            # The declaration path refuses an empty ``at`` as
+            # invalid_field; the code path must not register an
+            # interceptor that never runs.
+            raise ValueError("register: `at` must name at least one interception point")
+        self._interceptors.append(_Bound(interceptor, name, bound_at))
         return self
 
     def set_composition(self, composition: CompositionConfig) -> InterceptionEmitter:

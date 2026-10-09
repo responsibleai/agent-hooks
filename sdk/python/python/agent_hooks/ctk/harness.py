@@ -233,7 +233,7 @@ class Harness(Protocol):
             DeclarationErrorClass.SURFACE_UNSUPPORTED,
             Finding(
                 pointer="",
-                detail=f"harness {self.name!r} declares host_declaration but does not "
-                "implement setup_declared",
+                detail=f"harness defect: harness {self.name!r} declares host_declaration "
+                "but does not implement setup_declared",
             ),
         )
