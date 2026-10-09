@@ -397,6 +397,33 @@ test("a kind resolver cannot widen its binding through the context", async () =>
   assert.equal(t.verdict.decision, "allow");
 });
 
+test("register(at) refuses an empty point set", () => {
+  const em = new InterceptionEmitter();
+  assert.throws(() => em.register(allow, "a", []), RangeError);
+  assert.throws(() => em.register(allow, "a", new Set()), RangeError);
+  assert.equal(em.records.length, 0);
+});
+
+test("the builder refuses a __proto__ key the same way the value path does", () => {
+  refused(
+    () => HostDeclaration.fromValue({ ...minimal(), extensions: JSON.parse('{"__proto__": 1}') }),
+    DeclarationErrorClass.InvalidField,
+    "/extensions/__proto__",
+  );
+  refused(
+    () => new DeclarationBuilder().bind("allow", "com.example.allow").extension("__proto__", 1).build(),
+    DeclarationErrorClass.InvalidField,
+    "/extensions/__proto__",
+  );
+  refused(
+    () => new DeclarationBuilder().bind("allow", "com.example.allow").raw("__proto__", {}).build(),
+    DeclarationErrorClass.UnknownField,
+    "/__proto__",
+  );
+  const built = new DeclarationBuilder().raw("__proto__", {}).toValue();
+  assert.ok(Object.hasOwn(built, "__proto__"));
+});
+
 // ---- refusal classes -----------------------------------------------------------------
 
 test("version_unsupported: reserved major, missing, higher minor, non-string", () => {

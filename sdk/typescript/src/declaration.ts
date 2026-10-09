@@ -48,6 +48,12 @@ export const SUPPORTED_DECLARATION_VERSIONS: readonly string[] = Object.freeze([
 /** Largest document the text and file paths accept, in bytes (§7.7.3). */
 export const MAX_DOCUMENT_BYTES = 1 << 20;
 
+/** Deepest nesting the text paths accept (§7.7.3). */
+export const MAX_DEPTH = 32;
+
+/** Most entries in `bindings` (§7.7.3). */
+export const MAX_BINDINGS = 256;
+
 /** Longest binding `id`, registered name and document `id` (§7.7.3). */
 export const MAX_ID_LEN = 64;
 
@@ -56,6 +62,9 @@ export const MAX_KIND_LEN = 128;
 
 /** Longest refusal detail (§7.7.3). */
 export const MAX_DETAIL_LEN = 512;
+
+/** Largest `timeout_ms`, `interceptor_ms` and `approval_resolver_ms` (§7.7.3). */
+export const MAX_TIMEOUT_MS = 3_600_000;
 
 /** The closed capability vocabulary a surface may name (§7.7.4). */
 export const CAPABILITIES: readonly string[] = Object.freeze([
@@ -762,6 +771,13 @@ export function declarationVersions(): { current: string; supported: string[] } 
 
 // ---- builder (code path) ----------------------------------------------------
 
+/** A null-prototype object: every key, `__proto__` included, is an
+ * own member that serializes, so the builder path refuses exactly what
+ * the value path refuses. */
+function plain(): Record<string, JsonValue> {
+  return Object.create(null) as Record<string, JsonValue>;
+}
+
 /** Builds a declaration document in code, one setter per member
  * (§7.7.7). {@link DeclarationBuilder.build} hands the document to
  * {@link HostDeclaration.fromValue}, so the code path is validated by
@@ -772,7 +788,9 @@ export class DeclarationBuilder {
   /** A builder with `declaration` set to {@link DECLARATION_VERSION}
    * and an empty `bindings` array. */
   constructor() {
-    this.doc = { declaration: DECLARATION_VERSION, bindings: [] };
+    this.doc = plain();
+    this.doc["declaration"] = DECLARATION_VERSION;
+    this.doc["bindings"] = [];
   }
 
   /** A builder with no member set at all, not even `declaration` or
@@ -802,7 +820,7 @@ export class DeclarationBuilder {
     if (existing !== null && typeof existing === "object" && !Array.isArray(existing)) {
       return existing;
     }
-    const fresh: Record<string, JsonValue> = {};
+    const fresh = plain();
     parent[key] = fresh;
     return fresh;
   }
@@ -824,7 +842,8 @@ export class DeclarationBuilder {
   }
 
   host(name: string, version?: string): this {
-    const h: Record<string, JsonValue> = { name };
+    const h = plain();
+    h["name"] = name;
     if (version !== undefined) h["version"] = version;
     this.doc["host"] = h;
     return this;
@@ -839,7 +858,8 @@ export class DeclarationBuilder {
    * consult are written out and refused by {@link build}, exactly as
    * in a file. */
   composition(c: CompositionConfig): this {
-    const v: Record<string, JsonValue> = { profile: c.profile };
+    const v = plain();
+    v["profile"] = c.profile;
     if (c.on_approval !== undefined) v["on_approval"] = c.on_approval;
     if (c.on_disagreement !== undefined) v["on_disagreement"] = c.on_disagreement;
     if (c.on_transform_conflict !== undefined) v["on_transform_conflict"] = c.on_transform_conflict;

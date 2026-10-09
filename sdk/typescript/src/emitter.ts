@@ -491,6 +491,11 @@ export class InterceptionEmitter {
         }
         points.add(p);
       }
+      if (points.size === 0) {
+        throw new RangeError(
+          "at must name at least one interception point; omit it to bind every point (§7.7.5)",
+        );
+      }
     }
     this.interceptors.push({
       interceptor,

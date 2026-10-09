@@ -583,7 +583,7 @@ export async function runVector(
     return fail(v, [`harness declaration refused: ${e}`]);
   }
 
-  const capsJson = JSON.stringify(caps.sort());
+  const capsJson = JSON.stringify([...caps].sort());
   const skip = JSON.parse(native.ctkShouldSkip(vectorJson, capsJson));
   if (skip !== null) {
     return {
