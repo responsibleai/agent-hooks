@@ -112,8 +112,8 @@ the `int64_json`/`bigint_json` CTK capabilities — string-encode
 rejected fail-closed by a pre-serialization scan. The same rounding
 applies to `bindings[].config`: the loader hands the core the validated
 text, so the load checks see the integers the file had, but the
-resolved form and a kind resolver receive JavaScript values. String-
-encode 64-bit values in binding configuration too.
+resolved form and a kind resolver receive JavaScript values.
+String-encode 64-bit values in binding configuration too.
 
 ## Native module deployment
 

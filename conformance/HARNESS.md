@@ -256,8 +256,7 @@ document with an explicit surface and route the 51 field-based vectors
 through the loader too: each writes the vector's mode, composition and
 provider into a copy of its document and binds the scripted
 interceptors by index through a `ctk.instance` kind. Their skip
-manifests return to the seven pre-existing entries. The Python, .NET
-and Go reference harnesses
+manifests do not change. The Python, .NET and Go reference harnesses
 keep their field-based construction and list `AH-CTK-120` to
 `AH-CTK-139` in their skip manifests until their SDKs gain the loader;
 those entries go when the loader lands.
