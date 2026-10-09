@@ -7,13 +7,13 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 - Docs: README rewritten around the contract, the three construction
   paths and the host declaration (`agent-hooks-declaration/1.0`, with
-  the version table at `spec/DECLARATION-VERSIONS.md`); every reference
-  to other specifications removed from it. New `docs/IMPLEMENTING.md`
+  the version table at `spec/DECLARATION-VERSIONS.md`); the extraction
+  note and the contract diagram removed. New `docs/IMPLEMENTING.md`
   for harness and gateway maintainers: wire contract versus host
   configuration, the declaration document, the surface and the claim,
   host obligations per point, what fails closed, and how to run the
   CTK. `docs/PRODUCTION.md` names the declaration members behind its
-  rows. No spec or code change.
+  rows. No spec or library change; one test pins the README example.
 - Host declaration document (spec §7.7): a versioned JSON contract,
   `agent-hooks-declaration/1.0`, for host configuration, declared
   surface and interceptor bindings, with one loader behind file, JSON
