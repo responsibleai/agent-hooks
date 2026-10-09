@@ -161,10 +161,17 @@ The per-SDK READMEs show the same calls in each language.
 - Enforcement mode (§8): `enforce`, or `evaluate_only` for records
   without effect.
 
+A decision runtime behind an interceptor (a policy engine the
+interceptor calls) reports its own failures as ordinary denies under
+its own reason namespace, by convention `runtime_error:<code>`. It
+never uses `host_error:*`: §11 reserves that namespace for verdicts the
+host synthesizes, and §5 validation rejects it from an interceptor.
+
 Everything normative runs once, in the Rust core. The Python,
 TypeScript, .NET and Go SDKs bind it and own only dispatch into host
-code, timeouts and runtime integration. Golden vectors pin
-byte-identical records across the five.
+code, timeouts and runtime integration. Golden files pin
+byte-identical canonical JSON, context identities and resolved
+declarations across the five.
 
 ## Conformance
 
