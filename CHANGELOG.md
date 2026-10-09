@@ -21,9 +21,9 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `InterceptionEmitter::from_declaration*`), the FFI gains
   `ah_declaration_versions` and `ah_declaration_resolve`, and the Rust
   reference harness builds every emitter through the loader. The
-  contract version is tracked in `spec/DECLARATION-VERSIONS.md`. The
-  other SDKs follow in a later change and skip the new vectors until
-  then. Wire version agent-hooks/0.1 unchanged. Additive.
+  contract version is tracked in `spec/DECLARATION-VERSIONS.md`.
+  Python, TypeScript and Go follow in a later change and skip the new
+  vectors until then. Wire version agent-hooks/0.1 unchanged. Additive.
 - .NET SDK: the host declaration loader (spec §7.7).
   `InterceptionEmitter.FromDeclaration`, `FromDeclarationPath`,
   `FromDeclarationJson` and `FromDeclarationNode` build a sealed emitter
