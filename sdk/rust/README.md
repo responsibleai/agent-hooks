@@ -86,8 +86,8 @@ let emitter = InterceptionEmitter::from_declaration(decl, &registry)?;
 A refusal is a `DeclarationError` with `class`, `findings` (JSON pointer
 and detail) and, for an unsupported version, `accepted`; `code()` gives
 the namespaced class (`declaration_error:unknown_field`). The same
-checks run for every SDK, since the other four call this crate through
-the FFI.
+checks run for every SDK, since Python and TypeScript bind this crate
+in-process and .NET and Go call it through the C ABI.
 
 An emitter built from a declaration is sealed: `register`,
 `register_at` and the setters panic. `declaration()` returns the
