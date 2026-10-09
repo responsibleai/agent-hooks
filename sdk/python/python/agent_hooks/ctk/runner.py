@@ -386,11 +386,21 @@ def prove_paths(doc: Any, registry: HostRegistry, tag: str = "vector") -> tuple[
     compare: value, JSON text, a temporary file and the builder. Equal
     canonical forms, or equal refusal classes, prove the paths
     equivalent. Returns ``(equivalent, detail)``."""
-    text = json.dumps(doc, allow_nan=False, separators=(",", ":"))
+    # UTF-8, not ``\\uXXXX`` escapes, so the text and file paths measure
+    # the 1 MiB bound on the same bytes as the value path and the core.
+    text = json.dumps(doc, allow_nan=False, ensure_ascii=False, separators=(",", ":"))
+    try:
+        data = text.encode("utf-8")
+    except UnicodeEncodeError:
+        # A lone surrogate has no UTF-8 form. Its escaped spelling does,
+        # and the core refuses that escape as malformed, the class the
+        # value path gives the same content.
+        text = json.dumps(doc, allow_nan=False, separators=(",", ":"))
+        data = text.encode("utf-8")
     fd, path = tempfile.mkstemp(prefix=f"agent-hooks-ctk-{tag}-", suffix=".json")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
         sources: list[tuple[str, Any]] = [
             ("value", lambda: HostDeclaration.from_value(doc)),
             ("json", lambda: HostDeclaration.from_json(text)),

@@ -119,9 +119,21 @@ _LIFECYCLE: Final[tuple[InterceptionPoint, ...]] = tuple(InterceptionPoint)
 
 def _compact(value: Any) -> str:
     """Compact RFC 8259 JSON, the serialization the value path measures
-    the 1 MiB bound against (§7.7.3); ``allow_nan=False`` so a
-    non-finite number is refused, never written as a bare literal."""
-    return json.dumps(value, allow_nan=False, separators=(",", ":"))
+    the 1 MiB bound against (§7.7.3). ``ensure_ascii=False`` so the text
+    is UTF-8 sized like the JSON and file paths and like the core's own
+    serializer, never ``\\uXXXX`` escapes six bytes wide; ``allow_nan=False``
+    so a non-finite number is refused, never written as a bare literal."""
+    return json.dumps(value, allow_nan=False, ensure_ascii=False, separators=(",", ":"))
+
+
+def _utf8_text(text: str) -> None:
+    """Refuse text with no UTF-8 form (a lone surrogate) as ``malformed``
+    before it reaches the core, which takes strict UTF-8; otherwise the
+    conversion would raise ``UnicodeEncodeError``, not a refusal."""
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        raise _single(DeclarationErrorClass.MALFORMED, "", "document is not valid UTF-8") from None
 
 
 def _non_string_key(value: Any, pointer: str = "") -> str | None:
@@ -659,6 +671,9 @@ class HostDeclaration:
 
     #: The JSON text the core receives.
     text: str
+
+    def __post_init__(self) -> None:
+        _utf8_text(self.text)
 
     @classmethod
     def from_path(cls, path: str | os.PathLike[str]) -> HostDeclaration:

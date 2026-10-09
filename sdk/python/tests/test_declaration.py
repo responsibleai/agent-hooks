@@ -451,6 +451,57 @@ def test_malformed_text_and_values() -> None:
     assert "key is not a string" in e.findings[0].detail
 
 
+def test_non_ascii_document_is_measured_in_utf8_on_every_path(tmp_path: pathlib.Path) -> None:
+    # The 1 MiB bound (§7.7.3) is a byte count on the UTF-8 text. A
+    # value serialized with ``\\uXXXX`` escapes would be three times as
+    # wide for this content and refused on the value path alone.
+    base = {"declaration": DECLARATION_VERSION, "bindings": [], "extensions": {"x": ""}}
+    room = MAX_DOCUMENT_BYTES - len(json.dumps(base, separators=(",", ":")).encode("utf-8"))
+    doc = {**base, "extensions": {"x": "\u00e9" * (room // 2)}}
+    text = json.dumps(doc, ensure_ascii=False, separators=(",", ":"))
+    assert len(text.encode("utf-8")) <= MAX_DOCUMENT_BYTES
+    assert len(json.dumps(doc, separators=(",", ":"))) > MAX_DOCUMENT_BYTES
+    path = tmp_path / "wide.json"
+    path.write_bytes(text.encode("utf-8"))
+    reg = registry()
+    canon = reg.resolve(HostDeclaration.from_value(doc)).canonical_json()
+    assert reg.resolve(HostDeclaration.from_json(text)).canonical_json() == canon
+    assert reg.resolve(HostDeclaration.from_path(path)).canonical_json() == canon
+    built = (
+        HostDeclaration.builder().raw("bindings", []).extension("x", doc["extensions"]["x"]).build()
+    )
+    assert reg.resolve(built).canonical_json() == canon
+    # One byte over is refused on every path with one class.
+    over = {**base, "extensions": {"x": "\u00e9" * (room // 2) + "a" * (room % 2 + 1)}}
+    over_text = json.dumps(over, ensure_ascii=False, separators=(",", ":"))
+    assert len(over_text.encode("utf-8")) == MAX_DOCUMENT_BYTES + 1
+    assert refusal(over).error_class is DeclarationErrorClass.MALFORMED
+    with pytest.raises(DeclarationError) as info:
+        InterceptionEmitter.from_declaration_json(over_text, reg)
+    assert info.value.error_class is DeclarationErrorClass.MALFORMED
+
+
+def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
+    # A Python str can hold a lone surrogate; UTF-8 cannot. The core
+    # takes strict UTF-8, so the wrapper refuses before conversion
+    # rather than leaking UnicodeEncodeError.
+    reg = registry()
+    doc = {"declaration": DECLARATION_VERSION, "bindings": [], "extensions": {"x": "\ud800"}}
+    e = refusal(doc)
+    assert e.error_class is DeclarationErrorClass.MALFORMED
+    assert "UTF-8" in e.findings[0].detail
+    text = '{"declaration":"agent-hooks-declaration/1.0","bindings":[],"extensions":{"x":"\ud800"}}'
+    with pytest.raises(DeclarationError) as info:
+        InterceptionEmitter.from_declaration_json(text, reg)
+    assert info.value.error_class is DeclarationErrorClass.MALFORMED
+    # The escaped spelling reaches the core, which refuses it as the
+    # same class.
+    escaped = text.replace("\ud800", "\\ud800")
+    with pytest.raises(DeclarationError) as info:
+        InterceptionEmitter.from_declaration_json(escaped, reg)
+    assert info.value.error_class is DeclarationErrorClass.MALFORMED
+
+
 @pytest.mark.parametrize(
     ("doc", "error_class", "pointer"),
     [
