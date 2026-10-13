@@ -125,10 +125,10 @@ never declares it.
 from a host declaration document through the loader. It gates the
 `declaration/load`, `declaration/bindings` and `declaration/refusal`
 parts (`AH-CTK-120` onwards). A harness that declares it implements
-the declaration seam below; one that does not skips those twenty
-vectors with a stated reason. All five in-tree reference harnesses
-(Rust, Python, TypeScript, .NET and Go) declare it and build every
-emitter through the loader.
+the declaration seam below; one that does not skips those
+twenty-two vectors with a stated reason. All five in-tree reference
+harnesses (Rust, Python, TypeScript, .NET and Go) declare it and build
+every emitter through the loader.
 
 Non-finite floats (NaN/Infinity) and lone surrogates cannot be
 expressed in a JSON vector at all — those §4.4 marshalling guards are
@@ -256,7 +256,7 @@ through the loader too: each writes the vector's mode, composition and
 provider into a copy of its document and binds the scripted
 interceptors by index through a `ctk.instance` kind. Their skip
 manifests do not change for that routing. Every reference harness
-runs `AH-CTK-120` to `AH-CTK-139`; none lists them in its skip
+runs `AH-CTK-120` to `AH-CTK-141`; none lists them in its skip
 manifest.
 
 ## Running

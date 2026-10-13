@@ -942,7 +942,7 @@ are written as JSON integers without a fraction or an exponent
 | `posture.tool_seam_host_error` | `continue`, `terminate` | `continue` | §13.1; MUST equal the posture the code implements |
 | `timeouts.interceptor_ms` | integer 1 to 3600000, `null` | `5000` | §7; `null` is unbounded and MUST be written out |
 | `timeouts.approval_resolver_ms` | integer 1 to 3600000, `null` | the value of `interceptor_ms` | §9 |
-| `records.max_buffered` | integer ≥ 1, `null` | `null` | in-memory record buffer bound |
+| `records.max_buffered` | integer 1 to 9007199254740991, `null` | `null` | in-memory record buffer bound; see Bounds below |
 
 Registered names match `^[a-z][a-z0-9_-]{0,63}$`.
 
@@ -964,7 +964,9 @@ canonical JSON is the equivalence oracle of §7.7.7.
 measured after serialization), nests at most 32 levels, and carries at
 most 256 bindings. Ids and registered names are at most 64 characters,
 kinds 128, `exposure_bound` and refusal details 512. Exceeding a bound
-is a refusal, never a truncation.
+is a refusal, never a truncation. `records.max_buffered` stops at
+2^53 - 1 because canonical JSON (§4.4) refuses integers above it, so
+the bound itself never blocks canonicalisation.
 
 #### 7.7.4 Surface
 

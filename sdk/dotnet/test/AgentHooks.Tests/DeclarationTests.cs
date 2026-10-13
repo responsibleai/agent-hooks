@@ -460,6 +460,10 @@ public sealed class DeclarationTests
             DeclarationErrorClass.InvalidField, "/configuration/timeouts/interceptor_ms",
         ],
         [
+            """{"declaration": "agent-hooks-declaration/1.0", "configuration": {"records": {"max_buffered": 9007199254740992}}, "bindings": []}""",
+            DeclarationErrorClass.InvalidField, "/configuration/records/max_buffered",
+        ],
+        [
             """{"declaration": "agent-hooks-declaration/1.0", "configuration": {"composition": {"profile": "sequential/run_all", "on_approval": "resume"}}, "bindings": []}""",
             DeclarationErrorClass.Inconsistent, "/configuration/composition/on_approval",
         ],
@@ -762,7 +766,7 @@ public sealed class DeclarationTests
             var rebuilt = Runner.BuilderFromNode(doc).ToNode();
             Assert.True(JsonNode.DeepEquals(doc, rebuilt), $"{vector["id"]}: builder rebuilt a different document");
         }
-        Assert.Equal(20, seen);
+        Assert.Equal(22, seen);
     }
 
     [Fact]
@@ -812,15 +816,18 @@ public sealed class DeclarationTests
     [Fact]
     public void MaxBufferedRecordsAtTheCoreMaximumLoadsAndClamps()
     {
-        // The core bounds max_buffered at [1, u64::MAX]; a value above
-        // long.MaxValue must load cleanly and stay a bound.
+        // The core bounds max_buffered at [1, 2^53 - 1] so the resolved
+        // form always canonicalises; the value at the bound must load
+        // cleanly and stay a bound. The ulong clamp in Declaration stays
+        // as defence should the bound ever widen.
         var em = InterceptionEmitter.FromDeclarationJson("""
             {"declaration": "agent-hooks-declaration/1.0",
-             "configuration": {"records": {"max_buffered": 18446744073709551615}},
+             "configuration": {"records": {"max_buffered": 9007199254740991}},
              "bindings": [{"id": "allow", "kind": "com.example.allow"}]}
             """, Registry());
-        Assert.Equal(long.MaxValue, em.Declaration!.MaxBufferedRecords);
-        Assert.Equal(18446744073709551615UL, (ulong)em.Declaration.ToWire()["configuration"]!["records"]!["max_buffered"]!);
+        Assert.Equal(9007199254740991L, em.Declaration!.MaxBufferedRecords);
+        Assert.Equal(9007199254740991UL, (ulong)em.Declaration.ToWire()["configuration"]!["records"]!["max_buffered"]!);
+        Assert.Contains("9007199254740991", em.Declaration.CanonicalJson());
         em.RecordHostFailure(InterceptionPoint.Output);
         Assert.Single(em.Records);
         Assert.Equal(0, em.RecordsDropped);

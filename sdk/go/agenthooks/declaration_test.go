@@ -835,13 +835,14 @@ func TestRegisterAtRefusesAnEmptyPointList(t *testing.T) {
 	}
 }
 
-// TestMaxBufferedAboveMaxIntStaysABound: int(uint64) wraps negative
-// above math.MaxInt, which the emitter would read as unbounded.
-func TestMaxBufferedAboveMaxIntStaysABound(t *testing.T) {
+// TestMaxBufferedAtTheCoreBoundLoads: the core bounds max_buffered at
+// 2^53 - 1 so the resolved form always canonicalises. The value at the
+// bound loads and stays a bound; one above is refused as invalid_field.
+func TestMaxBufferedAtTheCoreBoundLoads(t *testing.T) {
 	reg := testRegistry(t)
 	doc := map[string]any{
 		"declaration":   DeclarationVersion,
-		"configuration": map[string]any{"records": map[string]any{"max_buffered": json.Number("18446744073709551615")}},
+		"configuration": map[string]any{"records": map[string]any{"max_buffered": json.Number("9007199254740991")}},
 		"bindings": []any{
 			map[string]any{"id": "a", "kind": "com.example.scripted", "config": map[string]any{"decision": "allow"}},
 		},
@@ -850,8 +851,17 @@ func TestMaxBufferedAboveMaxIntStaysABound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if em.maxRecords != math.MaxInt {
-		t.Fatalf("maxRecords = %d, want math.MaxInt", em.maxRecords)
+	if em.maxRecords != 9007199254740991 {
+		t.Fatalf("maxRecords = %d, want 9007199254740991", em.maxRecords)
+	}
+	if c, err := em.Declaration().CanonicalJSON(); err != nil || !strings.Contains(c, `"max_buffered":9007199254740991`) {
+		t.Fatalf("canonical json = %q, %v", c, err)
+	}
+	doc["configuration"] = map[string]any{"records": map[string]any{"max_buffered": json.Number("9007199254740992")}}
+	_, err = NewInterceptionEmitterFromDeclarationValue(doc, reg)
+	de := declErr(t, err)
+	if de.Class != DeclarationInvalidField || de.Findings[0].Pointer != "/configuration/records/max_buffered" {
+		t.Fatalf("got %s at %q", de.Class, de.Findings[0].Pointer)
 	}
 	doc["configuration"] = map[string]any{"records": map[string]any{"max_buffered": json.Number("2")}}
 	if em, err = NewInterceptionEmitterFromDeclarationValue(doc, reg); err != nil {

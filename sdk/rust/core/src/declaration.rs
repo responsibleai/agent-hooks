@@ -71,6 +71,10 @@ pub const MAX_KIND_LEN: usize = 128;
 pub const MAX_DETAIL_LEN: usize = 512;
 /// Largest timeout, in milliseconds (one hour).
 pub const MAX_TIMEOUT_MS: u64 = 3_600_000;
+/// Largest `records.max_buffered`: 2^53 - 1. Canonical JSON (§4.4)
+/// refuses integer tokens above this, so the bound keeps every accepted
+/// declaration canonicalisable.
+pub const MAX_BUFFERED_RECORDS: u64 = 9_007_199_254_740_991;
 /// Smallest declared surface: the §3.2 lifecycle floor.
 pub const FLOOR_POINTS: [InterceptionPoint; 4] = [
     InterceptionPoint::AgentStartup,
@@ -1578,7 +1582,7 @@ fn check_fields(doc: &Map<String, Value>) -> Result<(), DeclarationError> {
                 r.get("max_buffered"),
                 "/configuration/records/max_buffered",
                 1,
-                u64::MAX,
+                MAX_BUFFERED_RECORDS,
             );
         }
     }
@@ -2975,6 +2979,16 @@ mod tests {
         let mut v = minimal();
         v["configuration"] = json!({"timeouts": {"interceptor_ms": 0}});
         assert_eq!(class_of(v).0, DeclarationErrorClass::InvalidField);
+        // records.max_buffered stops at 2^53 - 1 so the resolved form
+        // always canonicalises (§4.4).
+        let mut v = minimal();
+        v["configuration"] = json!({"records": {"max_buffered": MAX_BUFFERED_RECORDS + 1}});
+        let (c, p) = class_of(v);
+        assert_eq!(c, DeclarationErrorClass::InvalidField);
+        assert_eq!(p, ["/configuration/records/max_buffered"]);
+        let mut v = minimal();
+        v["configuration"] = json!({"records": {"max_buffered": u64::MAX}});
+        assert_eq!(class_of(v).0, DeclarationErrorClass::InvalidField);
         let mut v = minimal();
         v["bindings"][0]["kind"] = json!("nodot");
         assert_eq!(class_of(v).0, DeclarationErrorClass::InvalidField);
@@ -2996,6 +3010,20 @@ mod tests {
         assert_eq!(p, ["/host/name"]);
         let (c, _) = class_of(json!({"declaration": "agent-hooks-declaration/1.0"}));
         assert_eq!(c, DeclarationErrorClass::InvalidField);
+    }
+
+    #[test]
+    fn max_buffered_at_the_bound_loads_and_canonicalises() {
+        let mut v = minimal();
+        v["configuration"] = json!({"records": {"max_buffered": MAX_BUFFERED_RECORDS}});
+        let r = load(v).unwrap();
+        assert_eq!(
+            r.configuration.records.max_buffered,
+            Some(MAX_BUFFERED_RECORDS)
+        );
+        let c = r.canonical_json();
+        assert!(c.contains("\"max_buffered\":9007199254740991"));
+        assert!(canonical::scan_raw_integer_domain(&c).is_ok());
     }
 
     #[test]

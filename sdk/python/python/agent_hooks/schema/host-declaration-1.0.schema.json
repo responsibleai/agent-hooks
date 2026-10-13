@@ -197,7 +197,8 @@
                 "null"
               ],
               "minimum": 1,
-              "description": "In-memory record buffer bound; null (the default) is unbounded."
+              "maximum": 9007199254740991,
+              "description": "In-memory record buffer bound; null (the default) is unbounded. The maximum is 2^53 - 1 so the resolved document always canonicalises (§4.4)."
             }
           }
         }

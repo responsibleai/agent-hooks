@@ -5,6 +5,14 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+- Host declaration (spec §7.7.3): `records.max_buffered` is now bounded
+  at 9007199254740991 (2^53 - 1), the largest integer RFC 8785
+  canonical JSON accepts, so the record bound always canonicalises.
+  A larger value is refused as
+  `declaration_error:invalid_field` at
+  `/configuration/records/max_buffered`. The schema gains `maximum`;
+  vectors AH-CTK-140 (at the bound) and AH-CTK-141 (above it) pin
+  both sides. Additive.
 - Docs: README rewritten around the contract, the three construction
   paths and the host declaration (`agent-hooks-declaration/1.0`, with
   the version table at `spec/DECLARATION-VERSIONS.md`); the extraction

@@ -860,9 +860,9 @@ public sealed class ResolvedDeclaration
             (string)cfg["posture"]!["tool_seam_host_error"]!);
         InterceptorTimeoutMs = (long?)timeouts["interceptor_ms"];
         ApprovalResolverTimeoutMs = (long?)timeouts["approval_resolver_ms"];
-        // The core accepts any integer in [1, u64::MAX]; a long cast
-        // would throw FormatException above long.MaxValue. A stated
-        // bound must never become no bound, so clamp instead.
+        // The core accepts [1, 2^53 - 1], which fits a long; the ulong
+        // clamp stays as defence should the bound ever widen. A stated
+        // bound must never become no bound.
         MaxBufferedRecords = cfg["records"]!["max_buffered"] is JsonNode mb
             ? (long)Math.Min((ulong)mb, long.MaxValue)
             : null;
