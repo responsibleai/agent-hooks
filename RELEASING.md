@@ -119,7 +119,7 @@ stays where it was, so a plain `npm install @responsibleai/agent-hooks`
 keeps installing the previous release until `latest` is moved by hand
 on the loader and the five platform packages (`npm dist-tag add`, from
 an npm login with 2FA; the step above). Both tags sit on
-`0.1.0-beta.1` since 2026-10-05.
+`0.1.0-beta.2` since 2026-10-13.
 
 Then update the supported-versions table in
 [SECURITY.md](SECURITY.md) to the new tag.
