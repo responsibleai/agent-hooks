@@ -22,10 +22,12 @@ Major 0 is reserved for the conformance kit and is never accepted.
 
 | SDK release | Accepts | Current |
 | --- | --- | --- |
-| `v0.1.0-beta.2` (next tag) | `agent-hooks-declaration/1.0` | `agent-hooks-declaration/1.0` |
+| `v0.1.0-beta.2` (2026-10-13) | `agent-hooks-declaration/1.0` | `agent-hooks-declaration/1.0` |
 
-Add a row for every tag that changes the accepted set or the current
-version (RELEASING.md, step 1).
+`v0.1.0-beta.2` is the first tag that accepts a host declaration;
+`v0.1.0-beta.1` and earlier accept none. Add a row for every tag that
+changes the accepted set or the current version (RELEASING.md,
+step 1).
 
 ## Migrating across versions
 

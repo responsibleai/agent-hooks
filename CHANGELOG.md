@@ -5,6 +5,15 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+## 0.1.0-beta.2 — 2026-10-13 — tag `v0.1.0-beta.2`
+
+- First tag that accepts the host declaration document. This
+  release carries spec §7.7 (contract `agent-hooks-declaration/1.0`,
+  the loader in all five SDKs, vectors AH-CTK-120 to AH-CTK-141), the
+  `records.max_buffered` bound, the rewritten README and the
+  implementer guide `docs/IMPLEMENTING.md`. The row for the tag is in
+  `spec/DECLARATION-VERSIONS.md`. The wire contract stays
+  `agent-hooks/0.1` and the spec stage stays `0.1.0-beta`.
 - Host declaration (spec §7.7.3): `records.max_buffered` is now bounded
   at 9007199254740991 (2^53 - 1), the largest integer RFC 8785
   canonical JSON accepts, so the record bound always canonicalises.
