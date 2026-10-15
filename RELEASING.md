@@ -119,9 +119,7 @@ go list -m -versions github.com/responsibleai/agent-hooks/sdk/go
 
 Check the npm dist-tags. The workflow publishes under `latest` and,
 for a pre-release, adds the channel tag on the loader and the five
-platform packages. The channel tag needs one setting per package,
-once: "Allow npm dist-tag" on the trusted publisher configuration at
-npmjs.com > package > Settings > Trusted Publisher, for
+platform packages. The channel tag relies on "Allow npm dist-tag" being enabled on the trusted publisher configuration (npmjs.com > package > Settings > Trusted Publisher) of every package, which it is today for
 
 - `@responsibleai/agent-hooks`
 - `@responsibleai/agent-hooks-linux-x64-gnu`
@@ -130,8 +128,7 @@ npmjs.com > package > Settings > Trusted Publisher, for
 - `@responsibleai/agent-hooks-darwin-arm64`
 - `@responsibleai/agent-hooks-win32-x64-msvc`
 
-Until that is on, the workflow prints a warning for each package and
-the channel tag must be added by hand. Run this from an npm login
+If that setting is ever lost, the dist-tag step fails the release; re-enable it and re-run the tag workflow, or add the tag by hand. Run this from an npm login
 with 2FA, not a stored automation token:
 
 ```bash
