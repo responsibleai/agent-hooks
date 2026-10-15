@@ -1,0 +1,111 @@
+{
+  "id": "AH-CTK-142",
+  "title": "§7.7.6: an integer at the bound (2^53 - 1) inside a binding config loads and the resolved form canonicalises on every path",
+  "spec_clause": "7.7.6, 7.7.7, 7.7.5, 4.4",
+  "part": "declaration/load",
+  "capabilities": [
+    "host_declaration",
+    "model_calls",
+    "tool_calls"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.0",
+    "bindings": [
+      {
+        "id": "allow",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0,
+          "key": 9007199254740991
+        }
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "ok"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "accepted",
+      "paths_equivalent": true
+    },
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      },
+      {
+        "interception_point": "post_tool_call"
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.0",
+          "interceptors_registered": 1,
+          "verdicts[0].name": "allow",
+          "verdict.decision": "allow"
+        }
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://x"
+        }
+      }
+    ],
+    "run_outcome": "completed",
+    "final_output": "done",
+    "identities_equal": true
+  }
+}

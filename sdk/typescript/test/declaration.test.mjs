@@ -211,15 +211,41 @@ test("builderFromValue keeps an explicit config: null", () => {
   assert.equal(viaValue.declaration.bindings[0].config, null);
 });
 
-test("a validated document keeps integers beyond 2^53 for the core", () => {
-  const big = "18446744073709551615";
-  const text = `{"declaration":"${V}","bindings":[{"id":"a","kind":"com.example.allow","config":{"key":${big}}}]}`;
+const configKey = (key) =>
+  `{"declaration":"${V}","bindings":[{"id":"a","kind":"com.example.allow","config":{"key":${key}}}]}`;
+
+test("an integer above 2^53 - 1 anywhere in the document is refused at its pointer", () => {
+  // #129: `config` is opaque to the loader except for the integer
+  // domain (§7.7.6). The text path sees the token as written, so a
+  // value JSON.parse would round is refused before anything rounds it.
+  const invalid = "declaration_error:invalid_field";
+  for (const key of ["9007199254740992", "-9007199254740992", "18446744073709551615", "18446744073709551616"]) {
+    const e = refused(() => HostDeclaration.fromJson(configKey(key)), invalid, "/bindings/0/config/key");
+    assert.equal(e.findings.length, 1);
+    assert.ok(!e.findings[0].detail.includes(key), e.findings[0].detail);
+    refused(() => InterceptionEmitter.fromDeclarationJson(configKey(key), registry()), invalid, "/bindings/0/config/key");
+  }
+  // 2^53 is the smallest refused magnitude and still exact in
+  // JavaScript, so the value path reaches the core with the same token.
+  refused(
+    () => InterceptionEmitter.fromDeclarationValue(JSON.parse(configKey("9007199254740992")), registry()),
+    invalid,
+    "/bindings/0/config/key",
+  );
+});
+
+test("an integer at the bound (2^53 - 1) inside a binding config loads and canonicalises", () => {
+  const text = configKey("9007199254740991");
   const decl = HostDeclaration.fromJson(text);
-  assert.ok(decl.toJson().includes(big));
-  // The resolved form is a JavaScript value and rounds; the load
-  // checks ran on the exact text.
-  const em = InterceptionEmitter.fromDeclarationJson(text, registry());
-  assert.equal(em.declaration.bindings[0].id, "a");
+  assert.ok(decl.toJson().includes("9007199254740991"));
+  assert.equal(decl.toValue().bindings[0].config.key, 9007199254740991);
+  for (const em of [
+    InterceptionEmitter.fromDeclarationJson(text, registry()),
+    InterceptionEmitter.fromDeclarationValue(JSON.parse(text), registry()),
+  ]) {
+    assert.equal(em.declaration.bindings[0].config.key, 9007199254740991);
+    assert.ok(canonicalDeclaration(em.declaration).includes('"key":9007199254740991'));
+  }
 });
 
 test("builder writes what a file would and is validated like one", () => {

@@ -592,6 +592,20 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "bindings": [
+                    {
+                        "id": "a",
+                        "kind": "com.example.scripted",
+                        "config": {"decision": "allow", "key": 9007199254740992},
+                    }
+                ],
+            },
+            DeclarationErrorClass.INVALID_FIELD,
+            "/bindings/0/config/key",
+        ),
+        (
+            {
+                "declaration": DECLARATION_VERSION,
                 "bindings": [],
                 "configuration": {
                     "composition": {"profile": "sequential/run_all", "on_approval": "resume"}
@@ -731,6 +745,37 @@ def test_one_class_per_document_in_pipeline_order() -> None:
     assert refusal(doc, reg).error_class is DeclarationErrorClass.BINDING_REJECTED
     doc["bindings"][0]["config"] = {"decision": "allow"}
     assert load(doc, reg).declaration is not None
+
+
+def test_config_integer_at_the_bound_loads_and_above_is_refused() -> None:
+    # #129: ``config`` is opaque to the loader except for the integer
+    # domain (§7.7.6). 2^53 - 1 inside a binding config loads and the
+    # resolved form canonicalises on both paths; 2^53 is refused at the
+    # token's pointer, as is a literal beyond u64 on the text path.
+    reg = registry()
+    doc: dict[str, Any] = {
+        "declaration": DECLARATION_VERSION,
+        "bindings": [
+            {
+                "id": "a",
+                "kind": "com.example.scripted",
+                "config": {"decision": "allow", "key": 9007199254740991},
+            }
+        ],
+    }
+    for em in (load(doc, reg), InterceptionEmitter.from_declaration_json(json.dumps(doc), reg)):
+        assert em.declaration is not None
+        assert '"key":9007199254740991' in em.declaration.canonical_json()
+    for key in (9007199254740992, -9007199254740992, 18446744073709551616):
+        doc["bindings"][0]["config"]["key"] = key
+        e = refusal(doc, reg)
+        assert e.error_class is DeclarationErrorClass.INVALID_FIELD
+        assert [f.pointer for f in e.findings] == ["/bindings/0/config/key"]
+        assert str(key) not in e.findings[0].detail
+        with pytest.raises(DeclarationError) as info:
+            InterceptionEmitter.from_declaration_json(json.dumps(doc), reg)
+        assert info.value.error_class is DeclarationErrorClass.INVALID_FIELD
+        assert info.value.findings[0].pointer == "/bindings/0/config/key"
 
 
 def test_builder_is_validated_like_a_file() -> None:

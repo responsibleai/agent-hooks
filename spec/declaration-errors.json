@@ -32,7 +32,7 @@
     {
       "id": "declaration_error:invalid_field",
       "step": 6,
-      "cause": "A member has the wrong type, a value outside its closed set, a pattern or range violation, or breaks a required-iff rule."
+      "cause": "A member has the wrong type, a value outside its closed set, a pattern or range violation, or breaks a required-iff rule; or an integer token anywhere in the document, config values included, lies outside the I-JSON safe range (magnitude above 2^53 - 1), so the resolved form could not canonicalise."
     },
     {
       "id": "declaration_error:inconsistent",

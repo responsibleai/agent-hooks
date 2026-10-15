@@ -87,6 +87,8 @@ func TestReferenceSetupKeysIdentityOnTheName(t *testing.T) {
 // TestScriptedConfigIndexBounds: config.script is parsed within the int
 // range, so an index past 2^31-1 is refused as an invalid index, never
 // converted; an in-range index past the script count is out of range.
+// An index above 2^53 - 1 never reaches the resolver: the loader
+// refuses the integer token at step 6 (section 7.7.6).
 func TestScriptedConfigIndexBounds(t *testing.T) {
 	sc := scriptsOf(map[string]any{"interceptor_script": []any{[]any{}}})
 	reg, err := sc.registry(NewReferenceHarness().HostSurface())
@@ -96,7 +98,8 @@ func TestScriptedConfigIndexBounds(t *testing.T) {
 	for _, tc := range []struct{ script, want string }{
 		{"2147483648", "unsigned integer index"},
 		{"4294967295", "unsigned integer index"},
-		{"18446744073709551616", "unsigned integer index"},
+		{"9007199254740992", "invalid_field: /bindings/0/config/script"},
+		{"18446744073709551616", "invalid_field: /bindings/0/config/script"},
 		{"2147483647", "out of range"},
 		{"1", "out of range"},
 	} {

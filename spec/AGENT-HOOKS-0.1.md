@@ -1083,6 +1083,12 @@ so a given document yields one refusal class on every SDK:
 | 11 | Resolvers run in array order; the first error, exception or non-interceptor return | `binding_rejected` |
 | 12 | Construct the emitter and seal it (§7.7.7) | none |
 
+Step 6 also refuses an integer token outside the I-JSON safe range
+([RFC 7493]: magnitude above 2^53 - 1) anywhere in the document,
+`config` values included, as `invalid_field` at the token's pointer,
+so every accepted document has the RFC 8785 canonical form the §7.7.7
+oracle relies on.
+
 Refusals are construction errors, not verdicts. The §11 reasons are
 the vocabulary of a synthesized deny on an emission that happened; a
 refused document happens before any emitter exists, so there is no
@@ -1097,7 +1103,7 @@ closed namespace, `declaration_error:<class>`, with eleven classes:
 | `declaration_error:version_unsupported` | `declaration` missing, not a string, or not in the accepted set |
 | `declaration_error:spec_unsupported` | `spec` present with another major, a higher minor than the loader's, or a malformed value |
 | `declaration_error:unknown_field` | an unknown member at any closed level |
-| `declaration_error:invalid_field` | wrong type, enum, pattern, range, or a required-iff rule |
+| `declaration_error:invalid_field` | wrong type, enum, pattern, range, a required-iff rule, or an integer token outside the I-JSON safe range anywhere in the document |
 | `declaration_error:inconsistent` | a step 7 rule |
 | `declaration_error:surface_unsupported` | a step 8 mismatch |
 | `declaration_error:reference_unresolved` | an unregistered provider, resolver or redactor name |

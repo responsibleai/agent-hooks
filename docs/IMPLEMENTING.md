@@ -101,6 +101,9 @@ honour: a point you do not emit, a profile or knob value you do not
 support, a capability you lack, a provider or resolver you did not
 register, a kind with no resolver, a version it does not accept, an
 unknown member, or a knob under a profile that does not consult it.
+It also refuses an integer above 2^53 - 1 anywhere in the document,
+`config` values included, because the resolved form must have a
+canonical JSON form (§7.7.6).
 Refusal is a construction error with one of eleven `declaration_error:*`
 classes, a list of findings with JSON pointers, and for an unsupported
 version the accepted set. It happens before any emission and leaves no

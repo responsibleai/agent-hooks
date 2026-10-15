@@ -256,7 +256,7 @@ through the loader too: each writes the vector's mode, composition and
 provider into a copy of its document and binds the scripted
 interceptors by index through a `ctk.instance` kind. Their skip
 manifests do not change for that routing. Every reference harness
-runs `AH-CTK-120` to `AH-CTK-141`; none lists them in its skip
+runs `AH-CTK-120` to `AH-CTK-143`; none lists them in its skip
 manifest.
 
 ## Running

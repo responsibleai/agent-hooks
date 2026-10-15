@@ -464,6 +464,10 @@ public sealed class DeclarationTests
             DeclarationErrorClass.InvalidField, "/configuration/records/max_buffered",
         ],
         [
+            """{"declaration": "agent-hooks-declaration/1.0", "bindings": [{"id": "a", "kind": "com.example.allow", "config": {"key": 9007199254740992}}]}""",
+            DeclarationErrorClass.InvalidField, "/bindings/0/config/key",
+        ],
+        [
             """{"declaration": "agent-hooks-declaration/1.0", "configuration": {"composition": {"profile": "sequential/run_all", "on_approval": "resume"}}, "bindings": []}""",
             DeclarationErrorClass.Inconsistent, "/configuration/composition/on_approval",
         ],
@@ -766,7 +770,7 @@ public sealed class DeclarationTests
             var rebuilt = Runner.BuilderFromNode(doc).ToNode();
             Assert.True(JsonNode.DeepEquals(doc, rebuilt), $"{vector["id"]}: builder rebuilt a different document");
         }
-        Assert.Equal(22, seen);
+        Assert.Equal(24, seen);
     }
 
     [Fact]
@@ -811,6 +815,45 @@ public sealed class DeclarationTests
         Assert.Equal("", detail);
         var rebuilt = Runner.BuilderFromNode(doc).ToNode();
         Assert.True(JsonNode.DeepEquals(doc, rebuilt));
+    }
+
+    [Fact]
+    public void ConfigIntegerAtTheBoundLoadsAndAboveIsRefused()
+    {
+        // #129: config is opaque to the loader except for the integer
+        // domain (§7.7.6). 2^53 - 1 inside a binding config loads and
+        // the resolved form canonicalises; 2^53, its negative and a
+        // literal beyond u64 are refused at the token's pointer on the
+        // text and the node path alike, with a value-free detail.
+        const string Template = """
+            {"declaration": "agent-hooks-declaration/1.0",
+             "bindings": [{"id": "allow", "kind": "com.example.allow", "config": {"key": KEY}}]}
+            """;
+        var atBound = Template.Replace("KEY", "9007199254740991");
+        foreach (var em in new[]
+        {
+            InterceptionEmitter.FromDeclarationJson(atBound, Registry()),
+            InterceptionEmitter.FromDeclarationNode(JsonNode.Parse(atBound), Registry()),
+        })
+        {
+            Assert.Contains("\"key\":9007199254740991", em.Declaration!.CanonicalJson());
+        }
+        foreach (var key in new[] { "9007199254740992", "-9007199254740992", "18446744073709551616" })
+        {
+            var above = Template.Replace("KEY", key);
+            foreach (var load in new Func<InterceptionEmitter>[]
+            {
+                () => InterceptionEmitter.FromDeclarationJson(above, Registry()),
+                () => InterceptionEmitter.FromDeclarationNode(JsonNode.Parse(above), Registry()),
+            })
+            {
+                var e = Assert.Throws<DeclarationException>(load);
+                Assert.Equal(DeclarationErrorClass.InvalidField, e.Class);
+                var finding = Assert.Single(e.Findings);
+                Assert.Equal("/bindings/0/config/key", finding.Pointer);
+                Assert.DoesNotContain(key, finding.Detail);
+            }
+        }
     }
 
     [Fact]

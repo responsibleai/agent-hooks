@@ -871,3 +871,58 @@ func TestMaxBufferedAtTheCoreBoundLoads(t *testing.T) {
 		t.Fatalf("maxRecords = %d, want 2", em.maxRecords)
 	}
 }
+
+// TestConfigIntegerAtTheCoreBoundLoads: section 7.7.6 bounds every
+// integer token in the document at 2^53 - 1, binding config included
+// (#129). The bound loads and canonicalises on the value and the text
+// path; 2^53, its negative and a literal beyond u64 are refused as
+// invalid_field at the token's pointer with a value-free detail.
+func TestConfigIntegerAtTheCoreBoundLoads(t *testing.T) {
+	reg := testRegistry(t)
+	doc := func(key string) map[string]any {
+		return map[string]any{
+			"declaration": DeclarationVersion,
+			"bindings": []any{
+				map[string]any{
+					"id":     "a",
+					"kind":   "com.example.scripted",
+					"config": map[string]any{"decision": "allow", "key": json.Number(key)},
+				},
+			},
+		}
+	}
+	text, err := json.Marshal(doc("9007199254740991"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	emValue, err := NewInterceptionEmitterFromDeclarationValue(doc("9007199254740991"), reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	emText, err := NewInterceptionEmitterFromDeclarationJSON(text, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, em := range []*InterceptionEmitter{emValue, emText} {
+		if c, err := em.Declaration().CanonicalJSON(); err != nil || !strings.Contains(c, `"key":9007199254740991`) {
+			t.Fatalf("canonical json = %q, %v", c, err)
+		}
+	}
+	for _, key := range []string{"9007199254740992", "-9007199254740992", "18446744073709551616"} {
+		above, err := json.Marshal(doc(key))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, errValue := NewInterceptionEmitterFromDeclarationValue(doc(key), reg)
+		_, errText := NewInterceptionEmitterFromDeclarationJSON(above, reg)
+		for _, err := range []error{errValue, errText} {
+			de := declErr(t, err)
+			if de.Class != DeclarationInvalidField || len(de.Findings) != 1 || de.Findings[0].Pointer != "/bindings/0/config/key" {
+				t.Fatalf("%s: got %s %+v", key, de.Class, de.Findings)
+			}
+			if strings.Contains(de.Findings[0].Detail, key) {
+				t.Fatalf("detail echoes the value: %q", de.Findings[0].Detail)
+			}
+		}
+	}
+}

@@ -369,6 +369,49 @@ fn unreadable_classes_from_path() {
 }
 
 #[test]
+fn config_integers_stay_inside_the_canonical_domain() {
+    // #129: an integer above 2^53 - 1 inside a binding config used to
+    // load, and the resolved form then had no RFC 8785 canonical form.
+    // Both construction paths refuse it at step 6 with the token's
+    // pointer; the bound itself loads and canonicalises.
+    let reg = registry();
+    let doc = |key: u64| {
+        json!({
+            "declaration": DECLARATION_VERSION,
+            "bindings": [{
+                "id": "a",
+                "kind": "com.example.scripted",
+                "config": { "decision": "allow", "key": key }
+            }]
+        })
+    };
+    let at_bound = doc(9_007_199_254_740_991);
+    for em in [
+        InterceptionEmitter::from_declaration_value(at_bound.clone(), &reg).unwrap(),
+        InterceptionEmitter::from_declaration_json(&at_bound.to_string(), &reg).unwrap(),
+    ] {
+        let canonical = em.declaration().unwrap().canonical_json();
+        assert!(
+            canonical.contains("\"key\":9007199254740991"),
+            "{canonical}"
+        );
+        // RFC 8785 output: canonicalising it again changes nothing.
+        let again: Value = serde_json::from_str(&canonical).unwrap();
+        assert_eq!(agent_hooks::canonical_json(&again), canonical);
+    }
+    let above = doc(9_007_199_254_740_992);
+    for e in [
+        InterceptionEmitter::from_declaration_value(above.clone(), &reg).unwrap_err(),
+        InterceptionEmitter::from_declaration_json(&above.to_string(), &reg).unwrap_err(),
+    ] {
+        assert_eq!(e.class, DeclarationErrorClass::InvalidField);
+        assert_eq!(e.findings.len(), 1);
+        assert_eq!(e.findings[0].pointer, "/bindings/0/config/key");
+        assert!(!e.findings[0].detail.contains("9007199254740992"));
+    }
+}
+
+#[test]
 fn one_class_per_document_in_pipeline_order() {
     // A document breaking steps 3, 5, 6, 7 and 10 at once reports the
     // earliest step only; fixing each in turn walks the pipeline.

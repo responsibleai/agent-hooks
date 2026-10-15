@@ -1,0 +1,53 @@
+{
+  "id": "AH-CTK-143",
+  "title": "§7.7.6: an integer above 2^53 - 1 inside a binding config is refused as invalid_field at /bindings/0/config/key",
+  "spec_clause": "7.7.6, 7.7.7, 7.7.5, 4.4",
+  "part": "declaration/refusal",
+  "capabilities": [
+    "host_declaration"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.0",
+    "bindings": [
+      {
+        "id": "allow",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0,
+          "key": 9007199254740992
+        }
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "hi",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "UNREACHED",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "refused",
+      "class": "declaration_error:invalid_field"
+    }
+  }
+}

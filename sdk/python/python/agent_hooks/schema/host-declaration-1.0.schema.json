@@ -411,7 +411,7 @@
           "description": "A lookup key into the host's kind registry and nothing more: never a path, class name, URL or module the loader interprets. At least one dot, so every kind carries a namespace the host controls. The first segments agent_hooks and ctk are reserved. This specification defines no kinds."
         },
         "config": {
-          "description": "Kind-specific; handed to the kind resolver unchanged and never read by the loader. Default {}."
+          "description": "Kind-specific; handed to the kind resolver unchanged. The loader interprets none of it; its one check here is the document-wide integer bound of §7.7.6 (no integer token above 2^53 - 1, so the resolved form canonicalises). Default {}."
         },
         "at": {
           "type": "array",

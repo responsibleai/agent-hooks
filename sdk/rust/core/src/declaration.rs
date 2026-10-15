@@ -21,7 +21,7 @@
 //! | 3 | same | `declaration` in the accepted set | `version_unsupported` |
 //! | 4 | same | `spec` compatible with the loader | `spec_unsupported` |
 //! | 5 | same | no unknown member at a closed level | `unknown_field` |
-//! | 6 | same | types, enums, patterns, ranges | `invalid_field` |
+//! | 6 | same | types, enums, patterns, ranges; every integer token within ±(2^53 - 1) | `invalid_field` |
 //! | 7 | same, and again in [`resolve`] with the filled surface for the floor, pairs and `at` | internal consistency; the composition against a stated `surface.profiles` | `inconsistent` |
 //! | 8 | [`resolve`] | surface and configuration, the configured composition included, honoured by the host's [`HostSurface`] | `surface_unsupported` |
 //! | 9 | [`resolve`] | named provider, resolver and redactor registered | `reference_unresolved` |
@@ -1013,7 +1013,9 @@ impl HostDeclaration {
         Self::from_json(text)
     }
 
-    /// Steps 2 to 7 over JSON text.
+    /// Steps 2 to 7 over JSON text. Step 6 reads the text as well as
+    /// the parsed value: the integer-domain check needs the tokens as
+    /// written (see [`scan_integer_tokens`]).
     pub fn from_json(text: &str) -> Result<Self, DeclarationError> {
         let value = parse_checked(text)?;
         let Value::Object(doc) = value else {
@@ -1023,7 +1025,12 @@ impl HostDeclaration {
                 "document root is not a JSON object",
             ));
         };
-        Self::from_object(doc)
+        check_version(&doc)?; // 3
+        check_spec(&doc)?; // 4
+        check_unknown_fields(&doc)?; // 5
+        check_fields(&doc, text)?; // 6
+        check_consistency(&doc, None)?; // 7, as stated
+        Ok(Self { doc })
     }
 
     /// Steps 2 to 7 over an in-memory value: serialized with
@@ -1038,15 +1045,6 @@ impl HostDeclaration {
             )
         })?;
         Self::from_json(&text)
-    }
-
-    fn from_object(doc: Map<String, Value>) -> Result<Self, DeclarationError> {
-        check_version(&doc)?; // 3
-        check_spec(&doc)?; // 4
-        check_unknown_fields(&doc)?; // 5
-        check_fields(&doc)?; // 6
-        check_consistency(&doc, None)?; // 7, as stated
-        Ok(Self { doc })
     }
 
     /// A builder for the code path.
@@ -1363,7 +1361,137 @@ fn check_unknown_fields(doc: &Map<String, Value>) -> Result<(), DeclarationError
     }
 }
 
-// ---- step 6: types, enums, patterns, ranges -----------------------------------
+// ---- step 6: types, enums, patterns, ranges, integer domain -------------------
+
+/// Detail for an integer token outside the I-JSON safe range. It names
+/// the constraint and never the value: the token may sit in `config`.
+const INTEGER_DOMAIN_DETAIL: &str = "integer exceeds 2^53 - 1 and has no RFC 8785 canonical form; \
+                                     string-encode 64-bit values, see spec §4.4";
+
+/// Step 6 over the whole document, `config` values and `extensions`
+/// included: the JSON pointer of every integer-syntax number token
+/// whose magnitude exceeds 2^53 - 1 ([`canonical::MAX_SAFE_INTEGER`]),
+/// in document order. A float-syntax token (`.`, `e` or `E`) is a
+/// double and passes. The scan runs on the text rather than the parsed
+/// value because `serde_json` turns a literal beyond i64/u64 into an
+/// `f64`, after which the value cannot tell an integer token from a
+/// double (the same reason [`canonical::scan_raw_integer_domain`]
+/// exists). The text has already parsed under [`parse_checked`], so
+/// the lexer assumes valid JSON with a bounded nesting depth.
+fn scan_integer_tokens(text: &str) -> Vec<String> {
+    const LIMIT: &[u8] = b"9007199254740991"; // 2^53 - 1, 16 digits
+    enum Frame<'a> {
+        /// `key` is the raw, still escaped, body of the member key the
+        /// cursor is under; `want_key` while the next string is a key.
+        Object {
+            key: Option<&'a str>,
+            want_key: bool,
+        },
+        Array {
+            index: usize,
+        },
+    }
+    fn pointer_of(stack: &[Frame<'_>]) -> String {
+        let mut p = String::new();
+        for frame in stack {
+            match frame {
+                Frame::Object { key, .. } => {
+                    let raw = key.unwrap_or_default();
+                    // Decode the key's escapes the way the parser did,
+                    // then escape it the RFC 6901 way.
+                    let decoded: String = serde_json::from_str(&format!("\"{raw}\""))
+                        .unwrap_or_else(|_| raw.to_owned());
+                    p = ptr(&p, &decoded);
+                }
+                Frame::Array { index } => {
+                    p.push('/');
+                    p.push_str(&index.to_string());
+                }
+            }
+        }
+        p
+    }
+    let b = text.as_bytes();
+    let mut stack: Vec<Frame<'_>> = Vec::new();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            b'{' => {
+                stack.push(Frame::Object {
+                    key: None,
+                    want_key: true,
+                });
+                i += 1;
+            }
+            b'[' => {
+                stack.push(Frame::Array { index: 0 });
+                i += 1;
+            }
+            b'}' | b']' => {
+                stack.pop();
+                i += 1;
+            }
+            b',' => {
+                match stack.last_mut() {
+                    Some(Frame::Object { key, want_key }) => {
+                        *key = None;
+                        *want_key = true;
+                    }
+                    Some(Frame::Array { index }) => *index += 1,
+                    None => {}
+                }
+                i += 1;
+            }
+            b'"' => {
+                // Skip the string body, honouring backslash escapes.
+                let start = i + 1;
+                i += 1;
+                while i < b.len() {
+                    match b[i] {
+                        b'\\' => i += 2,
+                        b'"' => break,
+                        _ => i += 1,
+                    }
+                }
+                let end = i.min(b.len());
+                i += 1;
+                if let Some(Frame::Object { key, want_key }) = stack.last_mut() {
+                    if *want_key {
+                        *key = Some(&text[start..end]);
+                        *want_key = false;
+                    }
+                }
+            }
+            b'-' | b'0'..=b'9' => {
+                let start = i;
+                let mut integer_syntax = true;
+                while i < b.len() {
+                    match b[i] {
+                        b'0'..=b'9' | b'-' | b'+' => i += 1,
+                        b'.' | b'e' | b'E' => {
+                            integer_syntax = false;
+                            i += 1;
+                        }
+                        _ => break,
+                    }
+                }
+                if integer_syntax {
+                    let digits = &b[start..i];
+                    let digits = digits.strip_prefix(b"-").unwrap_or(digits);
+                    let over = digits.len() > LIMIT.len()
+                        || (digits.len() == LIMIT.len() && digits > LIMIT);
+                    if over {
+                        out.push(pointer_of(&stack));
+                    }
+                }
+            }
+            // Whitespace, `:` and the letters of `true`, `false`, `null`.
+            _ => i += 1,
+        }
+    }
+    out
+}
 
 struct Fields {
     out: Vec<Finding>,
@@ -1474,7 +1602,7 @@ impl Fields {
     }
 }
 
-fn check_fields(doc: &Map<String, Value>) -> Result<(), DeclarationError> {
+fn check_fields(doc: &Map<String, Value>, text: &str) -> Result<(), DeclarationError> {
     let mut f = Fields { out: Vec::new() };
     f.string(doc.get("$schema"), "/$schema");
     if let Some(id) = f.string(doc.get("id"), "/id") {
@@ -1724,6 +1852,15 @@ fn check_fields(doc: &Map<String, Value>) -> Result<(), DeclarationError> {
                     "extension keys must match ^[a-z][a-z0-9_]*$ (see spec §4.6)",
                 );
             }
+        }
+    }
+    // The whole document, `config` values included: an integer token
+    // outside ±(2^53 - 1) has no RFC 8785 form, so the resolved
+    // declaration could not canonicalise (§7.7.7). A member the range
+    // checks above already reported keeps its one finding.
+    for pointer in scan_integer_tokens(text) {
+        if !f.out.iter().any(|x| x.pointer == pointer) {
+            f.bad(pointer, INTEGER_DOMAIN_DETAIL);
         }
     }
     if f.out.is_empty() {
@@ -3024,6 +3161,110 @@ mod tests {
         let c = r.canonical_json();
         assert!(c.contains("\"max_buffered\":9007199254740991"));
         assert!(canonical::scan_raw_integer_domain(&c).is_ok());
+    }
+
+    #[test]
+    fn config_integer_at_the_bound_loads_and_canonicalises() {
+        // #129: `config` is opaque to the loader except for the integer
+        // domain. 2^53 - 1 loads on both paths and the resolved form is
+        // RFC 8785 output.
+        let mut v = minimal();
+        v["bindings"][0]["config"] = json!({
+            "key": MAX_BUFFERED_RECORDS,
+            "neg": -(MAX_BUFFERED_RECORDS as i64),
+            "list": [MAX_BUFFERED_RECORDS, {"deep": MAX_BUFFERED_RECORDS}]
+        });
+        let text = Value::Object(v.as_object().unwrap().clone()).to_string();
+        let r = load(v).unwrap();
+        let c = r.canonical_json();
+        assert!(c.contains("\"key\":9007199254740991"));
+        assert!(c.contains("\"neg\":-9007199254740991"));
+        assert!(canonical::scan_raw_integer_domain(&c).is_ok());
+        let d = HostDeclaration::from_json(&text).unwrap();
+        assert_eq!(resolve(&d, &surface(), &names()).unwrap(), r);
+        // Float syntax is a double, never an integer token (the syntax
+        // rule of `canonical::scan_raw_integer_domain`): it passes step
+        // 6 and canonicalises the way RFC 8785 formats doubles.
+        let text = r#"{"declaration":"agent-hooks-declaration/1.0","bindings":[{"id":"allow","kind":"com.example.allow","config":{"d":9007199254740993.0,"e":1.8446744073709552e19,"n":-1E2}}]}"#;
+        let d = HostDeclaration::from_json(text).unwrap();
+        let c = resolve(&d, &surface(), &names()).unwrap().canonical_json();
+        assert!(
+            c.contains("\"d\":9007199254740994,\"e\":18446744073709552000,\"n\":-100"),
+            "{c}"
+        );
+    }
+
+    #[test]
+    fn integer_above_the_bound_anywhere_is_invalid_field() {
+        // The value path: within u64, one above 2^53 - 1.
+        let mut v = minimal();
+        v["bindings"][0]["config"] = json!({"key": MAX_BUFFERED_RECORDS + 1});
+        let (c, p) = class_of(v);
+        assert_eq!(c, DeclarationErrorClass::InvalidField);
+        assert_eq!(p, ["/bindings/0/config/key"]);
+        // Negative, nested in arrays and objects, under `extensions`,
+        // and keys that RFC 6901 must escape. Every token is reported,
+        // in document order.
+        let mut v = minimal();
+        v["bindings"][0]["config"] = json!({"a/b": [1, {"~": -9007199254740992i64}]});
+        v["extensions"] = json!({"x": {"deep": [[9007199254740992u64]]}});
+        let (c, p) = class_of(v);
+        assert_eq!(c, DeclarationErrorClass::InvalidField);
+        assert_eq!(
+            p,
+            ["/bindings/0/config/a~1b/1/~0", "/extensions/x/deep/0/0"]
+        );
+        // The text path: a literal beyond u64, which serde parses as a
+        // double, found next to a string that mimics a number and
+        // under a key with a JSON escape. The detail never echoes the
+        // token.
+        let text = r#"{"declaration":"agent-hooks-declaration/1.0","bindings":[{"id":"allow","kind":"com.example.allow","config":{"s":"9007199254740992 \" {[","k\u00e9y":18446744073709551616,"ok":true}}]}"#;
+        let e = HostDeclaration::from_json(text).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::InvalidField);
+        let pointers: Vec<&str> = e.findings.iter().map(|f| f.pointer.as_str()).collect();
+        assert_eq!(pointers, ["/bindings/0/config/kéy"]);
+        assert!(!e.findings[0].detail.contains("18446744073709551616"));
+        assert!(e.findings[0].detail.contains("2^53"));
+        // A ranged member reports one finding, not one per check.
+        let mut v = minimal();
+        v["configuration"] = json!({"records": {"max_buffered": MAX_BUFFERED_RECORDS + 1}});
+        let (_, p) = class_of(v);
+        assert_eq!(p, ["/configuration/records/max_buffered"]);
+        let e = HostDeclaration::from_json(
+            r#"{"declaration":"agent-hooks-declaration/1.0","configuration":{"timeouts":{"interceptor_ms":18446744073709551616}},"bindings":[]}"#,
+        )
+        .unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::InvalidField);
+        assert_eq!(e.findings.len(), 1);
+        assert_eq!(
+            e.findings[0].pointer,
+            "/configuration/timeouts/interceptor_ms"
+        );
+        // Pipeline order holds: an unknown member (step 5) still wins.
+        let mut v = minimal();
+        v["policy"] = json!({});
+        v["bindings"][0]["config"] = json!({"key": MAX_BUFFERED_RECORDS + 1});
+        assert_eq!(class_of(v).0, DeclarationErrorClass::UnknownField);
+    }
+
+    #[test]
+    fn integer_scan_reads_tokens_as_written() {
+        // Strings, including keys, are skipped whatever they contain.
+        assert!(scan_integer_tokens(
+            r#"{"99999999999999999999":"18446744073709551616","s":"\"9007199254740992"}"#
+        )
+        .is_empty());
+        // Boundary on both signs; float syntax passes.
+        assert!(scan_integer_tokens(
+            r#"{"a":9007199254740991,"b":-9007199254740991,"c":9007199254740992.0,"d":1e400}"#
+        )
+        .is_empty());
+        assert_eq!(
+            scan_integer_tokens(
+                r#"{"a":9007199254740992,"b":[true,null,-9007199254740992],"c":{"":[{"x":1},{"x":99999999999999999999}]}}"#
+            ),
+            ["/a", "/b/2", "/c//1/x"]
+        );
     }
 
     #[test]

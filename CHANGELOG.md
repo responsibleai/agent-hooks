@@ -21,6 +21,15 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `latest` move is gone; the channel tag needs "Allow npm dist-tag"
   on each package's trusted publisher once (RELEASING.md). Install
   docs drop `@alpha`.
+- Host declaration (spec §7.7.6): an integer token above 2^53 - 1
+  anywhere in the document, binding `config` values included, is now
+  refused at load as `declaration_error:invalid_field` at the token's
+  JSON pointer. Such a document loaded before, but its resolved form
+  had no RFC 8785 canonical form: `canonical_json()` raised in .NET,
+  Go and Python and the Rust path wrote the integer verbatim. One rule
+  now covers the whole document and matches the `records.max_buffered`
+  bound. Vectors AH-CTK-142 (2^53 - 1 inside `config`, loads) and
+  AH-CTK-143 (2^53 inside `config`, refused) pin both sides. Additive.
 
 ## 0.1.0-beta.2 — 2026-10-13 — tag `v0.1.0-beta.2`
 

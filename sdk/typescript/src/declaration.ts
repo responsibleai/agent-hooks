@@ -550,9 +550,10 @@ export class HostRegistry {
  * fromDeclaration` does that. */
 export class HostDeclaration {
   /** `text` is the core's serialization of the validated document and
-   * is what every later core call receives, so integers beyond 2^53
-   * inside `bindings[].config` reach steps 8 to 10 as the file had
-   * them. `doc` is the JavaScript view of the same text. */
+   * is what every later core call receives. The loader refuses any
+   * integer token beyond 2^53 - 1 anywhere in the document (§7.7.6),
+   * so `doc`, the JavaScript view of the same text, carries every
+   * number exactly. */
   private constructor(
     private readonly doc: Record<string, JsonValue>,
     private readonly text: string,
@@ -663,8 +664,8 @@ export class HostDeclaration {
   }
 
   /** The validated document, verbatim (including `$schema`). A copy.
-   * Integers beyond 2^53 inside `bindings[].config` are rounded in this
-   * view; {@link HostDeclaration.toJson} keeps them exact. */
+   * Every integer in a validated document is within ±(2^53 - 1), so
+   * this view loses nothing against {@link HostDeclaration.toJson}. */
   toValue(): Record<string, JsonValue> {
     return JSON.parse(this.text) as Record<string, JsonValue>;
   }
