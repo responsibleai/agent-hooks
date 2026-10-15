@@ -367,11 +367,9 @@ jobs:
                 echo "$name@$V is not on npm (first publish failed soft above), no channel tag"
                 continue
               fi
-              # TODO: drop the `|| echo` fallback once "Allow npm dist-tag"
               # is enabled on the trusted publisher of every package; the
               # command must then fail the job.
-              npm dist-tag add "$name@$V" "$NPM_CHANNEL" \
-                || echo "::warning::dist-tag add failed; enable 'Allow npm dist-tag' on the trusted publisher for $name"
+              npm dist-tag add "$name@$V" "$NPM_CHANNEL"
             done
           fi
         working-directory: sdk/typescript
