@@ -60,9 +60,17 @@ pub fn context_identity(ctx_json: &str) -> Result<String, FfiError> {
 /// §5: validate an interceptor's wire return value. Returns the normalized
 /// verdict as JSON on success.
 pub fn validate_verdict(verdict_json: &str) -> Result<String, FfiError> {
-    let raw = parse_json(verdict_json, "verdict")?;
-    let v = verdict::from_wire(&raw).map_err(|(e, d)| err(e, d))?;
+    let v = verdict::from_json(verdict_json).map_err(|(e, d)| err(e, d))?;
     Ok(serde_json::to_string(&v).expect("verdict serialize"))
+}
+
+/// §5.5: accept a bare Verdict or transport envelope and return the
+/// normalized envelope form.
+pub fn normalize_interceptor_response(response_json: &str) -> Result<String, FfiError> {
+    let response =
+        crate::InterceptorResponse::from_json(response_json).map_err(|(e, d)| err(e, d))?;
+    Ok(serde_json::to_string(&response.to_envelope_value())
+        .expect("interceptor response serialize"))
 }
 
 /// §5.2: apply a transform path to a target. Returns the new target JSON.

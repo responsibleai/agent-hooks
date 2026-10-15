@@ -115,6 +115,12 @@ export interface Verdict {
   result_labels?: string[];
 }
 
+/** Optional hosted/cross-process response envelope (§5.5). */
+export interface InterceptorResponse {
+  verdict: Verdict;
+  extensions?: Record<string, JsonValue>;
+}
+
 /** Constructor sugar for the three-verdict vocabulary (§5.1). Merges
  * with the `Verdict` interface: `Verdict.warn(...)`, `Verdict.escalate(...)`. */
 export const Verdict = Object.freeze({
@@ -420,6 +426,25 @@ export function contextIdentity(ctx: AgentContext): string {
 /** §5: validate an interceptor's wire return value. Rust core. */
 export function validateVerdict(v: Verdict): void {
   native.validateVerdict(marshal(v));
+}
+
+/** Parse a bare Verdict or §5.5 response envelope. */
+export function parseInterceptorResponse(
+  value: JsonValue | string,
+): InterceptorResponse {
+  const wire = typeof value === "string" ? value : marshal(value);
+  return JSON.parse(native.normalizeInterceptorResponse(wire)) as InterceptorResponse;
+}
+
+/** Emit a bare Verdict when the response carries no transport metadata. */
+export function serializeInterceptorResponse(response: InterceptorResponse): JsonValue {
+  if (response.extensions == null || Object.keys(response.extensions).length === 0) {
+    return response.verdict as unknown as JsonValue;
+  }
+  return {
+    verdict: response.verdict as unknown as JsonValue,
+    extensions: response.extensions,
+  };
 }
 
 /** §5.2: apply a `$target`-rooted transform. Returns a new object. Rust core. */

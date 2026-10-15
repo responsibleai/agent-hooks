@@ -126,6 +126,7 @@ proptest! {
         let _ = ffi_surface::canonical_json(&s);
         let _ = ffi_surface::context_identity(&s);
         let _ = ffi_surface::validate_verdict(&s);
+        let _ = ffi_surface::normalize_interceptor_response(&s);
     }
 
     /// Differential: the CTK engine's dotted-path lookup agrees with

@@ -1,0 +1,176 @@
+{
+  "valid": [
+    {
+      "name": "receipt_safe_integer_and_exponent",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":{\"receipt\":{\"n\":9007199254740991,\"f\":1E2}}}}",
+      "normalized": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":{\"receipt\":{\"f\":100.0,\"n\":9007199254740991}}}}"
+    },
+    {
+      "name": "receipt_large_integer_string",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":{\"receipt\":{\"n\":\"18446744073709551616\"}}}}",
+      "normalized": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":{\"receipt\":{\"n\":\"18446744073709551616\"}}}}"
+    },
+    {
+      "name": "empty_receipt",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":{\"receipt\":{}}}}",
+      "normalized": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":{\"receipt\":{}}}}"
+    },
+    {
+      "name": "omitted_transform_value",
+      "input": "{\"verdict\":{\"decision\":\"transform\",\"transform\":{\"path\":\"$target\"}},\"extensions\":{\"provider\":{\"receipt\":{}}}}",
+      "normalized": "{\"verdict\":{\"decision\":\"transform\",\"transform\":{\"path\":\"$target\"}},\"extensions\":{\"provider\":{\"receipt\":{}}}}"
+    },
+    {
+      "name": "bare_allow",
+      "input": "{\"decision\":\"allow\"}",
+      "normalized": "{\"verdict\":{\"decision\":\"allow\"}}"
+    },
+    {
+      "name": "provider_receipt",
+      "input": "{\"verdict\":{\"decision\":\"deny\",\"reason\":\"policy_denied\"},\"extensions\":{\"provider\":{\"receipt\":{\"receiptVersion\":\"provider/1.0\",\"evaluationId\":\"evaluation-1\"}}}}",
+      "normalized": "{\"verdict\":{\"decision\":\"deny\",\"reason\":\"policy_denied\"},\"extensions\":{\"provider\":{\"receipt\":{\"evaluationId\":\"evaluation-1\",\"receiptVersion\":\"provider/1.0\"}}}}"
+    },
+    {
+      "name": "namespaced_extensions",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider_name\":{\"requestId\":\"request-1\"}}}",
+      "normalized": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider_name\":{\"requestId\":\"request-1\"}}}"
+    },
+    {
+      "name": "verdict_only_envelope",
+      "input": "{\"verdict\":{\"decision\":\"allow\"}}",
+      "normalized": "{\"verdict\":{\"decision\":\"allow\"}}"
+    },
+    {
+      "name": "empty_extensions",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{}}",
+      "normalized": "{\"verdict\":{\"decision\":\"allow\"}}"
+    },
+    {
+      "name": "two_provider_receipts",
+      "input": "{\"verdict\":{\"decision\":\"deny\",\"reason\":\"policy\"},\"extensions\":{\"provider\":{\"receipt\":{\"decision\":\"allow\"}},\"second\":{\"receipt\":null}}}",
+      "normalized": "{\"verdict\":{\"decision\":\"deny\",\"reason\":\"policy\"},\"extensions\":{\"provider\":{\"receipt\":{\"decision\":\"allow\"}},\"second\":{\"receipt\":null}}}"
+    },
+    {
+      "name": "opaque_namespace_values",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":null,\"second\":[1,true,\"opaque\"]}}",
+      "normalized": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":null,\"second\":[1,true,\"opaque\"]}}"
+    }
+  ],
+  "invalid_error": "host_error:verdict_invalid",
+  "metadata_bounds": [
+    { "name": "metadata_at_limit", "padding": 65503, "second_provider": false, "bytes": 65536, "valid": true },
+    { "name": "metadata_over_limit", "padding": 65504, "second_provider": false, "bytes": 65537, "valid": false },
+    { "name": "metadata_sum_at_limit", "padding": 65491, "second_provider": true, "bytes": 65536, "valid": true },
+    { "name": "metadata_sum_over_limit", "padding": 65492, "second_provider": true, "bytes": 65537, "valid": false }
+  ],
+  "invalid": [
+    {
+      "name": "receipt_integer_beyond_u64",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":{\"receipt\":{\"n\":18446744073709551616}}}}"
+    },
+    {
+      "name": "receipt_integer_beyond_safe_range",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":{\"receipt\":{\"n\":9007199254740993}}}}"
+    },
+    {
+      "name": "extension_integer_beyond_safe_range",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":{\"n\":9007199254740993}}}"
+    },
+    {
+      "name": "bare_verdict_unknown_member",
+      "input": "{\"decision\":\"allow\",\"foo\":1}"
+    },
+    {
+      "name": "duplicate_bare_verdict_member",
+      "input": "{\"decision\":\"allow\",\"decision\":\"deny\"}"
+    },
+    {
+      "name": "duplicate_nested_verdict_member",
+      "input": "{\"verdict\":{\"decision\":\"allow\",\"decision\":\"deny\"}}"
+    },
+    {
+      "name": "duplicate_receipt_member",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":{\"receipt\":{\"nested\":{\"n\":1,\"n\":2}}}}}"
+    },
+    {
+      "name": "duplicate_extension_member",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"provider\":{\"n\":1,\"n\":2}}}"
+    },
+    {
+      "name": "non_object_verdict",
+      "input": "{\"verdict\":\"allow\"}"
+    },
+    {
+      "name": "nested_verdict_invalid_decision",
+      "input": "{\"verdict\":{\"decision\":\"warn\"}}"
+    },
+    {
+      "name": "nested_verdict_transform_without_body",
+      "input": "{\"verdict\":{\"decision\":\"transform\"}}"
+    },
+    {
+      "name": "nested_verdict_host_error_reason",
+      "input": "{\"verdict\":{\"decision\":\"deny\",\"reason\":\"host_error:verdict_invalid\"}}"
+    },
+    {
+      "name": "null_extensions",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":null}"
+    },
+    {
+      "name": "legacy_root_receipt",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"receipt\":{}}"
+    },
+    {
+      "name": "legacy_root_receipt_with_extensions",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"receipt\":{},\"extensions\":{\"provider\":{}}}"
+    },
+    {
+      "name": "invalid_json",
+      "input": "{\"verdict\":"
+    },
+    {
+      "name": "unknown_warning_member",
+      "input": "{\"verdict\":{\"decision\":\"allow\",\"warnings\":[{\"transport\":\"discarded\"}]}}"
+    },
+    {
+      "name": "unknown_transform_member",
+      "input": "{\"verdict\":{\"decision\":\"transform\",\"transform\":{\"path\":\"$target\",\"value\":1,\"unexpected\":true}}}"
+    },
+    {
+      "name": "unknown_evidence_member",
+      "input": "{\"verdict\":{\"decision\":\"allow\",\"evidence\":{\"unexpected\":true}}}"
+    },
+    {
+      "name": "unknown_root_member",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"transport\":{}}"
+    },
+    {
+      "name": "root_decision_and_verdict",
+      "input": "{\"decision\":\"allow\",\"verdict\":{\"decision\":\"allow\"}}"
+    },
+    {
+      "name": "bare_verdict_with_receipt",
+      "input": "{\"decision\":\"allow\",\"receipt\":{}}"
+    },
+    {
+      "name": "nested_verdict_unknown_member",
+      "input": "{\"verdict\":{\"decision\":\"allow\",\"transport\":{}}}"
+    },
+    {
+      "name": "missing_verdict",
+      "input": "{\"extensions\":{\"provider\":{}}}"
+    },
+    {
+      "name": "non_object_extensions",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":\"opaque\"}"
+    },
+    {
+      "name": "invalid_extension_namespace",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"extensions\":{\"Provider-Name\":{}}}"
+    },
+    {
+      "name": "duplicate_root_member",
+      "input": "{\"verdict\":{\"decision\":\"allow\"},\"verdict\":{\"decision\":\"deny\"}}"
+    }
+  ]
+}

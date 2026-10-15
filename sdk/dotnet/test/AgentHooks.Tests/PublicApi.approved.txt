@@ -65,6 +65,8 @@ sealed record class BindingContext : IEquatable<BindingContext>
     string Kind { get; init; }
     void Deconstruct(out string Id, out string Kind, out IReadOnlySet<InterceptionPoint> At, out TimeSpan? Timeout, out HostInfo? Host, out string DeclarationVersion)
 static class Canonical
+    static InterceptorResponse ParseInterceptorResponse(JsonNode response)
+    static InterceptorResponse ParseInterceptorResponse(string responseJson)
     static JsonNode? ApplyTransform(JsonNode? target, string path, JsonNode? value)
     static JsonObject ApplyTransformCtx(AgentContext ctx, string path, JsonNode? value)
     static JsonObject ComposeAggregate(CompositionConfig composition, JsonArray verdicts)
@@ -349,6 +351,18 @@ sealed record class InterceptionRecord : IEquatable<InterceptionRecord>
     string? Timestamp { get; init; }
     void Deconstruct(out InterceptionPoint InterceptionPoint, out EnforcementMode Mode, out Verdict Verdict, out string? InputIdentity, out string? EnforcedIdentity, out string? IdentityProvider, out string SessionId, out long Sequence, out int? DecidedBy, out CompositionConfig Composition, out IReadOnlyList<VerdictSummary> Verdicts, out bool? FoldTruncated, out string? ResolvedBy, out int InterceptorsRegistered, out string? Timestamp, out TraceContext? Trace, out string? Declaration)
     void Deconstruct(out InterceptionPoint interceptionPoint, out EnforcementMode mode, out Verdict verdict, out string? inputIdentity, out string? enforcedIdentity, out string? identityProvider, out string sessionId, out long sequence, out int? decidedBy, out CompositionConfig composition, out IReadOnlyList<VerdictSummary> verdicts, out bool? foldTruncated, out string? resolvedBy, out int interceptorsRegistered, out string? timestamp, out TraceContext? trace)
+sealed record class InterceptorResponse : IEquatable<InterceptorResponse>
+    InterceptorResponse(Verdict Verdict, JsonObject? Extensions = null)
+    JsonNode ToWire()
+    JsonObject? Extensions { get; init; }
+    Verdict Verdict { get; init; }
+    bool Equals(InterceptorResponse? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(InterceptorResponse? left, InterceptorResponse? right)
+    static bool operator ==(InterceptorResponse? left, InterceptorResponse? right)
+    void Deconstruct(out Verdict Verdict, out JsonObject? Extensions)
 delegate IInterceptor KindResolver(JsonNode? config, BindingContext context)
 sealed record class KnobSupport : IEquatable<KnobSupport>
     IReadOnlySet<string> OnApproval { get; init; }

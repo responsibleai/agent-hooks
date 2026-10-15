@@ -54,6 +54,8 @@ export declare function declarationVersions(): string
 
 export declare function finalize(ctxJson: string, verdictJson: string, mode: string, optionsJson: string): string
 
+export declare function normalizeInterceptorResponse(responseJson: string): string
+
 export declare function specVersion(): string
 
 /** §4/§6.3: envelope validation (fail closed, value-free detail). */

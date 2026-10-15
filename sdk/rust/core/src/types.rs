@@ -182,6 +182,7 @@ pub struct Transform {
 
 /// Opaque pointer to an offline-verifiable artefact (§5.3).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Evidence {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artefact: Option<String>,

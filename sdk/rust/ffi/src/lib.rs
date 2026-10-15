@@ -173,6 +173,18 @@ pub unsafe extern "C" fn ah_validate_verdict(verdict_json: *const c_char) -> *mu
     guarded(move || core::validate_verdict(a?).map_err(core_err))
 }
 
+/// §5.5 hosted/cross-process response normalization.
+///
+/// # Safety
+/// `response_json` must be null or a valid NUL-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn ah_normalize_interceptor_response(
+    response_json: *const c_char,
+) -> *mut AhResult {
+    let a = from_c(response_json, "response_json");
+    guarded(move || core::normalize_interceptor_response(a?).map_err(core_err))
+}
+
 /// §4/§6.3: envelope validation. Ok(empty string) on a valid envelope;
 /// the error detail is value-free.
 ///
@@ -560,6 +572,12 @@ mod tests {
             let (ok, value, _) = call1(ah_canonical_json, br#"{"b":1,"a":2}"#);
             assert_eq!(ok, 1);
             assert_eq!(value, r#"{"a":2,"b":1}"#);
+            let (ok, value, _) = call1(
+                ah_normalize_interceptor_response,
+                br#"{"decision":"allow"}"#,
+            );
+            assert_eq!(ok, 1);
+            assert_eq!(value, r#"{"verdict":{"decision":"allow"}}"#);
         }
     }
 }

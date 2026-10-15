@@ -56,6 +56,9 @@ internal static partial class Native
     private static partial IntPtr ah_validate_verdict(string verdictJson);
 
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
+    private static partial IntPtr ah_normalize_interceptor_response(string responseJson);
+
+    [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
     private static partial IntPtr ah_validate_envelope(string ctxJson);
 
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
@@ -119,6 +122,8 @@ internal static partial class Native
     internal static string CanonicalJson(string valueJson) => Unwrap(ah_canonical_json(valueJson));
     internal static string ContextIdentity(string ctxJson) => Unwrap(ah_context_identity(ctxJson));
     internal static string ValidateVerdict(string verdictJson) => Unwrap(ah_validate_verdict(verdictJson));
+    internal static string NormalizeInterceptorResponse(string responseJson) =>
+        Unwrap(ah_normalize_interceptor_response(responseJson));
 
     /// <summary>§4/§6.3 envelope validation (fail closed, value-free detail).</summary>
     internal static string ValidateEnvelope(string ctxJson) => Unwrap(ah_validate_envelope(ctxJson));

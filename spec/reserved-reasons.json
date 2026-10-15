@@ -18,7 +18,7 @@
     },
     {
       "id": "host_error:verdict_invalid",
-      "cause": "An interceptor returned a value that fails §5 validation."
+      "cause": "An interceptor returned a value that fails §5 validation, or a transport response fails §5.5 envelope validation."
     },
     {
       "id": "host_error:transform_invalid",

@@ -61,7 +61,9 @@ as the Agent Control Specification (ACS).
 This specification is a control plane, not a telemetry plane. It does NOT
 define a passive observation, tracing, or metrics interface. Every
 registered interceptor MUST return a `Verdict`; an interceptor that has no
-control decision to make returns `allow`. A host MAY surface `AgentContext`
+control decision to make returns `allow`. Section 5.5 describes a separate
+transport envelope whose Verdict an in-process adapter extracts before returning.
+A host MAY surface `AgentContext`
 to its own telemetry, but that is outside this contract.
 
 ### 1.2 Key words
@@ -417,7 +419,8 @@ own.
 [Pure Specification]
 
 An interceptor MUST return a JSON object conforming to
-`spec/schema/verdict.schema.json`.
+`spec/schema/verdict.schema.json`. Section 5.5 describes an optional
+transport wrapper; it does not change this in-process return contract.
 
 ```jsonc
 {
@@ -529,6 +532,84 @@ them as `extensions.<interceptor-namespace>.source_labels` on later hooks whose
 `target` derives from that data. A host MUST NOT persist `result_labels` for an
 action that did not proceed (a `deny` that was not lifted).
 
+### 5.5 Transport response envelope
+
+> Adopted under P-006 on 2026-10-15 as part of the 0.1 contract.
+
+[Pure Specification]
+
+The canonical in-process interceptor return remains a §5 `Verdict`.
+A hosted or cross-process interceptor transport MAY return an
+`InterceptorResponse` envelope when it needs to carry response data
+alongside the control decision:
+
+```jsonc
+{
+  "verdict": <canonical Verdict>,
+  "extensions": {                       // optional
+    "<namespace>": <any JSON>
+  }
+}
+```
+
+The machine-readable schema is
+`spec/schema/interceptor-response.schema.json`. The envelope root is
+closed: only `verdict` and `extensions` are permitted.
+`verdict` is REQUIRED and MUST pass every §5 rule. `extensions`, when
+present, MUST be a JSON object and uses the
+§4.6 namespace grammar and reservations (`acs`, `ctk`, `agent_hooks`).
+Providers MUST NOT
+use those namespaces for provider-specific data.
+When the response is received as JSON text, a duplicate member at any
+object level of the text, including inside `verdict` and
+`extensions`, is invalid. An already-parsed value cannot expose duplicates
+that its receiving parser has collapsed.
+
+The UTF-8 byte length of the RFC 8785 canonical form of the complete
+`extensions` object MUST NOT exceed 65536 bytes, including namespace keys
+and data across all providers. An absent member contributes zero;
+an explicitly present empty object contributes
+two bytes. This bound is independent of the §5.3 evidence cap of 10240
+bytes; neither bound includes the other field. SDK response parsers
+enforce this bound; JSON Schema cannot express canonical byte length.
+
+Extension data MUST satisfy the §4.4 I-JSON domain.
+Integer literals outside ±(2^53−1) MUST be rejected, not rounded;
+larger integers must be encoded as strings. SDKs re-serialize this
+data as I-JSON and do not preserve transport bytes or number spellings.
+Providers signing receipts MUST define and sign a canonical form.
+Receipts are provider data carried under `extensions.<provider>.receipt`,
+not a dedicated root member. Distinct provider namespaces prevent
+collisions and identify each field's producer; clients locating a receipt
+must know its provider's namespace.
+The envelope carries no version of its own: it uses the Agent Hooks
+wire version selected by the transport or evaluated `AgentContext.spec`.
+Provider receipt contracts may have their own versions.
+
+Only the nested `verdict` participates in §6–§9 enforcement and
+composition. A receipt or extension cannot alter the decision,
+approval, transform, warnings, evidence, or result labels. A transport
+selects the response gate through its documented API contract or adapter
+configuration; the in-process interceptor signature does not select it.
+A host using that gate MUST treat a malformed envelope as
+`{"decision": "deny", "reason": "host_error:verdict_invalid"}` per §6.3,
+even when its nested Verdict would be valid in isolation.
+
+SDKs expose two distinct gates:
+
+- the strict Verdict gate accepts only a §5 Verdict and continues to
+  reject an envelope;
+- the interceptor-response gate accepts either a bare §5 Verdict or
+  the envelope, normalizing a bare Verdict to
+  `{ "verdict": <that Verdict> }`.
+
+The in-process adapter extracts the normalized `verdict` before
+returning to the host emitter. Agent Hooks does not interpret or
+persist `extensions`, and they are not added to the
+payload-free §10.3 `InterceptionRecord`. Providers MAY define a
+stricter receipt schema and binding/signature rules outside this
+specification.
+
 ---
 
 ## 6. Host obligations
@@ -587,7 +668,7 @@ dispatching to any interceptor. Interceptor failures map one-to-one:
 | --- | --- |
 | The interceptor raises (or panics) | `deny` `host_error:interceptor_failed` |
 | The interceptor exceeds the host's timeout | `deny` `host_error:interceptor_timeout` |
-| The returned value fails §5 validation | `deny` `host_error:verdict_invalid` |
+| The returned value fails §5 validation (or §5.5 validation when the response gate is selected) | `deny` `host_error:verdict_invalid` |
 
 The substituted deny takes the failing interceptor's **slot**: it
 occupies that interceptor's position in the profile's composition
@@ -1516,7 +1597,7 @@ projection failure). An interceptor MUST NOT emit a
 | `host_error:context_invalid` | The host could not construct a schema-valid `AgentContext`, or the `jcs-sha256` provider rejected its value domain (§10.2). |
 | `host_error:interceptor_failed` | An interceptor raised or returned a non-JSON value. |
 | `host_error:interceptor_timeout` | An interceptor exceeded the host's timeout. |
-| `host_error:verdict_invalid` | An interceptor returned a value that fails §5 validation. |
+| `host_error:verdict_invalid` | An interceptor returned a value that fails §5 validation, or a transport response fails §5.5 envelope validation. |
 | `host_error:transform_invalid` | `transform.path` did not resolve or `value` could not be set. |
 | `host_error:transform_target_forbidden` | `transform.path` is not rooted at `$target`, or the interception point forbids transform. |
 | `host_error:transform_conflict` | Two or more transforms against the same snapshot in a parallel profile (§7.5). |

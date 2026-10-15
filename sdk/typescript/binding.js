@@ -792,6 +792,7 @@ module.exports.declarationResolveSurface = nativeBinding.declarationResolveSurfa
 module.exports.declarationValidate = nativeBinding.declarationValidate
 module.exports.declarationVersions = nativeBinding.declarationVersions
 module.exports.finalize = nativeBinding.finalize
+module.exports.normalizeInterceptorResponse = nativeBinding.normalizeInterceptorResponse
 module.exports.specVersion = nativeBinding.specVersion
 module.exports.validateEnvelope = nativeBinding.validateEnvelope
 module.exports.validateTransformCtx = nativeBinding.validateTransformCtx

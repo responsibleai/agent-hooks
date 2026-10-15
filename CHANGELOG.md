@@ -5,6 +5,29 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+- Spec §5.5 (adopted under P-006, Decided 2026-10-15) adds an optional hosted/cross-process
+  `InterceptorResponse` envelope:
+  `{verdict, extensions?}`. Canonical `Verdict`, in-process interceptor
+  signatures, composition and records are unchanged. The envelope root is closed,
+  extensions use the existing namespace grammar and the complete extensions object
+  is bounded at 64 KiB canonical JSON. Provider receipts live under
+  `extensions.<provider>.receipt`; a dedicated root `receipt` is rejected.
+- Rust, Python, TypeScript, .NET and Go implement `InterceptorResponse` plus a normalizing
+  parser that accepts either a bare Verdict or the envelope. The Rust core remains the
+  source of truth through PyO3, napi-rs and the C ABI. Shared fixtures pin namespaced provider receipts,
+  multiple providers, strict root members, duplicate
+  rejection, I-JSON integers and exact metadata bounds. SDK tests expand the shared
+  boundary descriptors into extensions at and above 64 KiB. Empty receipts and safe
+  receipt numbers round-trip; omitted transform values are treated as null.
+- New schema `spec/schema/interceptor-response.schema.json`; Python's vendored schema
+  copy is kept in sync. The .NET public API snapshot includes the additive response
+  type and parser overloads.
+- The strict Verdict gate now rejects unknown root/nested members and duplicate JSON
+  members, matching the response gate and the closed Verdict schema. Both gates reject
+  excessive nesting; response metadata rejects unsafe integer literals. Existing
+  transform-value validation and its error reasons are unchanged. Invalid result JSON
+  maps to `host_error:verdict_invalid`.
+
 - Repository: every source file now starts with the standard Microsoft
   open source header, `Copyright (c) Microsoft. All rights reserved.`,
   in the language's comment style, and CI enforces it: ruff's CPY001

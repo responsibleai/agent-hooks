@@ -402,6 +402,28 @@ public readonly struct AgentContext(JsonObject json)
     public static implicit operator AgentContext(JsonObject json) => new(json);
 }
 
+/// <summary>Optional hosted/cross-process response envelope (§5.5).</summary>
+public sealed record InterceptorResponse(
+    Verdict Verdict,
+    JsonObject? Extensions = null)
+{
+    /// <summary>Emit a bare Verdict when no transport metadata is present.</summary>
+    public JsonNode ToWire()
+    {
+        if (Extensions is null || Extensions.Count == 0)
+            return Verdict.ToWire();
+        return new JsonObject
+        {
+            ["verdict"] = Verdict.ToWire(),
+            ["extensions"] = Extensions.DeepClone(),
+        };
+    }
+
+    internal static InterceptorResponse FromWire(JsonObject value) => new(
+        Verdict.FromWire(value["verdict"]!.AsObject()),
+        value["extensions"] as JsonObject);
+}
+
 /// <summary>Payload-free per-interceptor summary on the record (§10.3).</summary>
 public sealed record VerdictSummary(
     int Index, Decision Decision, string? Reason = null, string? Name = null)

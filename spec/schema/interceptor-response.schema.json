@@ -1,0 +1,31 @@
+{
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interceptor-response.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Hooks — interceptor response",
+  "description": "Response envelope adopted under P-006 (Decided 2026-10-15) as part of the 0.1 contract (§5.5). Bare Verdict remains valid; transport metadata never changes enforcement.",
+  "oneOf": [
+    {
+      "$ref": "verdict.schema.json"
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verdict"
+      ],
+      "properties": {
+        "verdict": {
+          "$ref": "verdict.schema.json"
+        },
+        "extensions": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "additionalProperties": true,
+          "description": "Opaque namespaced transport metadata (§4.6), including provider receipts under extensions.<provider>.receipt. Canonical extensions are bounded at 65536 bytes (§5.5)."
+        }
+      }
+    }
+  ]
+}

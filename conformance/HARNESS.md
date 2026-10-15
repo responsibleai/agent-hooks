@@ -17,6 +17,19 @@ The CTK runner handles everything else: loading vectors, building the
 scripted interceptor/resolver, validating every recorded context against the full §4 envelope (required-core types plus per-point conditional fields — the same check the emitters run), and asserting
 `expect`.
 
+## Hosted response fixtures
+
+`conformance/golden/interceptor-response.json` pins the decided P-006 response
+parser in all five SDKs, separately from host CTK execution. Raw JSON cases cover
+closed members, duplicates at every object level, nested Verdict semantics,
+namespaced receipts, legacy root-receipt rejection and unsafe integer literals.
+Invalid cases share the `host_error:verdict_invalid` code. `metadata_bounds`
+describes generated extensions: each SDK expands `padding` into the value of
+`extensions.provider.receipt.p`, optionally adds `extensions.second: {}` when
+`second_provider` is true, checks the canonical byte count of the complete
+extensions object, and checks acceptance.
+This avoids embedding repeated 64 KiB strings in the golden file.
+
 ## Interface (per language)
 
 The exact signature is defined per SDK. The Python shape is canonical:

@@ -37,6 +37,9 @@ AhResult *ah_context_identity(const char *ctx_json);
  * Ok value is the empty string. */
 AhResult *ah_validate_envelope(const char *ctx_json);
 AhResult *ah_validate_verdict(const char *verdict_json);
+/* Section 5.5: accepts a bare Verdict or InterceptorResponse and returns
+ * the normalized envelope form. */
+AhResult *ah_normalize_interceptor_response(const char *response_json);
 AhResult *ah_apply_transform(const char *target_json, const char *path,
                              const char *value_json);
 AhResult *ah_apply_transform_ctx(const char *ctx_json, const char *path,

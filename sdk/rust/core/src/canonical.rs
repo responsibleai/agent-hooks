@@ -236,7 +236,7 @@ fn interception_point_str(ctx: &AgentContext) -> Result<&str, (HostError, String
 /// text (where serde coerces them to f64) and are caught earlier by
 /// [`scan_raw_integer_domain`] at the parse funnels. Recursion here is
 /// bounded because [`check_depth`] runs first.
-fn check_i_json(v: &Value, path: &str) -> Result<(), (HostError, String)> {
+pub(crate) fn check_i_json(v: &Value, path: &str) -> Result<(), (HostError, String)> {
     match v {
         Value::Number(n) => {
             let out_of_range = match (n.as_u64(), n.as_i64()) {

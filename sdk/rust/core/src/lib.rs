@@ -66,6 +66,7 @@ mod emitter;
 mod enforce;
 mod jcs;
 mod path;
+mod response;
 mod types;
 mod verdict;
 
@@ -88,6 +89,7 @@ pub use declaration::{
 pub use emitter::{HostFailure, IdentityProvider, InterceptionBlocked, InterceptionEmitter};
 pub use enforce::{apply_transform_to_ctx, finalize, validate_transform, FinalizeMeta};
 pub use path::{apply as apply_transform_path, parse as parse_transform_path, resolve, Segment};
+pub use response::{InterceptorResponse, RESPONSE_METADATA_MAX_BYTES};
 pub use types::{
     AgentContext, ApprovalOutcome, ApprovalRequest, ApprovalResolution, ApprovalResolver, Decision,
     EnforcementMode, Evidence, HostError, InterceptionPoint, InterceptionRecord, Interceptor,

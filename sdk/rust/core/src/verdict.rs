@@ -5,14 +5,56 @@
 use crate::types::{Decision, Evidence, HostError, Transform, Verdict, Warning};
 use serde_json::Value;
 
+/// Parse a strict Verdict without discarding duplicate object members.
+pub fn from_json(text: &str) -> Result<Verdict, (HostError, String)> {
+    let raw = crate::response::parse_checked(text)?;
+    from_wire(&raw)
+}
+
+pub(crate) fn check_json_domain(raw: &Value) -> Result<(), (HostError, String)> {
+    crate::canonical::check_depth(raw).map_err(|_| {
+        (
+            HostError::VerdictInvalid,
+            "result exceeds the JSON nesting limit (§12.3)".into(),
+        )
+    })
+}
+
+fn require_members(
+    value: &serde_json::Map<String, Value>,
+    allowed: &[&str],
+) -> Result<(), (HostError, String)> {
+    if value.keys().any(|key| !allowed.contains(&key.as_str())) {
+        return Err((
+            HostError::VerdictInvalid,
+            "verdict contains an unknown member (§5)".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Parse and validate an interceptor's wire return value into a `Verdict`
 /// per §5. Any violation yields `HostError::VerdictInvalid` with a detail
 /// message; the caller synthesizes the `deny` verdict.
 pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
+    check_json_domain(raw)?;
     let obj = raw.as_object().ok_or((
         HostError::VerdictInvalid,
         "verdict must be a JSON object".into(),
     ))?;
+    require_members(
+        obj,
+        &[
+            "decision",
+            "reason",
+            "message",
+            "warnings",
+            "approval",
+            "transform",
+            "evidence",
+            "result_labels",
+        ],
+    )?;
 
     let decision = match obj.get("decision").and_then(Value::as_str) {
         Some("allow") => Decision::Allow,
@@ -45,6 +87,7 @@ pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
             .iter()
             .map(|w| match w {
                 Value::Object(m) => {
+                    require_members(m, &["reason", "message"])?;
                     let reason = match m.get("reason") {
                         None | Some(Value::Null) => None,
                         Some(Value::String(s)) if !s.starts_with("host_error:") => Some(s.clone()),
@@ -103,6 +146,7 @@ pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
     let transform = match obj.get("transform") {
         None | Some(Value::Null) => None,
         Some(Value::Object(t)) => {
+            require_members(t, &["path", "value"])?;
             let path = t
                 .get("path")
                 .and_then(Value::as_str)
@@ -155,10 +199,13 @@ pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
 
     let evidence = match obj.get("evidence") {
         None | Some(Value::Null) => None,
-        Some(Value::Object(_)) => Some(
-            serde_json::from_value::<Evidence>(obj["evidence"].clone())
-                .map_err(|e| (HostError::VerdictInvalid, format!("evidence: {e}")))?,
-        ),
+        Some(Value::Object(object)) => {
+            require_members(object, &["artefact", "verification_pointers"])?;
+            Some(
+                serde_json::from_value::<Evidence>(obj["evidence"].clone())
+                    .map_err(|e| (HostError::VerdictInvalid, format!("evidence: {e}")))?,
+            )
+        }
         Some(_) => {
             return Err((
                 HostError::VerdictInvalid,

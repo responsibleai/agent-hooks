@@ -46,6 +46,11 @@ fn validate_verdict(py: Python<'_>, verdict_json: &str) -> PyResult<String> {
     core::validate_verdict(verdict_json).map_err(|e| map_err(py, e))
 }
 
+#[pyfunction]
+fn normalize_interceptor_response(py: Python<'_>, response_json: &str) -> PyResult<String> {
+    core::normalize_interceptor_response(response_json).map_err(|e| map_err(py, e))
+}
+
 /// §4/§6.3: envelope validation (fail closed, value-free detail).
 #[pyfunction]
 fn validate_envelope(py: Python<'_>, ctx_json: &str) -> PyResult<String> {
@@ -162,6 +167,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(canonical_json, m)?)?;
     m.add_function(wrap_pyfunction!(context_identity, m)?)?;
     m.add_function(wrap_pyfunction!(validate_verdict, m)?)?;
+    m.add_function(wrap_pyfunction!(normalize_interceptor_response, m)?)?;
     m.add_function(wrap_pyfunction!(validate_envelope, m)?)?;
     m.add_function(wrap_pyfunction!(apply_transform, m)?)?;
     m.add_function(wrap_pyfunction!(apply_transform_ctx, m)?)?;

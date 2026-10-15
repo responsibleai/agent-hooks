@@ -43,6 +43,17 @@ or whose interceptor raises, times out or returns an invalid verdict,
 denies with a reserved `host_error:*` reason (§6.3, §11). Zero
 registered interceptors in `enforce` mode denies too (§7).
 
+The decided [P-006](docs/proposals/P-006-interceptor-response-envelope.md)
+adds an optional response envelope for hosted transports:
+
+```json
+{ "verdict": { "decision": "allow" }, "extensions": { "provider": { "receipt": {} } } }
+```
+
+`Verdict` remains closed. The SDKs carry an interceptor-response parser that
+accepts either a bare Verdict or this envelope; only the nested Verdict participates in
+enforcement. The envelope is part of the 0.1 contract.
+
 ## Adopting it as a host
 
 A host builds one emitter, registers interceptors with it, and emits a

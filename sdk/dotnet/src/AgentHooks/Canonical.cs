@@ -28,6 +28,17 @@ public static class Canonical
     public static void ValidateVerdict(JsonNode verdict) =>
         Native.ValidateVerdict(verdict.ToJsonString(Compact));
 
+    /// <summary>§5.5: parse a bare Verdict or hosted response envelope.</summary>
+    public static InterceptorResponse ParseInterceptorResponse(JsonNode response) =>
+        InterceptorResponse.FromWire(
+            JsonNode.Parse(Native.NormalizeInterceptorResponse(response.ToJsonString(Compact)))!
+                .AsObject());
+
+    /// <summary>§5.5: parse raw JSON, preserving duplicate-member rejection.</summary>
+    public static InterceptorResponse ParseInterceptorResponse(string responseJson) =>
+        InterceptorResponse.FromWire(
+            JsonNode.Parse(Native.NormalizeInterceptorResponse(responseJson))!.AsObject());
+
     /// <summary>§5.2: apply a <c>$target</c>-rooted transform. Rust core.</summary>
     public static JsonNode? ApplyTransform(JsonNode? target, string path, JsonNode? value) =>
         JsonNode.Parse(Native.ApplyTransform(

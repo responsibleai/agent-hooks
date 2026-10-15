@@ -25,6 +25,7 @@ text. This package provides:
 
 from __future__ import annotations
 
+from agent_hooks._core import AgentHooksCoreError
 from agent_hooks._types import (
     ALLOW,
     DECLARATION_VERSION,
@@ -73,6 +74,7 @@ from agent_hooks.declaration import (
 from agent_hooks.emitter import EmitOutcome, IdentityProvider, InterceptionEmitter
 from agent_hooks.exceptions import EmitterSealed, InterceptionBlocked, InterceptionSuspended
 from agent_hooks.interceptor import Interceptor
+from agent_hooks.response import InterceptorResponse
 
 __all__ = [
     "ALLOW",
@@ -82,6 +84,7 @@ __all__ = [
     "SUPPORTED_DECLARATION_VERSIONS",
     "AgentContext",
     "AgentContextBuilder",
+    "AgentHooksCoreError",
     "ApprovalOutcome",
     "ApprovalRequest",
     "ApprovalResolution",
@@ -109,6 +112,7 @@ __all__ = [
     "InterceptionRecord",
     "InterceptionSuspended",
     "Interceptor",
+    "InterceptorResponse",
     "KindResolver",
     "KnobSupport",
     "OnApproval",

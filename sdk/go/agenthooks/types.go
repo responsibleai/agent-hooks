@@ -148,6 +148,43 @@ type Verdict struct {
 	ResultLabels []string       `json:"result_labels,omitempty"`
 }
 
+// InterceptorResponse is the optional hosted/cross-process envelope (§5.5).
+type InterceptorResponse struct {
+	Verdict    Verdict        `json:"verdict"`
+	Extensions map[string]any `json:"extensions,omitempty"`
+}
+
+// ParseInterceptorResponseJSON parses a bare Verdict or response envelope.
+// Raw JSON preserves duplicate-member rejection in the Rust core.
+func ParseInterceptorResponseJSON(raw []byte) (InterceptorResponse, error) {
+	normalized, err := nativeNormalizeInterceptorResponse(string(raw))
+	if err != nil {
+		return InterceptorResponse{}, err
+	}
+	var response InterceptorResponse
+	if err := json.Unmarshal([]byte(normalized), &response); err != nil {
+		return InterceptorResponse{}, err
+	}
+	return response, nil
+}
+
+// ParseInterceptorResponse marshals a Go value then applies the §5.5 gate.
+func ParseInterceptorResponse(value any) (InterceptorResponse, error) {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return InterceptorResponse{}, err
+	}
+	return ParseInterceptorResponseJSON(raw)
+}
+
+// ToWire emits a bare Verdict when no transport metadata is present.
+func (r InterceptorResponse) ToWire() any {
+	if len(r.Extensions) == 0 {
+		return r.Verdict
+	}
+	return r
+}
+
 // MarshalJSON preserves an empty-but-present approval block: `omitempty`
 // cannot distinguish nil (absent) from an empty map, but a liftable deny
 // is exactly a deny with an approval object that MAY be empty (§5.1).
