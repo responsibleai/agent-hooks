@@ -5,6 +5,16 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+- .NET SDK: `InterceptionEmitter.Register(IInterceptor, string?)` and the
+  sixteen-parameter `InterceptionRecord` constructor and `Deconstruct`
+  are back as forwarding overloads. 0.1.0-beta.2 added optional
+  parameters to both, which compiles against old source but breaks
+  assemblies built against 0.1.0-alpha.5 (`MissingMethodException` at
+  run time; the published Microsoft.Agents.AI.AgentHooks package hit
+  this). A test now pins the assembly's public surface in
+  `sdk/dotnet/test/AgentHooks.Tests/PublicApi.approved.txt`, so a
+  signature change has to update that file on purpose.
+
 - Release workflow: every npm package publishes under `latest`,
   pre-releases included, and a pre-release also gets a channel tag
   (`alpha`, `beta`, `rc` or `next`) from the workflow. The by-hand

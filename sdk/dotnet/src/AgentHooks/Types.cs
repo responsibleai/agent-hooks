@@ -471,6 +471,76 @@ public sealed record InterceptionRecord(
     TraceContext? Trace = null,
     string? Declaration = null)
 {
+    /// <summary>The constructor shape shipped in 0.1.0-alpha.5, before
+    /// <c>Declaration</c> existed. Kept for binary compatibility: an
+    /// assembly compiled against the sixteen-parameter constructor
+    /// binds to this exact signature. No parameter carries a default,
+    /// so source that omits trailing arguments still resolves to the
+    /// primary constructor without ambiguity.</summary>
+    public InterceptionRecord(
+        InterceptionPoint interceptionPoint,
+        EnforcementMode mode,
+        Verdict verdict,
+        string? inputIdentity,
+        string? enforcedIdentity,
+        string? identityProvider,
+        string sessionId,
+        long sequence,
+        int? decidedBy,
+        CompositionConfig composition,
+        IReadOnlyList<VerdictSummary> verdicts,
+        bool? foldTruncated,
+        string? resolvedBy,
+        int interceptorsRegistered,
+        string? timestamp,
+        TraceContext? trace)
+        : this(
+            interceptionPoint, mode, verdict, inputIdentity, enforcedIdentity,
+            identityProvider, sessionId, sequence, decidedBy, composition, verdicts,
+            foldTruncated, resolvedBy, interceptorsRegistered, timestamp, trace,
+            Declaration: null)
+    {
+    }
+
+    /// <summary>The sixteen-component deconstruction shipped in
+    /// 0.1.0-alpha.5, kept next to the compiler's seventeen-component
+    /// one for the same binary-compatibility reason.</summary>
+    public void Deconstruct(
+        out InterceptionPoint interceptionPoint,
+        out EnforcementMode mode,
+        out Verdict verdict,
+        out string? inputIdentity,
+        out string? enforcedIdentity,
+        out string? identityProvider,
+        out string sessionId,
+        out long sequence,
+        out int? decidedBy,
+        out CompositionConfig composition,
+        out IReadOnlyList<VerdictSummary> verdicts,
+        out bool? foldTruncated,
+        out string? resolvedBy,
+        out int interceptorsRegistered,
+        out string? timestamp,
+        out TraceContext? trace)
+    {
+        interceptionPoint = InterceptionPoint;
+        mode = Mode;
+        verdict = Verdict;
+        inputIdentity = InputIdentity;
+        enforcedIdentity = EnforcedIdentity;
+        identityProvider = IdentityProvider;
+        sessionId = SessionId;
+        sequence = Sequence;
+        decidedBy = DecidedBy;
+        composition = Composition;
+        verdicts = Verdicts;
+        foldTruncated = FoldTruncated;
+        resolvedBy = ResolvedBy;
+        interceptorsRegistered = InterceptorsRegistered;
+        timestamp = Timestamp;
+        trace = Trace;
+    }
+
     /// <summary>Whether the guarded action executes (§6, §8).</summary>
     public bool Proceeds => Mode == EnforcementMode.EvaluateOnly || Verdict.Decision.Permits();
 

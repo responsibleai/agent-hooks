@@ -1,0 +1,497 @@
+struct AgentContext
+    AgentContext(JsonObject json)
+    InterceptionPoint InterceptionPoint { get; }
+    JsonNode? this[string key] { get; }
+    JsonObject Json { get; }
+    static implicit operator AgentContext(JsonObject json)
+    static implicit operator JsonObject(AgentContext ctx)
+sealed class AgentContextBuilder
+    AgentContext AgentShutdown(string reason)
+    AgentContext AgentStartup(IEnumerable<string> toolsRegistered)
+    AgentContext Input(JsonNode? content, string role = "user")
+    AgentContext Output(JsonNode? content)
+    AgentContext PostModelCall(string modelId, JsonNode? content, JsonArray toolCalls, string finishReason, JsonObject? usage = null, string? requestId = null)
+    AgentContext PostToolCall(string callId, string name, JsonObject args, JsonNode? value, bool isError = false, double? durationMs = null)
+    AgentContext PreModelCall(string modelId, JsonArray messages, JsonArray? tools = null, string? requestId = null)
+    AgentContext PreToolCall(string callId, string name, JsonObject args)
+    AgentContextBuilder WithL2(string key, JsonNode? value)
+    AgentContextBuilder(string agentId, string framework, string sessionId, string? agentName = null, string? agentVersion = null, string? sessionStartedAt = null)
+sealed class AgentHooksCoreException : InvalidOperationException
+    AgentHooksCoreException(string code, string detail)
+    string Code { get; }
+    string Detail { get; }
+enum ApprovalOutcome : int
+    Approve = 0
+    Reject = 1
+    Unresolved = 2
+sealed record class ApprovalRequest : IEquatable<ApprovalRequest>
+    AgentContext Context { get; init; }
+    ApprovalRequest(string? ContextIdentity, InterceptionPoint InterceptionPoint, Verdict Verdict, AgentContext Context)
+    InterceptionPoint InterceptionPoint { get; init; }
+    Verdict Verdict { get; init; }
+    bool Equals(ApprovalRequest? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(ApprovalRequest? left, ApprovalRequest? right)
+    static bool operator ==(ApprovalRequest? left, ApprovalRequest? right)
+    string? ContextIdentity { get; init; }
+    void Deconstruct(out string? ContextIdentity, out InterceptionPoint InterceptionPoint, out Verdict Verdict, out AgentContext Context)
+sealed record class ApprovalResolution : IEquatable<ApprovalResolution>
+    ApprovalOutcome Outcome { get; init; }
+    ApprovalResolution(ApprovalOutcome Outcome, string? ContextIdentity, Verdict? Verdict = null)
+    Verdict? Verdict { get; init; }
+    bool Equals(ApprovalResolution? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(ApprovalResolution? left, ApprovalResolution? right)
+    static bool operator ==(ApprovalResolution? left, ApprovalResolution? right)
+    string? ContextIdentity { get; init; }
+    void Deconstruct(out ApprovalOutcome Outcome, out string? ContextIdentity, out Verdict? Verdict)
+sealed record class BindingContext : IEquatable<BindingContext>
+    BindingContext(string Id, string Kind, IReadOnlySet<InterceptionPoint> At, TimeSpan? Timeout, HostInfo? Host, string DeclarationVersion)
+    HostInfo? Host { get; init; }
+    IReadOnlySet<InterceptionPoint> At { get; init; }
+    TimeSpan? Timeout { get; init; }
+    bool Equals(BindingContext? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(BindingContext? left, BindingContext? right)
+    static bool operator ==(BindingContext? left, BindingContext? right)
+    string DeclarationVersion { get; init; }
+    string Id { get; init; }
+    string Kind { get; init; }
+    void Deconstruct(out string Id, out string Kind, out IReadOnlySet<InterceptionPoint> At, out TimeSpan? Timeout, out HostInfo? Host, out string DeclarationVersion)
+static class Canonical
+    static JsonNode? ApplyTransform(JsonNode? target, string path, JsonNode? value)
+    static JsonObject ApplyTransformCtx(AgentContext ctx, string path, JsonNode? value)
+    static JsonObject ComposeAggregate(CompositionConfig composition, JsonArray verdicts)
+    static JsonObject Finalize(AgentContext ctx, JsonNode verdict, EnforcementMode mode, JsonObject options)
+    static string ContextIdentity(AgentContext ctx)
+    static string Json(JsonNode? node)
+    static void ValidateTransformCtx(AgentContext ctx, string path, JsonNode? value)
+    static void ValidateVerdict(JsonNode verdict)
+sealed record class CompositionConfig : IEquatable<CompositionConfig>
+    CompositionConfig(CompositionProfile Profile, OnApproval? OnApproval = null, SynthesisPolicy? OnDisagreement = null, SynthesisPolicy? OnTransformConflict = null)
+    CompositionProfile Profile { get; init; }
+    JsonObject ToWire()
+    OnApproval? OnApproval { get; init; }
+    SynthesisPolicy? OnDisagreement { get; init; }
+    SynthesisPolicy? OnTransformConflict { get; init; }
+    bool Equals(CompositionConfig? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static CompositionConfig FirstDeny(OnApproval onApproval)
+    static CompositionConfig FromWire(JsonObject o)
+    static CompositionConfig RunAll()
+    static CompositionConfig Strictest(SynthesisPolicy onTransformConflict)
+    static CompositionConfig Unanimous(SynthesisPolicy onDisagreement, SynthesisPolicy onTransformConflict)
+    static bool operator !=(CompositionConfig? left, CompositionConfig? right)
+    static bool operator ==(CompositionConfig? left, CompositionConfig? right)
+    static readonly CompositionConfig Default
+    void Deconstruct(out CompositionProfile Profile, out OnApproval? OnApproval, out SynthesisPolicy? OnDisagreement, out SynthesisPolicy? OnTransformConflict)
+enum CompositionProfile : int
+    SequentialFirstDeny = 0
+    SequentialRunAll = 1
+    ParallelStrictest = 2
+    ParallelUnanimous = 3
+static class CompositionProfileExtensions
+    static CompositionProfile FromWireName(string s)
+    static bool IsSequential(this CompositionProfile p)
+    static string ToWireName(this CompositionProfile p)
+enum Decision : int
+    Allow = 0
+    Deny = 1
+    Transform = 2
+static class DecisionExtensions
+    static Decision FromWireName(string s)
+    static bool Permits(this Decision d)
+    static string ToWireName(this Decision d)
+static class Declaration
+    const int MaxDetailLength = 512
+    const int MaxDocumentBytes = 1048576
+    const string Version = "agent-hooks-declaration/1.0"
+    static readonly IReadOnlyList<string> Capabilities
+    static readonly IReadOnlyList<string> SupportedVersions
+sealed class DeclarationBuilder
+    DeclarationBuilder ApprovalRedactor(string? name)
+    DeclarationBuilder ApprovalResolver(string? name)
+    DeclarationBuilder ApprovalResolverTimeoutMs(long? ms)
+    DeclarationBuilder Bind(string id, string kind, IEnumerable<InterceptionPoint>? at = null, long? timeoutMs = null, bool unbounded = false)
+    DeclarationBuilder Bind(string id, string kind, JsonNode? config, IEnumerable<InterceptionPoint>? at = null, long? timeoutMs = null, bool unbounded = false)
+    DeclarationBuilder BufferedOutput(bool buffered, string? exposureBound = null)
+    DeclarationBuilder Composition(CompositionConfig composition)
+    DeclarationBuilder Extension(string key, JsonNode? value)
+    DeclarationBuilder Host(string name, string? version = null)
+    DeclarationBuilder Id(string id)
+    DeclarationBuilder IdentityProvider(string? name)
+    DeclarationBuilder InterceptorTimeoutMs(long? ms)
+    DeclarationBuilder MaxBufferedRecords(long? count)
+    DeclarationBuilder Mode(EnforcementMode mode)
+    DeclarationBuilder Raw(string key, JsonNode? value)
+    DeclarationBuilder Spec(string spec)
+    DeclarationBuilder SurfaceCapabilities(IEnumerable<string> capabilities)
+    DeclarationBuilder SurfaceDeclarationVersions(IEnumerable<string> versions)
+    DeclarationBuilder SurfacePoints(IEnumerable<InterceptionPoint> points)
+    DeclarationBuilder SurfaceProfile(CompositionProfile profile, KnobSupport knobs)
+    DeclarationBuilder ToolSeamHostError(ToolSeamPosture posture)
+    DeclarationBuilder Version(string version)
+    DeclarationBuilder()
+    HostDeclaration Build()
+    JsonObject ToNode()
+    static DeclarationBuilder Empty()
+enum DeclarationErrorClass : int
+    Unreadable = 0
+    Malformed = 1
+    VersionUnsupported = 2
+    SpecUnsupported = 3
+    UnknownField = 4
+    InvalidField = 5
+    Inconsistent = 6
+    SurfaceUnsupported = 7
+    ReferenceUnresolved = 8
+    KindUnknown = 9
+    BindingRejected = 10
+static class DeclarationErrorClassExtensions
+    static DeclarationErrorClass? FromCode(string s)
+    static string ToCode(this DeclarationErrorClass c)
+    static string ToWireName(this DeclarationErrorClass c)
+sealed class DeclarationException : Exception
+    DeclarationErrorClass Class { get; }
+    DeclarationException(DeclarationErrorClass errorClass, IReadOnlyList<DeclarationFinding> findings, IReadOnlyList<string>? accepted = null)
+    DeclarationException(DeclarationErrorClass errorClass, string pointer, string detail)
+    IReadOnlyList<DeclarationFinding> Findings { get; }
+    IReadOnlyList<string> Accepted { get; }
+    JsonObject ToWire()
+    string Code { get; }
+sealed record class DeclarationFinding : IEquatable<DeclarationFinding>
+    DeclarationFinding(string Pointer, string Detail)
+    bool Equals(DeclarationFinding? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(DeclarationFinding? left, DeclarationFinding? right)
+    static bool operator ==(DeclarationFinding? left, DeclarationFinding? right)
+    string Detail { get; init; }
+    string Pointer { get; init; }
+    void Deconstruct(out string Pointer, out string Detail)
+sealed record class EmitOutcome : IEquatable<EmitOutcome>
+    EmitOutcome(InterceptionRecord Record, JsonNode? Target)
+    InterceptionRecord Record { get; init; }
+    JsonNode? Target { get; init; }
+    bool Equals(EmitOutcome? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(EmitOutcome? left, EmitOutcome? right)
+    static bool operator ==(EmitOutcome? left, EmitOutcome? right)
+    void Deconstruct(out InterceptionRecord Record, out JsonNode? Target)
+enum EnforcementMode : int
+    Enforce = 0
+    EvaluateOnly = 1
+sealed record class Evidence : IEquatable<Evidence>
+    Evidence(string? Artefact = null, IReadOnlyDictionary<string, string>? VerificationPointers = null)
+    IReadOnlyDictionary<string, string>? VerificationPointers { get; init; }
+    bool Equals(Evidence? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(Evidence? left, Evidence? right)
+    static bool operator ==(Evidence? left, Evidence? right)
+    string? Artefact { get; init; }
+    void Deconstruct(out string? Artefact, out IReadOnlyDictionary<string, string>? VerificationPointers)
+sealed class HostDeclaration
+    ResolvedDeclaration Resolve(HostRegistry registry)
+    static DeclarationBuilder Builder()
+    static HostDeclaration FromJson(string text)
+    static HostDeclaration FromNode(JsonNode? node)
+    static HostDeclaration FromPath(string path)
+    string Text { get; }
+static class HostError
+    const string AdapterUnsupported = "host_error:adapter_unsupported"
+    const string ApprovalIdentityMismatch = "host_error:approval_identity_mismatch"
+    const string ApprovalResolverFailed = "host_error:approval_resolver_failed"
+    const string ApprovalUnresolved = "host_error:approval_unresolved"
+    const string CompositionDisagreement = "host_error:composition_disagreement"
+    const string ContextInvalid = "host_error:context_invalid"
+    const string InterceptorFailed = "host_error:interceptor_failed"
+    const string InterceptorTimeout = "host_error:interceptor_timeout"
+    const string NoInterceptor = "host_error:no_interceptor"
+    const string StreamingUnsupported = "host_error:streaming_unsupported"
+    const string TransformConflict = "host_error:transform_conflict"
+    const string TransformInvalid = "host_error:transform_invalid"
+    const string TransformTargetForbidden = "host_error:transform_target_forbidden"
+    const string VerdictInvalid = "host_error:verdict_invalid"
+sealed record class HostInfo : IEquatable<HostInfo>
+    HostInfo(string Name, string? Version = null)
+    bool Equals(HostInfo? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(HostInfo? left, HostInfo? right)
+    static bool operator ==(HostInfo? left, HostInfo? right)
+    string Name { get; init; }
+    string? Version { get; init; }
+    void Deconstruct(out string Name, out string? Version)
+sealed class HostRegistry
+    HostRegistry ApprovalRedactor(string name, Func<AgentContext, AgentContext> redactor)
+    HostRegistry ApprovalResolver(string name, IApprovalResolver resolver)
+    HostRegistry IdentityProvider(string name, Func<JsonObject, string> f)
+    HostRegistry Kind(string kind, KindResolver resolver)
+    HostRegistry(HostSurface surface)
+    HostSurface Surface { get; }
+    JsonObject Names()
+    JsonObject ToHostWire()
+    static HostRegistry ForConformance(HostSurface surface)
+    static bool ValidKind(string s)
+    static bool ValidReference(string s)
+sealed record class HostSurface : IEquatable<HostSurface>
+    HostSurface WithCapabilities(params string[] capabilities)
+    HostSurface WithExposureBound(string bound)
+    HostSurface WithPoints(params InterceptionPoint[] points)
+    HostSurface()
+    JsonObject ToWire()
+    ToolSeamPosture ToolSeamHostError { get; init; }
+    bool Equals(HostSurface? other)
+    bool StreamsUnbuffered { get; init; }
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    required IReadOnlyDictionary<CompositionProfile, KnobSupport> Profiles { get; init; }
+    required IReadOnlySet<InterceptionPoint> InterceptionPoints { get; init; }
+    required IReadOnlySet<string> Capabilities { get; init; }
+    required IReadOnlySet<string> DeclarationVersions { get; init; }
+    static HostSurface FromCapabilities(IEnumerable<string> capabilities, ToolSeamPosture posture)
+    static HostSurface FromWire(JsonObject o)
+    static HostSurface SdkDefault()
+    static bool operator !=(HostSurface? left, HostSurface? right)
+    static bool operator ==(HostSurface? left, HostSurface? right)
+    static readonly IReadOnlyList<InterceptionPoint> FloorPoints
+    string? ExposureBound { get; init; }
+interface IApprovalResolver
+    ValueTask<ApprovalResolution> ResolveAsync(ApprovalRequest request, CancellationToken ct = default)
+interface IInterceptor
+    ValueTask<Verdict> InterceptAsync(AgentContext context, CancellationToken ct = default)
+sealed class IdentityProvider
+    static IdentityProvider Custom(string name, Func<JsonObject, string> f)
+    static readonly IdentityProvider JcsSha256
+    static readonly IdentityProvider Null
+    string? Name { get; }
+sealed class InterceptionBlockedException : InvalidOperationException
+    InterceptionBlockedException(InterceptionRecord result)
+    InterceptionRecord Result { get; }
+sealed class InterceptionEmitter
+    CompositionConfig Composition { get; }
+    EnforcementMode Mode { get; }
+    IReadOnlyList<InterceptionRecord> Records { get; }
+    InterceptionEmitter Register(IInterceptor interceptor, string? name = null, IReadOnlySet<InterceptionPoint>? at = null)
+    InterceptionEmitter Register(IInterceptor interceptor, string? name)
+    InterceptionEmitter SetApprovalRedactor(Func<AgentContext, AgentContext> redactor)
+    InterceptionEmitter SetComposition(CompositionConfig composition)
+    InterceptionEmitter SetIdentityProvider(IdentityProvider provider)
+    InterceptionEmitter SetMaxRecords(int max)
+    InterceptionEmitter SetRecordSink(Action<InterceptionRecord> sink)
+    InterceptionEmitter(EnforcementMode mode = EnforcementMode.Enforce, IApprovalResolver? resolver = null, TimeSpan? timeout = null)
+    InterceptionRecord RecordHostFailure(InterceptionPoint point, string? detail = null, string? sessionId = null, long? sequence = null, string? timestamp = null)
+    List<InterceptionRecord> TakeRecords()
+    ResolvedDeclaration? Declaration { get; }
+    ValueTask<EmitOutcome> EmitAsync(AgentContext ctx, CancellationToken ct = default)
+    ValueTask<InterceptionRecord> EmitUncheckedAsync(AgentContext ctx, CancellationToken ct = default)
+    long RecordsDropped { get; }
+    static InterceptionEmitter FromDeclaration(HostDeclaration declaration, HostRegistry registry)
+    static InterceptionEmitter FromDeclarationJson(string text, HostRegistry registry)
+    static InterceptionEmitter FromDeclarationNode(JsonNode? node, HostRegistry registry)
+    static InterceptionEmitter FromDeclarationPath(string path, HostRegistry registry)
+    static readonly TimeSpan DefaultTimeout
+enum InterceptionPoint : int
+    AgentStartup = 0
+    Input = 1
+    PreModelCall = 2
+    PostModelCall = 3
+    PreToolCall = 4
+    PostToolCall = 5
+    Output = 6
+    AgentShutdown = 7
+static class InterceptionPointExtensions
+    static InterceptionPoint FromWireName(string s)
+    static bool TransformPermitted(this InterceptionPoint hp)
+    static string ToWireName(this InterceptionPoint hp)
+sealed record class InterceptionRecord : IEquatable<InterceptionRecord>
+    CompositionConfig Composition { get; init; }
+    EnforcementMode Mode { get; init; }
+    IReadOnlyList<VerdictSummary> Verdicts { get; init; }
+    InterceptionPoint InterceptionPoint { get; init; }
+    InterceptionRecord(InterceptionPoint InterceptionPoint, EnforcementMode Mode, Verdict Verdict, string? InputIdentity, string? EnforcedIdentity, string? IdentityProvider, string SessionId, long Sequence, int? DecidedBy, CompositionConfig Composition, IReadOnlyList<VerdictSummary> Verdicts, bool? FoldTruncated, string? ResolvedBy, int InterceptorsRegistered = 0, string? Timestamp = null, TraceContext? Trace = null, string? Declaration = null)
+    InterceptionRecord(InterceptionPoint interceptionPoint, EnforcementMode mode, Verdict verdict, string? inputIdentity, string? enforcedIdentity, string? identityProvider, string sessionId, long sequence, int? decidedBy, CompositionConfig composition, IReadOnlyList<VerdictSummary> verdicts, bool? foldTruncated, string? resolvedBy, int interceptorsRegistered, string? timestamp, TraceContext? trace)
+    JsonObject ToWire()
+    TraceContext? Trace { get; init; }
+    Verdict Verdict { get; init; }
+    bool Equals(InterceptionRecord? other)
+    bool Proceeds { get; }
+    bool? FoldTruncated { get; init; }
+    int InterceptorsRegistered { get; init; }
+    int? DecidedBy { get; init; }
+    long Sequence { get; init; }
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(InterceptionRecord? left, InterceptionRecord? right)
+    static bool operator ==(InterceptionRecord? left, InterceptionRecord? right)
+    string SessionId { get; init; }
+    string? Declaration { get; init; }
+    string? EnforcedIdentity { get; init; }
+    string? IdentityProvider { get; init; }
+    string? InputIdentity { get; init; }
+    string? ResolvedBy { get; init; }
+    string? Timestamp { get; init; }
+    void Deconstruct(out InterceptionPoint InterceptionPoint, out EnforcementMode Mode, out Verdict Verdict, out string? InputIdentity, out string? EnforcedIdentity, out string? IdentityProvider, out string SessionId, out long Sequence, out int? DecidedBy, out CompositionConfig Composition, out IReadOnlyList<VerdictSummary> Verdicts, out bool? FoldTruncated, out string? ResolvedBy, out int InterceptorsRegistered, out string? Timestamp, out TraceContext? Trace, out string? Declaration)
+    void Deconstruct(out InterceptionPoint interceptionPoint, out EnforcementMode mode, out Verdict verdict, out string? inputIdentity, out string? enforcedIdentity, out string? identityProvider, out string sessionId, out long sequence, out int? decidedBy, out CompositionConfig composition, out IReadOnlyList<VerdictSummary> verdicts, out bool? foldTruncated, out string? resolvedBy, out int interceptorsRegistered, out string? timestamp, out TraceContext? trace)
+delegate IInterceptor KindResolver(JsonNode? config, BindingContext context)
+sealed record class KnobSupport : IEquatable<KnobSupport>
+    IReadOnlySet<string> OnApproval { get; init; }
+    IReadOnlySet<string> OnDisagreement { get; init; }
+    IReadOnlySet<string> OnTransformConflict { get; init; }
+    JsonObject ToWire()
+    KnobSupport(IReadOnlySet<string> OnApproval, IReadOnlySet<string> OnDisagreement, IReadOnlySet<string> OnTransformConflict)
+    bool Equals(KnobSupport? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static KnobSupport DefaultsOnly(CompositionProfile profile)
+    static KnobSupport FromWire(JsonObject o)
+    static KnobSupport Full(CompositionProfile profile)
+    static bool operator !=(KnobSupport? left, KnobSupport? right)
+    static bool operator ==(KnobSupport? left, KnobSupport? right)
+    static readonly KnobSupport None
+    void Deconstruct(out IReadOnlySet<string> OnApproval, out IReadOnlySet<string> OnDisagreement, out IReadOnlySet<string> OnTransformConflict)
+enum OnApproval : int
+    Stop = 0
+    Resume = 1
+sealed record class ResolvedBinding : IEquatable<ResolvedBinding>
+    IReadOnlySet<InterceptionPoint> At { get; init; }
+    JsonNode? Config { get; init; }
+    ResolvedBinding(string Id, string Kind, JsonNode? Config, IReadOnlySet<InterceptionPoint> At, long? TimeoutMs)
+    bool Equals(ResolvedBinding? other)
+    long? TimeoutMs { get; init; }
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(ResolvedBinding? left, ResolvedBinding? right)
+    static bool operator ==(ResolvedBinding? left, ResolvedBinding? right)
+    string Id { get; init; }
+    string Kind { get; init; }
+    void Deconstruct(out string Id, out string Kind, out JsonNode? Config, out IReadOnlySet<InterceptionPoint> At, out long? TimeoutMs)
+sealed class ResolvedDeclaration
+    CompositionConfig Composition { get; }
+    EnforcementMode Mode { get; }
+    HostInfo? Host { get; }
+    IReadOnlyList<ResolvedBinding> Bindings { get; }
+    IReadOnlySet<InterceptionPoint> SurfaceInterceptionPoints { get; }
+    IReadOnlySet<string> SurfaceCapabilities { get; }
+    IReadOnlySet<string> SurfaceDeclarationVersions { get; }
+    JsonObject ToWire()
+    ToolSeamPosture ToolSeamHostError { get; }
+    bool BufferedOutput { get; }
+    long? ApprovalResolverTimeoutMs { get; }
+    long? InterceptorTimeoutMs { get; }
+    long? MaxBufferedRecords { get; }
+    string CanonicalJson()
+    string Spec { get; }
+    string Version { get; }
+    string? ApprovalRedactor { get; }
+    string? ApprovalResolver { get; }
+    string? ExposureBound { get; }
+    string? Id { get; }
+    string? IdentityProvider { get; }
+static class Spec
+    const string JcsSha256 = "jcs-sha256"
+    const string Version = "agent-hooks/0.1"
+enum SynthesisPolicy : int
+    Deny = 0
+    Approval = 1
+enum ToolSeamPosture : int
+    Continue = 0
+    Terminate = 1
+static class ToolSeamPostureExtensions
+    static ToolSeamPosture FromWireName(string s)
+    static string ToWireName(this ToolSeamPosture p)
+sealed record class TraceContext : IEquatable<TraceContext>
+    JsonObject ToWire()
+    TraceContext(string? TraceId, string? SpanId)
+    bool Equals(TraceContext? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static TraceContext FromWire(JsonObject o)
+    static bool operator !=(TraceContext? left, TraceContext? right)
+    static bool operator ==(TraceContext? left, TraceContext? right)
+    string? SpanId { get; init; }
+    string? TraceId { get; init; }
+    void Deconstruct(out string? TraceId, out string? SpanId)
+sealed record class Transform : IEquatable<Transform>
+    JsonNode? Value { get; init; }
+    Transform(string Path, JsonNode? Value)
+    bool Equals(Transform? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(Transform? left, Transform? right)
+    static bool operator ==(Transform? left, Transform? right)
+    string Path { get; init; }
+    void Deconstruct(out string Path, out JsonNode? Value)
+sealed record class Verdict : IEquatable<Verdict>
+    Decision Decision { get; init; }
+    Evidence? Evidence { get; init; }
+    IReadOnlyList<Warning>? Warnings { get; init; }
+    IReadOnlyList<string>? ResultLabels { get; init; }
+    JsonObject ToWire()
+    JsonObject? Approval { get; init; }
+    Transform? Transform { get; init; }
+    Verdict(Decision Decision, string? Reason = null, string? Message = null, IReadOnlyList<Warning>? Warnings = null, JsonObject? Approval = null, Transform? Transform = null, Evidence? Evidence = null, IReadOnlyList<string>? ResultLabels = null)
+    bool Equals(Verdict? other)
+    bool IsLiftable { get; }
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static Verdict Deny(string? reason = null, string? message = null)
+    static Verdict Escalate(string? reason = null, string? message = null)
+    static Verdict FromHostError(string hookError, string? message = null)
+    static Verdict FromHostErrorLiftable(string hookError, string? message = null)
+    static Verdict FromWire(JsonObject o)
+    static Verdict Warn(string? reason = null, string? message = null)
+    static bool operator !=(Verdict? left, Verdict? right)
+    static bool operator ==(Verdict? left, Verdict? right)
+    static readonly Verdict Allow
+    string? Message { get; init; }
+    string? Reason { get; init; }
+    void Deconstruct(out Decision Decision, out string? Reason, out string? Message, out IReadOnlyList<Warning>? Warnings, out JsonObject? Approval, out Transform? Transform, out Evidence? Evidence, out IReadOnlyList<string>? ResultLabels)
+    void Validate()
+sealed record class VerdictSummary : IEquatable<VerdictSummary>
+    Decision Decision { get; init; }
+    JsonObject ToWire()
+    VerdictSummary(int Index, Decision Decision, string? Reason = null, string? Name = null)
+    bool Equals(VerdictSummary? other)
+    int Index { get; init; }
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static VerdictSummary FromWire(JsonObject o)
+    static bool operator !=(VerdictSummary? left, VerdictSummary? right)
+    static bool operator ==(VerdictSummary? left, VerdictSummary? right)
+    string? Name { get; init; }
+    string? Reason { get; init; }
+    void Deconstruct(out int Index, out Decision Decision, out string? Reason, out string? Name)
+sealed record class Warning : IEquatable<Warning>
+    Warning(string? Reason = null, string? Message = null)
+    bool Equals(Warning? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(Warning? left, Warning? right)
+    static bool operator ==(Warning? left, Warning? right)
+    string? Message { get; init; }
+    string? Reason { get; init; }
+    void Deconstruct(out string? Reason, out string? Message)

@@ -351,6 +351,17 @@ public sealed class InterceptionEmitter
         return this;
     }
 
+    /// <summary>The two-argument form shipped in 0.1.0-alpha.5. Kept
+    /// for binary compatibility: an optional parameter is source
+    /// compatible but not binary compatible, so an assembly compiled
+    /// against the two-argument method would otherwise fail with
+    /// <see cref="MissingMethodException"/> at run time. Behaves as
+    /// <c>Register(interceptor, name, at: null)</c>. The parameters
+    /// carry no defaults so that <c>Register(interceptor)</c> stays
+    /// unambiguous at compile time.</summary>
+    public InterceptionEmitter Register(IInterceptor interceptor, string? name) =>
+        Register(interceptor, name, at: null);
+
     /// <summary>Declare the composition profile for subsequent emissions (§7.1).
     /// The default (<c>sequential/first_deny</c>, <c>on_approval: stop</c>) is the
     /// configuration §14 warns about: after an approval lifts a liftable deny,
