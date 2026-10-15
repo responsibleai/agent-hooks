@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 // Public API pin for the AgentHooks assembly.
 //
 // Binary-compatibility rule for the published package: add overloads,

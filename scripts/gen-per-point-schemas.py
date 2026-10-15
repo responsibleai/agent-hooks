@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (c) Microsoft. All rights reserved.
+
 """Generate spec/schema/agent-context/<interception_point>.schema.json from the master.
 
 Each per-point schema is a closed (additionalProperties: false on the conditional

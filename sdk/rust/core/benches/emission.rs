@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 //! Latency benchmarks for the per-emission critical path.
 //! Budget published in ARCHITECTURE.md; run with `cargo bench -p
 //! agent-hooks-sdk`.

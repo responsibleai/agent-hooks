@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """Emitter seam tests, mirroring the Rust emitter's:
 approval redaction (§9), record sink + retention bound (§10.3), and the
 effective-target return from ``emit`` (§4.3).

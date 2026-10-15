@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 // CTK self-test: run all vectors against the ReferenceHarness.
 
 import { fileURLToPath } from "node:url";

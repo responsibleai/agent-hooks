@@ -1,3 +1,5 @@
+# Copyright (c) Microsoft. All rights reserved.
+
 # Type stubs for the PyO3 native module (agent_hooks._core).
 # All functions take/return UTF-8 JSON strings.
 

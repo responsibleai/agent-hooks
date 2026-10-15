@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 // AgentContext construction (§4).
 //
 // Stateful per-session builder that owns the L0 envelope

@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """Record-semantics tests (§4, §10.1, §10.3)."""
 
 from __future__ import annotations

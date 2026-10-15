@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 //! Stateless enforcement primitives (§6, §7.4, §8, §10.3).
 //!
 //! Transform application happens **during** dispatch in sequential

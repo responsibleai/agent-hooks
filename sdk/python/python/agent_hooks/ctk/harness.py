@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """CTK harness contract a framework adapter implements once (§13.2)."""
 
 from __future__ import annotations

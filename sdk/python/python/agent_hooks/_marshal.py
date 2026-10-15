@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """FFI marshalling guard (§4.4, §10.2).
 
 Every context/verdict value crossing into ``agent_hooks._core`` is

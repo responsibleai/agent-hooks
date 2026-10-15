@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 //! §7.7.6 registry consistency: the `declaration_error:*` codes the
 //! loader emits MUST be exactly the set enumerated in
 //! `spec/declaration-errors.json`, in pipeline order. The tripwire

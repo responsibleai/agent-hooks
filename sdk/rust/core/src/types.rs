@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 //! Core types for AGENT-HOOKS-0.1 (§3, §5, §7, §8, §9, §10.3, §11).
 
 use async_trait::async_trait;

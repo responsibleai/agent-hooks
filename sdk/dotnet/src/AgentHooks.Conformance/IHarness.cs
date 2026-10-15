@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 // Conformance Test Kit harness contract (§13.2).
 //
 // The CTK engine (scripted interceptor/resolver, capability skip,

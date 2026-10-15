@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 //! napi-rs bindings: `@responsibleai/agent-hooks` native module.
 //!
 //! Thin wrapper over `agent_hooks::ffi_surface`. All functions take and

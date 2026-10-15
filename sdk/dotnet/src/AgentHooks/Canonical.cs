@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 // Canonical JSON serialization and context identity (§10).
 //
 // Delegates to the Rust core via libagent_hooks_ffi so every SDK

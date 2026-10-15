@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (c) Microsoft. All rights reserved.
+
 """Generate conformance/golden/identity.json from the Rust core.
 
 The fixtures exercise the corners that historically caused cross-SDK

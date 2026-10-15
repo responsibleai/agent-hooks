@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 //! Composition profiles and aggregation (§7).
 //!
 //! Composition is **host configuration**, never verdict content

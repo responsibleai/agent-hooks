@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 //! Host declaration document (§7.7): loader, validation, resolution
 //! and the host registry it resolves against.
 //!

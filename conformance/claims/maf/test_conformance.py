@@ -1,4 +1,5 @@
-# Copyright (c) 2026 MohammadHaroonAbuomar. MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """AGENT-HOOKS-0.1 CTK conformance run for Microsoft Agent Framework.
 
 Run with::

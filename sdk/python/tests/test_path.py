@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """Unit tests for §5.2 transform path grammar and application."""
 
 from __future__ import annotations

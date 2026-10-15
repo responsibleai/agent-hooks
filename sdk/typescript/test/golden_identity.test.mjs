@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 // Cross-SDK golden vectors for §10 canonical JSON and context identity.
 // Loads conformance/golden/identity.json (generated from the Rust core)
 // and asserts the TypeScript SDK — which delegates to the same core via

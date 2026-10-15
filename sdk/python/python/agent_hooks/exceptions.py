@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """Exceptions a host raises to its caller when a hook blocks (§6)."""
 
 from __future__ import annotations

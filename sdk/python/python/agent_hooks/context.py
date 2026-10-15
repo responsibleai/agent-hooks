@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """``AgentContext`` construction (§4).
 
 A :class:`AgentContext` is a plain ``dict[str, Any]`` so it serializes to wire

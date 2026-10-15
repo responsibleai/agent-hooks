@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 //! Property-based tests for the hand-rolled parsing and
 //! canonicalization surfaces: these decide enforcement
 //! outcomes, so the invariant is *never panic; fail closed with a

@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 // CTK runner: load vectors, drive an IHarness, assert `expect`.
 //
 // The assertion engine, capability skip check, and scripted

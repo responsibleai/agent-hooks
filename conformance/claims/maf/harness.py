@@ -1,4 +1,5 @@
-# Copyright (c) 2026 MohammadHaroonAbuomar. MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """AGENT-HOOKS-0.1 CTK harness for Microsoft Agent Framework (Python).
 
 Drives a real :class:`agent_framework.Agent` — with only the chat client and the

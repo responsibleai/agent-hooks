@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 //! CTK engine: scripted interceptor/resolver evaluation and the
 //! `expect` assertion pass (§13.2).
 //!

@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 // Binary-compatibility probes. An assembly compiled against a
 // published release binds to each method by its exact parameter list,
 // so the signatures 0.1.0-alpha.5 shipped must keep resolving by that

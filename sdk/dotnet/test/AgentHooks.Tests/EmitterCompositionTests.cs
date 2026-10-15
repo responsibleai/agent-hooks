@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 // Emitter composition-profile and identity-provider tests (§7, §9, §10).
 // Mirrors the Rust emitter tests (sdk/rust/core/src/emitter.rs) so the
 // .NET dispatch loop, the ah_compose_aggregate delegation, and the

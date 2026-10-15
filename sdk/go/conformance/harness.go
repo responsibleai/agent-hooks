@@ -1,5 +1,4 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
 
 // Package conformance provides the CTK harness contract, runner, and
 // reference harness (§13.2).

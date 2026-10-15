@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """CTK-supplied interceptor/resolver that replay a vector's scripts.
 
 Rule evaluation delegates to the Rust core (``_core.ctk_scripted_*``);

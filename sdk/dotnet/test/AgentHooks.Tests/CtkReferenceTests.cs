@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 // CTK self-test: run all vectors against the in-tree
 // ReferenceHarness. Assertion engine is the Rust core; this proves
 // the .NET emitter, builder, runner, and harness wire correctly.

@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """Mid-emission cancellation semantics (§6.3/§12.2).
 
 A cancelled in-flight emission must not leave a sequence gap with no

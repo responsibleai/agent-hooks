@@ -1,5 +1,4 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
 
 // Package agenthooks implements AGENT-HOOKS-0.1: a framework-neutral agent
 // lifecycle hook contract (interception points, context, verdict, host obligations).

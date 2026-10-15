@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """Host declaration document (§7.7): the file path, construction-path
 equivalence at the record level, sealing, per-point bindings, the
 stamp rule, every refusal class and the registry's own refusals.

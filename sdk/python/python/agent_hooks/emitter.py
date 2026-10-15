@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """Host-side emitter: dispatch context → interceptors → composition →
 combined verdict → record (§6–§10).
 

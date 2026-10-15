@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """Unit tests for InterceptionRecord auditability fields (Q6)."""
 
 from __future__ import annotations

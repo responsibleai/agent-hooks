@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """Fail when the SDK version surfaces disagree (VERSIONING.md).
 
 One tag releases the spec and all SDKs together, so the four version

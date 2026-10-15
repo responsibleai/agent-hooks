@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 //! An out-of-crate `ctk::Harness` implementor compiles and runs a
 //! vector: every type the trait's signatures reference is importable
 //! from `agent_hooks::ctk` (§13.2), so third-party hosts can run the

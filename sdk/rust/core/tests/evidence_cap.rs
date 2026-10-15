@@ -1,5 +1,5 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
+// Copyright (c) Microsoft. All rights reserved.
+
 //! §5.3 evidence cap at the public surface. A consumer measures
 //! `canonical_json(evidence).len()` against `EVIDENCE_MAX_BYTES` before
 //! validation, so the root re-export must be the exact bound

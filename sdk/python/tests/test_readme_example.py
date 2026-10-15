@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """The README's host declaration example loads with the registry the
 README builds next to it. The schema alone cannot catch a surface the
 snippet's registry lacks (§7.7.4), so this test runs the two snippets

@@ -1,5 +1,5 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
+# Copyright (c) Microsoft. All rights reserved.
+
 """Approval seam for liftable denies (§9).
 
 A **liftable deny** is a ``deny`` verdict carrying an ``approval``
