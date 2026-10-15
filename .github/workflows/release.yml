@@ -31,6 +31,12 @@
 #            package) needs its own trusted publisher. A brand-new
 #            platform package cannot be configured before its first
 #            publish, so its leg fails soft (see the npm publish step).
+#            Every version publishes under `latest`; a pre-release
+#            also gets a channel tag (alpha, beta, rc or next) through
+#            `npm dist-tag add`, which trusted publishing allows only
+#            once "Allow npm dist-tag" is on for the package's
+#            publisher. Until then that step warns and the tag is
+#            added by hand (RELEASING.md).
 #   NuGet  — trusted publishing (OIDC): configure a Trusted Publishing
 #            policy on nuget.org (repo responsibleai/agent-hooks,
 #            workflow release.yml, environment release); the NuGet/login
@@ -270,6 +276,30 @@ jobs:
           npx tsc
           npm pack
         working-directory: sdk/typescript
+      - name: Compute the npm dist-tags and rehearse the publish
+        # Every version publishes under `latest`. A pre-release also
+        # gets a channel tag from its label: alpha, beta, rc, or next
+        # for any other label. A stable version gets no channel tag.
+        # The rehearsal runs on the dry run too, so a bad manifest
+        # fails here and not at upload time. No dist-tag call here.
+        run: |
+          V=$(node -p "require('./package.json').version")
+          case "$V" in
+            *-alpha.*) CHANNEL=alpha ;;
+            *-beta.*)  CHANNEL=beta ;;
+            *-rc.*)    CHANNEL=rc ;;
+            *-*)       CHANNEL=next ;;
+            *)         CHANNEL= ;;
+          esac
+          echo "version $V: publish tag latest, channel tag ${CHANNEL:-none (stable)}"
+          {
+            echo "NPM_VERSION=$V"
+            echo "NPM_CHANNEL=$CHANNEL"
+          } >> "$GITHUB_ENV"
+          for dir in npm/linux-x64-gnu npm/linux-arm64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc .; do
+            (cd "$dir" && npm publish --dry-run --access public --tag latest)
+          done
+        working-directory: sdk/typescript
       - name: SBOM
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
@@ -289,13 +319,13 @@ jobs:
         # publisher on npmjs.com (repo responsibleai/agent-hooks,
         # workflow release.yml, environment release). The repo is
         # public, so npm attaches provenance automatically under
-        # trusted publishing. Prerelease versions publish under the
-        # `alpha` dist-tag; stable under latest. Idempotent: existing
-        # versions skip.
+        # trusted publishing. Every version publishes under `latest`;
+        # a pre-release then gets its channel tag (NPM_CHANNEL, from
+        # the step above). Idempotent: existing versions skip, and
+        # `npm dist-tag add` on an already-tagged version is a no-op.
         run: |
           npm install -g npm@latest
-          V=$(node -p "require('./package.json').version")
-          case "$V" in *-*) T=alpha;; *) T=latest;; esac
+          V=$NPM_VERSION
           # The committed loader manifest carries NO optionalDependencies:
           # pinning platform packages that only exist after this run makes
           # main unbuildable between a version-bump merge and its publish.
@@ -317,7 +347,7 @@ jobs:
             fi
             if npm view "$name@$V" version >/dev/null 2>&1; then
               echo "$name@$V already on npm — skipping"
-            elif (cd "$dir" && npm publish --access public --tag "$T"); then
+            elif (cd "$dir" && npm publish --access public --tag latest); then
               :
             elif ! npm view "$name" name >/dev/null 2>&1; then
               # npm trusted publishing cannot be configured for a package
@@ -330,6 +360,20 @@ jobs:
               exit 1
             fi
           done
+          if [ -n "$NPM_CHANNEL" ]; then
+            for dir in npm/linux-x64-gnu npm/linux-arm64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc .; do
+              name=$(node -p "require('./$dir/package.json').name")
+              if ! npm view "$name@$V" version >/dev/null 2>&1; then
+                echo "$name@$V is not on npm (first publish failed soft above), no channel tag"
+                continue
+              fi
+              # TODO: drop the `|| echo` fallback once "Allow npm dist-tag"
+              # is enabled on the trusted publisher of every package; the
+              # command must then fail the job.
+              npm dist-tag add "$name@$V" "$NPM_CHANNEL" \
+                || echo "::warning::dist-tag add failed; enable 'Allow npm dist-tag' on the trusted publisher for $name"
+            done
+          fi
         working-directory: sdk/typescript
 
   ffi-build:

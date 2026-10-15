@@ -192,14 +192,14 @@ is not a security certification.
 | --- | --- |
 | Rust | `cargo add agent-hooks-sdk` |
 | Python | `pip install --pre agent-hooks-sdk` |
-| TypeScript | `npm install @responsibleai/agent-hooks@alpha` |
+| TypeScript | `npm install @responsibleai/agent-hooks` |
 | .NET | `dotnet add package ResponsibleAI.AgentHooks --prerelease` |
 | Go | `go get github.com/responsibleai/agent-hooks/sdk/go/agenthooks` |
 
-Keep the `@alpha` tag (or pin an exact version) while the npm package
-is pre-release. npm's `latest` tag can lag the newest pre-release, so a
-plain `npm install` may fetch an older build. Maintainers move the tag
-per [RELEASING.md](RELEASING.md).
+A plain `npm install` gets the newest release, pre-releases included.
+The channel tags `alpha`, `beta` and `rc` exist for pinning to one
+line, for example `@responsibleai/agent-hooks@beta`; or pin an exact
+version. See [RELEASING.md](RELEASING.md).
 
 The spec is versioned `MAJOR.MINOR`, the declaration contract
 `MAJOR.MINOR`, and the packages by semver, each on its own axis. Every

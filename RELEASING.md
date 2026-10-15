@@ -65,9 +65,12 @@ git push origin v<version>
 - crates.io `agent-hooks-sdk`
 - PyPI `agent-hooks-sdk` (five platform wheels and the sdist)
 - npm `@responsibleai/agent-hooks` plus five platform packages
-  `@responsibleai/agent-hooks-<platform>`. Any pre-release version
-  (one with a `-`, so betas too) publishes under the `alpha` dist-tag;
-  stable versions under `latest`.
+  `@responsibleai/agent-hooks-<platform>`. Every version publishes
+  under the `latest` dist-tag, pre-releases included, so a plain
+  `npm install` gets the newest release. A pre-release also gets a
+  channel tag from its label: `alpha` for `-alpha.N`, `beta` for
+  `-beta.N`, `rc` for `-rc.N`, `next` for any other label. Stable
+  versions carry only `latest`.
 - NuGet `ResponsibleAI.AgentHooks`, bundling four native runtimes
 - Go: nothing. The `go` job builds and tests `sdk/go` as a consumer
   would see it. See the next section.
@@ -114,12 +117,36 @@ curl -sf https://api.nuget.org/v3-flatcontainer/responsibleai.agenthooks/index.j
 go list -m -versions github.com/responsibleai/agent-hooks/sdk/go
 ```
 
-Check the npm dist-tags. The workflow moves only `alpha`; `latest`
-stays where it was, so a plain `npm install @responsibleai/agent-hooks`
-keeps installing the previous release until `latest` is moved by hand
-on the loader and the five platform packages (`npm dist-tag add`, from
-an npm login with 2FA; the step above). Both tags sit on
-`0.1.0-beta.2` since 2026-10-13.
+Check the npm dist-tags. The workflow publishes under `latest` and,
+for a pre-release, adds the channel tag on the loader and the five
+platform packages. The channel tag needs one setting per package,
+once: "Allow npm dist-tag" on the trusted publisher configuration at
+npmjs.com > package > Settings > Trusted Publisher, for
+
+- `@responsibleai/agent-hooks`
+- `@responsibleai/agent-hooks-linux-x64-gnu`
+- `@responsibleai/agent-hooks-linux-arm64-gnu`
+- `@responsibleai/agent-hooks-darwin-x64`
+- `@responsibleai/agent-hooks-darwin-arm64`
+- `@responsibleai/agent-hooks-win32-x64-msvc`
+
+Until that is on, the workflow prints a warning for each package and
+the channel tag must be added by hand. Run this from an npm login
+with 2FA, not a stored automation token:
+
+```bash
+V=<version>
+TAG=<alpha|beta|rc|next>
+for p in agent-hooks agent-hooks-linux-x64-gnu agent-hooks-linux-arm64-gnu \
+         agent-hooks-darwin-x64 agent-hooks-darwin-arm64 \
+         agent-hooks-win32-x64-msvc; do
+  npm dist-tag add "@responsibleai/$p@$V" "$TAG"
+done
+```
+
+The same loop with `latest` moves `latest` back when a withdrawn
+version held it (`npm deprecate` marks the version; it does not move
+the tag). Check with `npm dist-tag ls @responsibleai/agent-hooks`.
 
 Then update the supported-versions table in
 [SECURITY.md](SECURITY.md) to the new tag.

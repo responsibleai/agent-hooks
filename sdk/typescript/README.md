@@ -16,13 +16,13 @@ runner.
 > before relying on it.
 
 ```bash
-npm install @responsibleai/agent-hooks@alpha
+npm install @responsibleai/agent-hooks
 ```
 
-Keep the `@alpha` tag (or pin an exact published version) while the
-package is pre-release: npm's `latest` tag can lag the newest
-pre-release, so a plain `npm install` may fetch an older build. Check
-what the tags resolve to with
+A plain install gets the newest release, pre-releases included. The
+channel tags `alpha`, `beta` and `rc` exist for pinning to one line
+(`@responsibleai/agent-hooks@beta`); or pin an exact published
+version. Check what the tags resolve to with
 `npm view @responsibleai/agent-hooks dist-tags`.
 
 ## Usage

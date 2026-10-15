@@ -1,8 +1,11 @@
 # TypeScript quickstart
 
 ```sh
-npm install @responsibleai/agent-hooks@alpha
+npm install @responsibleai/agent-hooks
 ```
+
+A plain install gets the newest release, pre-releases included. Add a
+channel tag (`@alpha`, `@beta`, `@rc`) to pin to one line.
 
 The package resolves a prebuilt native binary for your platform through
 `optionalDependencies` (linux-x64-gnu, linux-arm64-gnu, darwin-x64,
