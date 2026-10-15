@@ -3,9 +3,9 @@
 
 """Fail when a tracked source file lacks the standard file header.
 
-Every hand-written source file starts with one line,
-``Copyright (c) Microsoft. All rights reserved.``, in the language's
-line-comment style, followed by a blank line. A shebang line may come
+Every hand-written source file starts with the one-line notice held in
+``HEADER_TEXT`` below, in the language's line-comment style, followed by
+a blank line. A shebang line may come
 first. Generated and vendored files are listed in ``SKIP``.
 
 Usage: ``python3 scripts/check-file-headers.py [path ...]``. With no
