@@ -206,6 +206,8 @@ jobs:
           ./actionlint -color
       - name: Version surfaces agree across SDK manifests
         run: python3 scripts/check-version-consistency.py
+      - name: Source files carry the standard file header
+        run: python3 scripts/check-file-headers.py
 
   # Dependency advisories, license allowlist, bans and source checks for
   # every cargo root. deny.toml at the repository root governs

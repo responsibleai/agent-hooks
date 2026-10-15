@@ -12,7 +12,7 @@ description = "Framework-neutral agent control contract: interception points, ag
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Responsible AI", email = "responsibleai@microsoft.com" }]
+authors = [{ name = "Microsoft", email = "responsibleai@microsoft.com" }]
 keywords = ["ai-agents", "governance", "interception", "control", "conformance"]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -50,10 +50,17 @@ line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "RUF", "BLE"]
+# CPY001 (the file header rule) is a preview rule: preview is on for
+# lint only, and explicit-preview-rules keeps every other preview rule off.
+preview = true
+explicit-preview-rules = true
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "RUF", "BLE", "CPY001"]
 ignore = [
   "RUF002",  # en-dash in docstrings is intentional (spec section ranges)
 ]
+
+[tool.ruff.lint.flake8-copyright]
+notice-rgx = "^# Copyright \\(c\\) Microsoft\\. All rights reserved\\."
 
 [tool.mypy]
 strict = true

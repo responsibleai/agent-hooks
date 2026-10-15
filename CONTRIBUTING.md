@@ -48,6 +48,10 @@ cd sdk/go && CGO_ENABLED=1 go test ./...
   actionable message instead).
 - Spec-section references in doc comments (`§7.4`, `§10.3`).
 - Commit messages and PR bodies: concise, factual, imperative subject.
+- Every source file starts with `Copyright (c) Microsoft. All rights
+  reserved.` in the language's line-comment style, then a blank line;
+  a shebang stays first. `python3 scripts/check-file-headers.py` is
+  the CI check (`lint` job).
 
 ## Reporting security issues
 

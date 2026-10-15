@@ -1,0 +1,7 @@
+# .NET analyzer settings for sdk/dotnet. The root .editorconfig still
+# applies (this file does not set root = true). This adds the file header
+# the C# compiler, the IDE and dotnet format check through IDE0073.
+
+[*.cs]
+file_header_template = Copyright (c) Microsoft. All rights reserved.
+dotnet_diagnostic.IDE0073.severity = warning

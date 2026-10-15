@@ -5,8 +5,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Authors>Responsible AI</Authors>
+    <Authors>Microsoft</Authors>
+    <Company>Microsoft</Company>
+    <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/responsibleai/agent-hooks</PackageProjectUrl>
     <RepositoryUrl>https://github.com/responsibleai/agent-hooks</RepositoryUrl>
     <Version>0.1.0-beta.2</Version>
     <!-- Supply chain: lock NuGet resolution; CI restores in locked mode. -->

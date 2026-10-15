@@ -5,6 +5,17 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+- Repository: every source file now starts with the standard Microsoft
+  open source header, `Copyright (c) Microsoft. All rights reserved.`,
+  in the language's comment style, and CI enforces it: ruff's CPY001
+  for Python, IDE0073 through `dotnet format` for .NET, and
+  `scripts/check-file-headers.py` over every source file in the lint
+  job. The old two-line `Microsoft Corporation` / `Licensed under the
+  MIT License` block is gone. The root gains `CODE_OF_CONDUCT.md` and
+  `SUPPORT.md`, and the Python and NuGet package metadata name
+  Microsoft as the author. The license itself is unchanged (MIT,
+  `Copyright (c) Microsoft Corporation.`).
+
 - .NET SDK: `InterceptionEmitter.Register(IInterceptor, string?)` and the
   sixteen-parameter `InterceptionRecord` constructor and `Deconstruct`
   are back as forwarding overloads. 0.1.0-beta.2 added optional
