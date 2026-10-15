@@ -1,6 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
 package agenthooks
 
 // Host-side emitter: dispatch context → interceptors → composition →

@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //! Verdict wire normalization (§5).
 
 use crate::types::{Decision, Evidence, HostError, Transform, Verdict, Warning};

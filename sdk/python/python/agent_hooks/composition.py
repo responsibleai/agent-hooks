@@ -1,5 +1,3 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
 """Composition profiles and knobs (§7).
 
 Composition is **host configuration**, never verdict content (§7.1):

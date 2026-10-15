@@ -1,6 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
 package agenthooks
 
 // cgo bindings for libagent_hooks_ffi (sdk/rust/ffi).

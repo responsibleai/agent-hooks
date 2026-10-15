@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //! Host-side emitter for Rust-native hosts: dispatch context →
 //! interceptors → composition → combined verdict → record (§6–§10).
 //!

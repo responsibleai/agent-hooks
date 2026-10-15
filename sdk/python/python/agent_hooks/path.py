@@ -1,5 +1,3 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
 """``$target`` JSONPath subset: parse, resolve, apply transforms (§5.2).
 
 Delegates to the Rust core (``agent_hooks._core``). The parse/resolve

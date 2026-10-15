@@ -1,5 +1,3 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
 """Conformance Test Kit (§13)."""
 
 from __future__ import annotations

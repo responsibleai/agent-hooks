@@ -1,5 +1,3 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
 """Core enums and value types for AGENT-HOOKS-0.1 (§3, §5, §8, §10.3, §11)."""
 
 from __future__ import annotations

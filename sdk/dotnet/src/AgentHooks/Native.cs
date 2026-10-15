@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 // P/Invoke bindings for libagent_hooks_ffi (sdk/rust/ffi).
 //
 // The cdylib exposes a JSON-string surface over agent_hooks::ffi_surface.

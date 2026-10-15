@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //! PyO3 bindings: `agent_hooks._core`.
 //!
 //! Thin wrapper over `agent_hooks::ffi_surface`. All functions take and

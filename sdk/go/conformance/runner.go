@@ -1,6 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
 package conformance
 
 // CTK runner: load vectors, drive a harness, assert expect.

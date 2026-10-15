@@ -1,6 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
 package agenthooks
 
 // Host declaration loader tests (spec section 7.7), mirroring

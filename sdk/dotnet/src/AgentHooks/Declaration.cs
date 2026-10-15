@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 // Host declaration document (§7.7): the versioned JSON contract a host
 // loads for its configuration, declared surface and interceptor
 // bindings, and the registry it resolves against.

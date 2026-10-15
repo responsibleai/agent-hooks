@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //! `$target` JSONPath subset: parse, resolve, apply transforms (§5.2).
 //!
 //! Grammar per `spec/schema/path-grammar.abnf`: root + dot-member +

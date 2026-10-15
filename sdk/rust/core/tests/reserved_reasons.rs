@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //! §11 registry consistency: the `host_error:*` strings the core emits
 //! MUST be exactly the set enumerated in `spec/reserved-reasons.json`.
 //! Guards the machine-readable registry against silent drift in either

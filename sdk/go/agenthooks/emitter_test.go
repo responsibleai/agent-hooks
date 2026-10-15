@@ -1,6 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
 package agenthooks
 
 // Composition-profile and identity-provider tests mirroring the Rust

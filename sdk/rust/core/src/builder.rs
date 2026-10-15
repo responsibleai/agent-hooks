@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //! `AgentContext` construction (§4) for Rust-native hosts.
 //!
 //! Stateful per-session builder that owns the required-core envelope

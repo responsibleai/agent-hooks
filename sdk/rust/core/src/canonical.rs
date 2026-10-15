@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //! The `jcs-sha256` identity provider (§10.1–§10.2).
 //!
 //! §10.2's canonical form is RFC 8785 (JSON Canonicalization Scheme),

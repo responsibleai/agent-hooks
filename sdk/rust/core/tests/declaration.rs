@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //! Host declaration document (§7.7): the file path, construction-path
 //! equivalence at the record level, sealing, per-point bindings, the
 //! stamp rule and the cross-SDK golden file.

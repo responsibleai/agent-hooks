@@ -1,5 +1,3 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
 """Composition-profile emitter tests (§7), mirroring the Rust emitter's.
 
 Covers all four profiles, the ``on_approval`` stop/resume knob, the

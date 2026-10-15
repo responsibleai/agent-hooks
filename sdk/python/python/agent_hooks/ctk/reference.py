@@ -1,5 +1,3 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
 """Reference in-memory agent + harness.
 
 This is the simplest possible conformant agent loop: it exists so the

@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 // Core types for AGENT-HOOKS-0.1 (§3, §5, §7, §8, §9, §10.3, §11).
 // Lifted and adapted from policy-engine/sdk/dotnet/.../Primitives.cs.
 

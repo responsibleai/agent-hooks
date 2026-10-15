@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 // Emitter tests: composition profiles (§7), approval seam (§9), identity
 // provider seam (§10.1), and the P-004 marshalling guards. Mirrors
 // sdk/rust/core/src/emitter.rs tests.

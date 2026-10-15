@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //! C-ABI over `agent_hooks::ffi_surface` for Go (cgo) and .NET (P/Invoke).
 //!
 //! Every function takes NUL-terminated UTF-8 C strings and returns a

@@ -1,5 +1,3 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
 """CTK self-test: run all vectors against the in-tree ReferenceHarness."""
 
 from __future__ import annotations

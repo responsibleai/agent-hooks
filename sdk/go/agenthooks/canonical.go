@@ -1,6 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
 package agenthooks
 
 // Canonical JSON serialization and context identity (§10).

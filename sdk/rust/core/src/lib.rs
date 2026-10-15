@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //! agent-hooks: framework-neutral agent control contract.
 //!
 //! This crate is the **canonical implementation** of

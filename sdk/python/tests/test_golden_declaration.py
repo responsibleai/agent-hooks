@@ -1,5 +1,3 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
 """``conformance/golden/declaration.json``: documents with their
 resolved canonical JSON against a fixed surface, asserted byte for
 byte in every SDK (§7.7.3 "Resolved form", §7.7.7)."""

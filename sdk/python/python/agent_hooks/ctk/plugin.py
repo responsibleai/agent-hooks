@@ -1,5 +1,3 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
 """pytest plugin: ``pytest --agent-hooks-harness=... --agent-hooks-vectors=...``."""
 
 from __future__ import annotations

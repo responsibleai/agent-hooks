@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //! Conformance Test Kit runner for Rust-native hosts (§13.2).
 //!
 //! The assertion engine, capability skip check, and scripted

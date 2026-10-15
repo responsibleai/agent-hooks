@@ -1,6 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
 package agenthooks
 
 // Exported, typed wrappers over the CTK engine cgo shims in native.go.

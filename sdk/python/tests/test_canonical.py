@@ -1,5 +1,3 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
 """Unit tests for §10 canonical JSON and context identity."""
 
 from __future__ import annotations

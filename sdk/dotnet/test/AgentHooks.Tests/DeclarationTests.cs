@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 // Host declaration tests (§7.7): the three construction paths, the
 // refusal classes a vector cannot express, sealing, per-point bindings,
 // the record stamp, the registry rules and the cross-SDK golden file.

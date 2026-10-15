@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 /**
  * agent-hooks: framework-neutral agent lifecycle hook contract.
  * Implements AGENT-HOOKS-0.1. Lifted and adapted from

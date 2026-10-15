@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 // Cross-SDK golden fixtures for the host declaration document (§7.7).
 // Loads conformance/golden/declaration.json (generated from the Rust
 // core) and asserts this SDK resolves each document to the same

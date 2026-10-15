@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 /**
  * Host declaration document (spec §7.7): the loader, the registry it
  * resolves against, and the builder for the code path.

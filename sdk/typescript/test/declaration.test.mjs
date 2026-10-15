@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 // Host declaration document (spec §7.7): the loader, the registry, the
 // three construction paths, sealing, record stamping and the refusal
 // classes a vector cannot express (HARNESS.md "Coverage boundaries").

@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 // Reference in-memory conformant host. Self-test target for the CTK.
 // Port of sdk/rust/core/src/ctk.rs ReferenceHarness.
 //

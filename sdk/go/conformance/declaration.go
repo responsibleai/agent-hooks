@@ -1,6 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
 package conformance
 
 // Host declaration support for the CTK runner (§7.7.9): the registry a

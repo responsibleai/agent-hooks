@@ -1,6 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
-
 package conformance
 
 // CTK self-test: run all vectors against the in-tree

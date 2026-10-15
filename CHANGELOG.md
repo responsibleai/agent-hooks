@@ -11,6 +11,8 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `latest` move is gone; the channel tag needs "Allow npm dist-tag"
   on each package's trusted publisher once (RELEASING.md). Install
   docs drop `@alpha`.
+- Source files no longer carry a Microsoft copyright header; the
+  repository is MIT licensed under LICENSE.
 
 ## 0.1.0-beta.2 — 2026-10-13 — tag `v0.1.0-beta.2`
 

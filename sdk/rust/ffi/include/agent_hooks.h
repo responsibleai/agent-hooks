@@ -1,4 +1,3 @@
-/* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 /* C header for libagent_hooks_ffi. Kept in sync with sdk/rust/ffi/src/lib.rs. */
 
 #ifndef AGENT_HOOKS_FFI_H

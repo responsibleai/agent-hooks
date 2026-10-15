@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 //! JSON-string FFI surface shared by all language bindings.
 //!
 //! Every function here takes and returns UTF-8 JSON strings so the same

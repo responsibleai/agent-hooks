@@ -1,5 +1,3 @@
-// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT License.
 /**
  * Loader for the napi-rs native module + typed re-export.
  *
