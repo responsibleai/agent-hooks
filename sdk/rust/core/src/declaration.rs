@@ -43,7 +43,8 @@ use crate::composition::{
 };
 use crate::types::{
     validate_provider_name, AgentContext, ApprovalResolver, EnforcementMode, InterceptionPoint,
-    Interceptor, DECLARATION_VERSION, JCS_SHA256, SPEC_VERSION, SUPPORTED_DECLARATION_VERSIONS,
+    Interceptor, ManagedInterceptor, DECLARATION_VERSION, JCS_SHA256, SPEC_VERSION,
+    SUPPORTED_DECLARATION_VERSIONS,
 };
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
@@ -745,6 +746,10 @@ impl HostDescription {
 pub struct BindingContext<'a> {
     pub id: &'a str,
     pub kind: &'a str,
+    /// The independently supplied declaration source, when bindings
+    /// are imported through `from_declaration_sources`. `None` for the
+    /// single-document path.
+    pub source_id: Option<&'a str>,
     pub at: &'a BTreeSet<InterceptionPoint>,
     /// The resolved per-binding bound; `None` is unbounded.
     pub timeout: Option<Duration>,
@@ -756,6 +761,12 @@ pub struct BindingContext<'a> {
 /// or refuses it with a message (which MUST NOT echo the config).
 pub type KindResolver =
     Box<dyn Fn(&Value, &BindingContext<'_>) -> Result<Box<dyn Interceptor>, String> + Send + Sync>;
+/// Kind resolver for an interceptor that owns its deadline and cleanup.
+pub type ManagedKindResolver = Box<
+    dyn Fn(&Value, &BindingContext<'_>) -> Result<Box<dyn ManagedInterceptor>, String>
+        + Send
+        + Sync,
+>;
 
 type IdentityFn = Arc<dyn Fn(&AgentContext) -> String + Send + Sync>;
 type RedactorFn = Arc<dyn Fn(&AgentContext) -> AgentContext + Send + Sync>;
@@ -767,6 +778,7 @@ pub struct HostRegistry {
     surface: HostSurface,
     allow_reserved: bool,
     kinds: BTreeMap<String, KindResolver>,
+    managed_kinds: BTreeMap<String, ManagedKindResolver>,
     identity_providers: BTreeMap<String, IdentityFn>,
     approval_resolvers: BTreeMap<String, Arc<dyn ApprovalResolver>>,
     approval_redactors: BTreeMap<String, RedactorFn>,
@@ -817,6 +829,7 @@ impl HostRegistry {
             surface,
             allow_reserved: false,
             kinds: BTreeMap::new(),
+            managed_kinds: BTreeMap::new(),
             identity_providers: BTreeMap::new(),
             approval_resolvers: BTreeMap::new(),
             approval_redactors: BTreeMap::new(),
@@ -851,12 +864,41 @@ impl HostRegistry {
                 ),
             });
         }
-        if self.kinds.contains_key(kind) {
+        if self.kinds.contains_key(kind) || self.managed_kinds.contains_key(kind) {
             return Err(RegistryError {
                 detail: format!("kind {kind:?} registered twice"),
             });
         }
         self.kinds.insert(kind.to_owned(), f);
+        Ok(self)
+    }
+
+    /// Register a kind whose adapter owns its binding deadline and
+    /// returns a typed timeout after physical cleanup.
+    pub fn managed_kind(
+        mut self,
+        kind: &str,
+        f: ManagedKindResolver,
+    ) -> Result<Self, RegistryError> {
+        if !valid_kind(kind) {
+            return Err(RegistryError {
+                detail: format!("kind {kind:?} does not match the kind grammar (see spec §7.7.5)"),
+            });
+        }
+        let head = kind_first_segment(kind);
+        if RESERVED_KIND_SEGMENTS.contains(&head) && !(self.allow_reserved && head == "ctk") {
+            return Err(RegistryError {
+                detail: format!(
+                    "kind {kind:?} uses the reserved segment {head:?} (see spec §7.7.5)"
+                ),
+            });
+        }
+        if self.kinds.contains_key(kind) || self.managed_kinds.contains_key(kind) {
+            return Err(RegistryError {
+                detail: format!("kind {kind:?} registered twice"),
+            });
+        }
+        self.managed_kinds.insert(kind.to_owned(), f);
         Ok(self)
     }
 
@@ -920,12 +962,21 @@ impl HostRegistry {
             identity_providers: self.identity_providers.keys().cloned().collect(),
             approval_resolvers: self.approval_resolvers.keys().cloned().collect(),
             approval_redactors: self.approval_redactors.keys().cloned().collect(),
-            kinds: self.kinds.keys().cloned().collect(),
+            kinds: self
+                .kinds
+                .keys()
+                .chain(self.managed_kinds.keys())
+                .cloned()
+                .collect(),
         }
     }
 
     pub(crate) fn kind_resolver(&self, kind: &str) -> Option<&KindResolver> {
         self.kinds.get(kind)
+    }
+
+    pub(crate) fn managed_kind_resolver(&self, kind: &str) -> Option<&ManagedKindResolver> {
+        self.managed_kinds.get(kind)
     }
 
     pub(crate) fn identity_fn(&self, name: &str) -> Option<IdentityFn> {

@@ -437,7 +437,12 @@ public sealed record BindingContext(
     IReadOnlySet<InterceptionPoint> At,
     TimeSpan? Timeout,
     HostInfo? Host,
-    string DeclarationVersion);
+    string DeclarationVersion)
+{
+    /// <summary>Independently supplied declaration source, or
+    /// <c>null</c> for the single-document path.</summary>
+    public string? SourceId { get; init; }
+}
 
 /// <summary>Host code that turns one binding's <c>config</c> into one
 /// interceptor, or refuses it by throwing. The message of the exception

@@ -16,6 +16,20 @@ Python, TypeScript, .NET, and Go wrappers bind.
 > and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
 > before relying on it.
 
+## Host execution profile
+
+`InterceptionEmitter` defaults to `HostExecutionProfile::strict()`. Hosts that
+continue only timeout failures can select `TimeoutAction::Continue`; the record
+then carries `host_warning:interceptor_timeout`. Use
+`register_managed_with_options` or `HostRegistry::managed_kind` when an adapter
+must own its deadline and finish cancellation/kill/reap before returning
+`ManagedInterceptorOutcome::Timeout`.
+
+`from_declaration_sources` combines only declarations with identical resolved
+global configuration. It preserves `BindingContext.source_id` and
+`source/binding` record names, seals the emitter, and intentionally omits a
+single declaration stamp.
+
 ```bash
 cargo add agent-hooks-sdk
 ```
