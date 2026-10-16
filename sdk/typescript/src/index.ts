@@ -547,8 +547,16 @@ export function composeAggregate(
 }
 
 export { AgentContextBuilder } from "./builder";
-export { InterceptionEmitter, EmitterSealed } from "./emitter";
-export type { HostFailure } from "./emitter";
+export { InterceptionEmitter, EmitterSealed, STRICT_EXECUTION_PROFILE } from "./emitter";
+export type {
+  DeclarationSource,
+  DeclarationSourceInfo,
+  HostExecutionProfile,
+  HostFailure,
+  RegistrationOptions,
+  ResultLabelPolicy,
+  TimeoutAction,
+} from "./emitter";
 export {
   CAPABILITIES,
   DECLARATION_VERSION,

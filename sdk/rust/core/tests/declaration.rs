@@ -10,8 +10,9 @@ use agent_hooks::declaration::{
 use agent_hooks::{
     AgentContext, AgentContextBuilder, ApprovalOutcome, ApprovalRequest, ApprovalResolution,
     ApprovalResolver, CompositionConfig, CompositionProfile, DeclarationError,
-    DeclarationErrorClass, EnforcementMode, HostDeclaration, HostRegistry, InterceptionEmitter,
-    InterceptionPoint, Interceptor, KindResolver, SynthesisPolicy, Verdict, DECLARATION_VERSION,
+    DeclarationErrorClass, DeclarationSource, EnforcementMode, HostDeclaration,
+    HostExecutionProfile, HostRegistry, InterceptionEmitter, InterceptionPoint, Interceptor,
+    KindResolver, ResultLabelPolicy, SynthesisPolicy, TimeoutAction, Verdict, DECLARATION_VERSION,
 };
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -105,6 +106,79 @@ fn document() -> Value {
             { "id": "b", "kind": "com.example.scripted", "config": { "decision": "escalate" }, "at": ["pre_tool_call"] }
         ]
     })
+}
+
+#[tokio::test]
+async fn declaration_sources_preserve_provenance_and_reject_global_mismatch() {
+    use std::sync::{Arc, Mutex};
+
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let captured = seen.clone();
+    let kind: KindResolver = Box::new(move |_config, ctx| {
+        captured
+            .lock()
+            .unwrap()
+            .push(ctx.source_id.unwrap_or("<none>").to_owned());
+        Ok(Box::new(Scripted(Verdict::allow())))
+    });
+    let registry = HostRegistry::new(surface())
+        .kind("com.example.source", kind)
+        .unwrap();
+    let source = |id: &str, mode: &str| {
+        DeclarationSource::new(
+            id,
+            HostDeclaration::from_value(json!({
+                "declaration": DECLARATION_VERSION,
+                "configuration": { "mode": mode },
+                "bindings": [{
+                    "id": "guard",
+                    "kind": "com.example.source",
+                    "config": {},
+                    "at": ["pre_tool_call"]
+                }]
+            }))
+            .unwrap(),
+        )
+    };
+    let mut emitter = InterceptionEmitter::from_declaration_sources(
+        [source("admin", "enforce"), source("plugin", "enforce")],
+        &registry,
+        HostExecutionProfile {
+            timeout_action: TimeoutAction::Continue,
+            result_label_policy: ResultLabelPolicy::RecordOnly,
+        },
+    )
+    .unwrap();
+    assert!(emitter.declaration().is_none());
+    assert_eq!(
+        seen.lock().unwrap().as_slice(),
+        ["admin".to_owned(), "plugin".to_owned()]
+    );
+    assert_eq!(
+        emitter.enabled_points(),
+        [InterceptionPoint::PreToolCall].into_iter().collect()
+    );
+    let mut ctx = AgentContextBuilder::new("a", "test", "s").pre_tool_call("tc", "tool", json!({}));
+    let record = emitter.emit_unchecked(&mut ctx).await;
+    assert_eq!(
+        record
+            .verdicts
+            .iter()
+            .filter_map(|v| v.name.as_deref())
+            .collect::<Vec<_>>(),
+        ["admin/guard", "plugin/guard"]
+    );
+
+    let error = InterceptionEmitter::from_declaration_sources(
+        [
+            source("admin", "enforce"),
+            source("observer", "evaluate_only"),
+        ],
+        &registry,
+        HostExecutionProfile::strict(),
+    )
+    .unwrap_err();
+    assert_eq!(error.class, DeclarationErrorClass::Inconsistent);
 }
 
 async fn run_session(em: &mut InterceptionEmitter) -> Vec<String> {

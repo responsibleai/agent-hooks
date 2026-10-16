@@ -152,6 +152,37 @@ does not accept and names the versions it does. Once built, the emitter
 is sealed, and every record it writes carries the contract version.
 The per-SDK READMEs show the same calls in each language.
 
+### Explicit host execution profiles
+
+Existing hosts keep the strict profile: interceptor timeouts deny and
+`result_labels` participate in label flow. A host with different native
+semantics must opt in explicitly:
+
+```rust
+emitter.set_execution_profile(HostExecutionProfile {
+    timeout_action: TimeoutAction::Continue,
+    result_label_policy: ResultLabelPolicy::RecordOnly,
+});
+```
+
+Timeout continuation is observable: the timed-out registration contributes an
+`allow` carrying `host_warning:interceptor_timeout`. Cancellation, interceptor
+failure, invalid replies and explicit denies still block. Native command/HTTP
+adapters that must cancel, kill and reap work before returning use
+`ManagedInterceptor`; its typed `Timeout` outcome is mapped through the same
+policy only after cleanup.
+
+`from_declaration_sources` imports bindings from independently supplied
+declarations into one sealed **compatible execution group**. Every source is
+resolved whole, resolved global configurations must match, kind resolvers
+receive `BindingContext.source_id`, and record names retain
+`source_id/binding_id` provenance. The emitter deliberately carries no single
+declaration stamp because no one source describes the combined host. Sources
+with different `mode`, composition, seams, timeouts or record settings run in
+separate groups. `enabled_points` reports actual registration scope separately
+from the points the host supports, so tool-only controls do not force blanket
+model/output buffering.
+
 ## Composition and seams
 
 - Composition profile (§7): `sequential/first_deny` (default),

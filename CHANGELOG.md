@@ -5,6 +5,22 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+- The implementation included with proposed P-007 adds an explicit,
+  strict-by-default host execution profile for review.
+  Hosts may opt into observable timeout continuation
+  (`host_warning:interceptor_timeout`) and record-only result labels;
+  cancellation, failures, invalid responses and explicit denies remain
+  blocking. Rust native adapters can own physical deadlines through the
+  typed `ManagedInterceptorOutcome` API, completing cancel/kill/reap before
+  returning `Timeout`.
+- SDK emitters distinguish supported host points from actual enabled
+  registration scope. Rust, Python and TypeScript can combine independently
+  supplied declarations only when their resolved global configuration
+  matches; sources remain immutable, kind resolvers receive source identity,
+  registration records retain `source/binding` provenance, and no single
+  declaration is stamped as the combined host. The .NET public API snapshot
+  includes its additive execution-profile and registration-option types.
+
 - Spec §5.5 (adopted under P-006, Decided 2026-10-15) adds an optional hosted/cross-process
   `InterceptorResponse` envelope:
   `{verdict, extensions?}`. Canonical `Verdict`, in-process interceptor

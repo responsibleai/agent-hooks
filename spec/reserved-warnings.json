@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/reserved-warnings.json",
+  "title": "Agent Hooks — reserved host_warning:* reasons",
+  "description": "Host-synthesized observable continuation warnings (AGENT-HOOKS-0.1 §7.8). Interceptors SHOULD NOT emit reasons with the host_warning: prefix.",
+  "warnings": [
+    {
+      "id": "host_warning:interceptor_timeout",
+      "cause": "A registration explicitly adopted timeout continuation and exceeded its host-owned or interceptor-owned deadline."
+    }
+  ]
+}

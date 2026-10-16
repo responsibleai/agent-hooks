@@ -461,6 +461,9 @@ class BindingContext:
 
     id: str
     kind: str
+    #: Independently supplied declaration source; ``None`` for the
+    #: existing single-document construction path.
+    source_id: str | None
     #: The resolved ``at`` set.
     at: frozenset[InterceptionPoint]
     #: The resolved per-binding bound in seconds; ``None`` is unbounded.
