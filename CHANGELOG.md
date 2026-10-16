@@ -5,7 +5,8 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
-- P-007 adds an explicit, strict-by-default host execution profile.
+- The implementation included with proposed P-007 adds an explicit,
+  strict-by-default host execution profile for review.
   Hosts may opt into observable timeout continuation
   (`host_warning:interceptor_timeout`) and record-only result labels;
   cancellation, failures, invalid responses and explicit denies remain

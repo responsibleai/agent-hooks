@@ -1,8 +1,7 @@
 # P-007: Explicit host execution and declaration-source profiles
 
-**Status:** **Decided** 2026-10-16 — adopt Option C with strict defaults,
-compatible execution groups, observable timeout continuation and record-only
-result labels.
+**Status:** **Proposed** — implementation of Option C is included for review.
+No standards-maintainer decision or adoption is recorded.
 **Raised by:** Liam Crumm, for hosts that adopt independently supplied standard
 controls through an existing native registration pipeline.
 
@@ -27,11 +26,12 @@ bypass silent.
 
 ### B. Change the defaults
 
-This breaks existing hosts and weakens fail-closed adoption. Rejected.
+This breaks existing hosts and weakens fail-closed adoption. Not recommended.
 
 ### C. Add an explicit execution profile and compatible source groups
 
-Adopted.
+Recommended. The accompanying implementation is included to make the proposed
+API and semantics concrete during review; it does not record adoption.
 
 - Existing hosts default to `timeout_action: deny` and
   `result_label_policy: flow`.
@@ -54,4 +54,5 @@ Adopted.
 ## Compatibility
 
 All existing constructors, single-declaration loaders, records and conformance
-claims retain their current meaning. The new posture is opt-in and additive.
+claims retain their current meaning. The proposed posture is opt-in and
+additive.
