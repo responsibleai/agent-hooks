@@ -184,7 +184,7 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master; toolchain pinned via sdk/rust/rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master; toolchain pinned via sdk/rust/rust-toolchain.toml
         with: { toolchain: stable }
       - name: Package (verifies the publishable crate)
         run: cargo package --locked -p agent-hooks-sdk
@@ -232,7 +232,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master; toolchain pinned via sdk/rust/rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master; toolchain pinned via sdk/rust/rust-toolchain.toml
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
@@ -388,7 +388,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master; toolchain pinned via sdk/rust/rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master; toolchain pinned via sdk/rust/rust-toolchain.toml
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
@@ -472,7 +472,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master; toolchain pinned via sdk/rust/rust-toolchain.toml
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master; toolchain pinned via sdk/rust/rust-toolchain.toml
         with: { toolchain: stable }
       - run: cargo build --locked -p agent-hooks-ffi --release
         working-directory: sdk/rust
