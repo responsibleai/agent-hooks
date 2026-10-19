@@ -254,7 +254,8 @@ public sealed class InterceptionEmitter
             {
                 var binding = item.Resolved.Bindings[i];
                 var options = item.Source.BindingOptions?.GetValueOrDefault(binding.Id);
-                emitter._bound.Add(part._bound[i] with {
+                emitter._bound.Add(part._bound[i] with
+                {
                     Name = $"{item.Source.Id}/{binding.Id}",
                     OnTimeout = options?.OnTimeout,
                 });
