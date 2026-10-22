@@ -99,6 +99,10 @@ public sealed class DeclarationTests
         return new AgentContext(o);
     }
 
+    /// <summary>The previous minor. Documents that write it keep it on
+    /// their records and in their resolved form (§7.7.8).</summary>
+    private const string V10 = "agent-hooks-declaration/1.0";
+
     private static string Minimal(string kind = "com.example.allow") => $$"""
         {"declaration": "agent-hooks-declaration/1.0",
          "bindings": [{"id": "allow", "kind": "{{kind}}"}]}
@@ -143,7 +147,9 @@ public sealed class DeclarationTests
     {
         var em = InterceptionEmitter.FromDeclarationJson(Minimal(), Registry());
         Assert.NotNull(em.Declaration);
-        Assert.Equal(Declaration.Version, em.Declaration!.Version);
+        Assert.Equal(V10, em.Declaration!.Version);
+        Assert.Equal(OnError.Deny, em.Declaration.FailureOnError);
+        Assert.Equal(OnError.Deny, em.Declaration.Bindings[0].OnError);
         Assert.Equal(CompositionConfig.Default, em.Declaration.Composition);
         Assert.Equal(5000, em.Declaration.InterceptorTimeoutMs);
         Assert.Equal(5000, em.Declaration.ApprovalResolverTimeoutMs);
@@ -151,13 +157,14 @@ public sealed class DeclarationTests
 
         var r = await em.EmitUncheckedAsync(Ctx());
         Assert.True(r.Proceeds);
-        Assert.Equal(Declaration.Version, r.Declaration);
+        Assert.Equal(V10, r.Declaration);
         Assert.Equal(CompositionProfile.SequentialFirstDeny, r.Composition.Profile);
         Assert.Equal(OnApproval.Stop, r.Composition.OnApproval);
         Assert.Equal("jcs-sha256", r.IdentityProvider);
         Assert.Equal(1, r.InterceptorsRegistered);
         Assert.Equal("allow", r.Verdicts[0].Name);
-        Assert.Equal(Declaration.Version, (string?)r.ToWire()["declaration"]);
+        Assert.Null(r.Verdicts[0].SubstitutedFor);
+        Assert.Equal(V10, (string?)r.ToWire()["declaration"]);
     }
 
     [Fact]
@@ -182,7 +189,7 @@ public sealed class DeclarationTests
                           {"id": "b", "kind": "com.example.allow"}]}
             """, Registry());
         var r = em.RecordHostFailure(InterceptionPoint.PreToolCall, detail: "InvalidOperationException");
-        Assert.Equal(Declaration.Version, r.Declaration);
+        Assert.Equal(V10, r.Declaration);
         Assert.Equal(2, r.InterceptorsRegistered);
         Assert.Equal(1, em.RecordHostFailure(InterceptionPoint.Output).InterceptorsRegistered);
     }
@@ -190,9 +197,11 @@ public sealed class DeclarationTests
     [Fact]
     public async Task ThreePathsYieldTheSameEmitterAndRecords()
     {
+        // The builder writes the current version, so the text document
+        // does too; a 1.0 document pairs with Version("...1.0").
         var doc = (JsonObject)JsonNode.Parse("""
             {
-              "declaration": "agent-hooks-declaration/1.0",
+              "declaration": "agent-hooks-declaration/1.1",
               "configuration": {
                 "composition": {"profile": "parallel/strictest"},
                 "timeouts": {"interceptor_ms": 4000}
@@ -281,7 +290,7 @@ public sealed class DeclarationTests
         Assert.False(r.Proceeds);
         Assert.Equal(HostError.NoInterceptor, r.Verdict.Reason);
         Assert.Equal(0, r.InterceptorsRegistered);
-        Assert.Equal(Declaration.Version, r.Declaration);
+        Assert.Equal(V10, r.Declaration);
         Assert.Null(r.DecidedBy);
     }
 
@@ -292,7 +301,7 @@ public sealed class DeclarationTests
             """{"declaration": "agent-hooks-declaration/1.0", "bindings": []}""", Registry());
         var r = await em.EmitUncheckedAsync(Ctx("agent_startup"));
         Assert.Equal(HostError.NoInterceptor, r.Verdict.Reason);
-        Assert.Equal(Declaration.Version, r.Declaration);
+        Assert.Equal(V10, r.Declaration);
     }
 
     [Fact]
@@ -770,7 +779,7 @@ public sealed class DeclarationTests
             var rebuilt = Runner.BuilderFromNode(doc).ToNode();
             Assert.True(JsonNode.DeepEquals(doc, rebuilt), $"{vector["id"]}: builder rebuilt a different document");
         }
-        Assert.Equal(24, seen);
+        Assert.Equal(40, seen);
     }
 
     [Fact]
@@ -787,6 +796,7 @@ public sealed class DeclarationTests
              ]}
             """)!;
         var builder = HostDeclaration.Builder()
+            .Version(V10)
             .Bind("a", "com.example.allow", config: null)
             .Bind("b", "com.example.allow");
         var node = builder.ToNode();

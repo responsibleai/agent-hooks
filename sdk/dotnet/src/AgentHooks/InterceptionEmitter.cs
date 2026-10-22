@@ -26,6 +26,27 @@
 // interceptors yields deny host_error:no_interceptor (§7), and EmitAsync
 // THROWS InterceptionBlockedException on any block — the ignorable-result
 // variant is the explicitly named EmitUncheckedAsync.
+//
+// Failure posture (on_error, §6.3.1): every registration carries an
+// OnError. The default, Deny, is the fail-closed posture above.
+// Continue covers exactly three failures of the registration's own
+// interceptor (a throw, a timeout, a §5-invalid return value): the host
+// substitutes an allow carrying host_warning:control_failed in that
+// registration's composition slot, records the underlying host_error
+// reason on verdicts[].substituted_for, and tells the principal through
+// the control failure notifier. Context failures, cancellation,
+// transform failures, approval failures, no_interceptor and an explicit
+// deny never continue. A Continue registration without a notifier is
+// refused at construction, so silent continuation is not reachable by
+// leaving the channel out. The substituted allow, its warning and the
+// notice are built by the core (ah_control_failure_substitute) so every
+// SDK writes the same bytes.
+//
+// An interceptor that owns external work implements IManagedInterceptor
+// instead: the emitter does not wrap it in the outer timer but hands it
+// the resolved bound, and the interceptor reports a typed outcome after
+// it has cleaned up (mapped by ah_managed_outcome). A cancelled outcome
+// is never a timeout and never continues.
 
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -85,6 +106,31 @@ public sealed class IdentityProvider
     }
 }
 
+/// <summary>The optional facts of one code registration
+/// (<see cref="InterceptionEmitter.RegisterWithOptions"/>,
+/// <see cref="InterceptionEmitter.RegisterManaged"/>): the payload-free
+/// <see cref="Name"/> stamped on <c>verdicts[].name</c> (§10.3), the
+/// points the interceptor runs <see cref="At"/> (<c>null</c> is every
+/// point) and its failure posture (§6.3.1). The default is an unnamed
+/// registration at every point with <c>on_error: deny</c>, which is
+/// what <see cref="InterceptionEmitter.Register(IInterceptor, string?, IReadOnlySet{InterceptionPoint}?)"/>
+/// does. <see cref="OnError.Continue"/> needs a control failure
+/// notifier on the emitter first.</summary>
+public sealed record RegistrationOptions(
+    string? Name = null,
+    IReadOnlySet<InterceptionPoint>? At = null,
+    OnError OnError = OnError.Deny);
+
+/// <summary>A refused code registration: <c>on_error: continue</c> on an
+/// emitter without a control failure notifier (§6.3.1). Set the notifier
+/// with <see cref="InterceptionEmitter.SetControlFailureNotifier"/>
+/// before the registration. Nothing was registered.</summary>
+public sealed class RegistrationException(string detail)
+    : InvalidOperationException($"registration refused: {detail}")
+{
+    public string Detail { get; } = detail;
+}
+
 /// <summary>Host-side helper that implements §6–§10 once so adapters don't have to.</summary>
 public sealed class InterceptionEmitter
 {
@@ -107,15 +153,19 @@ public sealed class InterceptionEmitter
     }
 
     /// <summary>One registered interceptor with its binding facts
-    /// (§7.7.5): the payload-free name stamped on <c>verdicts[].name</c>,
-    /// the points it runs at (<c>null</c> = every point, the
-    /// pre-declaration behaviour) and its timeout.</summary>
+    /// (§7.7.5): the interceptor (a standard one the emitter bounds
+    /// itself, or a managed one that owns its deadline, §7), the
+    /// payload-free name stamped on <c>verdicts[].name</c>, the points
+    /// it runs at (<c>null</c> = every point, the pre-declaration
+    /// behaviour), its timeout and its failure posture (§6.3.1).</summary>
     private sealed record Bound(
-        IInterceptor Interceptor,
+        IInterceptor? Interceptor,
+        IManagedInterceptor? Managed,
         string? Name,
         IReadOnlySet<InterceptionPoint>? At,
         BoundTimeout TimeoutKind,
-        TimeSpan Timeout)
+        TimeSpan Timeout,
+        OnError OnError)
     {
         // An unparseable point never reaches dispatch (§4 validation
         // denies first); count every binding so the record is
@@ -123,6 +173,22 @@ public sealed class InterceptionEmitter
         public bool RunsAt(InterceptionPoint? point) =>
             At is null || point is null || At.Contains(point.Value);
     }
+
+    /// <summary>Why one interceptor call produced no usable verdict
+    /// (§6.3). The failure is host-synthesized and bypasses the §5
+    /// gate: the gate exists to stop interceptors spoofing reserved
+    /// reasons, not the host substituting them (TM-02).
+    /// <c>Continuable</c> is whether <c>on_error: continue</c> may
+    /// substitute an allow for it: false for a cancellation, which is
+    /// not one of the three covered failures whatever reason records
+    /// it.</summary>
+    private sealed record CallFailure(string Reason, string? Detail, bool Continuable);
+
+    /// <summary>One interceptor call after the registration's
+    /// <c>on_error</c> has been applied (§6.3.1): the verdict that takes
+    /// the composition slot and, when the host substituted an allow, the
+    /// underlying reason for <c>verdicts[].substituted_for</c>.</summary>
+    private sealed record Settled(Verdict Verdict, string? SubstitutedFor);
 
     private readonly List<Bound> _bound = [];
     private readonly List<InterceptionRecord> _records = [];
@@ -136,6 +202,7 @@ public sealed class InterceptionEmitter
     private IdentityProvider _identity = IdentityProvider.JcsSha256;
     private Func<AgentContext, AgentContext>? _approvalRedactor;
     private Action<InterceptionRecord>? _recordSink;
+    private Action<ControlFailureNotice>? _notifier;
     private int? _maxRecords;
     private long _recordsDropped;
 
@@ -243,14 +310,32 @@ public sealed class InterceptionEmitter
                 $"approval redactor \"{redactorName}\" vanished from the registry");
         }
 
+        _notifier = registry.ControlFailureNotifierRef;
         for (var i = 0; i < resolved.Bindings.Count; i++)
         {
             var b = resolved.Bindings[i];
             var pointer = $"/bindings/{i}";
-            var resolve = registry.KindResolverFor(b.Kind) ?? throw new DeclarationException(
-                DeclarationErrorClass.KindUnknown,
-                $"{pointer}/kind",
-                $"kind \"{b.Kind}\" vanished from the registry");
+            var resolve = registry.KindResolverFor(b.Kind);
+            var resolveManaged = registry.ManagedKindResolverFor(b.Kind);
+            if (resolve is null && resolveManaged is null)
+            {
+                throw new DeclarationException(
+                    DeclarationErrorClass.KindUnknown,
+                    $"{pointer}/kind",
+                    $"kind \"{b.Kind}\" vanished from the registry");
+            }
+            // §6.3.1: a binding that resolves to `continue` needs the
+            // channel that tells the principal; without it the host
+            // cannot honour the posture, and silently denying instead
+            // would be the opposite surprise. Refuse at construction,
+            // at the member that set the posture.
+            if (b.OnError == OnError.Continue && _notifier is null)
+            {
+                throw new DeclarationException(
+                    DeclarationErrorClass.BindingRejected,
+                    b.OnError == resolved.FailureOnError ? "/configuration/failure/on_error" : $"{pointer}/on_error",
+                    $"binding \"{b.Id}\" resolves to on_error: continue but the host registry has no control failure notifier (see spec 6.3)");
+            }
             var timeout = b.TimeoutMs is { } ms ? TimeSpan.FromMilliseconds(ms) : (TimeSpan?)null;
             // The dispatch set is fixed before the resolver runs and the
             // context carries its own copy, so a resolver cannot widen
@@ -258,14 +343,17 @@ public sealed class InterceptionEmitter
             // the same reason).
             var at = new HashSet<InterceptionPoint>(b.At);
             var context = new BindingContext(
-                b.Id, b.Kind, new HashSet<InterceptionPoint>(b.At), timeout, resolved.Host, resolved.Version);
+                b.Id, b.Kind, new HashSet<InterceptionPoint>(b.At), timeout, resolved.Host, resolved.Version,
+                b.OnError);
             // §7.7.5: a resolver exception or a non-interceptor return
             // refuses the document; the detail is bounded and the
             // config is never echoed by the loader.
-            IInterceptor? interceptor;
+            IInterceptor? interceptor = null;
+            IManagedInterceptor? managed = null;
             try
             {
-                interceptor = resolve(b.Config, context);
+                if (resolve is not null) interceptor = resolve(b.Config, context);
+                else managed = resolveManaged!(b.Config, context);
             }
             catch (Exception e)
             {
@@ -274,7 +362,7 @@ public sealed class InterceptionEmitter
                     pointer,
                     $"binding \"{b.Id}\" (kind \"{b.Kind}\") rejected: {e.Message}");
             }
-            if (interceptor is null)
+            if (interceptor is null && managed is null)
             {
                 throw new DeclarationException(
                     DeclarationErrorClass.BindingRejected,
@@ -283,10 +371,12 @@ public sealed class InterceptionEmitter
             }
             _bound.Add(new Bound(
                 interceptor,
+                managed,
                 b.Id,
                 at,
                 timeout is null ? BoundTimeout.Unbounded : BoundTimeout.Bounded,
-                timeout ?? Timeout.InfiniteTimeSpan));
+                timeout ?? Timeout.InfiniteTimeSpan,
+                b.OnError));
         }
 
         _sealed = true;
@@ -313,7 +403,16 @@ public sealed class InterceptionEmitter
         var task = fn(cts.Token).AsTask();
         var completed = await Task.WhenAny(task, Task.Delay(limit, CancellationToken.None));
         if (completed != task) throw new TimeoutException();
-        return await task;
+        try
+        {
+            return await task;
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            // The callee honoured the timeout token just as the limit
+            // fired: a timeout, not a raise and not a host cancellation.
+            throw new TimeoutException();
+        }
     }
 
     public EnforcementMode Mode => _mode;
@@ -343,12 +442,52 @@ public sealed class InterceptionEmitter
     public InterceptionEmitter Register(
         IInterceptor interceptor, string? name = null, IReadOnlySet<InterceptionPoint>? at = null)
     {
-        Unsealed("Register");
-        _bound.Add(new Bound(
-            interceptor, name,
-            at is null ? null : new HashSet<InterceptionPoint>(at),
-            BoundTimeout.Inherit, default));
+        ArgumentNullException.ThrowIfNull(interceptor);
+        PushBound(interceptor, null, new RegistrationOptions(name, at, OnError.Deny));
         return this;
+    }
+
+    /// <summary>Register an interceptor with every optional fact spelled
+    /// out (§7.7.5, §6.3.1). <see cref="Register(IInterceptor, string?, IReadOnlySet{InterceptionPoint}?)"/>
+    /// is this call with <c>on_error: deny</c>. <see cref="OnError.Continue"/>
+    /// is refused with <see cref="RegistrationException"/> unless
+    /// <see cref="SetControlFailureNotifier"/> ran first; nothing is
+    /// registered then. Refused on a sealed emitter (§7.7.7).</summary>
+    public InterceptionEmitter RegisterWithOptions(IInterceptor interceptor, RegistrationOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(interceptor);
+        ArgumentNullException.ThrowIfNull(options);
+        PushBound(interceptor, null, options);
+        return this;
+    }
+
+    /// <summary>Register an interceptor that owns its own deadline (§7).
+    /// The emitter does not wrap it in the timer; on every call it
+    /// receives the registration's resolved bound (the emitter-wide
+    /// timeout for a code registration, <c>null</c> when that is
+    /// <see cref="Timeout.InfiniteTimeSpan"/>) and reports a typed
+    /// outcome. <c>null</c> options mean an unnamed registration at
+    /// every point with <c>on_error: deny</c>. <see cref="OnError.Continue"/>
+    /// is refused unless the notifier is set.</summary>
+    public InterceptionEmitter RegisterManaged(IManagedInterceptor interceptor, RegistrationOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(interceptor);
+        PushBound(null, interceptor, options ?? new RegistrationOptions());
+        return this;
+    }
+
+    private void PushBound(IInterceptor? interceptor, IManagedInterceptor? managed, RegistrationOptions options)
+    {
+        Unsealed("Register");
+        if (options.OnError == OnError.Continue && _notifier is null)
+        {
+            throw new RegistrationException(
+                $"{options.Name ?? "unnamed registration"}: on_error is continue but the emitter has no control failure notifier; call SetControlFailureNotifier first (see spec 6.3)");
+        }
+        _bound.Add(new Bound(
+            interceptor, managed, options.Name,
+            options.At is null ? null : new HashSet<InterceptionPoint>(options.At),
+            BoundTimeout.Inherit, default, options.OnError));
     }
 
     /// <summary>The two-argument form shipped in 0.1.0-alpha.5. Kept
@@ -405,6 +544,28 @@ public sealed class InterceptionEmitter
     public InterceptionEmitter SetRecordSink(Action<InterceptionRecord> sink)
     {
         _recordSink = sink;
+        return this;
+    }
+
+    /// <summary>Register the channel through which the host tells the
+    /// principal that a control failed and the action continued
+    /// (§6.3.1): the user in an interactive session, otherwise the
+    /// agent through the host's own message channel. The callback
+    /// receives the binding label, the underlying <c>host_error:*</c>
+    /// reason and the warning message; nothing from the context or
+    /// target. Required before any registration with
+    /// <see cref="OnError.Continue"/> (<see cref="RegisterWithOptions"/>,
+    /// <see cref="RegisterManaged"/>); a declaration-built emitter takes
+    /// it from <see cref="HostRegistry.ControlFailureNotifier"/>. The
+    /// notifier runs before the substitution takes effect; if it throws,
+    /// the substituted deny stands, so a continuation the principal was
+    /// not told about cannot happen. Like the record sink, it may be set
+    /// on a sealed emitter: it is a host channel, not declared
+    /// configuration.</summary>
+    public InterceptionEmitter SetControlFailureNotifier(Action<ControlFailureNotice> notifier)
+    {
+        ArgumentNullException.ThrowIfNull(notifier);
+        _notifier = notifier;
         return this;
     }
 
@@ -661,11 +822,14 @@ public sealed class InterceptionEmitter
     };
 
     /// <summary>Payload-free per-interceptor summaries for the record
-    /// (§10.3), with the bound names attached positionally.</summary>
+    /// (§10.3), with the bound names and the §6.3.1 <c>substituted_for</c>
+    /// reasons attached positionally.</summary>
     private static List<VerdictSummary> Summaries(
-        IReadOnlyList<Verdict> verdicts, IReadOnlyList<Bound> active) =>
+        IReadOnlyList<Verdict> verdicts, IReadOnlyList<Bound> active, IReadOnlyList<string?> substituted) =>
         verdicts.Select((v, i) => new VerdictSummary(
-            i, v.Decision, v.Reason, i < active.Count ? active[i].Name : null)).ToList();
+            i, v.Decision, v.Reason,
+            i < active.Count ? active[i].Name : null,
+            i < substituted.Count ? substituted[i] : null)).ToList();
 
     /// <summary>Apply the §7.3 metadata unions to a combined verdict:
     /// warnings from every verdict in the pool (first-seen order); labels
@@ -714,30 +878,123 @@ public sealed class InterceptionEmitter
 
     /// <summary>Run one interceptor over a deep copy of
     /// <paramref name="basis"/> (§7: in-place mutation of the copy cannot
-    /// alter enforcement) and cross the §5 gate. Failures come back as
-    /// host-synthesized denies (§6.3, fail closed).</summary>
-    private async ValueTask<Verdict> RunOneAsync(
+    /// alter enforcement) and cross the §5 gate. A standard interceptor
+    /// runs under the emitter's timer; a managed one receives the bound
+    /// and reports a typed outcome (§7). The verdict, or the failure
+    /// that the registration's <c>on_error</c> then settles (§6.3).</summary>
+    private async ValueTask<(Verdict? Verdict, CallFailure? Failure)> CallIsolatedAsync(
         Bound bound, AgentContext basis, CancellationToken ct)
     {
+        var copy = new AgentContext((JsonObject)basis.Json.DeepClone());
+        Verdict v;
         try
         {
-            var copy = new AgentContext((JsonObject)basis.Json.DeepClone());
-            var v = await WithTimeoutAsync(Limit(bound), t => bound.Interceptor.InterceptAsync(copy, t), ct);
-            Native.ValidateVerdict(v.ToWire().ToJsonString(Compact)); // §5
-            return v;
+            if (bound.Managed is { } managed)
+            {
+                var limit = Limit(bound);
+                var outcome = await managed.InterceptManagedAsync(
+                    copy, limit == Timeout.InfiniteTimeSpan ? null : limit, ct);
+                if (outcome.Kind != ManagedOutcomeKind.Verdict)
+                {
+                    // The core maps timeout, cancelled and failed the way
+                    // the Rust emitter does; cancelled is not continuable.
+                    var mapped = (JsonObject)JsonNode.Parse(
+                        Native.ManagedOutcome(outcome.ToWire().ToJsonString(Compact)))!;
+                    var failure = (JsonObject)mapped["failure"]!;
+                    return (null, new CallFailure(
+                        (string)failure["reason"]!, (string?)failure["detail"], (bool)failure["continuable"]!));
+                }
+                v = outcome.Verdict!;
+            }
+            else
+            {
+                v = await WithTimeoutAsync(Limit(bound), t => bound.Interceptor!.InterceptAsync(copy, t), ct);
+            }
         }
         catch (TimeoutException)
         {
-            return Verdict.FromHostError(HostError.InterceptorTimeout);
+            return (null, new CallFailure(HostError.InterceptorTimeout, null, true));
         }
-        catch (AgentHooksCoreException e)
+        catch (OperationCanceledException e) when (ct.IsCancellationRequested)
         {
-            return Verdict.FromHostError(e.Code, e.Detail);
+            // §6.3.1: the host cancelled the emission. Recorded as a
+            // failure, never substituted.
+            return (null, new CallFailure(HostError.InterceptorFailed, e.GetType().Name, false));
         }
         catch (Exception e) // fail closed per §6.3
         {
-            return Verdict.FromHostError(HostError.InterceptorFailed, e.GetType().Name);
+            return (null, new CallFailure(HostError.InterceptorFailed, e.GetType().Name, true));
         }
+        try
+        {
+            Native.ValidateVerdict(v.ToWire().ToJsonString(Compact)); // §5
+            return (v, null);
+        }
+        catch (AgentHooksCoreException e)
+        {
+            return (null, new CallFailure(e.Code, e.Detail, HostError.IsControlFailure(e.Code)));
+        }
+    }
+
+    /// <summary>Call one bound interceptor, run its return through the
+    /// §5 gate and apply the registration's <c>on_error</c> (§6.3.1).
+    /// <paramref name="idx"/> is the dispatch index (<c>verdicts[].index</c>).</summary>
+    private async ValueTask<Settled> InvokeAsync(
+        Bound bound, int idx, AgentContext basis, CancellationToken ct)
+    {
+        var (verdict, failure) = await CallIsolatedAsync(bound, basis, ct);
+        if (verdict is not null) return new Settled(verdict, null);
+        return Settle(basis, idx, bound, failure!);
+    }
+
+    /// <summary>§6.3.1: under <c>deny</c>, or for a failure
+    /// <c>on_error</c> does not cover, the host-synthesized deny takes
+    /// the slot. Under <c>continue</c> the core builds the substituted
+    /// allow and the notice, the principal is told first, then the
+    /// allow takes the slot and the underlying reason goes to
+    /// <c>substituted_for</c>. A notifier that fails leaves the deny
+    /// standing: a continuation nobody was told about is not
+    /// conformant.</summary>
+    private Settled Settle(AgentContext ctx, int idx, Bound bound, CallFailure failure)
+    {
+        Settled Deny(string? detail) => new(Verdict.FromHostError(failure.Reason, detail), null);
+        if (bound.OnError != OnError.Continue || !failure.Continuable)
+            return Deny(failure.Detail);
+        var binding = bound.Name ?? $"interceptor-{idx}";
+        // Unreachable by construction (registration and the loader
+        // refuse `continue` without a notifier); kept as the
+        // fail-closed answer should that ever change.
+        if (_notifier is not { } notifier)
+            return Deny("on_error: continue without a control failure notifier; the deny stands (see spec 6.3)");
+        JsonObject substitution;
+        try
+        {
+            var request = new JsonObject
+            {
+                ["binding"] = binding,
+                ["reason"] = failure.Reason,
+                ["index"] = idx,
+            };
+            if (PointOf(ctx) is { } point) request["interception_point"] = point.ToWireName();
+            substitution = (JsonObject)JsonNode.Parse(
+                Native.ControlFailureSubstitute(request.ToJsonString(Compact)))!;
+        }
+        catch (AgentHooksCoreException e)
+        {
+            // The core refuses every reason on_error does not cover.
+            return Deny($"substitution refused by the core ({e.Code}); the deny stands (see spec 6.3)");
+        }
+        try
+        {
+            notifier(ControlFailureNotice.FromWire((JsonObject)substitution["notice"]!));
+        }
+        catch (Exception e)
+        {
+            return Deny($"control failure notifier threw {e.GetType().Name}; the deny stands (see spec 6.3)");
+        }
+        return new Settled(
+            Verdict.FromWire((JsonObject)substitution["verdict"]!),
+            (string)substitution["substituted_for"]!);
     }
 
     /// <summary><c>sequential/first_deny</c> (§7.4): fold-through, first
@@ -753,6 +1010,7 @@ public sealed class InterceptionEmitter
         var n = active.Count;
         var onApproval = _composition.OnApproval ?? OnApproval.Stop;
         var perInterceptor = new List<Verdict>();
+        var substituted = new List<string?>();
         var pool = new List<Verdict>();
         (int Idx, Verdict V)? lastTransform = null;
         string? resolvedBy = null;
@@ -760,8 +1018,11 @@ public sealed class InterceptionEmitter
 
         for (var i = 0; i < n; i++)
         {
-            var v = await RunOneAsync(active[i], ctx, ct);
+            // Under `on_error: continue` a covered failure arrives here
+            // as the substituted allow (§6.3.1) and the fold goes on.
+            var (v, substitutedFor) = await InvokeAsync(active[i], i, ctx, ct);
             perInterceptor.Add(v);
+            substituted.Add(substitutedFor);
             pool.Add(v);
             if (IsHostSynthesized(v))
             {
@@ -771,7 +1032,7 @@ public sealed class InterceptionEmitter
                 // (§10.3 decided_by), matching the aggregation
                 // profiles.
                 return new DispatchOutcome(
-                    WithUnions(v, pool), i, Summaries(perInterceptor, active),
+                    WithUnions(v, pool), i, Summaries(perInterceptor, active, substituted),
                     Truncated(i), resolvedBy);
             }
 
@@ -783,7 +1044,7 @@ public sealed class InterceptionEmitter
                         if (c is null)
                         {
                             return new DispatchOutcome(
-                                WithUnions(v, pool), i, Summaries(perInterceptor, active),
+                                WithUnions(v, pool), i, Summaries(perInterceptor, active, substituted),
                                 Truncated(i), resolvedBy);
                         }
                         if (!c.Permitted)
@@ -794,7 +1055,7 @@ public sealed class InterceptionEmitter
                             return new DispatchOutcome(
                                 WithUnions(c.Verdict, pool),
                                 IsHostSynthesized(c.Verdict) ? null : i,
-                                Summaries(perInterceptor, active), Truncated(i), "rejection");
+                                Summaries(perInterceptor, active, substituted), Truncated(i), "rejection");
                         }
                         resolvedBy = "approval";
                         // §7.6: the permit resolution substitutes at this
@@ -806,7 +1067,7 @@ public sealed class InterceptionEmitter
                         if (!sub.Decision.Permits())
                         {
                             return new DispatchOutcome(
-                                sub, null, Summaries(perInterceptor, active),
+                                sub, null, Summaries(perInterceptor, active, substituted),
                                 Truncated(i), resolvedBy);
                         }
                         pool.Add(sub);
@@ -816,7 +1077,7 @@ public sealed class InterceptionEmitter
                             // verdict; the emission ends. fold_truncated makes
                             // the skip legible.
                             return new DispatchOutcome(
-                                WithUnions(sub, pool), i, Summaries(perInterceptor, active),
+                                WithUnions(sub, pool), i, Summaries(perInterceptor, active, substituted),
                                 Truncated(i), resolvedBy);
                         }
                         if (sub.Decision == Decision.Transform)
@@ -830,7 +1091,7 @@ public sealed class InterceptionEmitter
                         {
                             // Transform failed closed (host-synthesized §5.2).
                             return new DispatchOutcome(
-                                folded, null, Summaries(perInterceptor, active),
+                                folded, null, Summaries(perInterceptor, active, substituted),
                                 Truncated(i), resolvedBy);
                         }
                         lastTransform = (i, folded);
@@ -844,7 +1105,7 @@ public sealed class InterceptionEmitter
             ? (lt.V, (int?)lt.Idx)
             : (Verdict.Allow, null);
         return new DispatchOutcome(
-            WithUnions(combined, pool), decidedBy, Summaries(perInterceptor, active),
+            WithUnions(combined, pool), decidedBy, Summaries(perInterceptor, active, substituted),
             false, resolvedBy);
     }
 
@@ -857,11 +1118,14 @@ public sealed class InterceptionEmitter
         AgentContext ctx, IReadOnlyList<Bound> active, CancellationToken ct)
     {
         var all = new List<Verdict>();
-        foreach (var bound in active)
+        var substituted = new List<string?>();
+        for (var i = 0; i < active.Count; i++)
         {
             // §6.3 per-interceptor: a malformed verdict becomes that
-            // interceptor's synthesized deny; the rest still run.
-            var v = await RunOneAsync(bound, ctx, ct);
+            // interceptor's synthesized deny (or, under `continue`, the
+            // substituted allow); the rest still run.
+            var (v, substitutedFor) = await InvokeAsync(active[i], i, ctx, ct);
+            substituted.Add(substitutedFor);
             if (v.Decision == Decision.Transform)
             {
                 var folded = FoldTransform(ctx, v);
@@ -870,7 +1134,7 @@ public sealed class InterceptionEmitter
                     // §7.4: a transform that fails to apply short-circuits
                     // in both sequential profiles.
                     all.Add(folded);
-                    return new DispatchOutcome(folded, null, Summaries(all, active));
+                    return new DispatchOutcome(folded, null, Summaries(all, active, substituted));
                 }
                 all.Add(folded);
             }
@@ -879,7 +1143,7 @@ public sealed class InterceptionEmitter
                 all.Add(v);
             }
         }
-        return await AggregateAndConsultAsync(ctx, all, active, ct);
+        return await AggregateAndConsultAsync(ctx, all, active, substituted, ct);
     }
 
     /// <summary>Parallel profiles (§7.5): isolated snapshots, no fold;
@@ -891,9 +1155,14 @@ public sealed class InterceptionEmitter
     {
         var snapshot = new AgentContext((JsonObject)ctx.Json.DeepClone());
         var all = new List<Verdict>();
-        foreach (var bound in active)
-            all.Add(await RunOneAsync(bound, snapshot, ct));
-        return await AggregateAndConsultAsync(ctx, all, active, ct);
+        var substituted = new List<string?>();
+        for (var i = 0; i < active.Count; i++)
+        {
+            var (v, substitutedFor) = await InvokeAsync(active[i], i, snapshot, ct);
+            all.Add(v);
+            substituted.Add(substitutedFor);
+        }
+        return await AggregateAndConsultAsync(ctx, all, active, substituted, ct);
     }
 
     /// <summary>Severity-max aggregation (ah_compose_aggregate) + winner
@@ -903,16 +1172,23 @@ public sealed class InterceptionEmitter
     /// the environment checks (resolver present, mode, shutdown) and the
     /// callbacks stay native.</summary>
     private async ValueTask<DispatchOutcome> AggregateAndConsultAsync(
-        AgentContext ctx, List<Verdict> all, IReadOnlyList<Bound> active, CancellationToken ct)
+        AgentContext ctx, List<Verdict> all, IReadOnlyList<Bound> active,
+        IReadOnlyList<string?> substituted, CancellationToken ct)
     {
         var agg = Canonical.ComposeAggregate(
             _composition,
             new JsonArray(all.Select(v => (JsonNode)v.ToWire()).ToArray()));
         var combined = Verdict.FromWire((JsonObject)agg["combined"]!);
         var decidedBy = agg["decided_by"] is null ? null : (int?)agg["decided_by"]!;
+        // The core's summaries carry neither names nor substituted_for;
+        // both attach positionally here (§10.3, §6.3.1).
         var verdicts = ((JsonArray)agg["verdicts"]!)
             .Select(s => VerdictSummary.FromWire((JsonObject)s!))
-            .Select(v => v with { Name = v.Index < active.Count ? active[v.Index].Name : null })
+            .Select(v => v with
+            {
+                Name = v.Index < active.Count ? active[v.Index].Name : null,
+                SubstitutedFor = v.Index < substituted.Count ? substituted[v.Index] : null,
+            })
             .ToList();
         string? resolvedBy = null;
 

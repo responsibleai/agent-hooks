@@ -21,13 +21,18 @@ namespace AgentHooks;
 /// the package version, and the fixed bounds of §7.7.3.</summary>
 public static class Declaration
 {
-    /// <summary>The contract version this SDK writes and accepts.</summary>
-    public const string Version = "agent-hooks-declaration/1.0";
+    /// <summary>The contract version this SDK writes and accepts. 1.1
+    /// adds the optional <c>on_error</c> members (§6.3.1, §7.7.5); a
+    /// document without them keeps its 1.0 meaning.</summary>
+    public const string Version = "agent-hooks-declaration/1.1";
 
-    /// <summary>Every contract version this SDK's loader accepts. A
-    /// document carrying any other <c>declaration</c> value is refused
-    /// with <c>declaration_error:version_unsupported</c>.</summary>
-    public static readonly IReadOnlyList<string> SupportedVersions = [Version];
+    /// <summary>The previous minor, still accepted (§7.7.2).</summary>
+    private const string Version10 = "agent-hooks-declaration/1.0";
+
+    /// <summary>Every contract version this SDK's loader accepts, oldest
+    /// first. A document carrying any other <c>declaration</c> value is
+    /// refused with <c>declaration_error:version_unsupported</c>.</summary>
+    public static readonly IReadOnlyList<string> SupportedVersions = [Version10, Version];
 
     /// <summary>Largest document the text and file paths accept, in bytes.</summary>
     public const int MaxDocumentBytes = 1 << 20;
@@ -430,19 +435,58 @@ public sealed record HostInfo(string Name, string? Version = null);
 
 /// <summary>What a kind resolver learns about the binding it builds
 /// (§7.7.5). <see cref="Timeout"/> is the resolved per-binding bound;
-/// <c>null</c> is unbounded.</summary>
+/// <c>null</c> is unbounded. <see cref="OnError"/> is the binding's
+/// resolved failure posture (§6.3.1).</summary>
 public sealed record BindingContext(
     string Id,
     string Kind,
     IReadOnlySet<InterceptionPoint> At,
     TimeSpan? Timeout,
     HostInfo? Host,
-    string DeclarationVersion);
+    string DeclarationVersion,
+    OnError OnError)
+{
+    /// <summary>The six-component shape shipped before <c>OnError</c>
+    /// existed, kept for binary compatibility; it means <c>deny</c>.</summary>
+    public BindingContext(
+        string Id,
+        string Kind,
+        IReadOnlySet<InterceptionPoint> At,
+        TimeSpan? Timeout,
+        HostInfo? Host,
+        string DeclarationVersion)
+        : this(Id, Kind, At, Timeout, Host, DeclarationVersion, OnError.Deny)
+    {
+    }
+
+    /// <summary>The six-component deconstruction, kept for the same reason.</summary>
+    public void Deconstruct(
+        out string Id,
+        out string Kind,
+        out IReadOnlySet<InterceptionPoint> At,
+        out TimeSpan? Timeout,
+        out HostInfo? Host,
+        out string DeclarationVersion)
+    {
+        Id = this.Id;
+        Kind = this.Kind;
+        At = this.At;
+        Timeout = this.Timeout;
+        Host = this.Host;
+        DeclarationVersion = this.DeclarationVersion;
+    }
+}
 
 /// <summary>Host code that turns one binding's <c>config</c> into one
 /// interceptor, or refuses it by throwing. The message of the exception
 /// is the refusal detail and MUST NOT echo the config (§7.7.5).</summary>
 public delegate IInterceptor KindResolver(JsonNode? config, BindingContext context);
+
+/// <summary>As <see cref="KindResolver"/>, for a kind whose interceptors
+/// own their own deadline (§7). The resolver hands the interceptor the
+/// context's <see cref="BindingContext.Timeout"/>; the emitter passes
+/// the same bound on every call.</summary>
+public delegate IManagedInterceptor ManagedKindResolver(JsonNode? config, BindingContext context);
 
 /// <summary>Everything a host registers in code for a declaration to
 /// reference (§7.7.5): the code surface, kind resolvers, custom identity
@@ -457,9 +501,11 @@ public sealed class HostRegistry
 
     private readonly bool _allowReserved;
     private readonly SortedDictionary<string, KindResolver> _kinds = new(StringComparer.Ordinal);
+    private readonly SortedDictionary<string, ManagedKindResolver> _managedKinds = new(StringComparer.Ordinal);
     private readonly SortedDictionary<string, Func<JsonObject, string>> _identityProviders = new(StringComparer.Ordinal);
     private readonly SortedDictionary<string, IApprovalResolver> _approvalResolvers = new(StringComparer.Ordinal);
     private readonly SortedDictionary<string, Func<AgentContext, AgentContext>> _approvalRedactors = new(StringComparer.Ordinal);
+    private Action<ControlFailureNotice>? _notifier;
 
     /// <summary>A registry over the given code surface. Kinds under the
     /// reserved <c>agent_hooks</c> and <c>ctk</c> segments are refused.
@@ -487,6 +533,40 @@ public sealed class HostRegistry
     public HostRegistry Kind(string kind, KindResolver resolver)
     {
         ArgumentNullException.ThrowIfNull(resolver);
+        CheckKind(kind);
+        _kinds.Add(kind, resolver);
+        return this;
+    }
+
+    /// <summary>Register a resolver for a kind whose interceptors own
+    /// their own deadline (§7). The kind grammar, the reserved segments
+    /// and the one-registration rule are the same as for
+    /// <see cref="Kind"/>; one kind name is either managed or not.</summary>
+    public HostRegistry ManagedKind(string kind, ManagedKindResolver resolver)
+    {
+        ArgumentNullException.ThrowIfNull(resolver);
+        CheckKind(kind);
+        _managedKinds.Add(kind, resolver);
+        return this;
+    }
+
+    /// <summary>Register the channel through which the host tells the
+    /// principal that a control failed and the action continued
+    /// (§6.3.1): the user in an interactive session, else the agent
+    /// through the host's own message channel. A document in which any
+    /// binding resolves to <c>on_error: continue</c> is refused at
+    /// construction (<c>binding_rejected</c>) unless the registry holds
+    /// one, so silent continuation cannot be reached by leaving this
+    /// out.</summary>
+    public HostRegistry ControlFailureNotifier(Action<ControlFailureNotice> notifier)
+    {
+        ArgumentNullException.ThrowIfNull(notifier);
+        _notifier = notifier;
+        return this;
+    }
+
+    private void CheckKind(string kind)
+    {
         if (!ValidKind(kind))
             throw new ArgumentException(
                 $"host registry: kind \"{kind}\" does not match the kind grammar (see spec §7.7.5)", nameof(kind));
@@ -494,9 +574,8 @@ public sealed class HostRegistry
         if (ReservedKindSegments.Contains(head) && !(_allowReserved && head == "ctk"))
             throw new ArgumentException(
                 $"host registry: kind \"{kind}\" uses the reserved segment \"{head}\" (see spec §7.7.5)", nameof(kind));
-        if (!_kinds.TryAdd(kind, resolver))
+        if (_kinds.ContainsKey(kind) || _managedKinds.ContainsKey(kind))
             throw new ArgumentException($"host registry: kind \"{kind}\" registered twice", nameof(kind));
-        return this;
     }
 
     /// <summary>Register a custom identity provider (§10.1 name rules apply).</summary>
@@ -543,7 +622,7 @@ public sealed class HostRegistry
         ["identity_providers"] = KnobSupport.Sorted(_identityProviders.Keys),
         ["approval_resolvers"] = KnobSupport.Sorted(_approvalResolvers.Keys),
         ["approval_redactors"] = KnobSupport.Sorted(_approvalRedactors.Keys),
-        ["kinds"] = KnobSupport.Sorted(_kinds.Keys),
+        ["kinds"] = KnobSupport.Sorted(_kinds.Keys.Concat(_managedKinds.Keys)),
     };
 
     /// <summary>The host description the core resolves against:
@@ -558,6 +637,11 @@ public sealed class HostRegistry
 
     internal KindResolver? KindResolverFor(string kind) =>
         _kinds.TryGetValue(kind, out var r) ? r : null;
+
+    internal ManagedKindResolver? ManagedKindResolverFor(string kind) =>
+        _managedKinds.TryGetValue(kind, out var r) ? r : null;
+
+    internal Action<ControlFailureNotice>? ControlFailureNotifierRef => _notifier;
 
     internal Func<JsonObject, string>? IdentityProviderFor(string name) =>
         _identityProviders.TryGetValue(name, out var f) ? f : null;
@@ -603,9 +687,14 @@ public sealed class HostRegistry
     private static void ValidateSurface(HostSurface surface)
     {
         var host = new JsonObject { ["surface"] = surface.ToWire() };
+        // The probe writes a version the surface accepts when it can,
+        // so the surface check is reached rather than a version refusal.
+        var version = surface.DeclarationVersions.Contains(Declaration.Version)
+            ? Declaration.Version
+            : surface.DeclarationVersions.Order(StringComparer.Ordinal).FirstOrDefault() ?? Declaration.Version;
         var probe = new JsonObject
         {
-            ["declaration"] = Declaration.Version,
+            ["declaration"] = version,
             ["bindings"] = new JsonArray(),
         };
         try
@@ -821,13 +910,44 @@ public sealed class HostDeclaration
     }
 }
 
-/// <summary>One binding with <c>at</c> and <c>timeout_ms</c> filled.</summary>
+/// <summary>One binding with <c>at</c>, <c>timeout_ms</c> and
+/// <c>on_error</c> filled. <see cref="OnError"/> is the binding's own
+/// posture, else the document default, else <c>deny</c> (§6.3.1).</summary>
 public sealed record ResolvedBinding(
     string Id,
     string Kind,
     JsonNode? Config,
     IReadOnlySet<InterceptionPoint> At,
-    long? TimeoutMs);
+    long? TimeoutMs,
+    OnError OnError)
+{
+    /// <summary>The five-component shape shipped before <c>OnError</c>
+    /// existed, kept for binary compatibility; it means <c>deny</c>.</summary>
+    public ResolvedBinding(
+        string Id,
+        string Kind,
+        JsonNode? Config,
+        IReadOnlySet<InterceptionPoint> At,
+        long? TimeoutMs)
+        : this(Id, Kind, Config, At, TimeoutMs, OnError.Deny)
+    {
+    }
+
+    /// <summary>The five-component deconstruction, kept for the same reason.</summary>
+    public void Deconstruct(
+        out string Id,
+        out string Kind,
+        out JsonNode? Config,
+        out IReadOnlySet<InterceptionPoint> At,
+        out long? TimeoutMs)
+    {
+        Id = this.Id;
+        Kind = this.Kind;
+        Config = this.Config;
+        At = this.At;
+        TimeoutMs = this.TimeoutMs;
+    }
+}
 
 /// <summary>The resolved declaration (§7.7.3 "Resolved form"): every
 /// default filled, composition knobs resolved as §7.2 resolves them,
@@ -858,6 +978,7 @@ public sealed class ResolvedDeclaration
         ApprovalRedactor = (string?)approval["redactor"];
         ToolSeamHostError = ToolSeamPostureExtensions.FromWireName(
             (string)cfg["posture"]!["tool_seam_host_error"]!);
+        FailureOnError = OnErrorExtensions.FromWireName((string)cfg["failure"]!["on_error"]!);
         InterceptorTimeoutMs = (long?)timeouts["interceptor_ms"];
         ApprovalResolverTimeoutMs = (long?)timeouts["approval_resolver_ms"];
         // The core accepts [1, 2^53 - 1], which fits a long; the ulong
@@ -879,7 +1000,8 @@ public sealed class ResolvedDeclaration
             b["config"]?.DeepClone(),
             new HashSet<InterceptionPoint>(
                 ((JsonArray)b["at"]!).Select(n => InterceptionPointExtensions.FromWireName((string)n!))),
-            (long?)b["timeout_ms"])).ToList();
+            (long?)b["timeout_ms"],
+            OnErrorExtensions.FromWireName((string)b["on_error"]!))).ToList();
     }
 
     /// <summary>The resolved form as the core serialized it.</summary>
@@ -904,6 +1026,12 @@ public sealed class ResolvedDeclaration
     public string? ApprovalRedactor { get; }
     public ToolSeamPosture ToolSeamHostError { get; }
 
+    /// <summary><c>configuration.failure.on_error</c>: the document
+    /// default every binding without its own <c>on_error</c> inherits
+    /// (§6.3.1). <c>deny</c> unless the document said otherwise, 1.0
+    /// documents included.</summary>
+    public OnError FailureOnError { get; }
+
     /// <summary><c>null</c> is unbounded.</summary>
     public long? InterceptorTimeoutMs { get; }
 
@@ -926,6 +1054,20 @@ public sealed class ResolvedDeclaration
     /// <summary>RFC 8785 canonical JSON of the resolved form (Rust core).</summary>
     public string CanonicalJson() => Native.CanonicalJson(RawJson);
 }
+
+/// <summary>The optional members of one binding for
+/// <see cref="DeclarationBuilder.BindWith(string, string, BindOptions)"/>
+/// (§7.7.5). <see cref="At"/> <c>null</c> binds at every surface point;
+/// <see cref="TimeoutMs"/> <c>null</c> inherits the configured
+/// interceptor timeout and <see cref="Unbounded"/> writes
+/// <c>timeout_ms: null</c>; <see cref="OnError"/> <c>null</c> omits the
+/// member, so the binding inherits <c>configuration.failure.on_error</c>
+/// (§6.3.1).</summary>
+public sealed record BindOptions(
+    IEnumerable<InterceptionPoint>? At = null,
+    long? TimeoutMs = null,
+    bool Unbounded = false,
+    OnError? OnError = null);
 
 /// <summary>Builds a declaration document in code, one setter per
 /// member (§7.7.7). <see cref="Build"/> hands the document to
@@ -1049,6 +1191,16 @@ public sealed class DeclarationBuilder
         return this;
     }
 
+    /// <summary><c>configuration.failure.on_error</c>: the document
+    /// default every binding without its own <c>on_error</c> inherits
+    /// (§6.3.1). A 1.1 member: under a 1.0 <c>declaration</c> the loader
+    /// refuses it as <c>unknown_field</c>.</summary>
+    public DeclarationBuilder FailureOnError(OnError onError)
+    {
+        ConfigurationSub("failure")["on_error"] = onError.ToWireName();
+        return this;
+    }
+
     /// <summary><c>null</c> writes JSON <c>null</c> (unbounded).</summary>
     public DeclarationBuilder InterceptorTimeoutMs(long? ms)
     {
@@ -1119,7 +1271,7 @@ public sealed class DeclarationBuilder
         IEnumerable<InterceptionPoint>? at = null,
         long? timeoutMs = null,
         bool unbounded = false) =>
-        Bind(id, kind, at, timeoutMs, unbounded, configSet: false, config: null);
+        Bind(id, kind, at, timeoutMs, unbounded, configSet: false, config: null, onError: null);
 
     /// <summary>Append one binding with <paramref name="config"/> written
     /// verbatim. A <c>null</c> config writes <c>"config": null</c>, which
@@ -1135,7 +1287,28 @@ public sealed class DeclarationBuilder
         IEnumerable<InterceptionPoint>? at = null,
         long? timeoutMs = null,
         bool unbounded = false) =>
-        Bind(id, kind, at, timeoutMs, unbounded, configSet: true, config);
+        Bind(id, kind, at, timeoutMs, unbounded, configSet: true, config, onError: null);
+
+    /// <summary>Append one binding without a <c>config</c> member, with
+    /// every optional member spelled out in <paramref name="options"/>
+    /// (§7.7.5, §6.3.1). <see cref="Bind(string, string, IEnumerable{InterceptionPoint}?, long?, bool)"/>
+    /// is this call without <c>on_error</c>.</summary>
+    public DeclarationBuilder BindWith(string id, string kind, BindOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return Bind(id, kind, options.At, options.TimeoutMs, options.Unbounded,
+            configSet: false, config: null, options.OnError);
+    }
+
+    /// <summary>Append one binding with <paramref name="config"/> written
+    /// verbatim (a <c>null</c> config writes <c>"config": null</c>) and
+    /// every optional member spelled out in <paramref name="options"/>.</summary>
+    public DeclarationBuilder BindWith(string id, string kind, JsonNode? config, BindOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return Bind(id, kind, options.At, options.TimeoutMs, options.Unbounded,
+            configSet: true, config, options.OnError);
+    }
 
     private DeclarationBuilder Bind(
         string id,
@@ -1144,7 +1317,8 @@ public sealed class DeclarationBuilder
         long? timeoutMs,
         bool unbounded,
         bool configSet,
-        JsonNode? config)
+        JsonNode? config,
+        OnError? onError)
     {
         var b = new JsonObject
         {
@@ -1155,6 +1329,7 @@ public sealed class DeclarationBuilder
         if (at is not null) b["at"] = Points(at);
         if (unbounded) b["timeout_ms"] = null;
         else if (timeoutMs is { } t) b["timeout_ms"] = t;
+        if (onError is { } o) b["on_error"] = o.ToWireName();
         if (_doc["bindings"] is not JsonArray bindings)
             _doc["bindings"] = bindings = new JsonArray();
         bindings.Add(b);

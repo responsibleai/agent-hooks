@@ -49,10 +49,25 @@ sealed record class ApprovalResolution : IEquatable<ApprovalResolution>
     static bool operator ==(ApprovalResolution? left, ApprovalResolution? right)
     string? ContextIdentity { get; init; }
     void Deconstruct(out ApprovalOutcome Outcome, out string? ContextIdentity, out Verdict? Verdict)
+sealed record class BindOptions : IEquatable<BindOptions>
+    BindOptions(IEnumerable<InterceptionPoint>? At = null, long? TimeoutMs = null, bool Unbounded = false, OnError? OnError = null)
+    IEnumerable<InterceptionPoint>? At { get; init; }
+    OnError? OnError { get; init; }
+    bool Equals(BindOptions? other)
+    bool Unbounded { get; init; }
+    long? TimeoutMs { get; init; }
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(BindOptions? left, BindOptions? right)
+    static bool operator ==(BindOptions? left, BindOptions? right)
+    void Deconstruct(out IEnumerable<InterceptionPoint>? At, out long? TimeoutMs, out bool Unbounded, out OnError? OnError)
 sealed record class BindingContext : IEquatable<BindingContext>
     BindingContext(string Id, string Kind, IReadOnlySet<InterceptionPoint> At, TimeSpan? Timeout, HostInfo? Host, string DeclarationVersion)
+    BindingContext(string Id, string Kind, IReadOnlySet<InterceptionPoint> At, TimeSpan? Timeout, HostInfo? Host, string DeclarationVersion, OnError OnError)
     HostInfo? Host { get; init; }
     IReadOnlySet<InterceptionPoint> At { get; init; }
+    OnError OnError { get; init; }
     TimeSpan? Timeout { get; init; }
     bool Equals(BindingContext? other)
     override bool Equals(object? obj)
@@ -64,6 +79,7 @@ sealed record class BindingContext : IEquatable<BindingContext>
     string Id { get; init; }
     string Kind { get; init; }
     void Deconstruct(out string Id, out string Kind, out IReadOnlySet<InterceptionPoint> At, out TimeSpan? Timeout, out HostInfo? Host, out string DeclarationVersion)
+    void Deconstruct(out string Id, out string Kind, out IReadOnlySet<InterceptionPoint> At, out TimeSpan? Timeout, out HostInfo? Host, out string DeclarationVersion, out OnError OnError)
 static class Canonical
     static InterceptorResponse ParseInterceptorResponse(JsonNode response)
     static InterceptorResponse ParseInterceptorResponse(string responseJson)
@@ -104,6 +120,20 @@ static class CompositionProfileExtensions
     static CompositionProfile FromWireName(string s)
     static bool IsSequential(this CompositionProfile p)
     static string ToWireName(this CompositionProfile p)
+sealed record class ControlFailureNotice : IEquatable<ControlFailureNotice>
+    ControlFailureNotice(InterceptionPoint? InterceptionPoint, int Index, string Binding, string Reason, string Message)
+    InterceptionPoint? InterceptionPoint { get; init; }
+    bool Equals(ControlFailureNotice? other)
+    int Index { get; init; }
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(ControlFailureNotice? left, ControlFailureNotice? right)
+    static bool operator ==(ControlFailureNotice? left, ControlFailureNotice? right)
+    string Binding { get; init; }
+    string Message { get; init; }
+    string Reason { get; init; }
+    void Deconstruct(out InterceptionPoint? InterceptionPoint, out int Index, out string Binding, out string Reason, out string Message)
 enum Decision : int
     Allow = 0
     Deny = 1
@@ -115,7 +145,7 @@ static class DecisionExtensions
 static class Declaration
     const int MaxDetailLength = 512
     const int MaxDocumentBytes = 1048576
-    const string Version = "agent-hooks-declaration/1.0"
+    const string Version = "agent-hooks-declaration/1.1"
     static readonly IReadOnlyList<string> Capabilities
     static readonly IReadOnlyList<string> SupportedVersions
 sealed class DeclarationBuilder
@@ -124,9 +154,12 @@ sealed class DeclarationBuilder
     DeclarationBuilder ApprovalResolverTimeoutMs(long? ms)
     DeclarationBuilder Bind(string id, string kind, IEnumerable<InterceptionPoint>? at = null, long? timeoutMs = null, bool unbounded = false)
     DeclarationBuilder Bind(string id, string kind, JsonNode? config, IEnumerable<InterceptionPoint>? at = null, long? timeoutMs = null, bool unbounded = false)
+    DeclarationBuilder BindWith(string id, string kind, BindOptions options)
+    DeclarationBuilder BindWith(string id, string kind, JsonNode? config, BindOptions options)
     DeclarationBuilder BufferedOutput(bool buffered, string? exposureBound = null)
     DeclarationBuilder Composition(CompositionConfig composition)
     DeclarationBuilder Extension(string key, JsonNode? value)
+    DeclarationBuilder FailureOnError(OnError onError)
     DeclarationBuilder Host(string name, string? version = null)
     DeclarationBuilder Id(string id)
     DeclarationBuilder IdentityProvider(string? name)
@@ -227,6 +260,7 @@ static class HostError
     const string TransformInvalid = "host_error:transform_invalid"
     const string TransformTargetForbidden = "host_error:transform_target_forbidden"
     const string VerdictInvalid = "host_error:verdict_invalid"
+    static bool IsControlFailure(string reason)
 sealed record class HostInfo : IEquatable<HostInfo>
     HostInfo(string Name, string? Version = null)
     bool Equals(HostInfo? other)
@@ -241,8 +275,10 @@ sealed record class HostInfo : IEquatable<HostInfo>
 sealed class HostRegistry
     HostRegistry ApprovalRedactor(string name, Func<AgentContext, AgentContext> redactor)
     HostRegistry ApprovalResolver(string name, IApprovalResolver resolver)
+    HostRegistry ControlFailureNotifier(Action<ControlFailureNotice> notifier)
     HostRegistry IdentityProvider(string name, Func<JsonObject, string> f)
     HostRegistry Kind(string kind, KindResolver resolver)
+    HostRegistry ManagedKind(string kind, ManagedKindResolver resolver)
     HostRegistry(HostSurface surface)
     HostSurface Surface { get; }
     JsonObject Names()
@@ -273,10 +309,14 @@ sealed record class HostSurface : IEquatable<HostSurface>
     static bool operator ==(HostSurface? left, HostSurface? right)
     static readonly IReadOnlyList<InterceptionPoint> FloorPoints
     string? ExposureBound { get; init; }
+static class HostWarning
+    const string ControlFailed = "host_warning:control_failed"
 interface IApprovalResolver
     ValueTask<ApprovalResolution> ResolveAsync(ApprovalRequest request, CancellationToken ct = default)
 interface IInterceptor
     ValueTask<Verdict> InterceptAsync(AgentContext context, CancellationToken ct = default)
+interface IManagedInterceptor
+    ValueTask<ManagedInterceptorOutcome> InterceptManagedAsync(AgentContext context, TimeSpan? bound, CancellationToken ct = default)
 sealed class IdentityProvider
     static IdentityProvider Custom(string name, Func<JsonObject, string> f)
     static readonly IdentityProvider JcsSha256
@@ -291,8 +331,11 @@ sealed class InterceptionEmitter
     IReadOnlyList<InterceptionRecord> Records { get; }
     InterceptionEmitter Register(IInterceptor interceptor, string? name = null, IReadOnlySet<InterceptionPoint>? at = null)
     InterceptionEmitter Register(IInterceptor interceptor, string? name)
+    InterceptionEmitter RegisterManaged(IManagedInterceptor interceptor, RegistrationOptions? options = null)
+    InterceptionEmitter RegisterWithOptions(IInterceptor interceptor, RegistrationOptions options)
     InterceptionEmitter SetApprovalRedactor(Func<AgentContext, AgentContext> redactor)
     InterceptionEmitter SetComposition(CompositionConfig composition)
+    InterceptionEmitter SetControlFailureNotifier(Action<ControlFailureNotice> notifier)
     InterceptionEmitter SetIdentityProvider(IdentityProvider provider)
     InterceptionEmitter SetMaxRecords(int max)
     InterceptionEmitter SetRecordSink(Action<InterceptionRecord> sink)
@@ -381,13 +424,51 @@ sealed record class KnobSupport : IEquatable<KnobSupport>
     static bool operator ==(KnobSupport? left, KnobSupport? right)
     static readonly KnobSupport None
     void Deconstruct(out IReadOnlySet<string> OnApproval, out IReadOnlySet<string> OnDisagreement, out IReadOnlySet<string> OnTransformConflict)
+sealed class ManagedInterceptorOutcome
+    JsonObject ToWire()
+    ManagedOutcomeKind Kind { get; }
+    Verdict? Verdict { get; }
+    static ManagedInterceptorOutcome Failed(string? detail = null)
+    static ManagedInterceptorOutcome FromVerdict(Verdict verdict)
+    static readonly ManagedInterceptorOutcome Cancelled
+    static readonly ManagedInterceptorOutcome Timeout
+    string? Detail { get; }
+delegate IManagedInterceptor ManagedKindResolver(JsonNode? config, BindingContext context)
+enum ManagedOutcomeKind : int
+    Verdict = 0
+    Timeout = 1
+    Cancelled = 2
+    Failed = 3
 enum OnApproval : int
     Stop = 0
     Resume = 1
+enum OnError : int
+    Deny = 0
+    Continue = 1
+static class OnErrorExtensions
+    static OnError FromWireName(string s)
+    static string ToWireName(this OnError e)
+sealed class RegistrationException : InvalidOperationException
+    RegistrationException(string detail)
+    string Detail { get; }
+sealed record class RegistrationOptions : IEquatable<RegistrationOptions>
+    IReadOnlySet<InterceptionPoint>? At { get; init; }
+    OnError OnError { get; init; }
+    RegistrationOptions(string? Name = null, IReadOnlySet<InterceptionPoint>? At = null, OnError OnError = OnError.Deny)
+    bool Equals(RegistrationOptions? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(RegistrationOptions? left, RegistrationOptions? right)
+    static bool operator ==(RegistrationOptions? left, RegistrationOptions? right)
+    string? Name { get; init; }
+    void Deconstruct(out string? Name, out IReadOnlySet<InterceptionPoint>? At, out OnError OnError)
 sealed record class ResolvedBinding : IEquatable<ResolvedBinding>
     IReadOnlySet<InterceptionPoint> At { get; init; }
     JsonNode? Config { get; init; }
+    OnError OnError { get; init; }
     ResolvedBinding(string Id, string Kind, JsonNode? Config, IReadOnlySet<InterceptionPoint> At, long? TimeoutMs)
+    ResolvedBinding(string Id, string Kind, JsonNode? Config, IReadOnlySet<InterceptionPoint> At, long? TimeoutMs, OnError OnError)
     bool Equals(ResolvedBinding? other)
     long? TimeoutMs { get; init; }
     override bool Equals(object? obj)
@@ -398,6 +479,7 @@ sealed record class ResolvedBinding : IEquatable<ResolvedBinding>
     string Id { get; init; }
     string Kind { get; init; }
     void Deconstruct(out string Id, out string Kind, out JsonNode? Config, out IReadOnlySet<InterceptionPoint> At, out long? TimeoutMs)
+    void Deconstruct(out string Id, out string Kind, out JsonNode? Config, out IReadOnlySet<InterceptionPoint> At, out long? TimeoutMs, out OnError OnError)
 sealed class ResolvedDeclaration
     CompositionConfig Composition { get; }
     EnforcementMode Mode { get; }
@@ -407,6 +489,7 @@ sealed class ResolvedDeclaration
     IReadOnlySet<string> SurfaceCapabilities { get; }
     IReadOnlySet<string> SurfaceDeclarationVersions { get; }
     JsonObject ToWire()
+    OnError FailureOnError { get; }
     ToolSeamPosture ToolSeamHostError { get; }
     bool BufferedOutput { get; }
     long? ApprovalResolverTimeoutMs { get; }
@@ -466,10 +549,12 @@ sealed record class Verdict : IEquatable<Verdict>
     Transform? Transform { get; init; }
     Verdict(Decision Decision, string? Reason = null, string? Message = null, IReadOnlyList<Warning>? Warnings = null, JsonObject? Approval = null, Transform? Transform = null, Evidence? Evidence = null, IReadOnlyList<string>? ResultLabels = null)
     bool Equals(Verdict? other)
+    bool IsControlFailureSubstitute { get; }
     bool IsLiftable { get; }
     override bool Equals(object? obj)
     override int GetHashCode()
     override string ToString()
+    static Verdict ControlFailureSubstitute(string binding, string reason)
     static Verdict Deny(string? reason = null, string? message = null)
     static Verdict Escalate(string? reason = null, string? message = null)
     static Verdict FromHostError(string hookError, string? message = null)
@@ -479,6 +564,7 @@ sealed record class Verdict : IEquatable<Verdict>
     static bool operator !=(Verdict? left, Verdict? right)
     static bool operator ==(Verdict? left, Verdict? right)
     static readonly Verdict Allow
+    static string ControlFailureMessage(string binding, string reason)
     string? Message { get; init; }
     string? Reason { get; init; }
     void Deconstruct(out Decision Decision, out string? Reason, out string? Message, out IReadOnlyList<Warning>? Warnings, out JsonObject? Approval, out Transform? Transform, out Evidence? Evidence, out IReadOnlyList<string>? ResultLabels)
@@ -487,6 +573,7 @@ sealed record class VerdictSummary : IEquatable<VerdictSummary>
     Decision Decision { get; init; }
     JsonObject ToWire()
     VerdictSummary(int Index, Decision Decision, string? Reason = null, string? Name = null)
+    VerdictSummary(int Index, Decision Decision, string? Reason, string? Name, string? SubstitutedFor)
     bool Equals(VerdictSummary? other)
     int Index { get; init; }
     override bool Equals(object? obj)
@@ -497,7 +584,9 @@ sealed record class VerdictSummary : IEquatable<VerdictSummary>
     static bool operator ==(VerdictSummary? left, VerdictSummary? right)
     string? Name { get; init; }
     string? Reason { get; init; }
+    string? SubstitutedFor { get; init; }
     void Deconstruct(out int Index, out Decision Decision, out string? Reason, out string? Name)
+    void Deconstruct(out int Index, out Decision Decision, out string? Reason, out string? Name, out string? SubstitutedFor)
 sealed record class Warning : IEquatable<Warning>
     Warning(string? Reason = null, string? Message = null)
     bool Equals(Warning? other)

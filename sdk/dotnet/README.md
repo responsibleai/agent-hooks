@@ -42,14 +42,38 @@ if (!record.Proceeds) return ToolError(record.Verdict.Reason);
 shortcuts. Run the conformance tests with
 `LD_LIBRARY_PATH=../rust/target/release dotnet test`.
 
+### Failure posture (`on_error`)
+
+Every registration fails closed by default: a throw, a timeout or a
+§5-invalid return value becomes a `host_error:*` deny in that
+registration's slot (spec §6.3), and nothing else is ever opened
+(context failures, cancellation, transform and approval failures,
+`no_interceptor` and an explicit deny never continue). A registration
+can be best effort instead, through
+`RegisterWithOptions(interceptor, new RegistrationOptions("scanner", OnError: OnError.Continue))`
+or `on_error: continue` on a binding in a 1.1 declaration: the host then
+substitutes an allow carrying the warning `host_warning:control_failed`,
+records the underlying reason on `verdicts[].substituted_for` and tells
+the principal through the notifier set with `SetControlFailureNotifier`
+(or `HostRegistry.ControlFailureNotifier`), which must exist first or
+the registration is refused. An interceptor that runs external work can
+own its deadline by implementing `IManagedInterceptor` (registered with
+`RegisterManaged` or `HostRegistry.ManagedKind`): it receives the
+resolved bound and reports a `ManagedInterceptorOutcome` (`FromVerdict`,
+`Timeout` after cleanup, `Cancelled`, `Failed`), where a cancelled
+outcome is never a timeout and never continues.
+
 ## Host declaration
 
 A host can load its configuration, declared surface and interceptor
 bindings from a host declaration document (spec §7.7) instead of
 calling the setters. The document is a versioned contract of its own,
-`agent-hooks-declaration/1.0` (`Declaration.Version`,
-`Declaration.SupportedVersions`), separate from the wire version
-`Spec.Version`.
+`agent-hooks-declaration/1.1` (`Declaration.Version`,
+`Declaration.SupportedVersions`, which also lists `1.0`), separate from
+the wire version `Spec.Version`. 1.1 adds two optional members,
+`configuration.failure.on_error` and `bindings[].on_error`
+(`DeclarationBuilder.FailureOnError`, `BindWith(.., new BindOptions(OnError: ..))`);
+a 1.0 document loads unchanged and keeps its own version on its records.
 
 The host registers what its code can honour in a `HostRegistry`: its
 surface, a resolver per binding kind, and any custom identity provider,

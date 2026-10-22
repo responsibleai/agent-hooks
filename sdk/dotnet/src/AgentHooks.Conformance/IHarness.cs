@@ -118,14 +118,20 @@ public sealed record Scenario(
 
 /// <summary>What <see cref="IHarness.RunAsync"/> returns to the CTK runner.
 /// Identity pairs are <c>null</c>-valued when the identity provider is
-/// <c>null</c> (§10.1).</summary>
+/// <c>null</c> (§10.1). <c>HostMessages</c> are the host messages the
+/// host delivered to the principal during the run, verbatim and in
+/// order (§6.3.1); for a continuation that is the
+/// <see cref="ControlFailureNotice.Message"/>. A harness whose
+/// principal channel is its own reports them itself;
+/// <c>expect.host_messages_must_contain</c> asserts on them.</summary>
 public sealed record RunRecord(
     RunOutcome Outcome,
     JsonNode? FinalOutput,
     IReadOnlyList<JsonObject> ToolInvocations,
     string? Error = null,
     IReadOnlyList<(string? InputIdentity, string? EnforcedIdentity)>? Identities = null,
-    IReadOnlyList<JsonObject>? Records = null);
+    IReadOnlyList<JsonObject>? Records = null,
+    IReadOnlyList<string>? HostMessages = null);
 
 /// <summary>The single interface a framework adapter implements for the CTK.</summary>
 public interface IHarness
@@ -189,8 +195,12 @@ public interface IHarness
     /// <see cref="DeclarationException"/> propagate on refusal, never fall
     /// back to the field-based <see cref="Setup"/>. The document and the
     /// registry carry the interceptors, resolver, composition and
-    /// identity provider. Only harnesses declaring the
-    /// <c>host_declaration</c> capability receive this call.</summary>
+    /// identity provider; the harness adds its own principal channel
+    /// (<see cref="HostRegistry.ControlFailureNotifier"/>) before it
+    /// builds the emitter and reports what that channel delivered as
+    /// <see cref="RunRecord.HostMessages"/> (§6.3.1). Only harnesses
+    /// declaring the <c>host_declaration</c> capability receive this
+    /// call.</summary>
     void SetupDeclared(Scenario scenario, JsonObject document, HostRegistry registry) =>
         throw new DeclarationException(
             DeclarationErrorClass.SurfaceUnsupported,

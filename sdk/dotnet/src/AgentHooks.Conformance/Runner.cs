@@ -63,6 +63,10 @@ public static class Runner
         var codeSurface = harness.HostSurface;
         IEnumerable<string> capabilities;
         string posture;
+        // §6.3.1: the harness document's default failure posture, what a
+        // claim states; a vector's own document may set its own. A
+        // code-surface harness has no document and so the spec default.
+        string onError;
         if (harness.Declaration is { } own)
         {
             var assessed = AssessOwnDeclaration(own, codeSurface);
@@ -71,11 +75,13 @@ public static class Runner
                     [$"harness declaration refused: {refused}"]);
             capabilities = assessed.Capabilities;
             posture = assessed.Posture;
+            onError = assessed.OnError;
         }
         else
         {
             capabilities = harness.Capabilities.Select(c => c.ToWireName());
             posture = harness.ToolSeamHostError;
+            onError = OnError.Deny.ToWireName();
         }
 
         // Capability skip via core.
@@ -124,7 +130,7 @@ public static class Runner
                     "refused", e.Code, pathsEquivalent,
                     pathDetail.Length == 0 ? e.Message : $"{e.Message}; paths: {pathDetail}");
                 rr = new RunRecord(RunOutcome.Error, null, [], e.Message);
-                return Assert(vectorJson, id, title, scripts.Recorded, rr, posture, load);
+                return Assert(vectorJson, id, title, scripts.Recorded, rr, posture, onError, load);
             }
             try
             {
@@ -163,16 +169,16 @@ public static class Runner
             }
         }
 
-        return Assert(vectorJson, id, title, scripts.Recorded, rr, posture, load);
+        return Assert(vectorJson, id, title, scripts.Recorded, rr, posture, onError, load);
     }
 
     private static VectorResult Assert(
         string vectorJson, string id, string title,
-        List<JsonObject> recorded, RunRecord rr, string posture, LoadRecord? load)
+        List<JsonObject> recorded, RunRecord rr, string posture, string onError, LoadRecord? load)
     {
         var recordedJson = new JsonArray(
             recorded.Select(c => (JsonNode)c.DeepClone()).ToArray()).ToJsonString(Compact);
-        var rrJson = RunRecordToWire(rr, posture, load);
+        var rrJson = RunRecordToWire(rr, posture, onError, load);
         var result = (JsonObject)JsonNode.Parse(
             Native.CtkAssert(vectorJson, recordedJson, rrJson))!;
         return new VectorResult(
@@ -187,7 +193,7 @@ public static class Runner
     /// capabilities and posture a run is assessed against, or the
     /// refusal that fails the run.</summary>
     private sealed record AssessedSurface(
-        IReadOnlyList<string> Capabilities, string Posture, string? Refused);
+        IReadOnlyList<string> Capabilities, string Posture, string OnError, string? Refused);
 
     /// <summary>Resolutions of harness declarations, keyed on the
     /// document text and the code surface. The pair fixes the result,
@@ -214,11 +220,12 @@ public static class Runner
                 return new AssessedSurface(
                     resolved.SurfaceCapabilities.Order(StringComparer.Ordinal).ToList(),
                     resolved.ToolSeamHostError.ToWireName(),
+                    resolved.FailureOnError.ToWireName(),
                     null);
             }
             catch (DeclarationException e)
             {
-                return new AssessedSurface([], "", e.Message);
+                return new AssessedSurface([], "", "", e.Message);
             }
         });
     }
@@ -413,6 +420,12 @@ public static class Runner
                     var tsp = posture == "terminate" ? ToolSeamPosture.Terminate : ToolSeamPosture.Continue;
                     apply.Add(b => b.ToolSeamHostError(tsp));
                     break;
+                case "failure" when v is JsonObject fl && fl.Count == 1
+                    && IsString(fl["on_error"], out var onError)
+                    && onError is "deny" or "continue":
+                    var oe = OnErrorExtensions.FromWireName(onError);
+                    apply.Add(b => b.FailureOnError(oe));
+                    break;
                 case "timeouts" when v is JsonObject t:
                     foreach (var (tk, tv) in t)
                     {
@@ -536,7 +549,7 @@ public static class Runner
         foreach (var item in items)
         {
             if (item is not JsonObject o
-                || !o.All(kv => kv.Key is "id" or "kind" or "config" or "at" or "timeout_ms")
+                || !o.All(kv => kv.Key is "id" or "kind" or "config" or "at" or "timeout_ms" or "on_error")
                 || !IsString(o["id"], out var id)
                 || !IsString(o["kind"], out var kind))
                 return null;
@@ -555,16 +568,24 @@ public static class Runner
                 else if (IsUInt(o["timeout_ms"], out var t)) timeout = t;
                 else return null;
             }
+            OnError? onError = null;
+            if (o.ContainsKey("on_error"))
+            {
+                if (!IsString(o["on_error"], out var oe) || oe is not ("deny" or "continue")) return null;
+                onError = OnErrorExtensions.FromWireName(oe);
+            }
+            var options = new BindOptions(at, timeout, unbounded, onError);
             apply.Add(b =>
             {
-                if (configSet) b.Bind(id, kind, config, at, timeout, unbounded);
-                else b.Bind(id, kind, at, timeout, unbounded);
+                if (configSet) b.BindWith(id, kind, config, options);
+                else b.BindWith(id, kind, options);
             });
         }
         return apply;
     }
 
-    private static string RunRecordToWire(RunRecord rr, string toolSeamHostError, LoadRecord? load)
+    private static string RunRecordToWire(
+        RunRecord rr, string toolSeamHostError, string onError, LoadRecord? load)
     {
         var identities = new JsonArray();
         foreach (var (i, e) in rr.Identities ?? [])
@@ -589,7 +610,12 @@ public static class Runner
             ["postures"] = new JsonObject
             {
                 ["tool_seam_host_error"] = toolSeamHostError,
+                ["on_error"] = onError,
             },
+            // §6.3.1: what the host told the principal, verbatim and in
+            // order; expect.host_messages_must_contain asserts on it.
+            ["host_messages"] = new JsonArray(
+                (rr.HostMessages ?? []).Select(m => (JsonNode)m).ToArray()),
         };
         if (load is not null) o["load"] = load.ToWire();
         return o.ToJsonString(Compact);
@@ -626,37 +652,54 @@ public static class Runner
         public List<string> Redact { get; }
 
         /// <summary>Scripted interceptor <paramref name="i"/>; only index 0 records.</summary>
-        private IInterceptor Interceptor(int i) => i == 0
+        private ScriptedInterceptor Interceptor(int i) => i == 0
             ? new RecordingScriptedInterceptor(_scripts[i], Recorded)
             : new ScriptedInterceptor(_scripts[i]);
 
         public List<IInterceptor> Interceptors() =>
-            Enumerable.Range(0, _scripts.Count).Select(Interceptor).ToList();
+            Enumerable.Range(0, _scripts.Count).Select(i => (IInterceptor)Interceptor(i)).ToList();
 
         public IApprovalResolver? Resolver() =>
             _approval == "[]" ? null : new ScriptedResolver(_approval);
 
         /// <summary>The CTK registry for a declaration vector (§7.7.9):
-        /// kind <c>ctk.scripted</c> (config <c>{"script": i}</c>),
-        /// identity provider <c>ctk-fault</c>, approval resolver
-        /// <c>ctk-scripted</c>, redactor <c>ctk-redact</c>.</summary>
+        /// kinds <c>ctk.scripted</c> and <c>ctk.managed</c> (both config
+        /// <c>{"script": i}</c>), identity provider <c>ctk-fault</c>,
+        /// approval resolver <c>ctk-scripted</c>, redactor
+        /// <c>ctk-redact</c>. <c>ctk.scripted</c> is a standard
+        /// registration the emitter wraps in its own timer, so
+        /// <c>fault: hang</c> under it pins the emitter-owned timeout.
+        /// <c>ctk.managed</c> is the same scripted interceptor through
+        /// the managed-interceptor path (§7): it receives the bound the
+        /// binding resolved to and reports typed outcomes, so
+        /// <c>fault: hang</c> and <c>fault: cancel</c> under it report
+        /// <c>timeout</c> and <c>cancelled</c>. The principal channel is
+        /// the harness's own: it adds its control failure notifier in
+        /// <c>SetupDeclared</c> and reports what it delivered as
+        /// <c>RunRecord.HostMessages</c>.</summary>
         public HostRegistry Registry(HostSurface surface)
         {
             var approval = _approval;
             var redact = Redact.ToList();
             return HostRegistry.ForConformance(surface)
-                .Kind("ctk.scripted", (config, ctx) =>
-                {
-                    if (config?["script"] is not JsonValue v || !v.TryGetValue(out long i) || i < 0)
-                        throw new InvalidOperationException("config.script must be an unsigned integer index");
-                    if (i >= _scripts.Count)
-                        throw new InvalidOperationException(
-                            $"config.script {i} is out of range for binding {ctx.Id}");
-                    return Interceptor((int)i);
-                })
+                .Kind("ctk.scripted", ScriptedFor)
+                .ManagedKind("ctk.managed", (config, ctx) => new ScriptedManagedInterceptor(ScriptedFor(config, ctx)))
                 .IdentityProvider("ctk-fault", _ => throw new InvalidOperationException("ctk scripted provider fault"))
                 .ApprovalResolver("ctk-scripted", new ScriptedResolver(approval))
                 .ApprovalRedactor("ctk-redact", ReferenceHarness.Redactor(redact));
+        }
+
+        /// <summary>The scripted interceptor a <c>ctk.scripted</c> or
+        /// <c>ctk.managed</c> binding selects through config
+        /// <c>{"script": i}</c>.</summary>
+        private ScriptedInterceptor ScriptedFor(JsonNode? config, BindingContext ctx)
+        {
+            if (config?["script"] is not JsonValue v || !v.TryGetValue(out long i) || i < 0)
+                throw new InvalidOperationException("config.script must be an unsigned integer index");
+            if (i >= _scripts.Count)
+                throw new InvalidOperationException(
+                    $"config.script {i} is out of range for binding {ctx.Id}");
+            return Interceptor((int)i);
         }
     }
 
@@ -665,42 +708,112 @@ public static class Runner
     /// (fail closed into <c>host_error:verdict_invalid</c>).</summary>
     private static Verdict InvalidVerdict() => new(Decision.Transform);
 
+    /// <summary>What a scripted rule asks the interceptor to do.</summary>
+    private enum ScriptedFault
+    {
+        /// <summary>No fault: <c>Verdict</c> holds the scripted verdict.</summary>
+        None,
+
+        /// <summary><c>fault: raise</c>: throw natively (§6.3 interceptor_failed).</summary>
+        Raise,
+
+        /// <summary><c>fault: hang</c>: do not return within the binding's
+        /// bound. Under a standard registration (<c>ctk.scripted</c>) the
+        /// emitter's own timer ends the call; under a managed one
+        /// (<c>ctk.managed</c>) the interceptor reports the typed
+        /// timeout.</summary>
+        Hang,
+
+        /// <summary><c>fault: cancel</c>: the typed cancelled outcome of a
+        /// managed interceptor (§7, §6.3.1); defined only for
+        /// <c>ctk.managed</c>.</summary>
+        Cancel,
+    }
+
+    /// <summary><c>fault: hang</c> grace: a standard scripted interceptor
+    /// returns allow once this much time has passed without the host
+    /// cancelling it, so an unbounded host fails the vector on
+    /// <c>tool_not_invoked</c> instead of hanging it. It is well past
+    /// the 50 ms bound the hang vectors set.</summary>
+    private static readonly TimeSpan HangGrace = TimeSpan.FromSeconds(10);
+
     /// <summary>Replays one interceptor rule list via the Rust core.</summary>
     private class ScriptedInterceptor(string rulesJson) : IInterceptor
     {
         protected readonly string RulesJson = rulesJson;
 
-        public virtual ValueTask<Verdict> InterceptAsync(
-            AgentContext ctx, CancellationToken ct = default)
+        /// <summary>Evaluate the rules against <paramref name="ctx"/>
+        /// (recording it first, in the recording subclass) and name the
+        /// fault, if any; <c>mutate</c> is applied here.</summary>
+        public virtual (ScriptedFault Fault, Verdict? Verdict) Evaluate(AgentContext ctx)
         {
             var w = (JsonObject)JsonNode.Parse(
                 Native.CtkScriptedIntercept(RulesJson, ctx.Json.ToJsonString(Compact)))!;
-            if (w.ContainsKey("__ctk_fault__"))
+            switch ((string?)w["__ctk_fault__"])
             {
-                if ((string?)w["__ctk_fault__"] == "mutate")
-                {
+                case "mutate":
                     // §7 isolation fault (TM-05): tamper with the received
                     // context in-place; the emitter's copy isolation must
                     // keep enforcement, identity, and siblings unaffected.
                     ctx.Json["target"] = "TAMPERED";
                     if (ctx.Json["tool_call"] is JsonObject tc)
                         tc["args"] = new JsonObject { ["tampered"] = true };
-                    return ValueTask.FromResult(
-                        new Verdict(Decision.Allow) { Reason = "ctk:mutated" });
-                }
-                // Fault injection: exercise §6.3 interceptor_failed.
-                throw new InvalidOperationException("ctk scripted fault: raise");
+                    return (ScriptedFault.None, new Verdict(Decision.Allow) { Reason = "ctk:mutated" });
+                case "raise":
+                    return (ScriptedFault.Raise, null);
+                case "hang":
+                    return (ScriptedFault.Hang, null);
+                case "cancel":
+                    return (ScriptedFault.Cancel, null);
+                case not null:
+                    return (ScriptedFault.None, InvalidVerdict());
             }
             try
             {
-                return ValueTask.FromResult(Verdict.FromWire(w));
+                return (ScriptedFault.None, Verdict.FromWire(w));
             }
             catch (ArgumentOutOfRangeException)
             {
                 // A scripted verdict in the superseded five-verdict
                 // vocabulary (pre-P-003 `warn`/`escalate`) fails the §5
                 // gate (fail closed): the closed set is three (§5.1).
-                return ValueTask.FromResult(InvalidVerdict());
+                return (ScriptedFault.None, InvalidVerdict());
+            }
+        }
+
+        public async ValueTask<Verdict> InterceptAsync(
+            AgentContext ctx, CancellationToken ct = default)
+        {
+            var (fault, verdict) = Evaluate(ctx);
+            switch (fault)
+            {
+                case ScriptedFault.Raise:
+                    // Fault injection: exercise §6.3 interceptor_failed.
+                    throw new InvalidOperationException("ctk scripted fault: raise");
+                case ScriptedFault.Hang:
+                    // Block past the binding's bound. The emitter's own
+                    // timer ends the call first and cancels this token;
+                    // the allow returned afterwards (or after the grace,
+                    // when no host timer fires) is what an unbounded host
+                    // observes, and the vector then fails on
+                    // tool_not_invoked.
+                    try
+                    {
+                        await Task.Delay(HangGrace, ct);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Cancelled by the host's timer: the typed
+                        // timeout is already in the record.
+                    }
+                    return Verdict.Allow;
+                case ScriptedFault.Cancel:
+                    // `cancel` is defined only for ctk.managed (HARNESS.md);
+                    // a standard interceptor has no cancelled outcome, so
+                    // fail closed through the §5 gate.
+                    return InvalidVerdict();
+                default:
+                    return verdict!;
             }
         }
     }
@@ -709,11 +822,55 @@ public static class Runner
     private sealed class RecordingScriptedInterceptor(
         string rulesJson, List<JsonObject> recorded) : ScriptedInterceptor(rulesJson)
     {
-        public override ValueTask<Verdict> InterceptAsync(
-            AgentContext ctx, CancellationToken ct = default)
+        public override (ScriptedFault Fault, Verdict? Verdict) Evaluate(AgentContext ctx)
         {
             recorded.Add((JsonObject)ctx.Json.DeepClone());
-            return base.InterceptAsync(ctx, ct);
+            return base.Evaluate(ctx);
+        }
+    }
+
+    /// <summary>The same script through the managed-interceptor path
+    /// (§7): the <c>ctk.managed</c> kind of a declaration vector owns
+    /// its own deadline, so <c>hang</c> waits out the bound it was
+    /// handed, cancels and cleans up the work and reports the typed
+    /// timeout, and <c>cancel</c> reports the typed cancelled outcome.
+    /// <c>raise</c> throws natively and <c>malformed_verdict</c> returns
+    /// the §5-invalid shape, as under <c>ctk.scripted</c>.</summary>
+    private sealed class ScriptedManagedInterceptor(ScriptedInterceptor inner) : IManagedInterceptor
+    {
+        public async ValueTask<ManagedInterceptorOutcome> InterceptManagedAsync(
+            AgentContext ctx, TimeSpan? bound, CancellationToken ct = default)
+        {
+            var (fault, verdict) = inner.Evaluate(ctx);
+            switch (fault)
+            {
+                case ScriptedFault.Raise:
+                    throw new InvalidOperationException("ctk scripted fault: raise");
+                case ScriptedFault.Hang:
+                    if (bound is { } d)
+                    {
+                        // The work (a delay standing in for a process or a
+                        // request) is cancelled at the deadline and awaited,
+                        // so it is cleaned up before the outcome is reported.
+                        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                        cts.CancelAfter(d);
+                        try
+                        {
+                            await Task.Delay(HangGrace, cts.Token);
+                        }
+                        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                        {
+                            return ManagedInterceptorOutcome.Timeout;
+                        }
+                        return ManagedInterceptorOutcome.FromVerdict(Verdict.Allow);
+                    }
+                    await Task.Delay(HangGrace, ct);
+                    return ManagedInterceptorOutcome.FromVerdict(Verdict.Allow);
+                case ScriptedFault.Cancel:
+                    return ManagedInterceptorOutcome.Cancelled;
+                default:
+                    return ManagedInterceptorOutcome.FromVerdict(verdict!);
+            }
         }
     }
 
