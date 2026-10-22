@@ -90,11 +90,15 @@ pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
                     require_members(m, &["reason", "message"])?;
                     let reason = match m.get("reason") {
                         None | Some(Value::Null) => None,
-                        Some(Value::String(s)) if !s.starts_with("host_error:") => Some(s.clone()),
+                        Some(Value::String(s))
+                            if !s.starts_with("host_error:") && !s.starts_with("host_warning:") =>
+                        {
+                            Some(s.clone())
+                        }
                         _ => {
                             return Err((
                                 HostError::VerdictInvalid,
-                                "warnings[].reason must be a non-reserved string".into(),
+                                "warnings[].reason must be a non-reserved string (host_error:* and host_warning:* are host-only, §5, §6.3)".into(),
                             ))
                         }
                     };
@@ -373,6 +377,13 @@ mod tests {
             "warnings": [{"reason": "host_error:x"}]
         }))
         .is_err());
+        // §6.3: the host-only warning namespace is refused the same way.
+        let e = from_wire(&json!({
+            "decision": "allow",
+            "warnings": [{"reason": "host_warning:control_failed", "message": "spoof"}]
+        }))
+        .unwrap_err();
+        assert_eq!(e.0, HostError::VerdictInvalid);
     }
 
     #[test]

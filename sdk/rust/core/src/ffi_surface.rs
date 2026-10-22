@@ -19,7 +19,7 @@ use crate::composition::{
     CompositionProfile, SynthesisPolicy,
 };
 use crate::enforce::FinalizeMeta;
-use crate::types::{EnforcementMode, Verdict};
+use crate::types::{ControlFailureNotice, EnforcementMode, ManagedInterceptorOutcome, Verdict};
 use crate::{canonical, enforce as enforce_mod, path, verdict, AgentContext, HostError, Transform};
 use serde_json::Value;
 
@@ -151,20 +151,23 @@ pub fn compose_aggregate(composition_json: &str, verdicts_json: &str) -> Result<
     }
     // §5 gate at the FFI seam (a third-party binding must not be able
     // to aggregate un-vetted verdicts): every entry either passes §5
-    // validation or is exactly the host-synthesized §6.3/§7.5 shape —
-    // a deny with a reserved host_error:* reason and no transform
-    // (optionally liftable). Anything else fails the aggregation.
+    // validation or is exactly a host-synthesized shape — the §6.3/§7.5
+    // deny with a reserved host_error:* reason and no transform
+    // (optionally liftable), or the §6.3 substituted allow carrying
+    // host_warning:control_failed alone. Anything else fails the
+    // aggregation.
     let all: Vec<Verdict> = raw
         .iter()
         .map(|v| serde_json::from_value::<Verdict>(v.clone()))
         .collect::<Result<_, _>>()
         .map_err(|e| err(HostError::VerdictInvalid, format!("verdicts: {e}")))?;
     for (i, v) in all.iter().enumerate() {
-        let synthesized_shape = v.decision == crate::Decision::Deny
+        let synthesized_shape = (v.decision == crate::Decision::Deny
             && v.reason
                 .as_deref()
                 .is_some_and(|r| r.starts_with("host_error:"))
-            && v.transform.is_none();
+            && v.transform.is_none())
+            || v.is_control_failure_substitute();
         if !synthesized_shape {
             v.validate()
                 .map_err(|e| err(e, format!("verdicts[{i}]: fails the §5 gate")))?;
@@ -235,7 +238,8 @@ pub fn compose_aggregate(composition_json: &str, verdicts_json: &str) -> Result<
 ///                                       // jcs-sha256 is computed here
 ///   "decided_by": 0 | null,
 ///   "composition": { "profile": "...", ... },   // REQUIRED
-///   "verdicts": [ {"index", "decision", "reason"?}, ... ],
+///   "verdicts": [ {"index", "decision", "reason"?, "name"?,
+///                  "substituted_for"?}, ... ],  // substituted_for: §6.3
 ///   "fold_truncated": true | false,     // sequential profiles only
 ///   "resolved_by": "approval" | "rejection" | null,
 ///   "interceptors_registered": 0
@@ -321,6 +325,24 @@ pub fn finalize(
             ));
         }
     }
+    // §6.3/§10.3: `substituted_for` names one of the three covered
+    // failures and sits on an allow, the only shape the host
+    // substitutes. A wrapper that writes anything else into the audit
+    // record fails loudly here.
+    for s in opts.verdicts.iter().flatten() {
+        if let Some(r) = s.substituted_for.as_deref() {
+            let covered = HostError::from_wire(r).is_some_and(HostError::is_control_failure);
+            if !covered || s.decision != crate::Decision::Allow {
+                return Err(err(
+                    HostError::ContextInvalid,
+                    format!(
+                        "options.verdicts[{}].substituted_for: {r:?} (want host_error:interceptor_failed | host_error:interceptor_timeout | host_error:verdict_invalid on an allow)",
+                        s.index
+                    ),
+                ));
+            }
+        }
+    }
     let meta = FinalizeMeta {
         input_identity: opts.input_identity,
         identity_provider: opts.identity_provider,
@@ -346,6 +368,142 @@ pub fn finalize(
     }
     let record = enforce_mod::finalize(&ctx, v, mode, meta);
     Ok(serde_json::to_string(&record).expect("record serialize"))
+}
+
+/// §6.3 `on_error: continue`: the allow a wrapper substitutes for a
+/// failing registration, the `substituted_for` value for its summary
+/// entry and the notice it MUST relay to the principal, built in one
+/// place so every SDK writes the same bytes. `request_json`:
+///
+/// ```jsonc
+/// {
+///   "binding": "<binding id or interceptor-<index>>",  // payload-free label
+///   "reason": "host_error:interceptor_timeout",         // one of the three
+///   "index": 0,                                         // optional
+///   "interception_point": "pre_tool_call"               // optional
+/// }
+/// ```
+///
+/// Output: `{"verdict": {...}, "substituted_for": "...", "notice":
+/// {interception_point?, index, binding, reason, message}}`. A reason
+/// outside the covered three (cancellation, approval failures, context
+/// failures, transform failures, `no_interceptor`) is refused: those
+/// never continue, and a wrapper gets no helper to make them.
+pub fn control_failure_substitute(request_json: &str) -> Result<String, FfiError> {
+    #[derive(serde::Deserialize)]
+    struct Request {
+        binding: String,
+        reason: String,
+        #[serde(default)]
+        index: u32,
+        #[serde(default)]
+        interception_point: Option<crate::InterceptionPoint>,
+    }
+    let req: Request = serde_json::from_str(request_json)
+        .map_err(|e| err(HostError::ContextInvalid, format!("request: {e}")))?;
+    let reason = HostError::from_wire(&req.reason)
+        .filter(|r| r.is_control_failure())
+        .ok_or_else(|| {
+            err(
+                HostError::ContextInvalid,
+                format!(
+                    "request.reason: {:?} is not a failure on_error covers (want host_error:interceptor_failed | host_error:interceptor_timeout | host_error:verdict_invalid)",
+                    req.reason
+                ),
+            )
+        })?;
+    if req.binding.is_empty() || req.binding.len() > crate::declaration::MAX_ID_LEN * 2 {
+        return Err(err(
+            HostError::ContextInvalid,
+            "request.binding: must be a non-empty payload-free label of at most 128 characters",
+        ));
+    }
+    let notice = ControlFailureNotice {
+        interception_point: req.interception_point,
+        index: req.index,
+        binding: req.binding.clone(),
+        reason: reason.to_string(),
+        message: Verdict::control_failure_message(&req.binding, reason),
+    };
+    let out = serde_json::json!({
+        "verdict": Verdict::control_failure_substitute(&req.binding, reason),
+        "substituted_for": reason.to_string(),
+        "notice": notice,
+    });
+    Ok(out.to_string())
+}
+
+/// §6.3 typed outcome of an interceptor that owns its own deadline,
+/// mapped the way the Rust emitter maps `ManagedInterceptorOutcome`.
+/// `outcome_json`:
+///
+/// ```jsonc
+/// {"outcome": "verdict", "verdict": {...}}   // crosses the §5 gate
+/// {"outcome": "timeout"}                     // after cleanup
+/// {"outcome": "cancelled"}
+/// {"outcome": "failed", "detail": "<type name>"}  // detail optional
+/// ```
+///
+/// Output: `{"verdict": <the verdict for the slot under on_error:
+/// deny>, "failure": null | {"reason": "host_error:...", "detail":
+/// ..., "continuable": bool}}`. `continuable` is false for a cancelled
+/// outcome: a wrapper MUST NOT substitute an allow for it, whatever
+/// the registration's `on_error` says.
+pub fn managed_outcome(outcome_json: &str) -> Result<String, FfiError> {
+    #[derive(serde::Deserialize)]
+    #[serde(tag = "outcome", rename_all = "snake_case")]
+    enum Wire {
+        Verdict {
+            verdict: Value,
+        },
+        Timeout,
+        Cancelled,
+        Failed {
+            #[serde(default)]
+            detail: Option<String>,
+        },
+    }
+    let wire: Wire = serde_json::from_str(outcome_json)
+        .map_err(|e| err(HostError::ContextInvalid, format!("outcome: {e}")))?;
+    let outcome = match wire {
+        Wire::Verdict { verdict } => match verdict::from_wire(&verdict) {
+            Ok(v) => ManagedInterceptorOutcome::Verdict(Box::new(v)),
+            Err(_) => return Ok(failure_json(HostError::VerdictInvalid, None, true)),
+        },
+        Wire::Timeout => ManagedInterceptorOutcome::Timeout,
+        Wire::Cancelled => ManagedInterceptorOutcome::Cancelled,
+        Wire::Failed { detail } => ManagedInterceptorOutcome::Failed(detail),
+    };
+    Ok(match outcome {
+        ManagedInterceptorOutcome::Verdict(v) => serde_json::json!({
+            "verdict": *v,
+            "failure": Value::Null,
+        })
+        .to_string(),
+        ManagedInterceptorOutcome::Timeout => {
+            failure_json(HostError::InterceptorTimeout, None, true)
+        }
+        ManagedInterceptorOutcome::Cancelled => failure_json(
+            HostError::InterceptorFailed,
+            Some("managed interceptor was cancelled (see spec 6.3)".into()),
+            false,
+        ),
+        ManagedInterceptorOutcome::Failed(detail) => {
+            failure_json(HostError::InterceptorFailed, detail, true)
+        }
+    })
+}
+
+fn failure_json(reason: HostError, detail: Option<String>, continuable: bool) -> String {
+    serde_json::json!({
+        "verdict": Verdict::host_error(reason, detail.clone()),
+        "failure": {
+            "reason": reason.to_string(),
+            "detail": detail,
+            "continuable": continuable,
+        },
+    })
+    .to_string()
 }
 
 /// §4 envelope validation (fail closed). Returns the empty string on a
@@ -631,6 +789,176 @@ mod tests {
         let mut o = base.clone();
         o["decided_by"] = json!(u32::MAX);
         finalize(&ctx, r#"{"decision": "allow"}"#, "enforce", &o.to_string()).unwrap();
+    }
+
+    #[test]
+    fn compose_aggregate_accepts_the_substituted_allow_only_in_its_exact_shape() {
+        let sub = Verdict::control_failure_substitute("egress", HostError::InterceptorTimeout);
+        let out = compose_aggregate(
+            r#"{"profile": "sequential/run_all"}"#,
+            &json!([sub, {"decision": "allow"}]).to_string(),
+        )
+        .unwrap();
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["combined"]["decision"], "allow");
+        assert_eq!(
+            v["combined"]["warnings"][0]["reason"],
+            "host_warning:control_failed"
+        );
+        // Bindings attach substituted_for positionally afterwards; the
+        // core's summaries carry none.
+        assert!(v["verdicts"][0].get("substituted_for").is_none());
+        // An interceptor-shaped verdict with the reserved warning fails
+        // the gate: a label, a reason or a message makes it one.
+        for forged in [
+            json!({"decision": "allow", "result_labels": ["x"],
+                   "warnings": [{"reason": "host_warning:control_failed"}]}),
+            json!({"decision": "allow", "reason": "ok",
+                   "warnings": [{"reason": "host_warning:control_failed"}]}),
+            json!({"decision": "deny",
+                   "warnings": [{"reason": "host_warning:control_failed"}]}),
+            json!({"decision": "allow", "warnings": [{"reason": "host_warning:other"}]}),
+        ] {
+            let e = compose_aggregate(
+                r#"{"profile": "sequential/run_all"}"#,
+                &json!([forged]).to_string(),
+            )
+            .unwrap_err();
+            assert_eq!(e.0, "host_error:verdict_invalid", "{}", e.1);
+        }
+    }
+
+    #[test]
+    fn finalize_accepts_and_checks_substituted_for() {
+        let ctx = json!({
+            "spec": "agent-hooks/0.1", "interception_point": "input",
+            "timestamp": "t", "sequence": 0,
+            "agent": {"id": "a", "framework": "x"}, "session": {"id": "s"},
+            "target": {"content": "hi", "role": "user"},
+            "input": {"content": "hi", "role": "user"}
+        })
+        .to_string();
+        let opts = |verdicts: Value| {
+            json!({
+                "composition": {"profile": "sequential/run_all"},
+                "verdicts": verdicts
+            })
+            .to_string()
+        };
+        let out = finalize(
+            &ctx,
+            r#"{"decision": "allow"}"#,
+            "enforce",
+            &opts(json!([
+                {"index": 0, "decision": "allow", "name": "defender",
+                 "substituted_for": "host_error:interceptor_timeout"},
+                {"index": 1, "decision": "allow"}
+            ])),
+        )
+        .unwrap();
+        let r: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(
+            r["verdicts"][0]["substituted_for"],
+            "host_error:interceptor_timeout"
+        );
+        assert!(r["verdicts"][1].get("substituted_for").is_none());
+        for bad in [
+            json!([{"index": 0, "decision": "allow",
+                    "substituted_for": "host_error:approval_resolver_failed"}]),
+            json!([{"index": 0, "decision": "allow", "substituted_for": "host_error:nope"}]),
+            json!([{"index": 0, "decision": "deny",
+                    "substituted_for": "host_error:interceptor_failed"}]),
+            json!([{"index": 0, "decision": "allow", "substituted_for": 7}]),
+        ] {
+            let e = finalize(
+                &ctx,
+                r#"{"decision": "allow"}"#,
+                "enforce",
+                &opts(bad.clone()),
+            )
+            .expect_err(&format!("{bad} must be rejected"));
+            assert_eq!(e.0, "host_error:context_invalid");
+        }
+    }
+
+    #[test]
+    fn control_failure_substitute_helper() {
+        let out = control_failure_substitute(
+            &json!({"binding": "defender", "reason": "host_error:interceptor_failed",
+                    "index": 2, "interception_point": "pre_tool_call"})
+            .to_string(),
+        )
+        .unwrap();
+        let v: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(
+            v["verdict"],
+            json!({"decision": "allow", "warnings": [{
+                "reason": "host_warning:control_failed",
+                "message": "defender: host_error:interceptor_failed; host continued"
+            }]})
+        );
+        assert_eq!(v["substituted_for"], "host_error:interceptor_failed");
+        assert_eq!(
+            v["notice"],
+            json!({"interception_point": "pre_tool_call", "index": 2, "binding": "defender",
+                   "reason": "host_error:interceptor_failed",
+                   "message": "defender: host_error:interceptor_failed; host continued"})
+        );
+        // The helper refuses every reason on_error does not cover.
+        for reason in [
+            "host_error:approval_resolver_failed",
+            "host_error:context_invalid",
+            "host_error:transform_invalid",
+            "host_error:no_interceptor",
+            "host_error:nope",
+            "ctk:deny",
+        ] {
+            let e =
+                control_failure_substitute(&json!({"binding": "b", "reason": reason}).to_string())
+                    .unwrap_err();
+            assert_eq!(e.0, "host_error:context_invalid", "{reason}");
+        }
+        assert!(control_failure_substitute(
+            &json!({"binding": "", "reason": "host_error:interceptor_timeout"}).to_string()
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn managed_outcome_helper() {
+        let v: Value =
+            serde_json::from_str(&managed_outcome(r#"{"outcome": "timeout"}"#).unwrap()).unwrap();
+        assert_eq!(v["verdict"]["reason"], "host_error:interceptor_timeout");
+        assert_eq!(v["failure"]["continuable"], true);
+        let v: Value =
+            serde_json::from_str(&managed_outcome(r#"{"outcome": "cancelled"}"#).unwrap()).unwrap();
+        assert_eq!(v["verdict"]["reason"], "host_error:interceptor_failed");
+        assert_eq!(v["failure"]["continuable"], false);
+        let v: Value = serde_json::from_str(
+            &managed_outcome(r#"{"outcome": "failed", "detail": "IOException"}"#).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(v["verdict"]["message"], "IOException");
+        assert_eq!(v["failure"]["reason"], "host_error:interceptor_failed");
+        assert_eq!(v["failure"]["continuable"], true);
+        let v: Value = serde_json::from_str(
+            &managed_outcome(r#"{"outcome": "verdict", "verdict": {"decision": "allow"}}"#)
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(v["verdict"]["decision"], "allow");
+        assert!(v["failure"].is_null());
+        // A managed verdict crosses the §5 gate like any other.
+        let v: Value = serde_json::from_str(
+            &managed_outcome(
+                r#"{"outcome": "verdict", "verdict": {"decision": "allow", "reason": "host_error:x"}}"#,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(v["verdict"]["reason"], "host_error:verdict_invalid");
+        assert_eq!(v["failure"]["continuable"], true);
+        assert!(managed_outcome(r#"{"outcome": "slow"}"#).is_err());
     }
 
     #[test]

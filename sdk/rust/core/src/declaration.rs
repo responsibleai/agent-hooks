@@ -23,7 +23,7 @@
 //! | 5 | same | no unknown member at a closed level | `unknown_field` |
 //! | 6 | same | types, enums, patterns, ranges; every integer token within ±(2^53 - 1) | `invalid_field` |
 //! | 7 | same, and again in [`resolve`] with the filled surface for the floor, pairs and `at` | internal consistency; the composition against a stated `surface.profiles` | `inconsistent` |
-//! | 8 | [`resolve`] | surface and configuration, the configured composition included, honoured by the host's [`HostSurface`] | `surface_unsupported` |
+//! | 8 | [`resolve`], [`HostRegistry::resolve`] | surface and configuration, the configured composition included, honoured by the host's [`HostSurface`]; a binding that resolves to `on_error: continue` only on a host whose code registers a control failure notifier (§6.3) | `surface_unsupported` |
 //! | 9 | [`resolve`] | named provider, resolver and redactor registered | `reference_unresolved` |
 //! | 10 | [`resolve`] | every binding kind registered | `kind_unknown` |
 //! | 11 | `InterceptionEmitter::from_declaration` | kind resolvers run | `binding_rejected` |
@@ -42,8 +42,9 @@ use crate::composition::{
     knob_default, knob_values, CompositionConfig, CompositionProfile, OnApproval, SynthesisPolicy,
 };
 use crate::types::{
-    validate_provider_name, AgentContext, ApprovalResolver, EnforcementMode, InterceptionPoint,
-    Interceptor, DECLARATION_VERSION, JCS_SHA256, SPEC_VERSION, SUPPORTED_DECLARATION_VERSIONS,
+    validate_provider_name, AgentContext, ApprovalResolver, ControlFailureNotifier,
+    EnforcementMode, InterceptionPoint, Interceptor, ManagedInterceptor, OnError,
+    DECLARATION_VERSION, JCS_SHA256, SPEC_VERSION, SUPPORTED_DECLARATION_VERSIONS,
 };
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
@@ -239,6 +240,16 @@ impl DeclarationError {
     }
 
     fn version(detail: impl Into<String>) -> Self {
+        Self::version_accepted(
+            detail,
+            SUPPORTED_DECLARATION_VERSIONS
+                .iter()
+                .map(|s| (*s).to_owned())
+                .collect(),
+        )
+    }
+
+    fn version_accepted(detail: impl Into<String>, accepted: Vec<String>) -> Self {
         Self {
             class: DeclarationErrorClass::VersionUnsupported,
             findings: vec![Finding {
@@ -246,13 +257,10 @@ impl DeclarationError {
                 detail: truncate(format!(
                     "{}; accepted: {}",
                     detail.into(),
-                    SUPPORTED_DECLARATION_VERSIONS.join(", ")
+                    accepted.join(", ")
                 )),
             }],
-            accepted: SUPPORTED_DECLARATION_VERSIONS
-                .iter()
-                .map(|s| (*s).to_owned())
-                .collect(),
+            accepted,
         }
     }
 
@@ -748,6 +756,10 @@ pub struct BindingContext<'a> {
     pub at: &'a BTreeSet<InterceptionPoint>,
     /// The resolved per-binding bound; `None` is unbounded.
     pub timeout: Option<Duration>,
+    /// The resolved failure posture of the binding (§6.3, §7.7.5):
+    /// its own `on_error`, else `configuration.failure.on_error`, else
+    /// `deny`.
+    pub on_error: OnError,
     pub host: Option<&'a HostInfo>,
     pub declaration_version: &'a str,
 }
@@ -756,6 +768,17 @@ pub struct BindingContext<'a> {
 /// or refuses it with a message (which MUST NOT echo the config).
 pub type KindResolver =
     Box<dyn Fn(&Value, &BindingContext<'_>) -> Result<Box<dyn Interceptor>, String> + Send + Sync>;
+
+/// Host code that turns one binding's `config` into one
+/// [`ManagedInterceptor`] (an interceptor that owns its own deadline,
+/// §6.3), or refuses it with a message (which MUST NOT echo the
+/// config). `BindingContext::timeout` is the bound the interceptor
+/// receives again on every call.
+pub type ManagedKindResolver = Box<
+    dyn Fn(&Value, &BindingContext<'_>) -> Result<Box<dyn ManagedInterceptor>, String>
+        + Send
+        + Sync,
+>;
 
 type IdentityFn = Arc<dyn Fn(&AgentContext) -> String + Send + Sync>;
 type RedactorFn = Arc<dyn Fn(&AgentContext) -> AgentContext + Send + Sync>;
@@ -767,9 +790,15 @@ pub struct HostRegistry {
     surface: HostSurface,
     allow_reserved: bool,
     kinds: BTreeMap<String, KindResolver>,
+    managed_kinds: BTreeMap<String, ManagedKindResolver>,
     identity_providers: BTreeMap<String, IdentityFn>,
     approval_resolvers: BTreeMap<String, Arc<dyn ApprovalResolver>>,
     approval_redactors: BTreeMap<String, RedactorFn>,
+    /// The channel through which the host tells the principal that a
+    /// control failed and the action continued (§6.3). Required by
+    /// every emitter built from a document in which any binding
+    /// resolves to `on_error: continue`.
+    notifier: Option<ControlFailureNotifier>,
 }
 
 impl fmt::Debug for HostRegistry {
@@ -817,9 +846,11 @@ impl HostRegistry {
             surface,
             allow_reserved: false,
             kinds: BTreeMap::new(),
+            managed_kinds: BTreeMap::new(),
             identity_providers: BTreeMap::new(),
             approval_resolvers: BTreeMap::new(),
             approval_redactors: BTreeMap::new(),
+            notifier: None,
         }
     }
 
@@ -838,6 +869,26 @@ impl HostRegistry {
 
     /// Register a kind resolver.
     pub fn kind(mut self, kind: &str, f: KindResolver) -> Result<Self, RegistryError> {
+        self.check_kind(kind)?;
+        self.kinds.insert(kind.to_owned(), f);
+        Ok(self)
+    }
+
+    /// Register a resolver for a kind whose interceptors own their own
+    /// deadline (§6.3). The kind grammar, the reserved segments and
+    /// the one-registration rule are the same as for [`Self::kind`];
+    /// one kind name is either managed or not.
+    pub fn managed_kind(
+        mut self,
+        kind: &str,
+        f: ManagedKindResolver,
+    ) -> Result<Self, RegistryError> {
+        self.check_kind(kind)?;
+        self.managed_kinds.insert(kind.to_owned(), f);
+        Ok(self)
+    }
+
+    fn check_kind(&self, kind: &str) -> Result<(), RegistryError> {
         if !valid_kind(kind) {
             return Err(RegistryError {
                 detail: format!("kind {kind:?} does not match the kind grammar (see spec §7.7.5)"),
@@ -851,13 +902,28 @@ impl HostRegistry {
                 ),
             });
         }
-        if self.kinds.contains_key(kind) {
+        if self.kinds.contains_key(kind) || self.managed_kinds.contains_key(kind) {
             return Err(RegistryError {
                 detail: format!("kind {kind:?} registered twice"),
             });
         }
-        self.kinds.insert(kind.to_owned(), f);
-        Ok(self)
+        Ok(())
+    }
+
+    /// Register the channel through which the host tells the principal
+    /// that a control failed and the action continued (§6.3): the user
+    /// in an interactive session, else the agent through the host's
+    /// own message channel. A document in which any binding resolves
+    /// to `on_error: continue` is refused at step 8 of §7.7.6
+    /// (`surface_unsupported`, before any kind resolver runs) unless
+    /// the registry holds one, so silent continuation cannot be
+    /// reached by leaving this out.
+    pub fn control_failure_notifier(
+        mut self,
+        f: impl Fn(&crate::types::ControlFailureNotice) + Send + Sync + 'static,
+    ) -> Self {
+        self.notifier = Some(Arc::new(f));
+        self
     }
 
     /// Register a custom identity provider (§10.1 name rules apply).
@@ -920,12 +986,38 @@ impl HostRegistry {
             identity_providers: self.identity_providers.keys().cloned().collect(),
             approval_resolvers: self.approval_resolvers.keys().cloned().collect(),
             approval_redactors: self.approval_redactors.keys().cloned().collect(),
-            kinds: self.kinds.keys().cloned().collect(),
+            kinds: self
+                .kinds
+                .keys()
+                .chain(self.managed_kinds.keys())
+                .cloned()
+                .collect(),
         }
+    }
+
+    /// Steps 7 (filled), 8, 9 and 10 against this registry: [`resolve`]
+    /// plus the one step 8 check only the registry can answer, that a
+    /// binding resolving to `on_error: continue` has the control
+    /// failure notifier the posture needs (§6.3). The check runs
+    /// before the names of steps 9 and 10 and before any kind
+    /// resolver, so a refused document never runs host code.
+    pub fn resolve(&self, decl: &HostDeclaration) -> Result<ResolvedDeclaration, DeclarationError> {
+        let resolved = resolve_surface_only(decl, &self.surface)?;
+        check_principal_channel(&decl.doc, &resolved, self.notifier.is_some())?;
+        check_names(&resolved, &self.names())?;
+        Ok(resolved)
     }
 
     pub(crate) fn kind_resolver(&self, kind: &str) -> Option<&KindResolver> {
         self.kinds.get(kind)
+    }
+
+    pub(crate) fn managed_kind_resolver(&self, kind: &str) -> Option<&ManagedKindResolver> {
+        self.managed_kinds.get(kind)
+    }
+
+    pub(crate) fn control_failure_notifier_ref(&self) -> Option<ControlFailureNotifier> {
+        self.notifier.clone()
     }
 
     pub(crate) fn identity_fn(&self, name: &str) -> Option<IdentityFn> {
@@ -1263,6 +1355,7 @@ const CONFIGURATION_KEYS: &[&str] = &[
     "identity_provider",
     "approval",
     "posture",
+    "failure",
     "timeouts",
     "records",
 ];
@@ -1274,6 +1367,8 @@ const COMPOSITION_KEYS: &[&str] = &[
 ];
 const APPROVAL_KEYS: &[&str] = &["resolver", "redactor"];
 const POSTURE_KEYS: &[&str] = &["tool_seam_host_error"];
+/// `configuration.failure` (§6.3, §7.7.3), introduced in 1.1.
+const FAILURE_KEYS: &[&str] = &["on_error"];
 const TIMEOUT_KEYS: &[&str] = &["interceptor_ms", "approval_resolver_ms"];
 const RECORD_KEYS: &[&str] = &["max_buffered"];
 const SURFACE_KEYS: &[&str] = &[
@@ -1284,7 +1379,19 @@ const SURFACE_KEYS: &[&str] = &[
     "exposure_bound",
     "declaration_versions",
 ];
-const BINDING_KEYS: &[&str] = &["id", "kind", "config", "at", "timeout_ms"];
+const BINDING_KEYS: &[&str] = &["id", "kind", "config", "at", "timeout_ms", "on_error"];
+
+/// The contract version that introduced the `on_error` members
+/// (`configuration.failure` and `bindings[].on_error`). A document
+/// that declares an older version and carries them is refused as
+/// `unknown_field`: the member is not part of the contract it names.
+const ON_ERROR_SINCE: (u64, u64) = (1, 1);
+
+fn introduced_later(doc: &Map<String, Value>, since: (u64, u64)) -> Option<&str> {
+    let v = get_str(doc, "declaration")?;
+    let (maj, min) = parse_declaration_version(v)?;
+    ((maj, min) < since).then_some(v)
+}
 
 fn unknown_in(obj: &Map<String, Value>, allowed: &[&str], pointer: &str, out: &mut Vec<Finding>) {
     for k in obj.keys() {
@@ -1318,6 +1425,19 @@ fn check_unknown_fields(doc: &Map<String, Value>) -> Result<(), DeclarationError
         if let Some(p) = object_at(cfg, "posture") {
             unknown_in(p, POSTURE_KEYS, "/configuration/posture", &mut f);
         }
+        if let Some(fl) = object_at(cfg, "failure") {
+            unknown_in(fl, FAILURE_KEYS, "/configuration/failure", &mut f);
+        }
+        if cfg.contains_key("failure") {
+            if let Some(v) = introduced_later(doc, ON_ERROR_SINCE) {
+                f.push(Finding {
+                    pointer: "/configuration/failure".into(),
+                    detail: format!(
+                        "unknown member \"failure\" in {v}; it was introduced in agent-hooks-declaration/1.1"
+                    ),
+                });
+            }
+        }
         if let Some(t) = object_at(cfg, "timeouts") {
             unknown_in(t, TIMEOUT_KEYS, "/configuration/timeouts", &mut f);
         }
@@ -1348,6 +1468,16 @@ fn check_unknown_fields(doc: &Map<String, Value>) -> Result<(), DeclarationError
         for (i, b) in bindings.iter().enumerate() {
             if let Some(obj) = b.as_object() {
                 unknown_in(obj, BINDING_KEYS, &format!("/bindings/{i}"), &mut f);
+                if obj.contains_key("on_error") {
+                    if let Some(v) = introduced_later(doc, ON_ERROR_SINCE) {
+                        f.push(Finding {
+                            pointer: format!("/bindings/{i}/on_error"),
+                            detail: format!(
+                                "unknown member \"on_error\" in {v}; it was introduced in agent-hooks-declaration/1.1"
+                            ),
+                        });
+                    }
+                }
             }
         }
     }
@@ -1695,6 +1825,13 @@ fn check_fields(doc: &Map<String, Value>, text: &str) -> Result<(), DeclarationE
                 &["continue", "terminate"],
             );
         }
+        if let Some(fl) = f.object(cfg.get("failure"), "/configuration/failure") {
+            f.enum_str(
+                fl.get("on_error"),
+                "/configuration/failure/on_error",
+                ON_ERROR_VALUES,
+            );
+        }
         if let Some(t) = f.object(cfg.get("timeouts"), "/configuration/timeouts") {
             for key in TIMEOUT_KEYS {
                 f.int_or_null(
@@ -1837,6 +1974,7 @@ fn check_fields(doc: &Map<String, Value>, text: &str) -> Result<(), DeclarationE
                     1,
                     MAX_TIMEOUT_MS,
                 );
+                f.enum_str(obj.get("on_error"), &ptr(&bp, "on_error"), ON_ERROR_VALUES);
             }
         }
         Some(_) => f.bad("/bindings", "must be an array"),
@@ -1873,6 +2011,9 @@ fn check_fields(doc: &Map<String, Value>, text: &str) -> Result<(), DeclarationE
     }
 }
 
+/// The closed `on_error` set (§6.3).
+const ON_ERROR_VALUES: &[&str] = &["deny", "continue"];
+
 fn point_names_static() -> [&'static str; 8] {
     ALL_POINTS.map(|p| p.as_str())
 }
@@ -1898,8 +2039,17 @@ pub struct ResolvedConfiguration {
     pub identity_provider: Option<String>,
     pub approval: ResolvedApproval,
     pub posture: ResolvedPosture,
+    /// `configuration.failure` with its default filled (1.1; a 1.0
+    /// document resolves to `on_error: deny`).
+    pub failure: ResolvedFailure,
     pub timeouts: ResolvedTimeouts,
     pub records: ResolvedRecords,
+}
+
+/// The document default for `bindings[].on_error` (§6.3, §7.7.3).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResolvedFailure {
+    pub on_error: OnError,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1937,7 +2087,7 @@ pub struct ResolvedSurface {
     pub declaration_versions: BTreeSet<String>,
 }
 
-/// One binding with `at` and `timeout_ms` filled.
+/// One binding with `at`, `timeout_ms` and `on_error` filled.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResolvedBinding {
     pub id: String,
@@ -1945,6 +2095,9 @@ pub struct ResolvedBinding {
     pub config: Value,
     pub at: BTreeSet<InterceptionPoint>,
     pub timeout_ms: Option<u64>,
+    /// The binding's own `on_error`, else the document default, else
+    /// `deny` (§6.3).
+    pub on_error: OnError,
 }
 
 /// The resolved declaration (§7.7.3 "Resolved form"): every default
@@ -2490,6 +2643,56 @@ fn check_surface(
 }
 
 /// Steps 9 and 10.
+/// Step 8, the part of the surface only the registry knows: a binding
+/// that resolves to `on_error: continue` needs the channel that tells
+/// the principal a control failed and the action continued (§6.3).
+/// Without it the host cannot honour the posture, and denying
+/// silently instead would be the opposite surprise, so the document
+/// is refused whole. The pointer names the member the document wrote:
+/// the binding's own `on_error` when present, else the document
+/// default it inherited from.
+fn check_principal_channel(
+    doc: &Map<String, Value>,
+    resolved: &ResolvedDeclaration,
+    has_notifier: bool,
+) -> Result<(), DeclarationError> {
+    if has_notifier {
+        return Ok(());
+    }
+    let stated: Vec<bool> = doc
+        .get("bindings")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|b| b.get("on_error").is_some())
+        .collect();
+    let f: Vec<Finding> = resolved
+        .bindings
+        .iter()
+        .enumerate()
+        .filter(|(_, b)| b.on_error == OnError::Continue)
+        .map(|(i, b)| Finding {
+            pointer: if stated.get(i).copied().unwrap_or(false) {
+                format!("/bindings/{i}/on_error")
+            } else {
+                "/configuration/failure/on_error".to_owned()
+            },
+            detail: truncate(format!(
+                "binding {:?} resolves to on_error: continue but the host's code registers no control failure notifier (see spec 6.3)",
+                b.id
+            )),
+        })
+        .collect();
+    if f.is_empty() {
+        Ok(())
+    } else {
+        Err(DeclarationError::many(
+            DeclarationErrorClass::SurfaceUnsupported,
+            f,
+        ))
+    }
+}
+
 fn check_names(
     resolved: &ResolvedDeclaration,
     names: &RegistryNames,
@@ -2565,6 +2768,10 @@ fn fill(doc: &Map<String, Value>, code: &HostSurface) -> ResolvedDeclaration {
     let approval_resolver_ms = sub("timeouts")
         .and_then(|t| get_int_or_null(t, "approval_resolver_ms"))
         .unwrap_or(interceptor_ms);
+    let on_error_default = sub("failure")
+        .and_then(|fl| get_str(fl, "on_error"))
+        .and_then(OnError::from_wire)
+        .unwrap_or_default();
     let surface = resolve_surface(doc, Some(code)).expect("code surface present");
     let bindings = doc
         .get("bindings")
@@ -2581,6 +2788,9 @@ fn fill(doc: &Map<String, Value>, code: &HostSurface) -> ResolvedDeclaration {
                 .unwrap_or_else(|| Value::Object(Map::new())),
             at: point_set(b, "at").unwrap_or_else(|| surface.interception_points.clone()),
             timeout_ms: get_int_or_null(b, "timeout_ms").unwrap_or(interceptor_ms),
+            on_error: get_str(b, "on_error")
+                .and_then(OnError::from_wire)
+                .unwrap_or(on_error_default),
         })
         .collect();
     ResolvedDeclaration {
@@ -2611,6 +2821,9 @@ fn fill(doc: &Map<String, Value>, code: &HostSurface) -> ResolvedDeclaration {
                     _ => ToolSeamPosture::Continue,
                 },
             },
+            failure: ResolvedFailure {
+                on_error: on_error_default,
+            },
             timeouts: ResolvedTimeouts {
                 interceptor_ms,
                 approval_resolver_ms,
@@ -2636,6 +2849,19 @@ pub fn resolve_surface_only(
     surface: &HostSurface,
 ) -> Result<ResolvedDeclaration, DeclarationError> {
     surface.validate()?;
+    // §7.7.2: the host may accept fewer versions than this SDK does
+    // (a host still on 1.0 refuses a 1.1 document). That is the same
+    // refusal as an SDK that does not know the version, with the
+    // host's set as the accepted set.
+    if !surface.declaration_versions.contains(decl.version()) {
+        return Err(DeclarationError::version_accepted(
+            format!(
+                "declaration {:?} is not accepted by this host",
+                decl.version()
+            ),
+            surface.declaration_versions.iter().cloned().collect(),
+        ));
+    }
     check_consistency(&decl.doc, Some(surface))?;
     let resolved = fill(&decl.doc, surface);
     check_surface(&decl.doc, &resolved, surface)?;
@@ -2654,9 +2880,13 @@ pub fn resolve(
     Ok(resolved)
 }
 
-/// Bring a document from an older accepted minor to `to` (§7.7.2).
-/// For `agent-hooks-declaration/1.0` the only step is the identity;
-/// the function exists so the shape is in place for later versions.
+/// Bring a document from an older accepted minor to `to` (§7.7.2),
+/// one explicit step per version (`spec/DECLARATION-VERSIONS.md`).
+///
+/// - 1.0 to 1.1: the `declaration` member changes; nothing else. The
+///   members 1.1 adds (`configuration.failure.on_error`,
+///   `bindings[].on_error`) are optional and their absence keeps the
+///   1.0 meaning (`deny`), so the step writes none of them.
 pub fn migrate(doc: Value, to: &str) -> Result<Value, DeclarationError> {
     if !SUPPORTED_DECLARATION_VERSIONS.contains(&to) {
         return Err(DeclarationError::version(format!(
@@ -2666,16 +2896,46 @@ pub fn migrate(doc: Value, to: &str) -> Result<Value, DeclarationError> {
     let from = doc
         .get("declaration")
         .and_then(Value::as_str)
-        .ok_or_else(|| DeclarationError::version("declaration is missing or not a string"))?;
+        .ok_or_else(|| DeclarationError::version("declaration is missing or not a string"))?
+        .to_owned();
     if from == to {
         return Ok(doc);
     }
-    Err(DeclarationError::version(format!(
-        "no migration step from {from:?} to {to:?}"
-    )))
+    let (Some(f), Some(t)) = (
+        parse_declaration_version(&from),
+        parse_declaration_version(to),
+    ) else {
+        return Err(DeclarationError::version(format!(
+            "no migration step from {from:?} to {to:?}"
+        )));
+    };
+    if !SUPPORTED_DECLARATION_VERSIONS.contains(&from.as_str()) || f.0 != t.0 || f.1 > t.1 {
+        return Err(DeclarationError::version(format!(
+            "no migration step from {from:?} to {to:?}"
+        )));
+    }
+    // Within major 1 every step so far is the version member alone.
+    let mut doc = doc;
+    if let Some(obj) = doc.as_object_mut() {
+        obj.insert("declaration".into(), Value::String(to.to_owned()));
+    }
+    Ok(doc)
 }
 
 // ---- builder (code path) -----------------------------------------------------
+
+/// The optional members of one binding for
+/// [`DeclarationBuilder::bind_with`] (§7.7.5). `None` writes nothing,
+/// so the binding inherits the document's value.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BindingOptions {
+    /// The points the binding runs at; `None` is every surface point.
+    pub at: Option<Vec<InterceptionPoint>>,
+    /// `Some(None)` writes `null` (unbounded); `Some(Some(ms))` bounds.
+    pub timeout_ms: Option<Option<u64>>,
+    /// The binding's own failure posture (§6.3).
+    pub on_error: Option<OnError>,
+}
 
 /// Builds a declaration document in code, one setter per member
 /// (§7.7.7). [`Self::build`] hands the document to
@@ -2806,6 +3066,15 @@ impl DeclarationBuilder {
         self
     }
 
+    /// `configuration.failure.on_error`: the document default every
+    /// binding without its own `on_error` inherits (§6.3). Needs
+    /// `agent-hooks-declaration/1.1`, the builder's default version.
+    pub fn failure_on_error(mut self, on_error: OnError) -> Self {
+        self.configuration_sub("failure")
+            .insert("on_error".into(), Value::String(on_error.as_str().into()));
+        self
+    }
+
     /// `None` writes `null` (unbounded).
     pub fn interceptor_timeout_ms(mut self, ms: Option<u64>) -> Self {
         self.configuration_sub("timeouts")
@@ -2894,19 +3163,37 @@ impl DeclarationBuilder {
     /// Append one binding. `at: None` binds at every surface point;
     /// `timeout_ms: None` inherits the configured interceptor timeout,
     /// `Some(None)` writes `null` (unbounded), `Some(Some(ms))` bounds.
+    /// The binding inherits the document's `on_error`; see
+    /// [`Self::bind_with`] to set its own.
     pub fn bind(
-        mut self,
+        self,
         id: &str,
         kind: &str,
         config: Value,
         at: Option<&[InterceptionPoint]>,
         timeout_ms: Option<Option<u64>>,
     ) -> Self {
+        self.bind_with(
+            id,
+            kind,
+            config,
+            BindingOptions {
+                at: at.map(<[InterceptionPoint]>::to_vec),
+                timeout_ms,
+                on_error: None,
+            },
+        )
+    }
+
+    /// Append one binding with every optional member spelled out
+    /// (§7.7.5). An option left `None` is not written, so the binding
+    /// inherits the document's value for it.
+    pub fn bind_with(mut self, id: &str, kind: &str, config: Value, opts: BindingOptions) -> Self {
         let mut b = Map::new();
         b.insert("id".into(), Value::String(id.into()));
         b.insert("kind".into(), Value::String(kind.into()));
         b.insert("config".into(), config);
-        if let Some(at) = at {
+        if let Some(at) = opts.at {
             let set: BTreeSet<InterceptionPoint> = at.iter().copied().collect();
             b.insert(
                 "at".into(),
@@ -2917,8 +3204,11 @@ impl DeclarationBuilder {
                 ),
             );
         }
-        if let Some(t) = timeout_ms {
+        if let Some(t) = opts.timeout_ms {
             b.insert("timeout_ms".into(), t.map_or(Value::Null, Value::from));
+        }
+        if let Some(o) = opts.on_error {
+            b.insert("on_error".into(), Value::String(o.as_str().into()));
         }
         self.doc
             .entry("bindings")
@@ -2992,6 +3282,14 @@ mod tests {
 
     fn minimal() -> Value {
         json!({
+            "declaration": DECLARATION_VERSION,
+            "bindings": [{ "id": "allow", "kind": "com.example.allow" }]
+        })
+    }
+
+    /// The same document under the previous minor.
+    fn minimal_1_0() -> Value {
+        json!({
             "declaration": "agent-hooks-declaration/1.0",
             "bindings": [{ "id": "allow", "kind": "com.example.allow" }]
         })
@@ -3048,10 +3346,115 @@ mod tests {
         let (c, _) = class_of(json!({"declaration": 1, "bindings": []}));
         assert_eq!(c, DeclarationErrorClass::VersionUnsupported);
         let e = load(json!({"declaration": "x", "bindings": []})).unwrap_err();
-        assert_eq!(e.accepted, vec![DECLARATION_VERSION.to_owned()]);
+        assert_eq!(
+            e.accepted,
+            SUPPORTED_DECLARATION_VERSIONS
+                .iter()
+                .map(|s| (*s).to_owned())
+                .collect::<Vec<_>>()
+        );
         assert!(e.findings[0]
             .detail
-            .contains("accepted: agent-hooks-declaration/1.0"));
+            .contains("accepted: agent-hooks-declaration/1.0, agent-hooks-declaration/1.1"));
+    }
+
+    #[test]
+    fn previous_minor_loads_unchanged_and_resolves_to_deny() {
+        // §7.7.2: a 1.0 document keeps its meaning; the 1.1 members
+        // fill with the fail-closed default.
+        let r = load(minimal_1_0()).unwrap();
+        assert_eq!(r.declaration, "agent-hooks-declaration/1.0");
+        assert_eq!(r.configuration.failure.on_error, OnError::Deny);
+        assert_eq!(r.bindings[0].on_error, OnError::Deny);
+        // The record carries the document's own version, not the
+        // loader's.
+        assert_eq!(r.version(), "agent-hooks-declaration/1.0");
+    }
+
+    #[test]
+    fn on_error_members_need_the_minor_that_introduced_them() {
+        // A document that declares 1.0 and carries a 1.1 member names
+        // a contract the member is not part of: unknown_field, at the
+        // member.
+        let mut v = minimal_1_0();
+        v["bindings"][0]["on_error"] = json!("continue");
+        let (c, p) = class_of(v);
+        assert_eq!(c, DeclarationErrorClass::UnknownField);
+        assert_eq!(p, ["/bindings/0/on_error"]);
+        let mut v = minimal_1_0();
+        v["configuration"] = json!({"failure": {"on_error": "deny"}});
+        let (c, p) = class_of(v);
+        assert_eq!(c, DeclarationErrorClass::UnknownField);
+        assert_eq!(p, ["/configuration/failure"]);
+        // Under 1.1 both are known.
+        let mut v = minimal();
+        v["configuration"] = json!({"failure": {"on_error": "continue"}});
+        v["bindings"][0]["on_error"] = json!("deny");
+        assert!(load(v).is_ok());
+        // An unknown member inside failure is unknown at that level.
+        let mut v = minimal();
+        v["configuration"] = json!({"failure": {"on_timeout": "continue"}});
+        let (c, p) = class_of(v);
+        assert_eq!(c, DeclarationErrorClass::UnknownField);
+        assert_eq!(p, ["/configuration/failure/on_timeout"]);
+    }
+
+    #[test]
+    fn on_error_values_are_closed() {
+        for bad in [json!("allow"), json!("Continue"), json!(true), json!(null)] {
+            let mut v = minimal();
+            v["configuration"] = json!({"failure": {"on_error": bad}});
+            let (c, p) = class_of(v);
+            assert_eq!(c, DeclarationErrorClass::InvalidField, "{bad}");
+            assert_eq!(p, ["/configuration/failure/on_error"]);
+            let mut v = minimal();
+            v["bindings"][0]["on_error"] = bad.clone();
+            let (c, p) = class_of(v);
+            assert_eq!(c, DeclarationErrorClass::InvalidField, "{bad}");
+            assert_eq!(p, ["/bindings/0/on_error"]);
+        }
+    }
+
+    #[test]
+    fn on_error_document_default_inherited_and_overridden() {
+        let mut v = minimal();
+        v["configuration"] = json!({"failure": {"on_error": "continue"}});
+        v["bindings"] = json!([
+            { "id": "inherits", "kind": "com.example.allow" },
+            { "id": "overrides", "kind": "com.example.allow", "on_error": "deny" }
+        ]);
+        let r = load(v).unwrap();
+        assert_eq!(r.configuration.failure.on_error, OnError::Continue);
+        assert_eq!(r.bindings[0].on_error, OnError::Continue);
+        assert_eq!(r.bindings[1].on_error, OnError::Deny);
+        // Absent document default: deny, and a binding may still opt in.
+        let mut v = minimal();
+        v["bindings"][0]["on_error"] = json!("continue");
+        let r = load(v).unwrap();
+        assert_eq!(r.configuration.failure.on_error, OnError::Deny);
+        assert_eq!(r.bindings[0].on_error, OnError::Continue);
+        // The resolved form spells both out.
+        let c = r.canonical_json();
+        assert!(c.contains("\"failure\":{\"on_error\":\"deny\"}"), "{c}");
+        assert!(c.contains("\"on_error\":\"continue\""), "{c}");
+    }
+
+    #[test]
+    fn host_still_on_the_previous_minor_refuses_the_new_one() {
+        // §7.7.2: a host whose surface accepts only 1.0 is a 1.0
+        // loader; a 1.1 document is version_unsupported for it, with
+        // the host's set as the accepted set.
+        let mut s = surface();
+        s.declaration_versions = ["agent-hooks-declaration/1.0".to_owned()]
+            .into_iter()
+            .collect();
+        let d = HostDeclaration::from_value(minimal()).unwrap();
+        let e = resolve(&d, &s, &names()).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::VersionUnsupported);
+        assert_eq!(e.findings[0].pointer, "/declaration");
+        assert_eq!(e.accepted, vec!["agent-hooks-declaration/1.0".to_owned()]);
+        let d = HostDeclaration::from_value(minimal_1_0()).unwrap();
+        assert!(resolve(&d, &s, &names()).is_ok());
     }
 
     #[test]
@@ -3347,10 +3750,17 @@ mod tests {
     #[test]
     fn declaration_versions_rules() {
         let mut v = minimal();
-        v["surface"] = json!({"declaration_versions": ["agent-hooks-declaration/0.1", "agent-hooks-declaration/1.0"]});
+        v["surface"] =
+            json!({"declaration_versions": ["agent-hooks-declaration/0.1", DECLARATION_VERSION]});
         let (c, p) = class_of(v);
         assert_eq!(c, DeclarationErrorClass::SurfaceUnsupported);
         assert_eq!(p, ["/surface/declaration_versions"]);
+        // A document may state an older accepted version next to its
+        // own.
+        let mut v = minimal();
+        v["surface"] =
+            json!({"declaration_versions": ["agent-hooks-declaration/1.0", DECLARATION_VERSION]});
+        assert!(load(v).is_ok());
         let mut v = minimal();
         v["surface"] = json!({"declaration_versions": ["agent-hooks-declaration/2.0"]});
         assert_eq!(
@@ -3586,7 +3996,7 @@ mod tests {
             .build()
             .unwrap();
         let text = r#"{
-            "declaration": "agent-hooks-declaration/1.0",
+            "declaration": "agent-hooks-declaration/1.1",
             "configuration": {
                 "mode": "evaluate_only",
                 "composition": {"profile": "parallel/strictest", "on_transform_conflict": "approval"},
@@ -3691,6 +4101,19 @@ mod tests {
         let mut old = v;
         old["declaration"] = json!("agent-hooks-declaration/0.9");
         let e = migrate(old, DECLARATION_VERSION).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::VersionUnsupported);
+        // 1.0 to 1.1: the version member alone; the migrated document
+        // resolves to the same meaning as the original.
+        let migrated = migrate(minimal_1_0(), DECLARATION_VERSION).unwrap();
+        assert_eq!(migrated["declaration"], json!(DECLARATION_VERSION));
+        assert_eq!(migrated["bindings"], minimal_1_0()["bindings"]);
+        assert!(migrated.get("configuration").is_none());
+        let a = load(migrated).unwrap();
+        let b = load(minimal_1_0()).unwrap();
+        assert_eq!(a.configuration, b.configuration);
+        assert_eq!(a.bindings, b.bindings);
+        // No step runs backwards.
+        let e = migrate(minimal(), "agent-hooks-declaration/1.0").unwrap_err();
         assert_eq!(e.class, DeclarationErrorClass::VersionUnsupported);
     }
 
@@ -3886,23 +4309,47 @@ mod tests {
                 .collect();
             assert_eq!(vals, knob_values(knob), "{knob}");
         }
-        let decl: Value = serde_json::from_str(include_str!(
-            "../../../../spec/schema/host-declaration-1.0.schema.json"
-        ))
-        .unwrap();
-        let caps: Vec<&str> = decl["$defs"]["capability"]["enum"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter_map(Value::as_str)
-            .collect();
-        assert_eq!(caps, CAPABILITIES);
-        let versions: Vec<&str> = decl["properties"]["declaration"]["enum"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter_map(Value::as_str)
-            .collect();
-        assert_eq!(versions, SUPPORTED_DECLARATION_VERSIONS);
+        // One schema file per contract version. The 1.0 file names
+        // 1.0 alone; the file for the current version names it and
+        // every version the loader accepts is covered by some file.
+        let schema_dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../spec/schema");
+        let mut covered: Vec<String> = Vec::new();
+        for v in SUPPORTED_DECLARATION_VERSIONS {
+            let (maj, min) = parse_declaration_version(v).unwrap();
+            let path = schema_dir.join(format!("host-declaration-{maj}.{min}.schema.json"));
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                // The schema file for a version is written next to its
+                // spec text; the drift gate for it is schema-lint in CI.
+                continue;
+            };
+            let decl: Value = serde_json::from_str(&text).unwrap();
+            let caps: Vec<&str> = decl["$defs"]["capability"]["enum"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(Value::as_str)
+                .collect();
+            assert_eq!(caps, CAPABILITIES, "{}", path.display());
+            let versions: Vec<&str> = decl["properties"]["declaration"]["enum"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(Value::as_str)
+                .collect();
+            assert!(versions.contains(v), "{} does not name {v}", path.display());
+            for named in versions {
+                assert!(
+                    SUPPORTED_DECLARATION_VERSIONS.contains(&named),
+                    "{} names {named}, which the loader does not accept",
+                    path.display()
+                );
+                covered.push(named.to_owned());
+            }
+        }
+        assert!(
+            covered.iter().any(|c| c == "agent-hooks-declaration/1.0"),
+            "the 1.0 schema file is missing"
+        );
     }
 }

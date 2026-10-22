@@ -41,6 +41,44 @@ Interceptors implement `Interceptor::intercept(&AgentContext) -> Verdict`;
 shortcuts. The CTK runner and reference harness live behind the `ctk`
 feature; timeouts are host-owned (see the `emitter` module docs).
 
+### Failure posture (`on_error`)
+
+Every registration fails closed by default: a raise or panic, a timeout
+or a §5-invalid return value becomes a `host_error:*` deny in that
+registration's slot (spec section 6.3). A registration can instead be
+best effort. `RegistrationOptions { on_error: OnError::Continue, .. }`
+makes the host substitute an allow carrying the warning
+`host_warning:control_failed` (message `<binding>: <host_error reason>;
+host continued`), record the underlying reason on
+`verdicts[].substituted_for`, and tell the principal through the
+emitter's control failure notifier. Nothing else is covered: context
+failures, cancellation, transform failures, approval failures,
+`no_interceptor` and an explicit deny never continue.
+
+```rust
+use agent_hooks::{ControlFailureNotice, OnError, RegistrationOptions};
+
+// The notifier comes first: a continue registration without one is a
+// RegistrationError, so a silent continuation cannot be configured.
+emitter.set_control_failure_notifier(|n: &ControlFailureNotice| {
+    tell_the_user(&n.message); // "<binding>: host_error:...; host continued"
+});
+emitter.register_with_options(Box::new(best_effort_scanner), RegistrationOptions {
+    name: Some("scanner".into()),
+    on_error: OnError::Continue,
+    ..RegistrationOptions::default()
+})?;
+```
+
+An interceptor that runs external work (a process, an HTTP call) can
+own its deadline instead of being wrapped in the emitter's timer:
+implement `ManagedInterceptor`, whose `intercept_managed(ctx, bound)`
+receives the resolved bound and reports a `ManagedInterceptorOutcome`
+(`Verdict`, `Timeout` after cancelling and cleaning up the work,
+`Cancelled`, `Failed`). Register it with `register_managed`, or through
+a declaration with `HostRegistry::managed_kind`. A cancelled outcome is
+never a timeout and never continues.
+
 Golden identity vectors pin byte-identical canonicalization across all
 five SDKs: `cargo test --workspace --all-features`.
 
@@ -49,8 +87,16 @@ five SDKs: `cargo test --workspace --all-features`.
 A host can load its configuration, declared surface and interceptor
 bindings from a host declaration document (spec section 7.7) instead of
 calling the setters. The document is a versioned contract of its own,
-`agent-hooks-declaration/1.0`, separate from the wire version. The crate
+`agent-hooks-declaration/1.1`, separate from the wire version; the
+loader also accepts `1.0`, whose documents keep their meaning. The crate
 exports `DECLARATION_VERSION` and `SUPPORTED_DECLARATION_VERSIONS`.
+Version 1.1 adds two optional members: `configuration.failure.on_error`
+(the document default, `deny` or `continue`) and `bindings[].on_error`
+(one binding's own posture). A document in which any binding resolves
+to `continue` is refused at load (`surface_unsupported`, before any kind
+resolver runs) unless the registry holds a `control_failure_notifier`.
+In code, `DeclarationBuilder::failure_on_error`
+and `bind_with(.., BindingOptions { on_error, .. })` write the members.
 
 The host registers in code what a document may reference: its surface,
 kind resolvers (one closure per binding kind), custom identity
@@ -92,9 +138,10 @@ in-process and .NET and Go call it through the C ABI.
 An emitter built from a declaration is sealed: `register`,
 `register_at` and the setters panic. `declaration()` returns the
 resolved form; its `canonical_json()` is the same string for the path,
-JSON and code paths. Every record such an emitter writes carries
-`declaration: "agent-hooks-declaration/1.0"`; records from an emitter
-configured with `new` and the setters carry no such member. Bindings
+JSON and code paths. Every record such an emitter writes carries the document's own
+version, `declaration: "agent-hooks-declaration/1.1"` (or `1.0`);
+records from an emitter configured with `new` and the setters carry no
+such member. Bindings
 run per point: `register_at` offers the same per-point binding in code,
 and `interceptors_registered`, `verdicts[].index` and `decided_by`
 count the interceptors bound at the emitted point. A numeric

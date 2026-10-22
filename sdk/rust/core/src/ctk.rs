@@ -16,15 +16,16 @@ use crate::ctk_engine::{assert_vector, scripted_intercept, scripted_resolve, sho
 // and `async_trait` is re-exported so implementors don't need the
 // dependency themselves.
 pub use crate::ctk_engine::{IdentityPair, LoadRecord, RunRecord, VectorResult};
-use crate::declaration::{resolve, resolve_surface_only, RegistryNames};
+use crate::declaration::{resolve, resolve_surface_only, BindingContext, RegistryNames};
 pub use crate::declaration::{
     DeclarationBuilder, DeclarationError, DeclarationErrorClass, HostDeclaration, HostRegistry,
-    HostSurface, KindResolver, KnobSupport, ResolvedDeclaration, ToolSeamPosture,
+    HostSurface, KindResolver, KnobSupport, ManagedKindResolver, ResolvedDeclaration,
+    ToolSeamPosture,
 };
 use crate::emitter::{IdentityProvider, InterceptionBlocked, InterceptionEmitter};
 use crate::types::{
     AgentContext, ApprovalRequest, ApprovalResolution, ApprovalResolver, EnforcementMode,
-    InterceptionPoint, Interceptor, Verdict,
+    InterceptionPoint, Interceptor, ManagedInterceptor, ManagedInterceptorOutcome, Verdict,
 };
 use crate::AgentContextBuilder;
 pub use async_trait::async_trait;
@@ -78,9 +79,23 @@ struct ScriptedInterceptor {
     recorded: Option<Arc<Mutex<Vec<Value>>>>,
 }
 
-#[async_trait]
-impl Interceptor for ScriptedInterceptor {
-    async fn intercept(&self, context: &AgentContext) -> Verdict {
+/// What a scripted rule asks the interceptor to do.
+enum Scripted {
+    Verdict(Box<Verdict>),
+    /// `fault: raise`. The Rust `Interceptor` trait is infallible
+    /// (§7), so the native analogue of an exception is a panic, which
+    /// the emitter isolates into `host_error:interceptor_failed`, the
+    /// reason the other SDKs record for a raise.
+    Raise,
+    /// `fault: hang`: do not return within the binding's bound.
+    Hang,
+    /// `fault: cancel`: the typed cancelled outcome of a managed
+    /// interceptor (§6.3).
+    Cancel,
+}
+
+impl ScriptedInterceptor {
+    fn evaluate(&self, context: &AgentContext) -> Scripted {
         let ctx_value = Value::Object(context.clone());
         if let Some(rec) = &self.recorded {
             rec.lock()
@@ -88,24 +103,92 @@ impl Interceptor for ScriptedInterceptor {
                 .push(ctx_value.clone());
         }
         let wire = scripted_intercept(&self.rules, &ctx_value);
-        // §7 isolation fault (TM-05): the trait takes &AgentContext, so
-        // in-place mutation is statically impossible in Rust — the
-        // isolation the vector probes is the type system itself. Return
-        // the same allow the mutating wrappers return.
-        if wire.get("__ctk_fault__").and_then(Value::as_str) == Some("mutate") {
-            return crate::verdict_from_wire(
-                &serde_json::json!({"decision": "allow", "reason": "ctk:mutated"}),
-            )
-            .expect("static allow shape");
+        match wire.get("__ctk_fault__").and_then(Value::as_str) {
+            // §7 isolation fault (TM-05): the trait takes &AgentContext,
+            // so in-place mutation is statically impossible in Rust —
+            // the isolation the vector probes is the type system
+            // itself. Return the same allow the mutating wrappers
+            // return.
+            Some("mutate") => Scripted::Verdict(Box::new(
+                crate::verdict_from_wire(
+                    &serde_json::json!({"decision": "allow", "reason": "ctk:mutated"}),
+                )
+                .expect("static allow shape"),
+            )),
+            Some("raise") => Scripted::Raise,
+            Some("hang") => Scripted::Hang,
+            Some("cancel") => Scripted::Cancel,
+            Some(_) => Scripted::Verdict(Box::new(invalid_verdict())),
+            // A §5-malformed shape fails the emitter's gate and yields
+            // host_error:verdict_invalid (fail closed either way).
+            None => Scripted::Verdict(Box::new(
+                crate::verdict_from_wire(&wire).unwrap_or_else(|_| invalid_verdict()),
+            )),
         }
-        // The Rust Interceptor trait is infallible (§7), so a scripted
-        // fault — "raise" or a §5-malformed shape — maps to the nearest
-        // analogue: a verdict that fails the emitter's §5 gate and
-        // yields host_error:verdict_invalid (fail closed either way).
-        if wire.get("__ctk_fault__").is_some() {
-            return invalid_verdict();
+    }
+}
+
+/// `fault: hang` grace for a path with no bound to honour: the wrapper
+/// returns allow once the bound plus this grace has passed, so an
+/// unbounded host fails the vector instead of hanging it.
+const HANG_GRACE: std::time::Duration = std::time::Duration::from_secs(10);
+
+#[async_trait]
+impl Interceptor for ScriptedInterceptor {
+    async fn intercept(&self, context: &AgentContext) -> Verdict {
+        match self.evaluate(context) {
+            Scripted::Verdict(v) => *v,
+            Scripted::Raise => panic!("ctk scripted fault: raise"),
+            // The emitter's own timer (the `ctk` feature is a bounded
+            // build) ends the call first; the allow after the grace is
+            // what an unbounded host would see.
+            Scripted::Hang => {
+                tokio::time::sleep(HANG_GRACE).await;
+                Verdict::allow()
+            }
+            // A standard interceptor has no cancelled outcome; the
+            // nearest fail-closed analogue.
+            Scripted::Cancel => invalid_verdict(),
         }
-        crate::verdict_from_wire(&wire).unwrap_or_else(|_| invalid_verdict())
+    }
+}
+
+/// The same script through the managed-interceptor path (§6.3, §7):
+/// the `ctk.managed` kind of a declaration vector owns its own
+/// deadline, so `hang` waits out the bound it was handed, cleans up
+/// and reports the typed timeout, and `cancel` reports the typed
+/// cancelled outcome. The emitter does not wrap it in a second timer.
+struct ScriptedManagedInterceptor(ScriptedInterceptor);
+
+#[async_trait]
+impl ManagedInterceptor for ScriptedManagedInterceptor {
+    async fn intercept_managed(
+        &self,
+        context: &AgentContext,
+        bound: Option<std::time::Duration>,
+    ) -> ManagedInterceptorOutcome {
+        match self.0.evaluate(context) {
+            Scripted::Verdict(v) => ManagedInterceptorOutcome::Verdict(v),
+            Scripted::Raise => panic!("ctk scripted fault: raise"),
+            Scripted::Hang => match bound {
+                // The work (a sleep standing in for a process or a
+                // request) is dropped at the deadline: cancelled and
+                // cleaned up before the typed outcome is reported.
+                Some(d) => {
+                    let work = tokio::time::sleep(HANG_GRACE);
+                    if tokio::time::timeout(d, work).await.is_err() {
+                        ManagedInterceptorOutcome::Timeout
+                    } else {
+                        ManagedInterceptorOutcome::Verdict(Box::new(Verdict::allow()))
+                    }
+                }
+                None => {
+                    tokio::time::sleep(HANG_GRACE).await;
+                    ManagedInterceptorOutcome::Verdict(Box::new(Verdict::allow()))
+                }
+            },
+            Scripted::Cancel => ManagedInterceptorOutcome::Cancelled,
+        }
     }
 }
 
@@ -327,14 +410,27 @@ impl Scripts {
         })
     }
 
-    /// The CTK registry for a declaration vector (§7.7.9): kind
-    /// `ctk.scripted` (config `{"script": i}`), identity provider
+    /// The CTK registry for a declaration vector (§7.7.9): two kinds
+    /// over the same scripted interceptor, identity provider
     /// `ctk-fault`, approval resolver `ctk-scripted`, redactor
-    /// `ctk-redact`.
+    /// `ctk-redact`. For both kinds config `{"script": i}` selects
+    /// `interceptor_scripts[i]` and script 0 records.
+    ///
+    /// `ctk.scripted` is a standard registration: the emitter wraps it
+    /// in its own timer, so `fault: hang` blocks past the binding's
+    /// `timeout_ms` and the emitter's `host_error:interceptor_timeout`
+    /// path is what the vector observes (`AH-CTK-144`, `AH-CTK-145`).
+    /// `ctk.managed` goes through the managed-interceptor path (§7):
+    /// it receives the resolved bound and reports a typed outcome, so
+    /// `fault: hang` reports `timeout` after cancelling its work and
+    /// `fault: cancel` reports `cancelled` (`AH-CTK-150`). The
+    /// principal channel is the harness's own: it adds its
+    /// `control_failure_notifier` in `setup_declared` and reports what
+    /// it delivered as `RunRecord.host_messages`.
     fn registry(&self, surface: HostSurface) -> HostRegistry {
         let scripts = self.scripts.clone();
         let recorded = Arc::clone(&self.recorded);
-        let scripted: KindResolver = Box::new(move |config, ctx| {
+        let select = move |config: &Value, ctx: &BindingContext<'_>| {
             let i = config
                 .get("script")
                 .and_then(Value::as_u64)
@@ -343,15 +439,26 @@ impl Scripts {
             let rules = scripts.get(i).cloned().ok_or_else(|| {
                 format!("config.script {i} is out of range for binding {}", ctx.id)
             })?;
-            Ok(Box::new(ScriptedInterceptor {
+            Ok::<_, String>(ScriptedInterceptor {
                 rules,
                 recorded: (i == 0).then(|| Arc::clone(&recorded)),
-            }) as Box<dyn Interceptor>)
+            })
+        };
+        let select_managed = select.clone();
+        let scripted: KindResolver =
+            Box::new(move |config, ctx| Ok(Box::new(select(config, ctx)?) as Box<dyn Interceptor>));
+        let managed: ManagedKindResolver = Box::new(move |config, ctx| {
+            Ok(
+                Box::new(ScriptedManagedInterceptor(select_managed(config, ctx)?))
+                    as Box<dyn ManagedInterceptor>,
+            )
         });
         let approval = self.approval.clone();
         let redact = self.redact.clone();
         HostRegistry::for_conformance(surface)
             .kind("ctk.scripted", scripted)
+            .expect("ctk kinds are valid by construction")
+            .managed_kind("ctk.managed", managed)
             .expect("ctk kinds are valid by construction")
             .identity_provider("ctk-fault", |_| panic!("ctk scripted provider fault"))
             .expect("ctk-fault satisfies the name rules")
@@ -517,6 +624,16 @@ fn typed_configuration(
                     _ => return None,
                 }
             }
+            ("failure", Value::Object(fl)) => {
+                if fl.len() != 1 {
+                    return None;
+                }
+                let on_error = fl
+                    .get("on_error")
+                    .and_then(Value::as_str)
+                    .and_then(crate::OnError::from_wire)?;
+                b.failure_on_error(on_error)
+            }
             ("timeouts", Value::Object(t)) => {
                 let mut b2 = b;
                 for (tk, tv) in t {
@@ -601,7 +718,7 @@ fn typed_surface(mut b: DeclarationBuilder, sf: &Map<String, Value>) -> Option<D
 }
 
 fn typed_bindings(mut b: DeclarationBuilder, items: &[Value]) -> Option<DeclarationBuilder> {
-    let known = ["id", "kind", "config", "at", "timeout_ms"];
+    let known = ["id", "kind", "config", "at", "timeout_ms", "on_error"];
     if items.is_empty() {
         // The written-down empty-deny host (§7.7.5): `bind` is never
         // called, so the member is set explicitly.
@@ -628,7 +745,21 @@ fn typed_bindings(mut b: DeclarationBuilder, items: &[Value]) -> Option<Declarat
             Some(n) if n.is_u64() => Some(n.as_u64()),
             Some(_) => return None,
         };
-        b = b.bind(id, kind, config, at.as_deref(), timeout);
+        let on_error = match o.get("on_error") {
+            None => None,
+            Some(Value::String(s)) => Some(crate::OnError::from_wire(s)?),
+            Some(_) => return None,
+        };
+        b = b.bind_with(
+            id,
+            kind,
+            config,
+            crate::declaration::BindingOptions {
+                at,
+                timeout_ms: timeout,
+                on_error,
+            },
+        );
     }
     Some(b)
 }
@@ -735,7 +866,7 @@ pub async fn run_vector(harness: &mut dyn Harness, vector: &Value) -> VectorResu
     // §7.7.9: a harness with its own declaration is assessed against
     // the resolved document, so what ran is what a claim cites.
     let code_surface = harness.host_surface();
-    let (mut caps, posture) = match harness.declaration() {
+    let (mut caps, posture, on_error) = match harness.declaration() {
         Some(doc) => {
             let resolved = HostDeclaration::from_value(doc)
                 .and_then(|d| resolve_surface_only(&d, &code_surface));
@@ -747,6 +878,7 @@ pub async fn run_vector(harness: &mut dyn Harness, vector: &Value) -> VectorResu
                         .tool_seam_host_error
                         .as_str()
                         .to_owned(),
+                    r.configuration.failure.on_error.as_str().to_owned(),
                 ),
                 Err(e) => return fail(vec![format!("harness declaration refused: {e}")]),
             }
@@ -754,6 +886,7 @@ pub async fn run_vector(harness: &mut dyn Harness, vector: &Value) -> VectorResu
         None => (
             harness.capabilities(),
             harness.tool_seam_host_error().to_owned(),
+            crate::OnError::Deny.as_str().to_owned(),
         ),
     };
     caps.sort();
@@ -857,10 +990,14 @@ pub async fn run_vector(harness: &mut dyn Harness, vector: &Value) -> VectorResu
         rr
     };
 
-    // Forward the harness's declared posture (§13.1) so the engine can
+    // Forward the harness's declared postures (§13.1) so the engine can
     // select the expected run_outcome where the spec permits both.
+    // `on_error` is the harness document's default failure posture
+    // (§6.3), what a claim states; a vector's own document may set
+    // its own.
     rr.postures
         .insert("tool_seam_host_error".to_owned(), posture);
+    rr.postures.insert("on_error".to_owned(), on_error);
 
     let recorded = recorded.lock().expect("recorder poisoned").clone();
     assert_vector(vector, &recorded, &rr)
@@ -883,6 +1020,11 @@ pub struct ReferenceHarness {
     builder: Option<AgentContextBuilder>,
     tool_log: Vec<Value>,
     session_counter: u64,
+    /// §6.3: what this host told its principal (the agent) during the
+    /// session, verbatim and in order. The reference agent has no
+    /// user; its host-message channel is this log, reported as
+    /// `RunRecord.host_messages`.
+    host_messages: Arc<Mutex<Vec<String>>>,
 }
 
 /// Interceptor instances handed to the `ctk.instance` kind by index.
@@ -901,9 +1043,25 @@ impl ReferenceHarness {
         serde_json::from_str(REFERENCE_DECLARATION).expect("reference declaration parses")
     }
 
+    /// The principal channel this host registers (§6.3): every
+    /// control-failure notice is delivered to the agent as a host
+    /// message and kept for the run record.
+    fn with_principal_channel(&self, registry: HostRegistry) -> HostRegistry {
+        let log = Arc::clone(&self.host_messages);
+        registry.control_failure_notifier(move |n| {
+            log.lock()
+                .expect("host messages poisoned")
+                .push(n.message.clone());
+        })
+    }
+
     fn start_session(&mut self, scenario: Value, emitter: InterceptionEmitter) {
         self.scenario = scenario;
         self.tool_log.clear();
+        self.host_messages
+            .lock()
+            .expect("host messages poisoned")
+            .clear();
         self.session_counter += 1;
         self.emitter = Some(emitter);
         self.builder = Some(AgentContextBuilder::new(
@@ -1159,9 +1317,11 @@ impl Harness for ReferenceHarness {
                 .and_then(Option::take)
                 .ok_or_else(|| format!("no interceptor instance {i} for binding {}", ctx.id))
         });
-        registry = registry
-            .kind("ctk.instance", instance)
-            .expect("ctk kinds are valid by construction");
+        registry = self.with_principal_channel(
+            registry
+                .kind("ctk.instance", instance)
+                .expect("ctk kinds are valid by construction"),
+        );
         doc["bindings"] = Value::Array(
             (0..n)
                 .map(|i| {
@@ -1184,6 +1344,7 @@ impl Harness for ReferenceHarness {
         document: Value,
         registry: HostRegistry,
     ) -> Result<(), DeclarationError> {
+        let registry = self.with_principal_channel(registry);
         let emitter = InterceptionEmitter::from_declaration_value(document, &registry)?;
         self.start_session(setup.scenario, emitter);
         Ok(())
@@ -1228,6 +1389,11 @@ impl Harness for ReferenceHarness {
             // The runner overwrites this from the Harness declaration.
             postures: Default::default(),
             load: None,
+            host_messages: self
+                .host_messages
+                .lock()
+                .expect("host messages poisoned")
+                .clone(),
         }
     }
 

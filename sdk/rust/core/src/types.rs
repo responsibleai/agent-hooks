@@ -16,13 +16,19 @@ pub const JCS_SHA256: &str = "jcs-sha256";
 
 /// The host declaration contract version this crate writes and
 /// accepts (§7.7.2). Independent of [`SPEC_VERSION`] (the wire
-/// contract) and of the package version.
-pub const DECLARATION_VERSION: &str = "agent-hooks-declaration/1.0";
+/// contract) and of the package version. 1.1 adds the optional
+/// `on_error` members (§6.3, §7.7.5); a document without them keeps
+/// its 1.0 meaning.
+pub const DECLARATION_VERSION: &str = "agent-hooks-declaration/1.1";
+
+/// The previous minor, still accepted (§7.7.2).
+const DECLARATION_1_0: &str = "agent-hooks-declaration/1.0";
 
 /// Every declaration contract version this crate's loader accepts
-/// (§7.7.2). A document carrying any other `declaration` value is
-/// refused with `declaration_error:version_unsupported`.
-pub const SUPPORTED_DECLARATION_VERSIONS: &[&str] = &[DECLARATION_VERSION];
+/// (§7.7.2), oldest first. A document carrying any other
+/// `declaration` value is refused with
+/// `declaration_error:version_unsupported`.
+pub const SUPPORTED_DECLARATION_VERSIONS: &[&str] = &[DECLARATION_1_0, DECLARATION_VERSION];
 
 /// §10.1 host-defined identity-provider name rules: must match
 /// `^[a-z][a-z0-9_-]*$` and must not begin with `jcs` (reserved so a
@@ -167,6 +173,111 @@ pub enum HostError {
     NoInterceptor,
 }
 
+impl HostError {
+    /// Whether this is one of the three interceptor failures that
+    /// `on_error` covers (§6.3): the interceptor raised or panicked,
+    /// exceeded its timeout, or returned a value that fails §5
+    /// validation. Every other reason stays fail closed with no knob.
+    pub fn is_control_failure(self) -> bool {
+        matches!(
+            self,
+            Self::InterceptorFailed | Self::InterceptorTimeout | Self::VerdictInvalid
+        )
+    }
+
+    /// Parse a `host_error:*` wire string back to its variant.
+    pub fn from_wire(s: &str) -> Option<Self> {
+        const ALL: [HostError; 14] = [
+            HostError::ContextInvalid,
+            HostError::InterceptorFailed,
+            HostError::InterceptorTimeout,
+            HostError::VerdictInvalid,
+            HostError::TransformInvalid,
+            HostError::TransformTargetForbidden,
+            HostError::TransformConflict,
+            HostError::CompositionDisagreement,
+            HostError::ApprovalResolverFailed,
+            HostError::ApprovalUnresolved,
+            HostError::ApprovalIdentityMismatch,
+            HostError::AdapterUnsupported,
+            HostError::StreamingUnsupported,
+            HostError::NoInterceptor,
+        ];
+        ALL.into_iter().find(|e| e.to_string() == s)
+    }
+}
+
+/// Reserved `host_warning:*` reasons a host synthesizes (§6.3,
+/// `spec/reserved-warnings.json`). Interceptors MUST NOT emit them;
+/// the §5 gate refuses such a verdict as `verdict_invalid`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum HostWarning {
+    /// A registration whose `on_error` is `continue` failed and the
+    /// host substituted an allow for its slot.
+    #[error("host_warning:control_failed")]
+    ControlFailed,
+}
+
+/// What a registration does when its interceptor fails (§6.3): the
+/// three covered failures are a raise or panic, a timeout and a
+/// §5-invalid return value. `Deny` is the default and the fail-closed
+/// posture; `Continue` substitutes an allow carrying
+/// `host_warning:control_failed` in the failing registration's
+/// composition slot, records the underlying reason and tells the
+/// principal. Nothing else is affected by this setting.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OnError {
+    #[default]
+    Deny,
+    Continue,
+}
+
+impl OnError {
+    /// Wire name (`deny` | `continue`).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Deny => "deny",
+            Self::Continue => "continue",
+        }
+    }
+
+    /// Parse a wire name; `None` outside the closed set.
+    pub fn from_wire(s: &str) -> Option<Self> {
+        match s {
+            "deny" => Some(Self::Deny),
+            "continue" => Some(Self::Continue),
+            _ => None,
+        }
+    }
+}
+
+/// What the host tells the principal when a control failed and the
+/// action continued (§6.3). Payload-free: the binding label, the
+/// reserved reason and the host-synthesized message; never context
+/// or target content.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ControlFailureNotice {
+    /// The interception point of the emission, when the context
+    /// carried a parseable one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interception_point: Option<InterceptionPoint>,
+    /// Dispatch index of the failing registration (`verdicts[].index`).
+    pub index: u32,
+    /// The registration name (a declaration binding id) or
+    /// `interceptor-<index>` for an unnamed code registration.
+    pub binding: String,
+    /// The underlying `host_error:*` reason, also recorded as
+    /// `verdicts[].substituted_for`.
+    pub reason: String,
+    /// The warning message: `<binding>: <reason>; host continued`.
+    pub message: String,
+}
+
+/// Host callback that tells the principal a control failed and the
+/// action continued (§6.3). Shared by every emitter a registry builds.
+pub type ControlFailureNotifier = std::sync::Arc<dyn Fn(&ControlFailureNotice) + Send + Sync>;
+
 /// A single `$target`-rooted replacement (§5.2).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Transform {
@@ -299,6 +410,43 @@ impl Verdict {
         }
     }
 
+    /// The message of the §6.3 substituted allow and of the principal
+    /// notice: `<binding>: <host_error reason>; host continued`. Built
+    /// from the registration label and the reserved reason only, so it
+    /// never carries target-derived content.
+    pub fn control_failure_message(binding: &str, reason: HostError) -> String {
+        format!("{binding}: {reason}; host continued")
+    }
+
+    /// The allow the host substitutes for a failing registration whose
+    /// `on_error` is `continue` (§6.3): decision `allow`, one warning
+    /// with reason `host_warning:control_failed`, nothing else.
+    /// `reason` MUST be one of the three covered failures
+    /// ([`HostError::is_control_failure`]).
+    pub fn control_failure_substitute(binding: &str, reason: HostError) -> Self {
+        debug_assert!(reason.is_control_failure());
+        Self::warn(
+            Some(HostWarning::ControlFailed.to_string()),
+            Some(Self::control_failure_message(binding, reason)),
+        )
+    }
+
+    /// Whether this verdict is exactly the shape
+    /// [`Self::control_failure_substitute`] produces. The FFI
+    /// aggregation gate lets that host shape through where an
+    /// interceptor-returned `host_warning:*` would be refused.
+    pub fn is_control_failure_substitute(&self) -> bool {
+        self.decision == Decision::Allow
+            && self.reason.is_none()
+            && self.message.is_none()
+            && self.approval.is_none()
+            && self.transform.is_none()
+            && self.evidence.is_none()
+            && self.result_labels.is_empty()
+            && self.warnings.len() == 1
+            && self.warnings[0].reason.as_deref() == Some("host_warning:control_failed")
+    }
+
     /// A deny carrying an `approval` block (§5.1).
     pub fn is_liftable(&self) -> bool {
         self.decision == Decision::Deny && self.approval.is_some()
@@ -310,6 +458,16 @@ impl Verdict {
             if r.starts_with("host_error:") {
                 return Err(HostError::VerdictInvalid);
             }
+        }
+        // §6.3: `host_warning:*` is reserved for the host, like
+        // `host_error:*`; an interceptor that emits either spoofs a
+        // host substitution.
+        if self.warnings.iter().any(|w| {
+            w.reason
+                .as_deref()
+                .is_some_and(|r| r.starts_with("host_error:") || r.starts_with("host_warning:"))
+        }) {
+            return Err(HostError::VerdictInvalid);
         }
         if self.approval.is_some() && self.decision != Decision::Deny {
             return Err(HostError::VerdictInvalid);
@@ -361,6 +519,12 @@ pub struct VerdictSummary {
     /// content.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// Present iff the host substituted an allow for this
+    /// registration's failure under `on_error: continue` (§6.3,
+    /// §10.3): the underlying `host_error:*` reason, so an auditor can
+    /// count continuations and see their cause.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub substituted_for: Option<String>,
 }
 
 /// Host-side record of one emission (§10.3).
@@ -454,6 +618,50 @@ pub trait Interceptor: Send + Sync {
     }
 }
 
+/// Typed completion of a [`ManagedInterceptor`] (§6.3, timeout
+/// ownership). `Timeout` is reported only after the interceptor has
+/// cancelled and cleaned up its external work; `Cancelled` is never a
+/// timeout and never continues.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ManagedInterceptorOutcome {
+    /// A verdict; it crosses the same §5 gate as any interceptor's.
+    Verdict(Box<Verdict>),
+    /// The work exceeded the resolved bound and has been cleaned up.
+    /// Recorded as `host_error:interceptor_timeout`; eligible for
+    /// `on_error: continue`.
+    Timeout,
+    /// The host or runtime cancelled the emission. Recorded as
+    /// `host_error:interceptor_failed`; a cancelled outcome never
+    /// continues, whatever `on_error` says.
+    Cancelled,
+    /// The work failed. The optional detail is payload-free (an error
+    /// type name, never content). Recorded as
+    /// `host_error:interceptor_failed`; eligible for `continue`.
+    Failed(Option<String>),
+}
+
+/// An interceptor that owns external work (a process, an HTTP call)
+/// and therefore its own deadline (§6.3). The emitter does not wrap it
+/// in the outer timer; instead it hands the interceptor the resolved
+/// bound for the registration, and the interceptor MUST cancel and
+/// clean up the work before it reports [`ManagedInterceptorOutcome::Timeout`].
+#[async_trait]
+pub trait ManagedInterceptor: Send + Sync {
+    /// Run against `context` under `bound` (`None` is unbounded) and
+    /// report a typed outcome.
+    async fn intercept_managed(
+        &self,
+        context: &AgentContext,
+        bound: Option<std::time::Duration>,
+    ) -> ManagedInterceptorOutcome;
+
+    /// Optional host-chosen identifier recorded on `verdicts[].name`
+    /// (§10.3). MUST be payload-free.
+    fn name(&self) -> Option<String> {
+        None
+    }
+}
+
 /// Approval resolver outcome (§9).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -534,6 +742,59 @@ mod verdict_validate_tests {
         assert_eq!(v.validate(), Err(HostError::VerdictInvalid));
         assert!(Verdict::escalate(None, None).validate().is_ok());
         assert!(Verdict::escalate(None, None).is_liftable());
+    }
+
+    #[test]
+    fn reserved_warning_reasons_invalid_for_interceptors() {
+        for reason in [
+            "host_warning:control_failed",
+            "host_warning:x",
+            "host_error:x",
+        ] {
+            let v = Verdict::warn(Some(reason.into()), None);
+            assert_eq!(v.validate(), Err(HostError::VerdictInvalid), "{reason}");
+        }
+        assert!(Verdict::warn(Some("host_warnings".into()), None)
+            .validate()
+            .is_ok());
+    }
+
+    #[test]
+    fn control_failure_substitute_shape() {
+        let v = Verdict::control_failure_substitute("egress", HostError::InterceptorTimeout);
+        assert_eq!(v.decision, Decision::Allow);
+        assert_eq!(v.warnings.len(), 1);
+        assert_eq!(
+            v.warnings[0].reason.as_deref(),
+            Some("host_warning:control_failed")
+        );
+        assert_eq!(
+            v.warnings[0].message.as_deref(),
+            Some("egress: host_error:interceptor_timeout; host continued")
+        );
+        assert!(v.is_control_failure_substitute());
+        assert!(!Verdict::allow().is_control_failure_substitute());
+        let labelled = Verdict {
+            result_labels: vec!["l".into()],
+            ..Verdict::control_failure_substitute("egress", HostError::InterceptorTimeout)
+        };
+        assert!(!labelled.is_control_failure_substitute());
+        // The host shape is reserved: an interceptor returning it fails
+        // the gate.
+        assert_eq!(v.validate(), Err(HostError::VerdictInvalid));
+        assert!(HostError::InterceptorFailed.is_control_failure());
+        assert!(HostError::InterceptorTimeout.is_control_failure());
+        assert!(HostError::VerdictInvalid.is_control_failure());
+        assert!(!HostError::ContextInvalid.is_control_failure());
+        assert!(!HostError::ApprovalResolverFailed.is_control_failure());
+        assert_eq!(
+            HostError::from_wire("host_error:no_interceptor"),
+            Some(HostError::NoInterceptor)
+        );
+        assert_eq!(HostError::from_wire("host_error:nope"), None);
+        assert_eq!(OnError::default(), OnError::Deny);
+        assert_eq!(OnError::from_wire("continue"), Some(OnError::Continue));
+        assert_eq!(OnError::from_wire("allow"), None);
     }
 
     #[test]

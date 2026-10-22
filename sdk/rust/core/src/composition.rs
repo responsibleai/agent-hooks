@@ -336,6 +336,7 @@ pub fn summaries(verdicts: &[Verdict]) -> Vec<VerdictSummary> {
             decision: v.decision,
             reason: v.reason.clone(),
             name: None,
+            substituted_for: None,
         })
         .collect()
 }

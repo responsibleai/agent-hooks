@@ -47,16 +47,47 @@ AhResult *ah_apply_transform_ctx(const char *ctx_json, const char *path,
 AhResult *ah_validate_transform_ctx(const char *ctx_json, const char *path,
                                     const char *value_json);
 /* options_json: {input_identity?, identity_provider?, enforced_identity?,
- * decided_by?, composition, verdicts?, fold_truncated?, resolved_by?}
- * (spec section 10.3). */
+ * decided_by?, composition, verdicts?, fold_truncated?, resolved_by?,
+ * declaration?} (spec section 10.3). A verdicts entry is {index,
+ * decision, reason?, name?, substituted_for?}; substituted_for names
+ * the host_error reason an on_error: continue registration failed with
+ * (section 6.3) and is accepted only on an allow. */
 AhResult *ah_finalize(const char *ctx_json, const char *verdict_json,
                       const char *mode, const char *options_json);
 
 /* Severity-max aggregation for multi-verdict composition profiles
  * (spec sections 7.3, 7.5). Returns {combined, decided_by, consult,
- * apply_transform, verdicts}. */
+ * apply_transform, verdicts}. A verdicts entry may be the section 6.3
+ * substituted allow (decision allow, one warning with reason
+ * host_warning:control_failed, nothing else); the wrapper attaches
+ * substituted_for to the returned summaries positionally. */
 AhResult *ah_compose_aggregate(const char *composition_json,
                                const char *verdicts_json);
+
+/* Failure posture on_error: continue (spec section 6.3).
+ * ah_control_failure_substitute: request_json is {binding, reason,
+ * index?, interception_point?}; binding is the payload-free label of
+ * the failing registration (its declaration id, or interceptor-<index>)
+ * and reason one of host_error:interceptor_failed,
+ * host_error:interceptor_timeout, host_error:verdict_invalid. Ok value
+ * is {verdict, substituted_for, notice}: the allow that takes the
+ * registration's composition slot, the value for its summary entry's
+ * substituted_for, and the notice {interception_point?, index, binding,
+ * reason, message} the wrapper MUST relay to the principal before the
+ * action continues. Any other reason is refused
+ * (host_error:context_invalid): cancellation, approval failures,
+ * context failures, transform failures and no_interceptor never
+ * continue.
+ * ah_managed_outcome: the typed outcome of an interceptor that owns its
+ * own deadline. outcome_json is {"outcome": "verdict", "verdict": {...}}
+ * | {"outcome": "timeout"} | {"outcome": "cancelled"} |
+ * {"outcome": "failed", "detail"?: "<type name>"}. Ok value is
+ * {verdict, failure}: the verdict for the slot under on_error: deny
+ * and, when the outcome is a failure, {reason, detail, continuable}.
+ * continuable is false for cancelled; a wrapper MUST NOT substitute an
+ * allow for it. A verdict outcome crosses the section 5 gate. */
+AhResult *ah_control_failure_substitute(const char *request_json);
+AhResult *ah_managed_outcome(const char *outcome_json);
 
 /* Host declaration document (spec section 7.7).
  * ah_declaration_versions: {"current": "...", "supported": [...]}.

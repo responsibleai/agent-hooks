@@ -9,14 +9,17 @@ use agent_hooks::declaration::{
 };
 use agent_hooks::{
     AgentContext, AgentContextBuilder, ApprovalOutcome, ApprovalRequest, ApprovalResolution,
-    ApprovalResolver, CompositionConfig, CompositionProfile, DeclarationError,
-    DeclarationErrorClass, EnforcementMode, HostDeclaration, HostRegistry, InterceptionEmitter,
-    InterceptionPoint, Interceptor, KindResolver, SynthesisPolicy, Verdict, DECLARATION_VERSION,
+    ApprovalResolver, BindingOptions, CompositionConfig, CompositionProfile, ControlFailureNotice,
+    DeclarationError, DeclarationErrorClass, EnforcementMode, HostDeclaration, HostRegistry,
+    InterceptionEmitter, InterceptionPoint, Interceptor, KindResolver, ManagedInterceptor,
+    ManagedInterceptorOutcome, ManagedKindResolver, OnError, SynthesisPolicy, Verdict,
+    DECLARATION_VERSION,
 };
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 struct Scripted(Verdict);
 
@@ -551,4 +554,316 @@ fn golden_declarations_resolve_byte_for_byte() {
     for p in CompositionProfile::ALL {
         assert_eq!(surface.profiles[&p], KnobSupport::full(p));
     }
+}
+
+// ---- on_error (§6.3, §7.7.5) --------------------------------------------------
+
+struct Panics;
+
+#[async_trait]
+impl Interceptor for Panics {
+    async fn intercept(&self, _ctx: &AgentContext) -> Verdict {
+        panic!("control down");
+    }
+}
+
+type Notices = Arc<Mutex<Vec<ControlFailureNotice>>>;
+
+/// The test registry plus a `com.example.panics-at-runtime` kind and
+/// the principal channel; `None` leaves the channel out.
+fn registry_with_notifier(notices: Option<Notices>) -> HostRegistry {
+    let failing: KindResolver = Box::new(|_, _| Ok(Box::new(Panics)));
+    let reg = registry().kind("com.example.failing", failing).unwrap();
+    match notices {
+        Some(n) => {
+            reg.control_failure_notifier(move |notice| n.lock().unwrap().push(notice.clone()))
+        }
+        None => reg,
+    }
+}
+
+fn pre_tool_ctx() -> AgentContext {
+    AgentContextBuilder::new("a", "h", "s").pre_tool_call("tc", "t", json!({"url": "x"}))
+}
+
+#[tokio::test]
+async fn declared_on_error_inherited_and_overridden_per_binding() {
+    let notices: Notices = Arc::new(Mutex::new(Vec::new()));
+    let reg = registry_with_notifier(Some(notices.clone()));
+    // Document default continue; "strict" overrides to deny.
+    let doc = json!({
+        "declaration": DECLARATION_VERSION,
+        "configuration": {
+            "composition": { "profile": "sequential/run_all" },
+            "failure": { "on_error": "continue" }
+        },
+        "bindings": [
+            { "id": "best-effort", "kind": "com.example.failing" },
+            { "id": "allow", "kind": "com.example.scripted", "config": { "decision": "allow" } }
+        ]
+    });
+    let mut em = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap();
+    let mut ctx = pre_tool_ctx();
+    let r = em.emit_unchecked(&mut ctx).await;
+    assert!(r.proceeds());
+    assert_eq!(r.declaration.as_deref(), Some(DECLARATION_VERSION));
+    assert_eq!(r.verdicts[0].name.as_deref(), Some("best-effort"));
+    assert_eq!(
+        r.verdicts[0].substituted_for.as_deref(),
+        Some("host_error:interceptor_failed")
+    );
+    assert_eq!(r.verdicts[1].substituted_for, None);
+    assert_eq!(
+        r.verdict.warnings[0].message.as_deref(),
+        Some("best-effort: host_error:interceptor_failed; host continued")
+    );
+    assert_eq!(notices.lock().unwrap().len(), 1);
+    assert_eq!(notices.lock().unwrap()[0].binding, "best-effort");
+
+    let doc = json!({
+        "declaration": DECLARATION_VERSION,
+        "configuration": { "failure": { "on_error": "continue" } },
+        "bindings": [
+            { "id": "strict", "kind": "com.example.failing", "on_error": "deny" }
+        ]
+    });
+    let mut em = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap();
+    let r = em.emit_unchecked(&mut pre_tool_ctx()).await;
+    assert!(!r.proceeds());
+    assert_eq!(
+        r.verdict.reason.as_deref(),
+        Some("host_error:interceptor_failed")
+    );
+    assert_eq!(r.verdicts[0].substituted_for, None);
+    assert_eq!(notices.lock().unwrap().len(), 1, "no new notice");
+
+    // Default absent, binding opts in.
+    let doc = json!({
+        "declaration": DECLARATION_VERSION,
+        "bindings": [
+            { "id": "soft", "kind": "com.example.failing", "on_error": "continue" }
+        ]
+    });
+    let mut em = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap();
+    let r = em.emit_unchecked(&mut pre_tool_ctx()).await;
+    assert!(r.proceeds());
+    assert_eq!(
+        r.verdicts[0].substituted_for.as_deref(),
+        Some("host_error:interceptor_failed")
+    );
+}
+
+#[tokio::test]
+async fn previous_minor_document_keeps_its_meaning() {
+    let reg = registry_with_notifier(None);
+    let doc = json!({
+        "declaration": "agent-hooks-declaration/1.0",
+        "bindings": [{ "id": "f", "kind": "com.example.failing" }]
+    });
+    let mut em = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap();
+    assert_eq!(
+        em.declaration().unwrap().bindings()[0].on_error,
+        OnError::Deny
+    );
+    let r = em.emit_unchecked(&mut pre_tool_ctx()).await;
+    assert!(!r.proceeds());
+    assert_eq!(
+        r.verdict.reason.as_deref(),
+        Some("host_error:interceptor_failed")
+    );
+    // The record carries the document's own version.
+    assert_eq!(
+        r.declaration.as_deref(),
+        Some("agent-hooks-declaration/1.0")
+    );
+}
+
+#[test]
+fn continue_without_a_notifier_refuses_the_document() {
+    // §7.7.6 step 8: the host's code cannot honour the posture, so the
+    // class is surface_unsupported and the pointer names the member
+    // the document wrote.
+    let reg = registry_with_notifier(None);
+    let doc = json!({
+        "declaration": DECLARATION_VERSION,
+        "bindings": [{ "id": "soft", "kind": "com.example.failing", "on_error": "continue" }]
+    });
+    let e = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap_err();
+    assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+    assert_eq!(e.findings[0].pointer, "/bindings/0/on_error");
+    assert!(
+        e.findings[0].detail.contains("control failure notifier"),
+        "{e}"
+    );
+    // Inherited from the document default: the finding points there.
+    let doc = json!({
+        "declaration": DECLARATION_VERSION,
+        "configuration": { "failure": { "on_error": "continue" } },
+        "bindings": [{ "id": "soft", "kind": "com.example.failing" }]
+    });
+    let e = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap_err();
+    assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+    assert_eq!(e.findings[0].pointer, "/configuration/failure/on_error");
+    // The binding wrote `continue` itself while the default is also
+    // `continue`: the pointer follows the document, not the value.
+    let doc = json!({
+        "declaration": DECLARATION_VERSION,
+        "configuration": { "failure": { "on_error": "continue" } },
+        "bindings": [
+            { "id": "strict", "kind": "com.example.failing", "on_error": "deny" },
+            { "id": "soft", "kind": "com.example.failing", "on_error": "continue" }
+        ]
+    });
+    let e = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap_err();
+    assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+    assert_eq!(e.findings.len(), 1);
+    assert_eq!(e.findings[0].pointer, "/bindings/1/on_error");
+    // Every offending binding is reported, in array order.
+    let doc = json!({
+        "declaration": DECLARATION_VERSION,
+        "configuration": { "failure": { "on_error": "continue" } },
+        "bindings": [
+            { "id": "a", "kind": "com.example.failing" },
+            { "id": "b", "kind": "com.example.failing", "on_error": "continue" }
+        ]
+    });
+    let e = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap_err();
+    let pointers: Vec<&str> = e.findings.iter().map(|f| f.pointer.as_str()).collect();
+    assert_eq!(
+        pointers,
+        ["/configuration/failure/on_error", "/bindings/1/on_error"]
+    );
+    // The check runs before any kind resolver (step 8 before step 11):
+    // a resolver that panics in an earlier binding never runs.
+    let doc = json!({
+        "declaration": DECLARATION_VERSION,
+        "bindings": [
+            { "id": "first", "kind": "com.example.panics" },
+            { "id": "soft", "kind": "com.example.failing", "on_error": "continue" }
+        ]
+    });
+    let e = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap_err();
+    assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+    assert_eq!(e.findings[0].pointer, "/bindings/1/on_error");
+    // And before the names of steps 9 and 10: an unknown kind in the
+    // same document is not what the refusal reports.
+    let doc = json!({
+        "declaration": DECLARATION_VERSION,
+        "bindings": [
+            { "id": "soft", "kind": "com.example.failing", "on_error": "continue" },
+            { "id": "nobody", "kind": "com.example.unknown" }
+        ]
+    });
+    let e = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap_err();
+    assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+    // Deny needs no channel.
+    let doc = json!({
+        "declaration": DECLARATION_VERSION,
+        "configuration": { "failure": { "on_error": "deny" } },
+        "bindings": [{ "id": "f", "kind": "com.example.failing" }]
+    });
+    assert!(InterceptionEmitter::from_declaration_value(doc, &reg).is_ok());
+    // With the channel registered the same documents load.
+    let reg = registry_with_notifier(Some(Arc::new(Mutex::new(Vec::new()))));
+    let doc = json!({
+        "declaration": DECLARATION_VERSION,
+        "configuration": { "failure": { "on_error": "continue" } },
+        "bindings": [{ "id": "soft", "kind": "com.example.failing" }]
+    });
+    assert!(InterceptionEmitter::from_declaration_value(doc, &reg).is_ok());
+}
+
+#[test]
+fn builder_writes_on_error_like_a_file() {
+    let built = HostDeclaration::builder()
+        .failure_on_error(OnError::Continue)
+        .bind_with(
+            "strict",
+            "com.example.scripted",
+            json!({"decision": "allow"}),
+            BindingOptions {
+                on_error: Some(OnError::Deny),
+                ..BindingOptions::default()
+            },
+        )
+        .bind(
+            "soft",
+            "com.example.scripted",
+            json!({"decision": "allow"}),
+            None,
+            None,
+        )
+        .build()
+        .unwrap();
+    assert_eq!(built.version(), DECLARATION_VERSION);
+    let parsed = HostDeclaration::from_value(json!({
+        "declaration": DECLARATION_VERSION,
+        "configuration": { "failure": { "on_error": "continue" } },
+        "bindings": [
+            { "id": "strict", "kind": "com.example.scripted", "config": {"decision": "allow"}, "on_error": "deny" },
+            { "id": "soft", "kind": "com.example.scripted", "config": {"decision": "allow"} }
+        ]
+    }))
+    .unwrap();
+    let names = registry().names();
+    let a = resolve(&built, &surface(), &names).unwrap();
+    let b = resolve(&parsed, &surface(), &names).unwrap();
+    assert_eq!(a.canonical_json(), b.canonical_json());
+    assert_eq!(a.bindings()[0].on_error, OnError::Deny);
+    assert_eq!(a.bindings()[1].on_error, OnError::Continue);
+}
+
+#[tokio::test]
+async fn managed_kind_receives_the_declared_bound() {
+    struct Scanner {
+        seen: Arc<Mutex<Option<Option<std::time::Duration>>>>,
+    }
+    #[async_trait]
+    impl ManagedInterceptor for Scanner {
+        async fn intercept_managed(
+            &self,
+            _ctx: &AgentContext,
+            bound: Option<std::time::Duration>,
+        ) -> ManagedInterceptorOutcome {
+            *self.seen.lock().unwrap() = Some(bound);
+            ManagedInterceptorOutcome::Timeout
+        }
+    }
+    let seen = Arc::new(Mutex::new(None));
+    let seen2 = seen.clone();
+    let scanner: ManagedKindResolver = Box::new(move |_, bctx| {
+        // The resolver sees the same bound and posture the emitter
+        // will apply.
+        assert_eq!(bctx.timeout, Some(std::time::Duration::from_millis(250)));
+        assert_eq!(bctx.on_error, OnError::Continue);
+        Ok(Box::new(Scanner {
+            seen: seen2.clone(),
+        }))
+    });
+    let reg = registry()
+        .managed_kind("com.example.scanner", scanner)
+        .unwrap()
+        .control_failure_notifier(|_| {});
+    assert!(reg.names().kinds.contains("com.example.scanner"));
+    let doc = json!({
+        "declaration": DECLARATION_VERSION,
+        "bindings": [{
+            "id": "scanner", "kind": "com.example.scanner",
+            "timeout_ms": 250, "on_error": "continue"
+        }]
+    });
+    let mut em = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap();
+    let r = em.emit_unchecked(&mut pre_tool_ctx()).await;
+    assert_eq!(
+        *seen.lock().unwrap(),
+        Some(Some(std::time::Duration::from_millis(250)))
+    );
+    assert!(r.proceeds());
+    assert_eq!(
+        r.verdicts[0].substituted_for.as_deref(),
+        Some("host_error:interceptor_timeout")
+    );
+    // One kind name is either managed or standard.
+    let dup: KindResolver = Box::new(|_, _| Err("never".into()));
+    assert!(reg.kind("com.example.scanner", dup).is_err());
 }

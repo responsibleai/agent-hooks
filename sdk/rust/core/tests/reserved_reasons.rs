@@ -47,3 +47,30 @@ fn host_error_variants_match_reserved_reasons_registry() {
         "core HostError strings and spec/reserved-reasons.json diverged"
     );
 }
+
+/// §6.3 registry consistency: the `host_warning:*` strings the core
+/// emits MUST be exactly the set in `spec/reserved-warnings.json`.
+#[test]
+fn host_warning_variants_match_reserved_warnings_registry() {
+    let variants = [agent_hooks::HostWarning::ControlFailed];
+    let emitted: BTreeSet<String> = variants.iter().map(|v| v.to_string()).collect();
+    let registry: serde_json::Value =
+        serde_json::from_str(include_str!("../../../../spec/reserved-warnings.json"))
+            .expect("spec/reserved-warnings.json parses");
+    let registered: BTreeSet<String> = registry["warnings"]
+        .as_array()
+        .expect("warnings array")
+        .iter()
+        .map(|r| r["id"].as_str().expect("warning id").to_owned())
+        .collect();
+    assert_eq!(
+        emitted, registered,
+        "core HostWarning strings and spec/reserved-warnings.json diverged"
+    );
+    // The substituted allow carries exactly one registered warning.
+    let v = agent_hooks::Verdict::control_failure_substitute(
+        "b",
+        agent_hooks::HostError::InterceptorTimeout,
+    );
+    assert!(registered.contains(v.warnings[0].reason.as_deref().unwrap()));
+}

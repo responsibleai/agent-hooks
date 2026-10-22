@@ -43,9 +43,10 @@
 //! interceptor is neither a host nor the interceptor itself, and its
 //! internal failures need a reason namespace:
 //!
-//! - `host_error:*` is reserved for **host-synthesized** verdicts (§11).
-//!   An interceptor — including one that wraps an engine — MUST NOT
-//!   emit it; the §5 gate rejects such verdicts as `verdict_invalid`.
+//! - `host_error:*` is reserved for **host-synthesized** verdicts (§11),
+//!   and `host_warning:*` for host-synthesized warnings (§6.3). An
+//!   interceptor — including one that wraps an engine — MUST NOT emit
+//!   either; the §5 gate rejects such verdicts as `verdict_invalid`.
 //! - An engine therefore reports its own failures under its own
 //!   namespace (the convention consumers use is `runtime_error:*`),
 //!   returned as an ordinary fail-closed `deny` verdict:
@@ -83,17 +84,22 @@ pub use composition::{
     SynthesisPolicy,
 };
 pub use declaration::{
-    DeclarationBuilder, DeclarationError, DeclarationErrorClass, HostDeclaration, HostRegistry,
-    HostSurface, KindResolver, ResolvedDeclaration,
+    BindingOptions, DeclarationBuilder, DeclarationError, DeclarationErrorClass, HostDeclaration,
+    HostRegistry, HostSurface, KindResolver, ManagedKindResolver, ResolvedDeclaration,
 };
-pub use emitter::{HostFailure, IdentityProvider, InterceptionBlocked, InterceptionEmitter};
+pub use emitter::{
+    HostFailure, IdentityProvider, InterceptionBlocked, InterceptionEmitter, RegistrationError,
+    RegistrationOptions,
+};
 pub use enforce::{apply_transform_to_ctx, finalize, validate_transform, FinalizeMeta};
 pub use path::{apply as apply_transform_path, parse as parse_transform_path, resolve, Segment};
 pub use response::{InterceptorResponse, RESPONSE_METADATA_MAX_BYTES};
 pub use types::{
-    AgentContext, ApprovalOutcome, ApprovalRequest, ApprovalResolution, ApprovalResolver, Decision,
-    EnforcementMode, Evidence, HostError, InterceptionPoint, InterceptionRecord, Interceptor,
-    Transform, Verdict, VerdictSummary, Warning, DECLARATION_VERSION, EVIDENCE_MAX_BYTES,
-    JCS_SHA256, SPEC_VERSION, SUPPORTED_DECLARATION_VERSIONS,
+    AgentContext, ApprovalOutcome, ApprovalRequest, ApprovalResolution, ApprovalResolver,
+    ControlFailureNotice, ControlFailureNotifier, Decision, EnforcementMode, Evidence, HostError,
+    HostWarning, InterceptionPoint, InterceptionRecord, Interceptor, ManagedInterceptor,
+    ManagedInterceptorOutcome, OnError, Transform, Verdict, VerdictSummary, Warning,
+    DECLARATION_VERSION, EVIDENCE_MAX_BYTES, JCS_SHA256, SPEC_VERSION,
+    SUPPORTED_DECLARATION_VERSIONS,
 };
 pub use verdict::from_wire as verdict_from_wire;
