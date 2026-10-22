@@ -12,7 +12,8 @@ is informative; the reason inventory is normative in
 Every host-synthesized deny carries a reserved `host_error:*` reason.
 The contract is fail-closed: these denies halt the guarded action, so
 a persistent failure is an agent outage by design, not a bug in the
-contract.
+contract. One knob opens this for one control at a time: a binding's
+`on_error: continue` (see section 1a).
 
 | Reason | Likely cause | Remediation |
 | --- | --- | --- |
@@ -30,6 +31,36 @@ contract.
 | `adapter_unsupported` | Host adapter cannot emit this interception point | Declare the capability subset honestly (§3.2) instead of synthesizing failures |
 | `no_interceptor` | `enforce`-mode emission with zero registered interceptors (§7) | Register controls, or an explicit allow-all interceptor for a deliberate passthrough |
 | `streaming_unsupported` | Host could not assemble a streamed model response before `post_model_call` (§12.1) | Buffer the stream or disable streaming on the model client |
+
+## 1a. Best-effort controls: `on_error: continue`
+
+The three interceptor failures (`interceptor_failed`,
+`interceptor_timeout`, `verdict_invalid`) can be set to continue
+instead of deny, per binding (spec §6.3.1). Nothing else can. Set it
+in the host declaration document:
+
+```json
+{ "id": "telemetry-filter", "kind": "com.example.telemetry", "on_error": "continue" }
+```
+
+or for every binding at once with
+`"configuration": { "failure": { "on_error": "continue" } }`, which a
+binding can override with its own `on_error: "deny"`. The document
+must write `"declaration": "agent-hooks-declaration/1.1"`; under 1.0
+the member is refused. Hosts configured in code take the same setting
+per registration. The default is `deny` everywhere and host code does
+not change it.
+
+What you get when a `continue` binding fails: the action proceeds,
+the record's `verdict.warnings` carries `host_warning:control_failed`
+with the binding id and the reason, the slot's `verdicts` entry
+carries `substituted_for: "host_error:..."`, and the host tells the
+user (or the agent) that the control failed. Count continuations by
+counting `substituted_for` entries; a steady count is a control
+outage running unenforced. Keep critical controls on `deny`. The
+host's conformance claim has to state `on_error: continue` and name
+the bindings, so check the claim before you rely on a vendor's
+posture.
 
 ## 2. Rollout: `evaluate_only` → `enforce`
 
@@ -52,6 +83,7 @@ contract.
 | Signal | Source | Why |
 | --- | --- | --- |
 | Fail-closed rate by `reason` | records: `verdict.reason` prefix `host_error:` | Infrastructure failures masquerade as policy denies; `interceptor_timeout`/`interceptor_failed` spikes are outages |
+| Continuation rate | records: `verdicts[].substituted_for` present, or `verdict.warnings[].reason` = `host_warning:control_failed` | A best-effort control (`on_error: continue`, §6.3.1) is failing and the agent is running without it; the value names the cause. Alert at the same threshold you use for the fail-closed rate |
 | `fold_truncated: true` rate | records | Every occurrence means registered controls were skipped after an approval under `first_deny`+`stop` (§7.4) — confirm the skip pattern matches your registration-order design |
 | `resolved_by: "approval"` rate | records | Human-approval lift volume; a jump means controls are escalating more (or an automated resolver is lifting more) |
 | `records_dropped > 0` | emitter counter | Audit loss: the drop-oldest ring overflowed before the sink drained it — resize retention or fix the sink |

@@ -82,7 +82,11 @@ capitals.
   non-determinism for correctness.
 - **Fail closed.** A host that cannot construct a valid `AgentContext`, cannot
   reach a registered interceptor, or receives an invalid `Verdict` MUST treat the
-  outcome as `deny` with a `host_error:*` reason per §11.
+  outcome as `deny` with a `host_error:*` reason per §11. The one opening is
+  the per-binding failure posture of §6.3: an administrator can set a
+  binding's `on_error` to `continue`, and only for the three interceptor
+  failures named there. The default is `deny` everywhere, the failure is
+  still recorded with its `host_error:*` reason, and the principal is told.
 - **No silent bypass.** A host MUST NOT execute the action guarded by an
   interception point without first invoking every interceptor its declared
   composition profile (§7.2) requires for that point and honouring the
@@ -440,7 +444,7 @@ transport wrapper; it does not change this in-process return contract.
 | `decision` | yes | One of the three values above. |
 | `reason` | no | MUST NOT start with `host_error:`. Free-form machine identifier. |
 | `message` | no | Free-form human-readable text. |
-| `warnings` | no | Array of `{reason?, message?}` objects. Permitted on any decision. See §5.1. |
+| `warnings` | no | Array of `{reason?, message?}` objects. Permitted on any decision. A `reason` MUST NOT start with `host_warning:` (§11.1). See §5.1. |
 | `approval` | no; only valid when `decision == "deny"` | JSON object (MAY be empty). Marks the deny as liftable by the approval seam (§9). MUST be absent for `allow` and `transform`. |
 | `transform` | iff `decision == "transform"` | See §5.2. MUST be absent for all other decisions. |
 | `evidence` | no | See §5.3. Serialized size MUST NOT exceed 10240 bytes. |
@@ -449,7 +453,8 @@ transport wrapper; it does not change this in-process return contract.
 A host that receives a verdict that is not a JSON object, whose `decision` is
 absent or invalid, whose `reason` starts with `host_error:`, whose `transform`
 or `approval` presence violates the constraints above, whose `warnings` is not
-an array of objects, whose `evidence` is not an object, or whose
+an array of objects, whose `warnings[].reason` starts with `host_warning:`,
+whose `evidence` is not an object, or whose
 `result_labels` is not an array of strings MUST treat it as
 `{"decision": "deny", "reason": "host_error:verdict_invalid"}`.
 
@@ -664,7 +669,7 @@ check — MUST treat the emission as
 `{"decision": "deny", "reason": "host_error:context_invalid"}` without
 dispatching to any interceptor. Interceptor failures map one-to-one:
 
-| Failure | Substituted verdict |
+| Failure | Substituted verdict under `on_error: deny` (the default) |
 | --- | --- |
 | The interceptor raises (or panics) | `deny` `host_error:interceptor_failed` |
 | The interceptor exceeds the host's timeout | `deny` `host_error:interceptor_timeout` |
@@ -679,6 +684,98 @@ verdicts are unaffected — a single failure does not abort the
 emission, it composes as a deny. Host-synthesized messages MUST NOT
 include target-derived content (§14): an exception type name is
 acceptable, an exception string is not.
+
+#### 6.3.1 Failure posture: `on_error`
+
+Each registration carries one failure posture, `on_error`, with the
+values `deny` (the default) and `continue`. A binding in a host
+declaration sets it with the `on_error` member (§7.7.5) or inherits
+the document default `configuration.failure.on_error` (§7.7.3); a
+code registration sets it through the SDK's registration options,
+default `deny`. Host code MUST NOT change the default: a registration
+that says nothing is `deny`. `continue` is an administrator's choice,
+written in the declaration or passed at registration, and a host that
+runs under it MUST say so in its conformance claim (§13.3).
+
+`on_error` covers exactly the three failures in the table above: the
+interceptor raises or panics, the interceptor exceeds its timeout, and
+the returned value fails validation. It covers nothing else. The
+following stay fail closed with no knob, whatever `on_error` says:
+
+- a context the host cannot construct or that fails the §4 envelope
+  check (`host_error:context_invalid`, above);
+- cancellation of the interceptor's work by the host (a typed
+  cancelled outcome of a managed interceptor, §7, which the host
+  treats as `host_error:interceptor_failed` and never substitutes);
+- a transform the host cannot apply (`host_error:transform_invalid`,
+  `host_error:transform_target_forbidden`, §5.2) and a transform
+  conflict (§7.5);
+- every approval seam failure, including a resolver that raises or
+  times out (`host_error:approval_resolver_failed`, §9);
+- an emission with nothing bound (`host_error:no_interceptor`, §7);
+- an explicit `deny` an interceptor returned, liftable or not.
+
+Under `on_error: continue`, when one of the three covered failures
+occurs, the host MUST substitute the following verdict in the failing
+registration's slot instead of the deny from the table:
+
+```json
+{
+  "decision": "allow",
+  "warnings": [
+    {
+      "reason": "host_warning:control_failed",
+      "message": "<binding id>: <host_error reason>; host continued"
+    }
+  ]
+}
+```
+
+where `<host_error reason>` is the reason the table would have given
+(`host_error:interceptor_failed`, `host_error:interceptor_timeout` or
+`host_error:verdict_invalid`) and `<binding id>` is the binding `id`
+(§7.7.5) or, for a code registration, the registration `name` of
+§10.3; a registration with no name uses the label `interceptor-<index>`,
+where `<index>` is its registration index written as a decimal integer.
+The message carries nothing else: no exception
+string, no target content. The substituted allow:
+
+- is an `allow` for every profile's purposes: it does not
+  short-circuit `sequential/first_deny`, it counts as an `allow` under
+  `parallel/unanimous`, and `fold_truncated` is not set on its
+  account;
+- takes the failing registration's slot in the composition and in the
+  record's `verdicts` summary, exactly as the substituted deny does;
+- is a returned verdict for the §7.3 union, so its warning joins the
+  combined verdict's `warnings`; it contributes no `result_labels`;
+- leaves `target` unchanged;
+- never wins on its own: it is the lowest severity, so when every
+  other verdict is also an allow the combined verdict is an allow with
+  `decided_by: null` (§10.3). The audit handle for a continuation is
+  the `substituted_for` member of the slot's `verdicts` entry, not
+  `decided_by`;
+- is recorded with its cause: the slot's `verdicts` entry carries
+  `substituted_for: "<host_error reason>"`, and `verdicts` is REQUIRED
+  on the record whenever a substitution happened, in every profile
+  (§10.3).
+
+A binding whose `timeout_ms` is `null` (unbounded) cannot time out, so
+`continue` on timeout is moot for it; no refusal follows. A build that
+cannot bound execution refuses a numeric timeout at load (§7.7.6, step
+8), with or without `continue`.
+
+**Principal notification.** Every substitution under this rule MUST
+be announced: the host MUST tell the principal that a control failed
+and that the host continued past it, naming the binding and the
+`host_error:*` reason. In an interactive session the principal is the
+user. Otherwise it is the agent, through the channel the host uses for
+its own messages (the same channel §6.2 names for a tool error). The
+notice is host-synthesized and MUST be payload-free (§14); the warning
+message above is a conformant notice. The notice is owed even when
+another verdict in the same emission denies the action, because the
+principal needs to know the control is down. Silent continuation is
+not conformant. The notice is in addition to the record, never
+instead of it.
 
 ---
 
@@ -707,6 +804,35 @@ computation does not transfer the host's composition or enforcement
 obligations. The failure rules in §6.3 and timeout guidance above still
 apply. Transport selection, service authentication, and protection of
 context data sent to the service are host concerns (§1.4, §14).
+
+**Timeout ownership.** By default the emitter owns the deadline: it
+wraps the interceptor call in its own timer and applies §6.3 on
+breach. An interceptor that runs external work (a child process, an
+HTTP call) MAY own the deadline instead. Such a **managed
+interceptor** returns a typed outcome rather than a bare `Verdict`:
+one of `verdict` (carrying a §5 `Verdict`), `timeout`, `cancelled` or
+`failed`. The SDK emitter provides this outcome type and a
+registration path for it. A managed interceptor:
+
+- MUST receive the resolved bound for its registration (the binding's
+  resolved `timeout_ms`, §7.7.5, or the timeout a code registration
+  resolves to) before its first call; the emitter does not wrap it in
+  a second timer;
+- MUST, on breach, cancel the work and clean it up (kill and reap a
+  process, abort a request) before it reports `timeout`; a `timeout`
+  outcome means the work is no longer running;
+- reports `cancelled` when the host cancelled the work for its own
+  reasons (shutdown, the caller went away). A cancelled outcome is
+  never a timeout.
+
+The emitter maps the outcomes: `verdict` passes through the §5 gate
+as any returned value does; `timeout` is the timeout failure of §6.3
+and follows the registration's `on_error`; `failed` is the raise
+failure of §6.3 and follows `on_error`; `cancelled` is
+`deny host_error:interceptor_failed` and never continues (§6.3.1). A
+host MUST NOT infer a timeout from an ordinary `Verdict` or from a
+cancellation, and MUST NOT treat a `timeout` reported without cleanup
+as conformant.
 
 ### 7.1 Composition is host configuration
 
@@ -774,12 +900,18 @@ Aggregation selects **one winning verdict** and unions the metadata:
 2. The combined verdict is the winner (or the approval resolution that
    substitutes for it, §7.6), with:
    - `warnings`: the first-seen-ordered union of `warnings` from
-     **every** verdict returned in the emission. Two warnings are
+     **every** verdict returned in the emission. A verdict the host
+     substituted per §6.3 counts as returned, so the
+     `host_warning:control_failed` warning of a §6.3.1 continuation
+     joins the union. Two warnings are
      equal iff both their `reason` and `message` members are equal;
-     duplicates by that test appear once, at first position;
+     duplicates by that test appear once, at first position (two
+     continuations stay distinct because each message names its
+     binding);
    - `result_labels`: the first-seen-ordered union of labels from every
      **permit** verdict returned in the emission (labels are dropped
-     entirely when the emission does not proceed, per §5.4).
+     entirely when the emission does not proceed, per §5.4). A §6.3.1
+     substituted allow carries no labels.
 3. Losing verdicts impose no obligations, but every returned verdict is
    summarized on the record (§10.3) in multi-verdict profiles.
 
@@ -897,7 +1029,9 @@ synthesized verdict) that triggered the consultation, at that
 verdict's position in the profile's semantics. `decided_by` (§10.3)
 remains the index of the interceptor whose liftable deny was consulted
 (or `null` for a synthesized one); `resolved_by: "approval"` records
-the substitution.
+the substitution. A §6.3.1 substitution is a different thing and is
+recorded by `substituted_for` on the slot's `verdicts` entry;
+`resolved_by` is unaffected by it.
 
 ### 7.7 Host declaration document
 
@@ -925,7 +1059,15 @@ The declaration is a contract with its own version, independent of the
 wire version `agent-hooks/X.Y` and of package versions. Every document
 carries the REQUIRED member `declaration`, a closed identifier of the
 form `agent-hooks-declaration/<major>.<minor>`. This revision of the
-specification defines one version: `agent-hooks-declaration/1.0`.
+specification defines two versions: `agent-hooks-declaration/1.0` and
+`agent-hooks-declaration/1.1`, the current one. 1.1 adds the OPTIONAL
+binding member `on_error` (§7.7.5) and the OPTIONAL document default
+`configuration.failure.on_error` (§7.7.3); a document that uses
+neither means the same under both versions. A 1.0 loader refuses a
+1.1 document with `declaration_error:version_unsupported`, as the
+rules below require; a 1.1 loader accepts a 1.0 document unchanged
+and refuses `on_error` under a 1.0 version string as
+`declaration_error:unknown_field`, because the 1.0 schema is closed.
 Major 0 is reserved for the conformance kit; no loader accepts it, so
 a vector can name it and get the same refusal on every host.
 
@@ -935,7 +1077,10 @@ on new members, or makes a fixed bound tunable. A **major** change
 removes or repurposes a member, narrows an enum, changes a default,
 changes the validation order, changes what a refusal class covers,
 changes the binding envelope, changes the equivalence rule (§7.7.7), or
-changes the lifecycle floor (§3.2).
+changes the lifecycle floor (§3.2). Adding an OPTIONAL member to the
+binding envelope is the minor "adds an OPTIONAL member" case;
+removing, renaming or re-typing a binding member is the envelope
+change the major rule means.
 
 A loader:
 
@@ -1021,6 +1166,7 @@ are written as JSON integers without a fraction or an exponent
 | `approval.resolver` | a registered name, `null` | `null` | §9; `null` means liftable denies stay denies |
 | `approval.redactor` | a registered name, `null` | `null` | §9 redaction seam |
 | `posture.tool_seam_host_error` | `continue`, `terminate` | `continue` | §13.1; MUST equal the posture the code implements |
+| `failure.on_error` | `deny`, `continue` | `deny` | §6.3.1; the default every binding's `on_error` inherits. Since 1.1 |
 | `timeouts.interceptor_ms` | integer 1 to 3600000, `null` | `5000` | §7; `null` is unbounded and MUST be written out |
 | `timeouts.approval_resolver_ms` | integer 1 to 3600000, `null` | the value of `interceptor_ms` | §9 |
 | `records.max_buffered` | integer 1 to 9007199254740991, `null` | `null` | in-memory record buffer bound; see Bounds below |
@@ -1035,11 +1181,15 @@ MUST be refused, never cleared. A consulted knob left unset takes its
 
 **Resolved form.** Loading produces the resolved declaration: every
 default filled, composition knobs resolved exactly as §7.2 resolves
-them, `surface` filled from the host when absent, each binding's `at`
-and `timeout_ms` filled, `$schema` dropped, sets sorted (interception
+them, `surface` filled from the host when absent, each binding's `at`,
+`timeout_ms` and `on_error` filled, `$schema` dropped, sets sorted (interception
 points in §3 lifecycle order, everything else lexically), bindings in
 document order, `host`, `id` and `extensions` verbatim. Its RFC 8785
-canonical JSON is the equivalence oracle of §7.7.7.
+canonical JSON is the equivalence oracle of §7.7.7. The resolved form
+is the current minor's shape whatever version the document wrote:
+`failure.on_error` and each binding's `on_error` are filled (`deny`
+unless the document said otherwise) for a 1.0 document too, while the
+`declaration` member keeps the document's own version string.
 
 **Bounds.** A document is at most 1 MiB of text (the value path is
 measured after serialization), nests at most 32 levels, and carries at
@@ -1099,7 +1249,7 @@ bindings only.
 #### 7.7.5 Bindings
 
 A binding is the open envelope
-`{id, kind, config?, at?, timeout_ms?}`:
+`{id, kind, config?, at?, timeout_ms?, on_error?}`:
 
 | Member | Type | Required | Default |
 | --- | --- | --- | --- |
@@ -1108,6 +1258,12 @@ A binding is the open envelope
 | `config` | any JSON value | no | `{}` |
 | `at` | set of point names, 1 or more, each in the surface | no | every surface point |
 | `timeout_ms` | integer 1 to 3600000, `null` | no | `configuration.timeouts.interceptor_ms` |
+| `on_error` | `deny`, `continue` | no | `configuration.failure.on_error` |
+
+`on_error` is the binding's failure posture (§6.3.1). It is a 1.1
+member: under `agent-hooks-declaration/1.0` it is an unknown member
+(`declaration_error:unknown_field`), and a value outside the two is
+`declaration_error:invalid_field`.
 
 `kind` is a lookup key into the host's registry and nothing more. It is
 never a path, class name, URL or module the loader interprets. At least
@@ -1121,8 +1277,10 @@ registered it.
 
 The host registers **kind resolvers** in code. A kind resolver turns
 `(config, binding context)` into one interceptor or refuses. The
-binding context carries the binding's `id`, `kind`, resolved `at` set
-and resolved timeout, the `host` block and the contract version.
+binding context carries the binding's `id`, `kind`, resolved `at` set,
+resolved timeout and resolved `on_error`, the `host` block and the
+contract version. A resolver that returns a managed interceptor (§7)
+hands it the resolved timeout from this context.
 Resolvers run at load, with host trust, once per binding, in array
 order, after every kind has been checked to exist. A resolver that
 returns an error, raises, or returns something other than an
@@ -1226,7 +1384,7 @@ Timing is excluded; records never carry it.
 
 An emitter built from a declaration is **sealed**: it MUST refuse later
 registration and reconfiguration (composition, identity provider,
-timeouts, approval redactor, record bound). Otherwise the declaration
+timeouts, failure posture, approval redactor, record bound). Otherwise the declaration
 would not be what ran. Changing where records go (the record sink,
 draining the buffer) stays allowed; it changes delivery, not content.
 
@@ -1244,7 +1402,12 @@ emitter configured in code. The host MUST NOT default it: a record
 claims a contract only when one governed the host. It is one string
 from a closed grammar, so it is payload-free by construction. Nothing
 else from the document reaches the record: not the `id`, a digest, the
-path, kinds, configs, the host name or resolver names.
+path, kinds, configs, the host name or resolver names. A binding's
+`on_error` does not reach the record either; what a continuation
+leaves there is `substituted_for` (§10.3), a reserved reason from the
+closed §11 set, and the `host_warning:control_failed` warning, whose
+message carries the binding `id` that `verdicts[].name` already
+carries.
 
 With per-point bindings (§7.7.5), `interceptors_registered` is the
 number of interceptors bound at the emitted point, `verdicts[].index`
@@ -1521,7 +1684,8 @@ of the record.
     "on_transform_conflict": "deny" | "approval"   // parallel/strictest only
   },
   "declaration": "agent-hooks-declaration/1.0",       // present iff built from a host declaration (§7.7.8)
-  "verdicts": [ { "index": 0, "decision": "allow", "reason": "string", "name": "string" }, ... ],
+  "verdicts": [ { "index": 0, "decision": "allow", "reason": "string", "name": "string",
+                  "substituted_for": "host_error:interceptor_timeout" }, ... ], // substituted_for present iff a §6.3.1 continuation filled this slot
   "fold_truncated": false,
   "resolved_by": "approval" | "rejection" | null,
   "interceptors_registered": 0
@@ -1536,10 +1700,10 @@ of the record.
 | `session_id`, `sequence` | Copied from the context; records are totally ordered within a session. |
 | `timestamp` | OPTIONAL. The context's RFC 3339 `timestamp`, copied verbatim — the event time audit/SIEM sinks index on. Absent when the context lacked the field. |
 | `trace` | OPTIONAL. `{trace_id?, span_id?}` echoed from the context's optional `trace` block (§4.5, W3C Trace Context). Payload-free identifiers only; absent when the context carried neither member. Lets a record join the host's distributed trace without out-of-band stitching. |
-| `decided_by` | Registration index of the interceptor whose verdict won the aggregation (§7.3) or whose liftable deny was consulted (§7.6). A §6.3 failure deny (`interceptor_failed`, `interceptor_timeout`, `verdict_invalid`) carries the **failing interceptor's** index, in every profile. `null` is reserved for pure-allow combinations, §5.2 transform-application failures, and profile-synthesized verdicts (`transform_conflict`, `composition_disagreement`, `no_interceptor`, identity-provider rejection). |
+| `decided_by` | Registration index of the interceptor whose verdict won the aggregation (§7.3) or whose liftable deny was consulted (§7.6). A §6.3 failure deny (`interceptor_failed`, `interceptor_timeout`, `verdict_invalid`) carries the **failing interceptor's** index, in every profile. A §6.3.1 substituted allow follows the pure-allow rule: it never carries the failing index, and an emission where every verdict is an allow has `decided_by: null`. `null` is reserved for pure-allow combinations, §5.2 transform-application failures, and profile-synthesized verdicts (`transform_conflict`, `composition_disagreement`, `no_interceptor`, identity-provider rejection). |
 | `composition` | The profile and knobs in effect (§7.1). REQUIRED. Knob members the profile consults MUST be present with their **resolved** values (the §7.2 defaults filled in when the host left them unset); knobs the profile never consults MUST be absent. |
 | `declaration` | OPTIONAL. The host declaration contract version the emitter was built from (§7.7.8), e.g. `agent-hooks-declaration/1.0`. Present iff the emitter was built from a declaration document; absent for a host configured in code. Never defaulted. |
-| `verdicts` | Payload-free per-interceptor summary `{index, decision, reason?, name?}`. REQUIRED in multi-verdict profiles (`sequential/run_all`, `parallel/*`); OPTIONAL in `sequential/first_deny`. `name` is the host-chosen registration identifier for the interceptor at `index` (§7); it MUST be payload-free. |
+| `verdicts` | Payload-free per-interceptor summary `{index, decision, reason?, name?, substituted_for?}`. REQUIRED in multi-verdict profiles (`sequential/run_all`, `parallel/*`) and REQUIRED in every profile when any slot was substituted under `on_error: continue`; otherwise OPTIONAL in `sequential/first_deny`. `name` is the host-chosen registration identifier for the interceptor at `index` (§7); it MUST be payload-free. `substituted_for` is present iff the entry is the §6.3.1 substituted allow; its value is the `host_error:*` reason the deny would have carried (`host_error:interceptor_failed`, `host_error:interceptor_timeout` or `host_error:verdict_invalid`). The entry's `decision` is `allow` and its `reason` is absent, so a reader that treats a `host_error:*` reason as a deny is not misled; the cause lives in `substituted_for` alone. An auditor counts continuations by counting entries with `substituted_for`. |
 | `fold_truncated` | `true` iff one or more registered interceptors were never invoked in this emission — a first-deny short-circuit, an approval-stop, or a failed fold-transform (§7.4). Defined for the sequential profiles. |
 | `resolved_by` | Consultation outcome (§7.6): `"approval"` iff a permit resolution substituted for a verdict; `"rejection"` iff the seam was consulted and did **not** lift the deny (reject, unresolved, resolver failure, or echo violation); absent iff the seam was never consulted. A record reader can therefore always answer "was a human consulted, and did they permit?". |
 | `interceptors_registered` | Number of interceptors registered at emission time; with per-point bindings (§7.7.5), the number bound at the emitted point. Together with `verdicts`/`fold_truncated` this makes skipped interceptors detectable from the record alone. |
@@ -1615,6 +1779,20 @@ Removed relative to earlier drafts: `host_error:approval_resolver_missing`
 `approval_identity_mismatch`).
 
 The machine-readable inventory is `spec/reserved-reasons.json`.
+
+### 11.1 Reserved warnings
+
+A host MUST use the following warning `reason` values, and only these,
+when it synthesizes a warning on a verdict it substitutes. An
+interceptor MUST NOT emit a warning `reason` beginning with
+`host_warning:`; a host that receives one treats the verdict as
+`host_error:verdict_invalid` (§5).
+
+| Reason | Cause |
+| --- | --- |
+| `host_warning:control_failed` | A registration whose `on_error` is `continue` failed (raised, timed out or returned an invalid verdict); the host substituted an allow in its slot and continued (§6.3.1). The message names the binding and the `host_error:*` reason. |
+
+The machine-readable inventory is `spec/reserved-warnings.json`.
 
 ---
 
@@ -1786,7 +1964,13 @@ There are no conformance tiers, levels, or baseline profiles. A host
   turn under §6.2's "unless the host's own semantics terminate the
   turn" clause. The CTK resolves posture-conditional expectations
   against this declaration, so each declared surface is tested against
-  a single expected outcome.
+  a single expected outcome,
+- its failure posture (§6.3.1): whether any binding or registration it
+  runs under has `on_error: continue`, by binding or through the
+  document default. This is not a harness-declared posture the CTK
+  resolves against; the vectors that exercise `continue` set it
+  through the host declaration document they carry, so each vector
+  stays single-valued.
 
 A host MAY present this surface as a host declaration document
 (§7.7) with an explicit `surface` block; the CTK then assesses the run
@@ -1796,7 +1980,7 @@ A host is **conformant** when it passes 100% of the CTK vectors
 applicable to its declaration. The CTK emits a **conformance report**
 that enumerates, per declared part (each profile, each knob value, the
 approval seam, the identity provider, `evaluate_only`, the fail-closed
-rules of §6.3 and §7), which vectors ran and whether they passed —
+rules of §6.3 and §7, the §6.3.1 `continue` substitution), which vectors ran and whether they passed,
 so a claim communicates *what was exercised*, not a tier name.
 
 Partial adapters under development can run vector subsets locally but
@@ -1826,7 +2010,11 @@ A conformance claim is the tuple
 plus the CTK report, recorded in `conformance/CLAIMS.md`. A claim with
 a non-default posture (§13.1) MUST state it (e.g.
 `tool_seam_host_error: terminate`) — the report's passing vectors
-attest that posture's outcomes, not the default's. A claim with
+attest that posture's outcomes, not the default's. A claim whose cited
+declaration, or whose code registrations, set `on_error: continue` for
+any binding MUST state `on_error: continue` and name the bindings, or
+say "document default" when `configuration.failure.on_error` is
+`continue`; the tuple is unchanged. A claim with
 `identity_provider: null` MUST state that its approvals and records are
 identity-unbound. A claim with `buffered_output: false` MUST state
 that a `deny` at `output` cannot retract already-streamed content
@@ -1892,6 +2080,15 @@ threat→mitigation→test traceability is `docs/THREAT-MODEL.md`.
   keeps that decision with the administrator, and a load log of the
   contract version, document `id` and `jcs-sha256` digest lets an
   operator match a running host to a pushed document.
+- `on_error: continue` (§6.3.1) is a deliberate opening of the
+  fail-closed default for one binding at a time. It lives in the
+  declaration or the registration, under administrator control, never
+  in a verdict or in host code's defaults. Every continuation is
+  recorded (`substituted_for`, the `host_warning:control_failed`
+  warning) and announced to the principal, and the posture appears in
+  the host's claim (§13.3). A control that fails often under
+  `continue` is an outage of that control, visible as a count of
+  `substituted_for` entries, not a silent bypass.
 
 ---
 

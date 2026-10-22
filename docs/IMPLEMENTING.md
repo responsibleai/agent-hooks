@@ -62,10 +62,12 @@ A host declaration is one JSON document the host loads at startup
 - `surface`: the points you emit, your capabilities, the profiles and
   knob values you support, your streaming posture, and the contract
   versions you accept.
-- `bindings`: an ordered list of `{id, kind, config, at, timeout_ms}`.
+- `bindings`: an ordered list of
+  `{id, kind, config, at, timeout_ms, on_error}`.
 
-The document has its own version, `agent-hooks-declaration/1.0`,
-written in the required `declaration` member. It moves independently
+The document has its own version, `agent-hooks-declaration/1.1`
+(1.0 is still accepted), written in the required `declaration`
+member. It moves independently
 of the wire version and of package versions
 ([spec/DECLARATION-VERSIONS.md](../spec/DECLARATION-VERSIONS.md)).
 
@@ -196,9 +198,9 @@ a reserved reason, or a refusal before anything runs:
 | Condition | Result |
 | --- | --- |
 | The host cannot build a valid context | `deny host_error:context_invalid`, no interceptor runs (§6.3) |
-| An interceptor raises or panics | `deny host_error:interceptor_failed` in that interceptor's slot (§6.3) |
-| An interceptor exceeds the timeout | `deny host_error:interceptor_timeout` (§6.3) |
-| An interceptor returns an invalid verdict | `deny host_error:verdict_invalid` (§6.3) |
+| An interceptor raises or panics | `deny host_error:interceptor_failed` in that interceptor's slot (§6.3), unless the binding's `on_error` is `continue` (below) |
+| An interceptor exceeds the timeout | `deny host_error:interceptor_timeout` (§6.3), unless `on_error` is `continue` |
+| An interceptor returns an invalid verdict | `deny host_error:verdict_invalid` (§6.3), unless `on_error` is `continue` |
 | A transform targets a forbidden path or fails to apply | `deny host_error:transform_target_forbidden` or `transform_invalid` (§5.2) |
 | Parallel verdicts conflict or disagree | `deny` per the profile's knob, or an approval (§7.5) |
 | The approval resolver fails, times out, or echoes the wrong identity | `deny host_error:approval_resolver_failed` or `approval_identity_mismatch` (§9) |
@@ -210,6 +212,34 @@ A passthrough is an explicit allow-all interceptor you register on
 purpose, never the absence of one. `evaluate_only` mode records
 verdicts without acting on them and must never be reported downstream
 as enforcement (§8).
+
+### The `on_error` posture
+
+Those three interceptor failures, and only those, have a knob
+(§6.3.1). A binding's `on_error` is `deny` by default. An
+administrator sets `continue` on a binding, or for the whole document
+through `configuration.failure.on_error`, when that control is best
+effort and its outage must not stop the agent. Your code never
+changes the default; the code registration API takes the same setting
+per registration, default `deny`.
+
+Under `continue` the emitter substitutes, in the failing slot,
+`{"decision": "allow", "warnings": [{"reason": "host_warning:control_failed", "message": "<binding id>: <host_error reason>; host continued"}]}`,
+records `substituted_for: "<host_error reason>"` on that slot's
+`verdicts` entry, and makes `verdicts` present on the record. You owe
+one more thing: tell the principal. In an interactive session, show
+the user that the control named failed and that the host continued,
+with the reason. Otherwise send the agent the same text through the
+channel you use for a tool error. Use the warning message as the
+notice; it is already payload-free. The CTK asserts this through
+`RunRecord.host_messages`, so your harness reports what the host
+delivered.
+
+An interceptor that runs external work may own its deadline. Register
+it through the SDK's managed-interceptor path: it receives the
+resolved bound, cancels and cleans up on breach, and reports a typed
+`timeout`. Report `cancelled` when you cancelled it yourself; that is
+a deny, never a timeout and never a continuation (§7).
 
 ## Running the CTK
 

@@ -1,0 +1,123 @@
+{
+  "id": "AH-CTK-151",
+  "title": "§6.3.1, §9: the approval resolver raises on a liftable deny from a binding with on_error continue: still deny (resolved_by rejection), tool not invoked",
+  "spec_clause": "6.3.1, 9, 10.3",
+  "part": "failure_posture/continue",
+  "capabilities": [
+    "host_declaration",
+    "model_calls",
+    "tool_calls"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.1",
+    "configuration": {
+      "approval": {
+        "resolver": "ctk-scripted"
+      }
+    },
+    "bindings": [
+      {
+        "id": "gate",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        },
+        "on_error": "continue"
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "UNREACHED"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "could not fetch",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "deny",
+          "reason": "ctk:requires_approval",
+          "approval": {}
+        }
+      }
+    ]
+  ],
+  "approval_script": [
+    {
+      "resolve": {
+        "fault": "raise"
+      }
+    }
+  ],
+  "expect": {
+    "load": {
+      "outcome": "accepted"
+    },
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      }
+    ],
+    "interceptions_absent": [
+      "post_tool_call"
+    ],
+    "tool_not_invoked": [
+      "http_get"
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.1",
+          "verdict.decision": "deny",
+          "resolved_by": "rejection"
+        }
+      }
+    ],
+    "run_outcome": "completed",
+    "run_outcome_by_posture": {
+      "posture": "tool_seam_host_error",
+      "outcomes": {
+        "continue": "completed",
+        "terminate": "blocked"
+      }
+    }
+  }
+}

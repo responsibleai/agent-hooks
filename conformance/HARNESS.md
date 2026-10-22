@@ -136,10 +136,11 @@ never declares it.
 
 `host_declaration` (§7.7.9) declares that the host builds its emitter
 from a host declaration document through the loader. It gates the
-`declaration/load`, `declaration/bindings` and `declaration/refusal`
-parts (`AH-CTK-120` onwards). A harness that declares it implements
+`declaration/load`, `declaration/bindings`, `declaration/refusal`,
+`failure_posture/deny` and `failure_posture/continue` parts
+(`AH-CTK-120` onwards). A harness that declares it implements
 the declaration seam below; one that does not skips those
-twenty-two vectors with a stated reason. All five in-tree reference
+forty vectors with a stated reason. All five in-tree reference
 harnesses (Rust, Python, TypeScript, .NET and Go) declare it and build
 every emitter through the loader.
 
@@ -172,6 +173,64 @@ property (default interface member, .NET), or the
 `continue` — the posture every in-tree reference harness implements.
 The declaration belongs in the host's §13.3 claim alongside its
 capabilities.
+
+The failure posture `on_error: deny | continue` (§6.3.1) is not a
+harness-declared posture of this kind. It is configuration the vector
+itself sets, through the `on_error` member of a binding or the
+`configuration.failure.on_error` document default in the host
+declaration document it carries, so every vector in the
+`failure_posture/*` parts is single-valued without a
+`run_outcome_by_posture` branch and is gated on `host_declaration`.
+A harness has nothing to declare for it; a host's §13.3 claim states
+`on_error: continue` when the declaration or registrations it runs
+under set it.
+
+## Faults
+
+An `interceptor_script` rule may carry a `fault` instead of a
+`return`. The scripted interceptor the runner builds implements each
+one; a harness wraps that interceptor and must not swallow the fault:
+
+- `raise`: the interceptor raises or throws natively (§6.3
+  `host_error:interceptor_failed`).
+- `malformed_verdict`: the interceptor returns a §5-invalid shape, a
+  `transform` decision with no body (`host_error:verdict_invalid`).
+- `mutate`: the wrapper mutates the context it received in place and
+  returns allow (§7 copy isolation, TM-05).
+- `hang`: the interceptor does not return before the binding's
+  timeout. The vector sets a small `timeout_ms` on the binding (50 ms)
+  so the run stays fast. Under kind `ctk.scripted` the emitter's own
+  timer is under test: the wrapper waits for the host to cancel it
+  and, if the host has not done so once the timeout plus a grace
+  period has passed, returns allow, so a host that does not bound
+  execution fails the vector on `tool_not_invoked` instead of hanging
+  the run (§6.3 `host_error:interceptor_timeout`). A build that cannot
+  bound execution refuses the numeric timeout at load
+  (`surface_unsupported`, §7.7.6 step 8) and fails these vectors
+  honestly. Under kind `ctk.managed` the interceptor owns its
+  deadline (§7): it waits out the bound it was handed, cleans up and
+  reports the typed `timeout` outcome; the emitter does not wrap it in
+  a second timer. `AH-CTK-144` and `AH-CTK-145` bind `ctk.scripted`,
+  so they pin the emitter-owned timer.
+- `cancel`: defined only for kind `ctk.managed`. The managed scripted
+  interceptor reports the typed `cancelled` outcome (§7) at the
+  matched point. The host must treat it as
+  `deny host_error:interceptor_failed` and must not substitute an
+  allow even under `on_error: continue` (§6.3.1). `AH-CTK-150` binds
+  `ctk.managed` for this.
+
+## Principal notification
+
+A host that continues under `on_error: continue` must tell the
+principal (§6.3.1). The `RunRecord` grows one field for this,
+`host_messages`: the host messages the host delivered to the
+principal during the run, as strings, in order. In the reference
+harnesses the principal is the agent and the channel is the one the
+host uses for a tool error to the model; a harness reports whatever
+its host delivered, verbatim. `expect.host_messages_must_contain`
+lists substrings that must each appear in at least one entry. A
+harness whose host never continues reports an empty list; the field
+is asserted only by vectors that carry the expectation.
 
 ## Incremental mediation
 
@@ -249,8 +308,12 @@ own casing):
 
 For a declaration vector the runner builds the registry
 (`HostRegistry::for_conformance(harness.host_surface())`, which opens
-the reserved `ctk` kind segment) with kind `ctk.scripted` (config
-`{"script": i}` selects `interceptor_scripts[i]`; script 0 records),
+the reserved `ctk` kind segment) with two interceptor kinds over the
+same scripted interceptor, `ctk.scripted` (a standard registration the
+emitter wraps in its own timer) and `ctk.managed` (registered through
+the managed-interceptor path of §7, so it receives the resolved bound
+and reports a typed outcome); for both, config `{"script": i}` selects
+`interceptor_scripts[i]` and script 0 records. It registers
 identity provider `ctk-fault`, approval resolver `ctk-scripted` (from
 `approval_script`) and redactor `ctk-redact` (from
 `redact_for_approval`). Before calling the harness it resolves the
@@ -269,8 +332,14 @@ through the loader too: each writes the vector's mode, composition and
 provider into a copy of its document and binds the scripted
 interceptors by index through a `ctk.instance` kind. Their skip
 manifests do not change for that routing. Every reference harness
-runs `AH-CTK-120` to `AH-CTK-143`; none lists them in its skip
+runs `AH-CTK-120` to `AH-CTK-159`; none lists them in its skip
 manifest.
+
+Vector documents write the version they use: `AH-CTK-144` to
+`AH-CTK-159` carry `agent-hooks-declaration/1.1` where they set
+`on_error`, and `AH-CTK-155` keeps a 1.0 document to pin that a 1.1
+loader accepts it unchanged. Schema-lint validates each document
+against the schema of the version it writes.
 
 ## Running
 
@@ -323,8 +392,8 @@ is pinned by per-SDK unit tests instead:
 - **Host declaration load errors a vector cannot express (§7.7.6)**:
   `unreadable` (a missing path, a directory, an oversize file, invalid
   UTF-8, a byte-order mark), `malformed` (non-JSON text, duplicate
-  keys, excess depth, a non-finite value on the value path), a higher
-  minor refused as `version_unsupported`, `surface_unsupported` for
+  keys, excess depth, a non-finite value on the value path),
+  `surface_unsupported` for
   points, capabilities, profiles, knob values, posture,
   `buffered_output: false` and timeouts against a narrowed host
   surface, the fill of an absent `surface` from an incremental host's
@@ -344,3 +413,19 @@ is pinned by per-SDK unit tests instead:
   `sdk/typescript/test/golden_declaration.test.mjs`,
   `sdk/dotnet/test/AgentHooks.Tests/DeclarationTests.cs`,
   `sdk/go/agenthooks/declaration_test.go`).
+- **Failure posture details a vector cannot express (§6.3.1, §7)**:
+  an interceptor that emits a `host_warning:*` warning reason (the
+  vector schema's verdict reference forbids the prefix, so the §5
+  rejection is a per-SDK gate test); the code registration API's
+  per-registration `on_error` with its `deny` default (vectors set
+  the posture through a document only); the managed interceptor's
+  cleanup-before-`timeout` ordering and the resolved bound it
+  receives; and the shape of the principal notice beyond the
+  substrings `host_messages_must_contain` pins. `AH-CTK-150` pins
+  the cancelled outcome through the `cancel` fault on kind
+  `ctk.managed`; the ordering rule is a per-SDK emitter test. A
+  managed interceptor's typed `timeout` is reported by the
+  interceptor itself, so no vector can tell a host that bounds
+  managed work from one that trusts the interceptor's clock; the
+  `hang` vectors bind `ctk.scripted` and pin the emitter-owned timer
+  instead.

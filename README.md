@@ -2,7 +2,7 @@
 
 > Status: Beta. Spec: [AGENT-HOOKS-0.1](spec/AGENT-HOOKS-0.1.md), wire
 > version `agent-hooks/0.1`. Host declaration contract:
-> `agent-hooks-declaration/1.0`
+> `agent-hooks-declaration/1.1` (1.0 still accepted)
 > ([version table](spec/DECLARATION-VERSIONS.md)).
 
 Agent Hooks is the interception contract between an agent host and the
@@ -41,7 +41,13 @@ observation is out of scope. See [SECURITY.md](SECURITY.md) and
 Warnings ride on any verdict. A host that cannot build a valid context,
 or whose interceptor raises, times out or returns an invalid verdict,
 denies with a reserved `host_error:*` reason (§6.3, §11). Zero
-registered interceptors in `enforce` mode denies too (§7).
+registered interceptors in `enforce` mode denies too (§7). An
+administrator can mark one binding best effort with
+`on_error: continue` (§6.3.1): the three interceptor failures then
+substitute an allow that carries `host_warning:control_failed`, the
+record keeps the cause in `substituted_for`, and the host tells the
+principal. The default is `deny` everywhere and nothing else has a
+knob.
 
 The decided [P-006](docs/proposals/P-006-interceptor-response-envelope.md)
 adds an optional response envelope for hosted transports:
@@ -71,13 +77,13 @@ carries no declaration, is not sealed, and its records are unchanged.
 The host declaration (spec §7.7) is one JSON document that states the
 host's configuration, its declared surface and its interceptor
 bindings. It is a versioned contract of its own,
-`agent-hooks-declaration/1.0`, separate from the wire version and from
+`agent-hooks-declaration/1.1`, separate from the wire version and from
 package versions. Enterprise settings channels can carry it unchanged.
 
 ```json
 {
-  "$schema": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.0.schema.json",
-  "declaration": "agent-hooks-declaration/1.0",
+  "$schema": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.1.schema.json",
+  "declaration": "agent-hooks-declaration/1.1",
   "spec": "agent-hooks/0.1",
   "id": "prod-eu-strict",
   "host": { "name": "example-runtime", "version": "3.2.0" },
@@ -87,6 +93,7 @@ package versions. Enterprise settings channels can carry it unchanged.
     "identity_provider": "jcs-sha256",
     "approval": { "resolver": "operator-queue", "redactor": "strip-secrets" },
     "posture": { "tool_seam_host_error": "continue" },
+    "failure": { "on_error": "deny" },
     "timeouts": { "interceptor_ms": 5000, "approval_resolver_ms": 30000 },
     "records": { "max_buffered": 10000 }
   },
@@ -103,7 +110,7 @@ package versions. Enterprise settings channels can carry it unchanged.
       "parallel/unanimous": { "on_disagreement": ["deny", "approval"] }
     },
     "buffered_output": true,
-    "declaration_versions": ["agent-hooks-declaration/1.0"]
+    "declaration_versions": ["agent-hooks-declaration/1.0", "agent-hooks-declaration/1.1"]
   },
   "bindings": [
     {

@@ -1,0 +1,159 @@
+{
+  "id": "AH-CTK-159",
+  "title": "§6.3.1, §7.3: run_all with one binding that continues and one that denies: the deny wins, the control_failed warning is still in the union, substituted_for is on the continuing slot, the principal is told",
+  "spec_clause": "6.3.1, 7.3, 7.4, 10.3",
+  "part": "failure_posture/continue",
+  "capabilities": [
+    "host_declaration",
+    "model_calls",
+    "tool_calls"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.1",
+    "configuration": {
+      "composition": {
+        "profile": "sequential/run_all"
+      }
+    },
+    "bindings": [
+      {
+        "id": "flaky",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        },
+        "on_error": "continue"
+      },
+      {
+        "id": "guard",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 1
+        }
+      },
+      {
+        "id": "second",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 2
+        }
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "UNREACHED"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "could not fetch",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "fault": "raise"
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "deny",
+          "reason": "ctk:blocked"
+        }
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow",
+          "reason": "ctk:second-ran"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "accepted"
+    },
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      }
+    ],
+    "interceptions_absent": [
+      "post_tool_call"
+    ],
+    "tool_not_invoked": [
+      "http_get"
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.1",
+          "verdict.decision": "deny",
+          "verdict.reason": "ctk:blocked",
+          "verdict.warnings[0].reason": "host_warning:control_failed",
+          "verdict.warnings[0].message": "flaky: host_error:interceptor_failed; host continued",
+          "decided_by": 1,
+          "verdicts[0].decision": "allow",
+          "verdicts[0].substituted_for": "host_error:interceptor_failed",
+          "verdicts[1].decision": "deny",
+          "verdicts[1].reason": "ctk:blocked",
+          "verdicts[2].decision": "allow"
+        },
+        "absent": [
+          "verdicts[0].reason"
+        ]
+      }
+    ],
+    "run_outcome": "completed",
+    "run_outcome_by_posture": {
+      "posture": "tool_seam_host_error",
+      "outcomes": {
+        "continue": "completed",
+        "terminate": "blocked"
+      }
+    },
+    "host_messages_must_contain": [
+      "flaky",
+      "host_error:interceptor_failed"
+    ]
+  }
+}

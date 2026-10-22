@@ -144,7 +144,7 @@
     },
     "host_declaration": {
       "type": "object",
-      "description": "§7.7.9: the host declaration document under test. The harness MUST build its emitter from this document and the CTK registry (kind ctk.scripted with config {\"script\": i} selecting interceptor_scripts[i], identity provider ctk-fault, approval resolver ctk-scripted, redactor ctk-redact) through the loader, and report the load outcome in RunRecord.load. Validated against the published host-declaration schema unless host_declaration_invalid is true."
+      "description": "§7.7.9: the host declaration document under test. The harness MUST build its emitter from this document and the CTK registry (kind ctk.scripted, a standard interceptor the emitter wraps in its own timer, and kind ctk.managed, the same scripted interceptor registered through the managed-interceptor path of spec 7 so it owns its deadline and reports a typed outcome; both take config {\"script\": i} selecting interceptor_scripts[i]; identity provider ctk-fault, approval resolver ctk-scripted, redactor ctk-redact) through the loader, and report the load outcome in RunRecord.load. Validated against the published host-declaration schema for the version it writes (1.0 or 1.1) unless host_declaration_invalid is true."
     },
     "host_declaration_invalid": {
       "type": "boolean",
@@ -302,9 +302,11 @@
           "enum": [
             "raise",
             "malformed_verdict",
-            "mutate"
+            "mutate",
+            "hang",
+            "cancel"
           ],
-          "description": "Fault injection: 'raise' makes the scripted interceptor raise/throw natively (exercises §6.3 host_error:interceptor_failed); 'malformed_verdict' returns a §5-invalid shape (transform decision with no body; exercises host_error:verdict_invalid); 'mutate' makes the wrapper mutate the received context in-place and return allow (exercises §7 copy isolation, TM-05). Mutually exclusive with 'return'."
+          "description": "Fault injection: 'raise' makes the scripted interceptor raise/throw natively (exercises §6.3 host_error:interceptor_failed); 'malformed_verdict' returns a §5-invalid shape (transform decision with no body; exercises host_error:verdict_invalid); 'mutate' makes the wrapper mutate the received context in-place and return allow (exercises §7 copy isolation, TM-05); 'hang' makes the scripted interceptor not return before the binding's timeout (exercises §6.3 host_error:interceptor_timeout; the vector sets a small timeout_ms on the binding; under kind ctk.scripted the emitter's own timer must fire, and the wrapper returns allow once the timeout plus a grace period has passed so a host that does not bound execution fails the vector instead of hanging it; under kind ctk.managed the interceptor waits out the bound it was handed, cleans up and reports the typed timeout outcome of §7); 'cancel' is defined only for kind ctk.managed: the managed scripted interceptor reports the typed cancelled outcome at the matched point (exercises the rule that cancellation is deny host_error:interceptor_failed and never continues, §6.3.1). Mutually exclusive with 'return'."
         }
       },
       "oneOf": [
@@ -452,6 +454,13 @@
             "type": "string"
           }
         },
+        "host_messages_must_contain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Substrings that MUST each appear in at least one entry of RunRecord.host_messages, the host messages the harness reports the host delivered to the principal during the run, in order (§6.3.1 principal notification: a continuation must name the binding and the host_error:* reason and say the action continued). Same needle caveat as context_must_contain. A vector that omits it asserts nothing about host messages."
+        },
         "final_output": true,
         "released_output": {
           "description": "Caller-visible content the host actually egressed, in order, by the end of the run (streaming/incremental part only). Asserted against RunRecord.released_output, which the harness of an incremental_output host MUST report. Distinct from final_output: a stream denied mid-way returns no final output, yet the prefix released under covering verdicts had already reached the caller and is pinned here."
@@ -571,7 +580,7 @@
               "assert": {
                 "type": "object",
                 "additionalProperties": true,
-                "description": "Dotted-path -> expected-value assertions against the wire-shaped InterceptionRecord (§10.3): verdict.*, composition.*, verdicts[i].*, fold_truncated, resolved_by, identity_provider, input_identity/enforced_identity (null for the null provider). A path may name declaration (§7.7.8)."
+                "description": "Dotted-path -> expected-value assertions against the wire-shaped InterceptionRecord (§10.3): verdict.*, composition.*, verdicts[i].* (including verdicts[i].substituted_for, §6.3.1), verdict.warnings[i].*, fold_truncated, resolved_by, identity_provider, input_identity/enforced_identity (null for the null provider). A path may name declaration (§7.7.8)."
               },
               "absent": {
                 "type": "array",
@@ -652,7 +661,15 @@
       "then": {
         "properties": {
           "host_declaration": {
-            "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.0.schema.json"
+            "anyOf": [
+              {
+                "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.0.schema.json"
+              },
+              {
+                "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.1.schema.json"
+              }
+            ],
+            "description": "A vector document validates against the schema of the version it writes (§7.7.2): 1.0 documents against host-declaration-1.0, 1.1 documents against host-declaration-1.1."
           }
         }
       }

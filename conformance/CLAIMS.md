@@ -20,6 +20,11 @@ A claim with a non-default posture (§13.1) MUST state it (e.g.
 `tool_seam_host_error: terminate` — the host terminates the turn on a
 `host_error:*` deny at the tool seam, which §6.2 permits); the report's
 passing vectors attest that posture's outcomes, not the default's. A
+claim whose cited declaration or code registrations set
+`on_error: continue` for any binding (§6.3.1) MUST state
+`on_error: continue` and name the bindings, or say "document default"
+when `configuration.failure.on_error` is `continue`; the claim tuple
+is unchanged. A
 claim with `identity_provider: null` MUST state that its records and
 approvals are identity-unbound (§10.1). A claim with a host-defined
 provider MUST disclose whether the provider is **content-derived**
@@ -64,6 +69,9 @@ artefacts, in the PR:
    `declaration/*` parts appear in the report.
 4. **Disclosure flags** where applicable: a non-default posture
    (`tool_seam_host_error: terminate`) → the claim states it;
+   `on_error: continue` on any binding or as the document default
+   (§6.3.1) → the claim states it and names the bindings or says
+   "document default";
    `identity_provider: null` →
    the claim states records/approvals are identity-unbound;
    custom provider → content-derived or not; `buffered_output: false`

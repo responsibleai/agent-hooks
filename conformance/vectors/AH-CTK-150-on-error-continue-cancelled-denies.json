@@ -1,0 +1,136 @@
+{
+  "id": "AH-CTK-150",
+  "title": "§6.3.1, §7: a managed interceptor reports cancelled under on_error continue: deny host_error:interceptor_failed, no substitution, tool not invoked",
+  "spec_clause": "6.3.1, 7, 7.4, 10.3",
+  "part": "failure_posture/continue",
+  "capabilities": [
+    "host_declaration",
+    "model_calls",
+    "tool_calls"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.1",
+    "configuration": {
+      "composition": {
+        "profile": "sequential/run_all"
+      }
+    },
+    "bindings": [
+      {
+        "id": "managed",
+        "kind": "ctk.managed",
+        "config": {
+          "script": 0
+        },
+        "on_error": "continue"
+      },
+      {
+        "id": "second",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 1
+        }
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "UNREACHED"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "could not fetch",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "fault": "cancel"
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow",
+          "reason": "ctk:second-ran"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "accepted"
+    },
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      }
+    ],
+    "interceptions_absent": [
+      "post_tool_call"
+    ],
+    "tool_not_invoked": [
+      "http_get"
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.1",
+          "verdict.decision": "deny",
+          "verdict.reason": "host_error:interceptor_failed",
+          "decided_by": 0,
+          "verdicts[0].decision": "deny",
+          "verdicts[0].reason": "host_error:interceptor_failed",
+          "verdicts[1].decision": "allow",
+          "verdicts[1].reason": "ctk:second-ran"
+        },
+        "absent": [
+          "verdicts[0].substituted_for"
+        ]
+      }
+    ],
+    "run_outcome": "completed",
+    "run_outcome_by_posture": {
+      "posture": "tool_seam_host_error",
+      "outcomes": {
+        "continue": "completed",
+        "terminate": "blocked"
+      }
+    }
+  }
+}

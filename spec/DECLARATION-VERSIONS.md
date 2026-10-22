@@ -14,7 +14,8 @@ appears here.
 
 | Version | Status | Schema | Defined by spec revision | Notes |
 | --- | --- | --- | --- | --- |
-| `agent-hooks-declaration/1.0` | current | `spec/schema/host-declaration-1.0.schema.json` | 0.1.0-beta | First version. |
+| `agent-hooks-declaration/1.0` | accepted | `spec/schema/host-declaration-1.0.schema.json` | 0.1.0-beta | First version. |
+| `agent-hooks-declaration/1.1` | current | `spec/schema/host-declaration-1.1.schema.json` | 0.1.0-beta | Adds the OPTIONAL binding member `on_error` and the OPTIONAL document default `configuration.failure.on_error` (spec §6.3.1, §7.7.3, §7.7.5). Absent members keep the 1.0 meaning. |
 
 Major 0 is reserved for the conformance kit and is never accepted.
 
@@ -23,6 +24,7 @@ Major 0 is reserved for the conformance kit and is never accepted.
 | SDK release | Accepts | Current |
 | --- | --- | --- |
 | `v0.1.0-beta.2` (2026-10-13) | `agent-hooks-declaration/1.0` | `agent-hooks-declaration/1.0` |
+| `v0.1.0-beta.4` | `agent-hooks-declaration/1.0`, `agent-hooks-declaration/1.1` | `agent-hooks-declaration/1.1` |
 
 `v0.1.0-beta.2` is the first tag that accepts a host declaration;
 `v0.1.0-beta.1` and earlier accept none. Add a row for every tag that
@@ -33,12 +35,21 @@ step 1).
 
 Within a major, a loader accepts every older minor it supports and
 brings a document to the current minor through one explicit step per
-version (`declaration::migrate` in the Rust core). For 1.0 the step is
-the identity. The record carries the document's own version, not the
-migrated one.
+version (`declaration::migrate` in the Rust core). The record carries
+the document's own version, not the migrated one.
+
+| From | To | Step |
+| --- | --- | --- |
+| `agent-hooks-declaration/1.0` | `agent-hooks-declaration/1.1` | Rewrite `declaration` to `agent-hooks-declaration/1.1`. Every binding without `on_error`, and a document without `configuration.failure.on_error`, keep the absence; 1.1 resolves both to `deny`, which is what 1.0 did without a name for it. Nothing else changes. The record still says `agent-hooks-declaration/1.0`. |
+
+A loader never performs this step on a document that writes
+`on_error` under a 1.0 version string; that document is refused as
+`declaration_error:unknown_field` (spec §7.7.2), and the operator opts
+in by writing 1.1.
 
 Across a major, the spec revision that introduces the new major adds a
-row above for the new version and a row here for each migration step:
+row to the contract table for the new version and a row here for each
+migration step:
 
 | From | To | Steps |
 | --- | --- | --- |

@@ -46,7 +46,8 @@
               "string",
               "null"
             ],
-            "pattern": "^(?!host_error:).*"
+            "pattern": "^(?!host_error:|host_warning:).*",
+            "description": "Interceptor-supplied warning identifier. The host_error: prefix is reserved for host-synthesized failures (§11) and host_warning: for host-synthesized warnings (§11.1); an interceptor warning with either prefix fails §5 validation."
           },
           "message": {
             "type": [
@@ -56,7 +57,7 @@
           }
         }
       },
-      "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any decision; unioned across an emission's verdicts (§7.3)."
+      "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any decision; unioned across an emission's verdicts (§7.3). Reasons starting with host_warning: are reserved for the host (§11.1)."
     },
     "approval": {
       "type": "object",

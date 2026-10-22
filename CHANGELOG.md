@@ -3,6 +3,74 @@
 User-visible changes to the spec and SDKs. Versioning rules:
 [VERSIONING.md](VERSIONING.md).
 
+## Unreleased
+
+- Spec §6.3.1 adds one failure posture knob, `on_error`, with the
+  values `deny` (the default) and `continue`. It covers the three
+  interceptor failures of §6.3 (raise or panic, timeout, invalid
+  verdict) and nothing else: context, cancellation, transform,
+  approval and `no_interceptor` failures and an explicit deny stay
+  fail closed with no knob. Under `continue` the host substitutes, in
+  the failing slot, an allow carrying the warning
+  `host_warning:control_failed` with the message
+  `<binding id>: <host_error reason>; host continued`; the warning
+  joins the §7.3 union, `target` is unchanged, and the host tells the
+  principal (the user in an interactive session, otherwise the agent)
+  that the control failed and the host continued. Host code does not
+  change the default; the posture is set in the declaration or at
+  registration and a host running under it states `on_error:
+  continue` in its §13.3 claim. §7 adds timeout ownership: an
+  interceptor that runs external work may own its deadline through
+  the new managed-interceptor outcome type (`verdict`, `timeout`,
+  `cancelled`, `failed`); it receives the resolved bound, cleans up
+  before it reports `timeout`, and a `cancelled` outcome is never a
+  timeout and never continues.
+- Host declaration contract `agent-hooks-declaration/1.1`
+  (`spec/schema/host-declaration-1.1.schema.json`): the binding
+  envelope gains the OPTIONAL member `on_error` and `configuration`
+  gains `failure.on_error`, the document default bindings inherit.
+  1.0 stays accepted and loads unchanged; `on_error` under a 1.0
+  version string is refused as `declaration_error:unknown_field`. The
+  resolved form fills `on_error` on every binding and
+  `failure.on_error` for every document, 1.0 included. The migration
+  step is written in `spec/DECLARATION-VERSIONS.md`, with the next
+  tag `v0.1.0-beta.4` accepting {1.0, 1.1} and current 1.1. Sealing
+  covers the failure posture.
+- Interception record (§10.3, `spec/schema/interception-record.schema.json`):
+  the per-verdict summary gains `substituted_for`, present iff the
+  slot is the substituted allow, carrying the `host_error:*` reason
+  the deny would have had; `verdicts` is required on any record where
+  a substitution happened. `decided_by` follows the pure-allow rule
+  for a substituted allow.
+- New closed file `spec/reserved-warnings.json` (§11.1), first entry
+  `host_warning:control_failed`. Interceptors MUST NOT emit
+  `host_warning:*` warning reasons; the §5 gate and
+  `spec/schema/verdict.schema.json` reject them as
+  `host_error:verdict_invalid`.
+- .NET SDK: additive public API for the posture: `OnError`,
+  `BindOptions.OnError`, `BindingContext.OnError` with the previous
+  constructors and `Deconstruct` kept as forwarding overloads,
+  `ControlFailureNotice` and the emitter's control-failure notifier,
+  and the managed-interceptor outcome type. `Declaration.Version` is
+  now `agent-hooks-declaration/1.1`; it is a compile-time constant, so
+  an assembly built against 0.1.0-beta.3 keeps `1.0` inlined and still
+  loads. `PublicApi.approved.txt` records the additions.
+- Conformance: vectors AH-CTK-144 to AH-CTK-159 pin timeout, raise
+  and invalid verdict under `continue` (allow, warning,
+  `substituted_for`, principal message) and under explicit `deny`,
+  cancellation and approval-resolver failure under `continue` (still
+  deny), the document default inherited and overridden per binding,
+  a `run_all` emission where another binding's deny still wins, a
+  1.0 document loading unchanged, and the refusals for a higher
+  minor, a bad `on_error` value and `on_error` under 1.0. The CTK
+  registry gains the kind `ctk.managed`, the scripted interceptor
+  registered through the managed-interceptor path; `ctk.scripted`
+  stays a standard registration under the emitter's timer. The vector
+  grammar gains the faults `hang` and `cancel`,
+  `expect.host_messages_must_contain`, and `RunRecord.host_messages`;
+  a vector document validates against the schema of the version it
+  writes. Claims gain the `on_error: continue` disclosure. Additive.
+
 ## 0.1.0-beta.3 — 2026-10-22 — tag `v0.1.0-beta.3`
 
 - Repository Windows MSVC builds enable Control Flow Guard (CFG).
