@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // SpecVersion is the spec version this module implements (§4.1 `spec` field).
@@ -97,6 +98,90 @@ const (
 	// interceptors fails closed rather than silently allowing everything.
 	ErrNoInterceptor HostError = "host_error:no_interceptor"
 )
+
+// IsControlFailure reports whether e is one of the three interceptor
+// failures that on_error covers (§6.3): the interceptor raised or
+// panicked, exceeded its timeout, or returned a value that fails §5
+// validation. Every other reason stays fail closed with no knob.
+func (e HostError) IsControlFailure() bool {
+	switch e {
+	case ErrInterceptorFailed, ErrInterceptorTimeout, ErrVerdictInvalid:
+		return true
+	}
+	return false
+}
+
+// HostWarningControlFailed is the reserved host_warning:* reason of the
+// allow the host substitutes for a failing registration whose on_error
+// is continue (§6.3.1, spec/reserved-warnings.json). Interceptors MUST
+// NOT emit host_warning:* reasons; the §5 gate refuses such a verdict
+// as host_error:verdict_invalid.
+const HostWarningControlFailed = "host_warning:control_failed"
+
+// OnError is what a registration does when its interceptor fails
+// (§6.3.1). OnErrorDeny is the default and the fail-closed posture.
+// OnErrorContinue substitutes an allow carrying
+// host_warning:control_failed in the failing registration's
+// composition slot, records the underlying reason as
+// verdicts[].substituted_for and tells the principal through the
+// control failure notifier. It covers the three failures
+// HostError.IsControlFailure names and nothing else: cancellation,
+// context failures, transform failures, approval failures,
+// no_interceptor and an explicit deny never continue.
+type OnError string
+
+const (
+	OnErrorDeny     OnError = "deny"
+	OnErrorContinue OnError = "continue"
+)
+
+// Validate checks the value against the closed set; the empty string
+// is accepted as the default (deny).
+func (o OnError) Validate() error {
+	switch o {
+	case "", OnErrorDeny, OnErrorContinue:
+		return nil
+	}
+	return fmt.Errorf("unknown on_error value %q: \"deny\" or \"continue\" (see spec 6.3.1)", string(o))
+}
+
+// orDefault resolves the empty string to deny.
+func (o OnError) orDefault() OnError {
+	if o == "" {
+		return OnErrorDeny
+	}
+	return o
+}
+
+// ControlFailureNotice is what the host tells the principal when a
+// control failed and the action continued (§6.3.1). Payload-free: the
+// registration label, the reserved reason and the host-synthesized
+// message; never context or target content.
+type ControlFailureNotice struct {
+	// InterceptionPoint is the point of the emission; empty when the
+	// context carried no parseable point.
+	InterceptionPoint InterceptionPoint `json:"interception_point,omitempty"`
+	// Index is the dispatch index of the failing registration
+	// (verdicts[].index).
+	Index int `json:"index"`
+	// Binding is the registration name (a declaration binding id) or
+	// interceptor-<index> for an unnamed code registration.
+	Binding string `json:"binding"`
+	// Reason is the underlying host_error:* reason, also recorded as
+	// verdicts[].substituted_for.
+	Reason HostError `json:"reason"`
+	// Message is the warning message: "<binding>: <reason>; host
+	// continued".
+	Message string `json:"message"`
+}
+
+// ControlFailureNotifier is the host callback that tells the principal
+// a control failed and the action continued (§6.3.1). In an
+// interactive session the principal is the user; otherwise it is the
+// agent, through the channel the host uses for host messages. The
+// emitter runs it before the substitution takes effect; if it panics
+// the host_error deny stands.
+type ControlFailureNotifier func(ControlFailureNotice)
 
 // TransformBody is a single $target-rooted replacement (§5.2).
 type TransformBody struct {
@@ -256,6 +341,14 @@ func (v Verdict) Validate() error {
 	if strings.HasPrefix(v.Reason, "host_error:") {
 		return errVerdictInvalid("verdict.reason MUST NOT start with 'host_error:'")
 	}
+	for _, w := range v.Warnings {
+		// §6.3.1: host_warning:* is reserved for the host, like
+		// host_error:*; an interceptor that emits either spoofs a host
+		// substitution.
+		if strings.HasPrefix(w.Reason, "host_error:") || strings.HasPrefix(w.Reason, "host_warning:") {
+			return errVerdictInvalid("warnings[].reason MUST NOT start with 'host_error:' or 'host_warning:'")
+		}
+	}
 	if v.Approval != nil && v.Decision != Deny {
 		return errVerdictInvalid("approval block permitted only on deny (§5.1)")
 	}
@@ -400,6 +493,11 @@ type VerdictSummary struct {
 	// Name is the host-chosen payload-free registration identifier for
 	// the interceptor at Index (§10.3).
 	Name string `json:"name,omitempty"`
+	// SubstitutedFor is the host_error:* reason the registration at
+	// Index failed with when its on_error was continue and the host
+	// substituted an allow in its slot (§6.3.1, §10.3); empty
+	// otherwise.
+	SubstitutedFor string `json:"substituted_for,omitempty"`
 }
 
 // ---- interception record (§10.3) --------------------------------------------
@@ -479,6 +577,76 @@ func (r InterceptionRecord) Proceeds() bool {
 // Interceptor is the interceptor protocol (§7).
 type Interceptor interface {
 	Intercept(ctx context.Context, hctx AgentContext) (Verdict, error)
+}
+
+// ManagedOutcomeKind names the typed outcomes of a ManagedInterceptor
+// (§6.3.1 item 8). The wire names are those the Rust core's
+// ah_managed_outcome accepts.
+type ManagedOutcomeKind string
+
+const (
+	// ManagedOutcomeVerdict: the interceptor returned a verdict, which
+	// crosses the §5 gate like any other.
+	ManagedOutcomeVerdict ManagedOutcomeKind = "verdict"
+	// ManagedOutcomeTimeout: the work exceeded the bound the
+	// interceptor was handed; it cancelled and cleaned the work up
+	// before reporting. Maps to host_error:interceptor_timeout and
+	// follows the registration's on_error.
+	ManagedOutcomeTimeout ManagedOutcomeKind = "timeout"
+	// ManagedOutcomeCancelled: the work was cancelled for a reason
+	// other than the bound (the host is shutting down, the caller
+	// gave up). Never a timeout: maps to host_error:interceptor_failed
+	// and never continues, whatever on_error says.
+	ManagedOutcomeCancelled ManagedOutcomeKind = "cancelled"
+	// ManagedOutcomeFailed: the work failed. Maps to
+	// host_error:interceptor_failed and follows on_error. Detail is a
+	// payload-free type name, never the failure text.
+	ManagedOutcomeFailed ManagedOutcomeKind = "failed"
+)
+
+// ManagedOutcome is the typed result of a ManagedInterceptor call.
+// Build one with ManagedVerdict, ManagedTimeout, ManagedCancelled or
+// ManagedFailed; the zero value is malformed and fails closed as
+// host_error:interceptor_failed.
+type ManagedOutcome struct {
+	Kind ManagedOutcomeKind `json:"outcome"`
+	// Verdict is set for ManagedOutcomeVerdict.
+	Verdict *Verdict `json:"verdict,omitempty"`
+	// Detail is the optional payload-free type name for
+	// ManagedOutcomeFailed.
+	Detail string `json:"detail,omitempty"`
+}
+
+// ManagedVerdict wraps a verdict as a managed outcome.
+func ManagedVerdict(v Verdict) ManagedOutcome {
+	return ManagedOutcome{Kind: ManagedOutcomeVerdict, Verdict: &v}
+}
+
+// ManagedTimeout is the typed timeout outcome: report it only after the
+// work has been cancelled and cleaned up.
+func ManagedTimeout() ManagedOutcome { return ManagedOutcome{Kind: ManagedOutcomeTimeout} }
+
+// ManagedCancelled is the typed cancelled outcome; it never continues.
+func ManagedCancelled() ManagedOutcome { return ManagedOutcome{Kind: ManagedOutcomeCancelled} }
+
+// ManagedFailed is the typed failure outcome; detail is a payload-free
+// type name (fmt.Sprintf("%T", err)) or empty.
+func ManagedFailed(detail string) ManagedOutcome {
+	return ManagedOutcome{Kind: ManagedOutcomeFailed, Detail: detail}
+}
+
+// ManagedInterceptor is an interceptor that owns its own deadline
+// (§6.3.1 item 8): one that runs external work (a process, an HTTP
+// call) and must cancel and clean that work up itself. The emitter
+// hands it the registration's resolved bound (the binding's timeout_ms
+// from a declaration, the emitter-wide Timeout for a code
+// registration, 0 for unbounded) and does not run a second timer
+// around it. The interceptor MUST return within the bound; a hang here
+// is not recovered. A panic is recovered as ManagedOutcomeFailed. The
+// context is cancelled when the emission's caller gives up; that is a
+// cancellation, not a timeout.
+type ManagedInterceptor interface {
+	InterceptManaged(ctx context.Context, hctx AgentContext, bound time.Duration) ManagedOutcome
 }
 
 // ApprovalOutcome is the resolver's outcome (§9).

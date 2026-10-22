@@ -44,13 +44,34 @@ fail closed (§6.3). **Value-domain note (spec §4.4):** decode JSON
 carrying 64-bit integers with `json.Number` — default `any`
 decoding rounds beyond 2^53 exactly like JavaScript.
 
+### Failure handling
+
+Every registration fails closed by default: a raise or panic, a
+timeout or an invalid verdict becomes a `host_error:*` deny in that
+interceptor's slot (§6.3), and cancellation, approval, context and
+transform failures, `no_interceptor` and an explicit deny always do.
+A host may mark one registration best effort with
+`RegisterWithOptions(i, RegistrationOptions{Name: "defender", OnError: agenthooks.OnErrorContinue})`,
+or with `on_error: "continue"` on a binding or as the
+`configuration.failure.on_error` default of a 1.1 declaration; the
+emitter then substitutes an allow carrying `host_warning:control_failed`
+in that slot, records the reason as `verdicts[].substituted_for`, and
+tells the principal through the `SetControlFailureNotifier` callback
+(the registry's `ControlFailureNotifier` on the declaration path),
+without which such a registration or document is refused (§6.3.1).
+An interceptor that owns external work implements `ManagedInterceptor`:
+it receives the resolved bound and reports a typed `ManagedTimeout()`,
+`ManagedCancelled()` or `ManagedFailed(..)` outcome instead of being cut
+off by the emitter's timer.
+
 ## Host declaration
 
 A host can load its configuration, declared surface and interceptor
 bindings from a host declaration document (spec section 7.7) instead of
 calling the setters. The document is a versioned contract of its own,
-`agent-hooks-declaration/1.0`, separate from the wire version. The
-module exports `agenthooks.DeclarationVersion` and
+`agent-hooks-declaration/1.1` (1.0 documents still load unchanged),
+separate from the wire version. The module exports
+`agenthooks.DeclarationVersion` and
 `agenthooks.SupportedDeclarationVersions`; `DeclarationVersions()`
 reads the same values from the Rust core.
 
@@ -103,7 +124,7 @@ An emitter built from a declaration is sealed: the setters return
 error), and `Timeout` is read-only. `Declaration()` returns the
 resolved form; its `CanonicalJSON()` is the same string for the path,
 JSON and code paths. Every record such an emitter writes carries
-`declaration: "agent-hooks-declaration/1.0"`; records from an emitter
+`declaration` with the document's own version; records from an emitter
 configured in code carry no such member. Bindings run per point:
 `RegisterAt` offers the same per-point binding in code, and
 `interceptors_registered`, `verdicts[].index` and `decided_by` count

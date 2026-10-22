@@ -19,6 +19,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/responsibleai/agent-hooks/sdk/go/agenthooks"
 )
@@ -60,22 +61,120 @@ func LoadVectors(dir string) ([]map[string]any, error) {
 	return out, nil
 }
 
-// scriptedInterceptor wraps agenthooks.CtkScriptedIntercept; when rec
-// is set it also records every context it is handed.
+// hangGrace is how long a `hang` fault waits past the bound before
+// returning allow, so a host that does not bound execution fails the
+// vector on tool_not_invoked instead of hanging the run.
+const hangGrace = 10 * time.Second
+
+// scriptedInterceptor wraps agenthooks.CtkScriptedEvaluate; when rec
+// is set it also records every context it is handed. It implements
+// both the standard Interceptor (the ctk.instance kind of a
+// field-based vector and the ctk.scripted kind of a declaration
+// vector, which the emitter wraps in its own timer) and
+// ManagedInterceptor (the ctk.managed kind of a declaration vector,
+// which owns its deadline), so `hang` under ctk.scripted pins the
+// emitter-owned timeout while `hang` and `cancel` under ctk.managed
+// reach the typed outcomes of §6.3.1.
 type scriptedInterceptor struct {
 	rulesJSON string
 	rec       *recorder
 }
 
-func (s *scriptedInterceptor) Intercept(_ context.Context, actx agenthooks.AgentContext) (agenthooks.Verdict, error) {
+func (s *scriptedInterceptor) evaluate(actx agenthooks.AgentContext) (agenthooks.Verdict, agenthooks.CtkScriptedFault, error) {
 	if s.rec != nil {
 		cp, err := agenthooks.DeepCopyContext(actx)
 		if err != nil {
-			return agenthooks.Verdict{}, err
+			return agenthooks.Verdict{}, "", err
 		}
 		s.rec.recorded = append(s.rec.recorded, cp)
 	}
-	return agenthooks.CtkScriptedIntercept(s.rulesJSON, actx)
+	return agenthooks.CtkScriptedEvaluate(s.rulesJSON, actx)
+}
+
+// Intercept is the standard path: the emitter's timer bounds a hang
+// and cancels ctx. The wrapper waits for that cancellation and, if the
+// host has not bounded it once hangGrace has passed, returns allow so
+// an unbounded host fails the vector on tool_not_invoked instead of
+// hanging the run. A cancel fault is defined only for ctk.managed; it
+// has no typed outcome here and fails closed as a raise.
+func (s *scriptedInterceptor) Intercept(ctx context.Context, actx agenthooks.AgentContext) (agenthooks.Verdict, error) {
+	v, fault, err := s.evaluate(actx)
+	if err != nil {
+		return agenthooks.Verdict{}, err
+	}
+	switch fault {
+	case agenthooks.CtkFaultHang:
+		select {
+		case <-ctx.Done():
+			return agenthooks.Verdict{}, ctx.Err()
+		case <-time.After(hangGrace):
+			return agenthooks.AllowVerdict, nil
+		}
+	case agenthooks.CtkFaultCancel:
+		return agenthooks.Verdict{}, errors.New("ctk scripted fault: cancel")
+	case "":
+		return v, nil
+	}
+	return actOut(fault, actx)
+}
+
+// InterceptManaged is the managed path (§6.3.1 item 8): the scripted
+// interceptor owns the bound it was handed. `hang` runs work (a sleep
+// standing in for a process or a request), cancels it at the deadline
+// and only then reports the typed timeout; `cancel` reports the typed
+// cancelled outcome; `raise` reports the typed failure.
+func (s *scriptedInterceptor) InterceptManaged(ctx context.Context, actx agenthooks.AgentContext, bound time.Duration) agenthooks.ManagedOutcome {
+	v, fault, err := s.evaluate(actx)
+	if err != nil {
+		return agenthooks.ManagedFailed(fmt.Sprintf("%T", err))
+	}
+	switch fault {
+	case "":
+		return agenthooks.ManagedVerdict(v)
+	case agenthooks.CtkFaultHang:
+		work := time.NewTimer(hangGrace)
+		defer work.Stop()
+		if bound <= 0 {
+			<-work.C
+			return agenthooks.ManagedVerdict(agenthooks.AllowVerdict)
+		}
+		deadline := time.NewTimer(bound)
+		defer deadline.Stop()
+		select {
+		case <-work.C:
+			return agenthooks.ManagedVerdict(agenthooks.AllowVerdict)
+		case <-deadline.C:
+			// The work is stopped (cleaned up) before the outcome is
+			// reported.
+			work.Stop()
+			return agenthooks.ManagedTimeout()
+		case <-ctx.Done():
+			return agenthooks.ManagedCancelled()
+		}
+	case agenthooks.CtkFaultCancel:
+		return agenthooks.ManagedCancelled()
+	}
+	v, err = actOut(fault, actx)
+	if err != nil {
+		return agenthooks.ManagedFailed(fmt.Sprintf("%T", err))
+	}
+	return agenthooks.ManagedVerdict(v)
+}
+
+// actOut performs the faults both paths share: mutate tampers with the
+// received context and returns allow; raise is an error.
+func actOut(fault agenthooks.CtkScriptedFault, actx agenthooks.AgentContext) (agenthooks.Verdict, error) {
+	switch fault {
+	case agenthooks.CtkFaultMutate:
+		actx["target"] = "TAMPERED"
+		if tc, ok := actx["tool_call"].(map[string]any); ok {
+			tc["args"] = map[string]any{"tampered": true}
+		}
+		return agenthooks.Verdict{Decision: agenthooks.Allow, Reason: "ctk:mutated"}, nil
+	case agenthooks.CtkFaultRaise:
+		return agenthooks.Verdict{}, errors.New("ctk scripted fault: raise")
+	}
+	return agenthooks.Verdict{}, fmt.Errorf("ctk scripted fault: unknown fault %q", fault)
 }
 
 // scriptedResolver wraps agenthooks.CtkScriptedResolve.
@@ -113,6 +212,10 @@ func runRecordToWire(rr RunRecord, postures map[string]string) string {
 	if records == nil {
 		records = []agenthooks.InterceptionRecord{}
 	}
+	messages := rr.HostMessages
+	if messages == nil {
+		messages = []string{}
+	}
 	wire := map[string]any{
 		"outcome":          string(rr.Outcome),
 		"final_output":     rr.FinalOutput,
@@ -120,6 +223,8 @@ func runRecordToWire(rr RunRecord, postures map[string]string) string {
 		"error":            rr.Err,
 		"identities":       ids,
 		"records":          records,
+		// §6.3.1: what the host told the principal during the run.
+		"host_messages": messages,
 		// Harness *declarations* (§13.1), not observed behavior: the
 		// engine selects expect.run_outcome_by_posture entries by them.
 		"postures": postures,
@@ -146,14 +251,17 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 	// §7.7.9: a harness with its own declaration is assessed against
 	// the resolved document, so what ran is what a claim cites.
 	surface := codeSurface(h, posture)
+	// §6.3.1: the harness document's default failure posture, what a
+	// claim states; a vector's own document may set its own.
+	onError := string(agenthooks.OnErrorDeny)
 	var caps []string
 	if d, ok := h.(DeclarationDeclarer); ok && d.Declaration() != nil {
-		resolvedCaps, resolvedPosture, err := cachedResolvedSurface(d.Declaration(), surface)
+		resolved, err := cachedResolvedSurface(d.Declaration(), surface)
 		if err != nil {
 			return VectorResult{ID: id, Title: title, Status: "fail",
 				Failures: []string{fmt.Sprintf("harness declaration refused: %v", err)}}, nil
 		}
-		caps, posture = resolvedCaps, resolvedPosture
+		caps, posture, onError = resolved.caps, resolved.posture, resolved.onError
 	} else {
 		for c := range h.Capabilities() {
 			caps = append(caps, string(c))
@@ -176,7 +284,7 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 	// interceptor saw it. An empty interceptor_scripts registers zero
 	// interceptors (§7 fail-closed vector).
 	sc := scriptsOf(vector)
-	postures := map[string]string{"tool_seam_host_error": posture}
+	postures := map[string]string{"tool_seam_host_error": posture, "on_error": onError}
 
 	// §7.7.9: a declaration vector builds the emitter through the
 	// loader. The runner proves the construction paths itself, then

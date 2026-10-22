@@ -166,6 +166,30 @@ func nativeComposeAggregate(compositionJSON, verdictsJSON string) (string, error
 	return unwrap(C.ah_compose_aggregate(cc, cv))
 }
 
+// ---- failure posture (§6.3.1) ----------------------------------------------
+
+// nativeControlFailureSubstitute builds the allow the host substitutes
+// for a failing on_error: continue registration, the substituted_for
+// value for its summary entry and the notice for the principal, in the
+// core so every SDK writes the same bytes. requestJSON is {binding,
+// reason, index?, interception_point?}; a reason outside the three
+// covered failures is refused with host_error:context_invalid.
+func nativeControlFailureSubstitute(requestJSON string) (string, error) {
+	c, free := cstr(requestJSON)
+	defer free()
+	return unwrap(C.ah_control_failure_substitute(c))
+}
+
+// nativeManagedOutcome maps the typed outcome of a managed interceptor
+// ({"outcome": "timeout"} | {"outcome": "cancelled"} | {"outcome":
+// "failed", "detail"?} | {"outcome": "verdict", "verdict"}) to
+// {verdict, failure: null | {reason, detail, continuable}}.
+func nativeManagedOutcome(outcomeJSON string) (string, error) {
+	c, free := cstr(outcomeJSON)
+	defer free()
+	return unwrap(C.ah_managed_outcome(c))
+}
+
 // ---- host declaration (§7.7) -----------------------------------------------
 
 // nativeDeclarationVersions returns {"current": "...", "supported":

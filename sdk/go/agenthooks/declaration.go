@@ -38,13 +38,19 @@ import (
 
 // DeclarationVersion is the host declaration contract version this
 // module writes and accepts (section 7.7.2). Independent of
-// SpecVersion and of the module version.
-const DeclarationVersion = "agent-hooks-declaration/1.0"
+// SpecVersion and of the module version. 1.1 adds the optional
+// on_error members (section 6.3.1, section 7.7.5); a document without
+// them keeps its 1.0 meaning.
+const DeclarationVersion = "agent-hooks-declaration/1.1"
+
+// DeclarationVersion10 is the previous minor, still accepted.
+const DeclarationVersion10 = "agent-hooks-declaration/1.0"
 
 // SupportedDeclarationVersions lists every contract version the loader
-// accepts (section 7.7.2). A document carrying any other `declaration`
-// value is refused with declaration_error:version_unsupported.
-var SupportedDeclarationVersions = []string{DeclarationVersion}
+// accepts (section 7.7.2), oldest first. A document carrying any other
+// `declaration` value is refused with
+// declaration_error:version_unsupported.
+var SupportedDeclarationVersions = []string{DeclarationVersion10, DeclarationVersion}
 
 // MaxDeclarationBytes is the largest document the text paths accept.
 const MaxDeclarationBytes = 1 << 20
@@ -437,6 +443,9 @@ type BindingContext struct {
 	At []InterceptionPoint
 	// Timeout is the resolved per-binding bound; 0 is unbounded.
 	Timeout time.Duration
+	// OnError is the resolved failure posture of the binding (section
+	// 6.3.1): its own on_error, else the document default.
+	OnError OnError
 	// Host is the document's informative host block, or nil.
 	Host *HostInfo
 	// DeclarationVersion is the contract version the document carries.
@@ -448,6 +457,12 @@ type BindingContext struct {
 // echo the config (section 7.7.5). A nil interceptor is a refusal.
 type KindResolver func(config json.RawMessage, ctx BindingContext) (Interceptor, error)
 
+// ManagedKindResolver is a KindResolver for a kind whose interceptors
+// own their own deadline (section 6.3.1 item 8): it returns a
+// ManagedInterceptor, which the emitter hands the binding's resolved
+// bound instead of running a timer around it. The same rules apply.
+type ManagedKindResolver func(config json.RawMessage, ctx BindingContext) (ManagedInterceptor, error)
+
 // HostRegistry is everything a host registers in code for a
 // declaration to reference (section 7.7.5): the code surface, kind
 // resolvers, custom identity providers, approval resolvers and
@@ -456,9 +471,13 @@ type HostRegistry struct {
 	surface           HostSurface
 	allowReserved     bool
 	kinds             map[string]KindResolver
+	managedKinds      map[string]ManagedKindResolver
 	identityProviders map[string]func(AgentContext) (string, error)
 	approvalResolvers map[string]ApprovalResolver
 	approvalRedactors map[string]func(AgentContext) AgentContext
+	// notifier is the principal channel every emitter built from this
+	// registry uses for a control failure (section 6.3.1).
+	notifier ControlFailureNotifier
 }
 
 // NewHostRegistry returns a registry over the given code surface. Kinds
@@ -467,6 +486,7 @@ func NewHostRegistry(surface HostSurface) *HostRegistry {
 	return &HostRegistry{
 		surface:           surface,
 		kinds:             map[string]KindResolver{},
+		managedKinds:      map[string]ManagedKindResolver{},
 		identityProviders: map[string]func(AgentContext) (string, error){},
 		approvalResolvers: map[string]ApprovalResolver{},
 		approvalRedactors: map[string]func(AgentContext) AgentContext{},
@@ -515,6 +535,26 @@ func validKind(s string) bool {
 
 // Kind registers a kind resolver.
 func (r *HostRegistry) Kind(kind string, f KindResolver) error {
+	if err := r.checkKind(kind, f == nil); err != nil {
+		return err
+	}
+	r.kinds[kind] = f
+	return nil
+}
+
+// ManagedKind registers a kind whose interceptors own their own
+// deadline (section 6.3.1 item 8). The kind grammar, the reserved
+// segments and the one-registration rule are those of Kind; one kind
+// name is either managed or standard, never both.
+func (r *HostRegistry) ManagedKind(kind string, f ManagedKindResolver) error {
+	if err := r.checkKind(kind, f == nil); err != nil {
+		return err
+	}
+	r.managedKinds[kind] = f
+	return nil
+}
+
+func (r *HostRegistry) checkKind(kind string, nilResolver bool) error {
 	if !validKind(kind) {
 		return &HostRegistryError{Detail: fmt.Sprintf("kind %q does not match the kind grammar (see spec 7.7.5)", kind)}
 	}
@@ -522,13 +562,30 @@ func (r *HostRegistry) Kind(kind string, f KindResolver) error {
 	if containsString(reservedKindSegments, head) && !(r.allowReserved && head == "ctk") {
 		return &HostRegistryError{Detail: fmt.Sprintf("kind %q uses the reserved segment %q (see spec 7.7.5)", kind, head)}
 	}
-	if _, dup := r.kinds[kind]; dup {
+	_, dup := r.kinds[kind]
+	_, dupManaged := r.managedKinds[kind]
+	if dup || dupManaged {
 		return &HostRegistryError{Detail: fmt.Sprintf("kind %q registered twice", kind)}
 	}
-	if f == nil {
+	if nilResolver {
 		return &HostRegistryError{Detail: fmt.Sprintf("kind %q has no resolver", kind)}
 	}
-	r.kinds[kind] = f
+	return nil
+}
+
+// ControlFailureNotifier registers the principal channel of section
+// 6.3.1 for every emitter built from this registry: the callback that
+// tells the user, or the agent through the host's own message channel,
+// that a control failed and the action continued, with the reason. A
+// document in which any binding resolves to on_error: continue is
+// refused at construction (declaration_error:binding_rejected) when
+// the registry has none, so silent continuation cannot be reached by
+// leaving this out. A nil callback is refused.
+func (r *HostRegistry) ControlFailureNotifier(f ControlFailureNotifier) error {
+	if f == nil {
+		return &HostRegistryError{Detail: "control failure notifier is nil"}
+	}
+	r.notifier = f
 	return nil
 }
 
@@ -591,11 +648,13 @@ func checkReference(name, what string) error {
 
 // Names returns the registered names, derived (section 7.7.5).
 func (r *HostRegistry) Names() RegistryNames {
+	kinds := append(sortedKeys(r.kinds), sortedKeys(r.managedKinds)...)
+	sort.Strings(kinds)
 	return RegistryNames{
 		IdentityProviders: sortedKeys(r.identityProviders),
 		ApprovalResolvers: sortedKeys(r.approvalResolvers),
 		ApprovalRedactors: sortedKeys(r.approvalRedactors),
-		Kinds:             sortedKeys(r.kinds),
+		Kinds:             kinds,
 	}
 }
 
@@ -822,8 +881,17 @@ type ResolvedConfiguration struct {
 	IdentityProvider *string          `json:"identity_provider"`
 	Approval         ResolvedApproval `json:"approval"`
 	Posture          ResolvedPosture  `json:"posture"`
-	Timeouts         ResolvedTimeouts `json:"timeouts"`
-	Records          ResolvedRecords  `json:"records"`
+	// Failure is the document default failure posture (section
+	// 6.3.1); filled for every document, 1.0 included (deny).
+	Failure  ResolvedFailure  `json:"failure"`
+	Timeouts ResolvedTimeouts `json:"timeouts"`
+	Records  ResolvedRecords  `json:"records"`
+}
+
+// ResolvedFailure is the configured section 6.3.1 failure posture
+// bindings inherit.
+type ResolvedFailure struct {
+	OnError OnError `json:"on_error"`
 }
 
 // ResolvedApproval names the registered resolver and redactor; nil is none.
@@ -867,6 +935,9 @@ type ResolvedBinding struct {
 	At     []InterceptionPoint `json:"at"`
 	// TimeoutMs is nil for timeout_ms: null (unbounded).
 	TimeoutMs *uint64 `json:"timeout_ms"`
+	// OnError is the binding's failure posture (section 6.3.1): its
+	// own on_error, else configuration.failure.on_error.
+	OnError OnError `json:"on_error"`
 }
 
 // CanonicalJSON returns the RFC 8785 canonical JSON of the resolved
@@ -1012,6 +1083,13 @@ func (b *DeclarationBuilder) ToolSeamHostError(posture ToolSeamPosture) *Declara
 	return b
 }
 
+// FailureOnError sets configuration.failure.on_error, the failure
+// posture bindings inherit (section 6.3.1).
+func (b *DeclarationBuilder) FailureOnError(on OnError) *DeclarationBuilder {
+	b.configurationSub("failure")["on_error"] = string(on)
+	return b
+}
+
 // InterceptorTimeoutMs sets configuration.timeouts.interceptor_ms; 0
 // writes null (unbounded).
 func (b *DeclarationBuilder) InterceptorTimeoutMs(ms uint64) *DeclarationBuilder {
@@ -1091,6 +1169,13 @@ func BindAt(points ...InterceptionPoint) BindOption {
 func BindTimeoutMs(ms uint64) BindOption {
 	return func(binding map[string]any) {
 		binding["timeout_ms"] = nullableUint(ms)
+	}
+}
+
+// BindOnError sets the binding's `on_error` (section 6.3.1).
+func BindOnError(on OnError) BindOption {
+	return func(binding map[string]any) {
+		binding["on_error"] = string(on)
 	}
 }
 
@@ -1259,9 +1344,23 @@ func emitterFromResolved(resolved *ResolvedDeclaration, reg *HostRegistry) (*Int
 	for i, b := range resolved.Bindings {
 		pointer := fmt.Sprintf("/bindings/%d", i)
 		resolve, ok := reg.kinds[b.Kind]
-		if !ok {
+		resolveManaged, okManaged := reg.managedKinds[b.Kind]
+		if !ok && !okManaged {
 			return nil, newDeclarationError(DeclarationKindUnknown, pointer+"/kind",
 				fmt.Sprintf("kind %q vanished from the registry", b.Kind))
+		}
+		onError := b.OnError.orDefault()
+		if onError == OnErrorContinue && reg.notifier == nil {
+			// Section 6.3.1: a continuation the principal never hears
+			// about is not conformant, so a document that asks for one
+			// needs the host's channel before any emitter exists. The
+			// pointer names the member the posture came from.
+			at := pointer + "/on_error"
+			if b.OnError == cfg.Failure.OnError {
+				at = "/configuration/failure/on_error"
+			}
+			return nil, newDeclarationError(DeclarationBindingRejected, at,
+				fmt.Sprintf("binding %q resolves to on_error: continue but the host registry has no control failure notifier (see spec 6.3.1)", b.ID))
 		}
 		var timeout time.Duration
 		if b.TimeoutMs != nil {
@@ -1279,6 +1378,7 @@ func emitterFromResolved(resolved *ResolvedDeclaration, reg *HostRegistry) (*Int
 			Kind:               b.Kind,
 			At:                 append([]InterceptionPoint(nil), b.At...),
 			Timeout:            timeout,
+			OnError:            onError,
 			Host:               host,
 			DeclarationVersion: resolved.Declaration,
 		}
@@ -1289,18 +1389,24 @@ func emitterFromResolved(resolved *ResolvedDeclaration, reg *HostRegistry) (*Int
 		// Section 7.7.5: a resolver error, panic or non-interceptor
 		// return refuses the document; the message is bounded and the
 		// loader never echoes the config.
-		interceptor, rerr := runKindResolver(resolve, config, bctx)
+		bd := &bound{
+			name:    b.ID,
+			at:      append([]InterceptionPoint(nil), b.At...),
+			inherit: false,
+			timeout: timeout,
+			onError: onError,
+		}
+		var rerr error
+		if ok {
+			bd.interceptor, rerr = runKindResolver(resolve, config, bctx)
+		} else {
+			bd.managed, rerr = runKindResolver(resolveManaged, config, bctx)
+		}
 		if rerr != nil {
 			return nil, newDeclarationError(DeclarationBindingRejected, pointer,
 				fmt.Sprintf("binding %q (kind %q) rejected: %s", b.ID, b.Kind, rerr.Error()))
 		}
-		bounds = append(bounds, &bound{
-			interceptor: interceptor,
-			name:        b.ID,
-			at:          append([]InterceptionPoint(nil), b.At...),
-			inherit:     false,
-			timeout:     timeout,
-		})
+		bounds = append(bounds, bd)
 	}
 
 	em := &InterceptionEmitter{
@@ -1310,6 +1416,7 @@ func emitterFromResolved(resolved *ResolvedDeclaration, reg *HostRegistry) (*Int
 		composition:      cfg.Composition,
 		identity:         identity,
 		approvalRedactor: redactor,
+		notifier:         reg.notifier,
 		sealed:           true,
 		declaration:      resolved,
 	}
@@ -1332,22 +1439,23 @@ func emitterFromResolved(resolved *ResolvedDeclaration, reg *HostRegistry) (*Int
 	return em, nil
 }
 
-// runKindResolver runs one resolver with panic recovery. Only the
-// panic value's type is reported, never its message, which may embed
-// the config.
-func runKindResolver(f KindResolver, config json.RawMessage, bctx BindingContext) (out Interceptor, err error) {
+// runKindResolver runs one resolver (standard or managed) with panic
+// recovery. Only the panic value's type is reported, never its
+// message, which may embed the config.
+func runKindResolver[T any](f func(json.RawMessage, BindingContext) (T, error), config json.RawMessage, bctx BindingContext) (out T, err error) {
+	var zero T
 	defer func() {
 		if r := recover(); r != nil {
-			out = nil
+			out = zero
 			err = fmt.Errorf("resolver panicked: %T", r)
 		}
 	}()
 	out, err = f(config, bctx)
 	if err != nil {
-		return nil, err
+		return zero, err
 	}
-	if out == nil {
-		return nil, errors.New("resolver returned no interceptor")
+	if any(out) == nil {
+		return zero, errors.New("resolver returned no interceptor")
 	}
 	return out, nil
 }

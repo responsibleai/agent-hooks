@@ -22,7 +22,13 @@ package agenthooks
 // Fail-closed defaults: an enforce-mode emission with zero registered
 // interceptors yields deny host_error:no_interceptor (§7), and Emit
 // returns InterceptionBlocked on any block — the ignorable-record
-// variant is the explicitly named EmitUnchecked.
+// variant is the explicitly named EmitUnchecked. Every registration
+// fails closed (on_error: deny) unless the host says otherwise per
+// registration (§6.3.1): under on_error: continue a raise, a timeout
+// or an invalid verdict becomes an allow carrying
+// host_warning:control_failed in that slot, the record keeps the
+// reason as verdicts[].substituted_for, and the control failure
+// notifier tells the principal. Nothing else ever continues.
 //
 // An emitter can also be built from a host declaration document
 // (NewInterceptionEmitterFromDeclaration and the path, JSON and value
@@ -118,15 +124,22 @@ type dispatchOutcome struct {
 
 // bound is one registered interceptor with its binding facts (§7.7.5):
 // the payload-free name stamped on verdicts[].name, the points it runs
-// at (nil = every point, the pre-declaration behaviour) and its bound.
+// at (nil = every point, the pre-declaration behaviour), its bound and
+// its failure posture (§6.3.1).
 type bound struct {
+	// interceptor is the standard registration; managed is set
+	// instead for an interceptor that owns its own deadline (§6.3.1
+	// item 8). Exactly one is non-nil.
 	interceptor Interceptor
+	managed     ManagedInterceptor
 	name        string
 	at          []InterceptionPoint
 	// inherit selects the emitter-wide Timeout; otherwise timeout is
 	// the per-binding bound from a declaration (0 = unbounded).
 	inherit bool
 	timeout time.Duration
+	// onError is the registration's failure posture; deny by default.
+	onError OnError
 }
 
 // runsAt reports whether the binding dispatches at point. An
@@ -171,6 +184,11 @@ type InterceptionEmitter struct {
 	// recordSink, when set, is invoked synchronously after every
 	// emission before buffering (§10.3); a sink panic is swallowed.
 	recordSink func(InterceptionRecord)
+	// notifier, when set, tells the principal that a control failed
+	// and the action continued (§6.3.1). Required before any
+	// registration with on_error: continue; a declaration-built
+	// emitter takes it from the registry.
+	notifier ControlFailureNotifier
 	// maxRecords bounds the in-memory record buffer (0 = unbounded):
 	// when full, the oldest record is dropped and recordsDropped
 	// increments.
@@ -361,6 +379,33 @@ func (e *InterceptionEmitter) SetRecordSink(sink func(InterceptionRecord)) *Inte
 	return e
 }
 
+// SetControlFailureNotifier registers the host's principal channel for
+// §6.3.1: the callback that tells the user (interactive session) or
+// the agent (through the host's own message channel) that a control
+// failed and the action continued, with the reason. It MUST be set
+// before any registration with on_error: continue; RegisterWithOptions
+// and RegisterManaged refuse such a registration without it, so
+// silent continuation cannot be configured. The emitter calls it
+// before the substitution takes effect; if it panics the host_error
+// deny stands. Set before the first Emit; not synchronized. Allowed on
+// a sealed emitter: it is a host channel, not declared configuration,
+// like SetRecordSink. A replacement channel may be swapped in at any
+// time. nil clears it, but only while no registration with on_error:
+// continue exists; once one does, the channel is load-bearing and
+// clearing it panics, so a continue registration can never be left
+// without a principal channel by a later call.
+func (e *InterceptionEmitter) SetControlFailureNotifier(f ControlFailureNotifier) *InterceptionEmitter {
+	if f == nil {
+		for _, b := range e.bound {
+			if b.onError == OnErrorContinue {
+				panic(fmt.Sprintf("SetControlFailureNotifier(nil): registration %q has on_error: continue and needs the control failure notifier (see spec 6.3.1)", b.name))
+			}
+		}
+	}
+	e.notifier = f
+	return e
+}
+
 // SetMaxRecords bounds the in-memory record buffer: when full, the
 // OLDEST record is dropped and RecordsDropped increments. Unbounded by
 // default. Set before the first Emit; not synchronized. Panics on a
@@ -400,7 +445,7 @@ func (e *InterceptionEmitter) Register(i Interceptor) *InterceptionEmitter {
 // nothing. Panics on a sealed emitter (§7.7.7).
 func (e *InterceptionEmitter) RegisterNamed(i Interceptor, name string) *InterceptionEmitter {
 	e.unsealed("Register")
-	e.bound = append(e.bound, &bound{interceptor: i, name: name, inherit: true})
+	e.bound = append(e.bound, &bound{interceptor: i, name: name, inherit: true, onError: OnErrorDeny})
 	return e
 }
 
@@ -417,19 +462,94 @@ func (e *InterceptionEmitter) RegisterAt(i Interceptor, name string, at []Interc
 	if e.sealed {
 		return fmt.Errorf("RegisterAt: %w", ErrEmitterSealed)
 	}
+	points, err := checkPoints("RegisterAt", at)
+	if err != nil {
+		return err
+	}
+	e.bound = append(e.bound, &bound{interceptor: i, name: name, at: points, inherit: true, onError: OnErrorDeny})
+	return nil
+}
+
+// checkPoints validates and deduplicates a registration's point set:
+// nil is every point; an empty non-nil slice and an unknown point are
+// refused.
+func checkPoints(what string, at []InterceptionPoint) ([]InterceptionPoint, error) {
 	if at != nil && len(at) == 0 {
-		return errors.New("RegisterAt: at is empty; pass nil for every point or name at least one point")
+		return nil, errors.New(what + ": at is empty; pass nil for every point or name at least one point")
 	}
 	var points []InterceptionPoint
 	for _, p := range at {
 		if !containsPoint(allPoints, p) {
-			return fmt.Errorf("RegisterAt: unknown interception point %q (see spec 3)", p)
+			return nil, fmt.Errorf("%s: unknown interception point %q (see spec 3)", what, p)
 		}
 		if !containsPoint(points, p) {
 			points = append(points, p)
 		}
 	}
-	e.bound = append(e.bound, &bound{interceptor: i, name: name, at: points, inherit: true})
+	return points, nil
+}
+
+// ErrControlFailureNotifierMissing is returned by RegisterWithOptions
+// and RegisterManaged for a registration with on_error: continue on an
+// emitter that has no control failure notifier (§6.3.1).
+var ErrControlFailureNotifierMissing = errors.New("on_error is continue but the emitter has no control failure notifier; call SetControlFailureNotifier first (see spec 6.3.1)")
+
+// RegistrationOptions are the binding facts of one code registration
+// (§7.7.5, §6.3.1). The zero value is an unnamed registration at every
+// point with on_error: deny, what Register does.
+type RegistrationOptions struct {
+	// Name is the payload-free name recorded on verdicts[].name
+	// (§10.3) and used as the binding label in a control failure
+	// notice; empty records nothing and labels the registration
+	// interceptor-<index>.
+	Name string
+	// At restricts the registration to these points; nil is every
+	// point. An empty non-nil slice is refused.
+	At []InterceptionPoint
+	// OnError is the failure posture; empty is deny.
+	OnError OnError
+}
+
+// RegisterWithOptions appends an interceptor with the given options.
+// Returns ErrEmitterSealed on a sealed emitter, an error for a point
+// outside §3 or an on_error value outside the closed set, and
+// ErrControlFailureNotifierMissing for on_error: continue when
+// SetControlFailureNotifier has not been called; nothing is registered
+// on an error.
+func (e *InterceptionEmitter) RegisterWithOptions(i Interceptor, opts RegistrationOptions) error {
+	if i == nil {
+		return errors.New("RegisterWithOptions: nil interceptor")
+	}
+	return e.push("RegisterWithOptions", &bound{interceptor: i}, opts)
+}
+
+// RegisterManaged appends an interceptor that owns its own deadline
+// (§6.3.1 item 8). It receives the registration's resolved bound on
+// every call and reports a typed outcome; the emitter does not wrap it
+// in a second timer. Same refusals as RegisterWithOptions.
+func (e *InterceptionEmitter) RegisterManaged(i ManagedInterceptor, opts RegistrationOptions) error {
+	if i == nil {
+		return errors.New("RegisterManaged: nil interceptor")
+	}
+	return e.push("RegisterManaged", &bound{managed: i}, opts)
+}
+
+func (e *InterceptionEmitter) push(what string, b *bound, opts RegistrationOptions) error {
+	if e.sealed {
+		return fmt.Errorf("%s: %w", what, ErrEmitterSealed)
+	}
+	points, err := checkPoints(what, opts.At)
+	if err != nil {
+		return err
+	}
+	if err := opts.OnError.Validate(); err != nil {
+		return fmt.Errorf("%s: %w", what, err)
+	}
+	if opts.OnError == OnErrorContinue && e.notifier == nil {
+		return fmt.Errorf("%s: %w", what, ErrControlFailureNotifierMissing)
+	}
+	b.name, b.at, b.inherit, b.onError = opts.Name, points, true, opts.OnError.orDefault()
+	e.bound = append(e.bound, b)
 	return nil
 }
 
@@ -728,38 +848,210 @@ func (e *InterceptionEmitter) dispatch(ctx context.Context, actx AgentContext) d
 	}
 }
 
-// invoke runs one interceptor on its own deep copy of actx under the §7
-// timeout and the §5 wire gate, returning either its (core-normalized)
-// verdict or a host-synthesized deny — never an error.
-func (e *InterceptionEmitter) invoke(ctx context.Context, b *bound, actx AgentContext) Verdict {
+// callFailure is one interceptor failure before the registration's
+// on_error is applied (§6.3.1): the host_error reason, the
+// payload-free detail and whether on_error: continue may substitute an
+// allow for it. continuable is false for a cancellation and for every
+// reason outside the three covered failures.
+type callFailure struct {
+	reason      HostError
+	detail      string
+	continuable bool
+}
+
+// covered builds a failure whose continuability follows from its
+// reason (HostError.IsControlFailure).
+func covered(reason HostError, detail string) callFailure {
+	return callFailure{reason: reason, detail: detail, continuable: reason.IsControlFailure()}
+}
+
+// settled is the verdict that takes one registration's composition
+// slot and, when the host substituted it under on_error: continue, the
+// host_error reason it stands in for (§10.3 substituted_for).
+type settled struct {
+	verdict        Verdict
+	substitutedFor string
+}
+
+// invoke runs one interceptor and settles its slot: its (core-
+// normalized) verdict, or the §6.3 outcome of its failure under the
+// registration's on_error. Never an error.
+func (e *InterceptionEmitter) invoke(ctx context.Context, idx int, b *bound, actx AgentContext) settled {
+	v, failure := e.call(ctx, b, actx)
+	if failure == nil {
+		return settled{verdict: v}
+	}
+	return e.settle(actx, idx, b, *failure)
+}
+
+// call runs one interceptor on its own deep copy of actx under the §7
+// bound and the §5 wire gate, returning either its core-normalized
+// verdict or the failure its slot settles under.
+func (e *InterceptionEmitter) call(ctx context.Context, b *bound, actx AgentContext) (Verdict, *callFailure) {
 	// §7/N05: each interceptor gets its own deep copy — an in-place
 	// mutation of the copy cannot alter enforcement.
 	cp, err := DeepCopyContext(actx)
 	if err != nil {
-		return HostErrorVerdict(ErrContextInvalid, err.Error())
+		// A context failure, not an interceptor failure: never continues.
+		return Verdict{}, &callFailure{reason: ErrContextInvalid, detail: err.Error()}
 	}
-	ic := b.interceptor
-	v, err, timedOut := callWithTimeout(ctx, e.limit(b),
-		func(c context.Context) (Verdict, error) { return ic.Intercept(c, cp) })
-	if timedOut {
-		return HostErrorVerdict(ErrInterceptorTimeout, "") // §7
+	var v Verdict
+	if b.managed != nil {
+		var f *callFailure
+		if v, f = e.callManaged(ctx, b, cp); f != nil {
+			return Verdict{}, f
+		}
+	} else {
+		ic := b.interceptor
+		var timedOut bool
+		v, err, timedOut = callWithTimeout(ctx, e.limit(b),
+			func(c context.Context) (Verdict, error) { return ic.Intercept(c, cp) })
+		if timedOut {
+			f := covered(ErrInterceptorTimeout, "") // §7
+			return Verdict{}, &f
+		}
+		if err != nil {
+			f := covered(ErrInterceptorFailed, fmt.Sprintf("%T", err)) // §6.3
+			if ctx.Err() != nil {
+				// The emission's caller cancelled: a cancellation is
+				// never a timeout and never continues (§6.3.1).
+				f.continuable = false
+			}
+			return Verdict{}, &f
+		}
 	}
+	return e.gate(v)
+}
+
+// callManaged runs a managed interceptor with the registration's
+// resolved bound and maps its typed outcome through the core
+// (ah_managed_outcome), so timeout, cancelled and failed mean the same
+// in every SDK. A verdict outcome crosses the §5 gate like any other.
+func (e *InterceptionEmitter) callManaged(ctx context.Context, b *bound, cp AgentContext) (Verdict, *callFailure) {
+	m, bound := b.managed, e.limit(b)
+	out, err := callRecovered(ctx, func(c context.Context) (ManagedOutcome, error) {
+		return m.InterceptManaged(c, cp, bound), nil
+	})
 	if err != nil {
-		return HostErrorVerdict(ErrInterceptorFailed, fmt.Sprintf("%T", err)) // §6.3
+		f := covered(ErrInterceptorFailed, fmt.Sprintf("%T", err))
+		return Verdict{}, &f
 	}
+	if out.Kind == ManagedOutcomeVerdict && out.Verdict != nil {
+		return *out.Verdict, nil
+	}
+	wire, err := json.Marshal(out)
+	if err != nil {
+		f := covered(ErrInterceptorFailed, fmt.Sprintf("%T", err))
+		return Verdict{}, &f
+	}
+	res, err := nativeManagedOutcome(string(wire))
+	if err != nil {
+		// The zero value or an unknown kind: the interceptor's fault.
+		f := covered(ErrInterceptorFailed, "malformed managed outcome")
+		return Verdict{}, &f
+	}
+	var mapped struct {
+		Verdict Verdict `json:"verdict"`
+		Failure *struct {
+			Reason      HostError `json:"reason"`
+			Detail      *string   `json:"detail"`
+			Continuable bool      `json:"continuable"`
+		} `json:"failure"`
+	}
+	if err := json.Unmarshal([]byte(res), &mapped); err != nil || mapped.Failure == nil {
+		f := covered(ErrInterceptorFailed, "malformed managed outcome")
+		return Verdict{}, &f
+	}
+	f := callFailure{reason: mapped.Failure.Reason, continuable: mapped.Failure.Continuable}
+	if mapped.Failure.Detail != nil {
+		f.detail = *mapped.Failure.Detail
+	}
+	return Verdict{}, &f
+}
+
+// gate runs one returned verdict through the core's §5 wire gate and
+// returns the normalized verdict, or the verdict_invalid failure.
+func (e *InterceptionEmitter) gate(v Verdict) (Verdict, *callFailure) {
 	vb, err := json.Marshal(v)
 	if err != nil {
-		return HostErrorVerdict(ErrInterceptorFailed, fmt.Sprintf("%T", err))
+		f := covered(ErrInterceptorFailed, fmt.Sprintf("%T", err))
+		return Verdict{}, &f
 	}
 	normalized, err := nativeValidateVerdict(string(vb)) // §5
 	if err != nil {
-		return coreErrVerdict(err, ErrVerdictInvalid)
+		var ce *CoreError
+		if errors.As(err, &ce) {
+			f := covered(HostError(ce.Code), ce.Detail)
+			return Verdict{}, &f
+		}
+		f := covered(ErrVerdictInvalid, err.Error())
+		return Verdict{}, &f
 	}
 	var nv Verdict
 	if err := json.Unmarshal([]byte(normalized), &nv); err != nil {
-		return HostErrorVerdict(ErrVerdictInvalid, err.Error())
+		f := covered(ErrVerdictInvalid, err.Error())
+		return Verdict{}, &f
 	}
-	return nv
+	return nv, nil
+}
+
+// settle applies the registration's on_error to one failure (§6.3.1).
+// Under deny, or for a failure on_error does not cover, the slot holds
+// the host_error deny. Under continue the core builds the substituted
+// allow (host_warning:control_failed), the substituted_for value and
+// the principal notice; the notifier runs first, and if it is missing
+// or panics the deny stands with a message saying so, since a
+// continuation the principal did not hear about is not conformant.
+func (e *InterceptionEmitter) settle(actx AgentContext, idx int, b *bound, f callFailure) settled {
+	deny := func(detail string) settled {
+		return settled{verdict: HostErrorVerdict(f.reason, detail)}
+	}
+	if b.onError.orDefault() != OnErrorContinue || !f.continuable {
+		return deny(f.detail)
+	}
+	binding := b.name
+	if binding == "" {
+		binding = fmt.Sprintf("interceptor-%d", idx)
+	}
+	req := map[string]any{"binding": binding, "reason": string(f.reason), "index": idx}
+	if p := actx.InterceptionPoint(); containsPoint(allPoints, p) {
+		req["interception_point"] = string(p)
+	}
+	reqJSON, err := json.Marshal(req)
+	if err != nil {
+		return deny(f.detail)
+	}
+	out, err := nativeControlFailureSubstitute(string(reqJSON))
+	if err != nil {
+		return deny("on_error: continue refused by the core; the deny stands: " + err.Error())
+	}
+	var sub struct {
+		Verdict        Verdict              `json:"verdict"`
+		SubstitutedFor string               `json:"substituted_for"`
+		Notice         ControlFailureNotice `json:"notice"`
+	}
+	if err := json.Unmarshal([]byte(out), &sub); err != nil {
+		return deny(f.detail)
+	}
+	notifier := e.notifier
+	if notifier == nil {
+		return deny("on_error: continue without a control failure notifier; the deny stands (see spec 6.3.1)")
+	}
+	if !notify(notifier, sub.Notice) {
+		return deny("control failure notifier panicked; the deny stands (see spec 6.3.1)")
+	}
+	return settled{verdict: sub.Verdict, substitutedFor: sub.SubstitutedFor}
+}
+
+// notify runs the notifier, reporting whether it returned normally.
+func notify(f ControlFailureNotifier, n ControlFailureNotice) (ok bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			ok = false
+		}
+	}()
+	f(n)
+	return true
 }
 
 // dispatchFirstDeny implements sequential/first_deny (§7.4):
@@ -776,14 +1068,17 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 		onApproval = OnApprovalStop
 	}
 	var perInterceptor, pool []Verdict
+	var substituted []string
 	var lastTransformIdx *int
 	var lastTransform Verdict
 	var resolvedBy *string
 	truncated := func(i int) *bool { b := i+1 < n; return &b }
 
 	for i, b := range active {
-		v := e.invoke(ctx, b, actx)
+		st := e.invoke(ctx, i, b, actx)
+		v := st.verdict
 		perInterceptor = append(perInterceptor, v)
+		substituted = append(substituted, st.substitutedFor)
 		pool = append(pool, v)
 		if isHostSynthesized(v) {
 			// §6.3: a malformed verdict fails closed and — in this
@@ -794,7 +1089,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 			return dispatchOutcome{
 				combined:      withUnions(v, pool),
 				decidedBy:     &idx,
-				verdicts:      named(summaries(perInterceptor), active),
+				verdicts:      named(summaries(perInterceptor), active, substituted),
 				foldTruncated: truncated(i),
 				resolvedBy:    resolvedBy,
 			}
@@ -808,7 +1103,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 				return dispatchOutcome{
 					combined:      withUnions(v, pool),
 					decidedBy:     &idx,
-					verdicts:      named(summaries(perInterceptor), active),
+					verdicts:      named(summaries(perInterceptor), active, substituted),
 					foldTruncated: truncated(i),
 					resolvedBy:    resolvedBy,
 				}
@@ -826,7 +1121,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 				return dispatchOutcome{
 					combined:      withUnions(verdict, pool),
 					decidedBy:     decidedBy,
-					verdicts:      named(summaries(perInterceptor), active),
+					verdicts:      named(summaries(perInterceptor), active, substituted),
 					foldTruncated: truncated(i),
 					resolvedBy:    &rej,
 				}
@@ -842,7 +1137,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 			if !sub.Decision.Permits() {
 				return dispatchOutcome{
 					combined:      sub,
-					verdicts:      named(summaries(perInterceptor), active),
+					verdicts:      named(summaries(perInterceptor), active, substituted),
 					foldTruncated: truncated(i),
 					resolvedBy:    resolvedBy,
 				}
@@ -856,7 +1151,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 				return dispatchOutcome{
 					combined:      withUnions(sub, pool),
 					decidedBy:     &idx,
-					verdicts:      named(summaries(perInterceptor), active),
+					verdicts:      named(summaries(perInterceptor), active, substituted),
 					foldTruncated: truncated(i),
 					resolvedBy:    resolvedBy,
 				}
@@ -872,7 +1167,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 				// Transform failed closed (host-synthesized §5.2).
 				return dispatchOutcome{
 					combined:      v,
-					verdicts:      named(summaries(perInterceptor), active),
+					verdicts:      named(summaries(perInterceptor), active, substituted),
 					foldTruncated: truncated(i),
 					resolvedBy:    resolvedBy,
 				}
@@ -891,7 +1186,7 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 	return dispatchOutcome{
 		combined:      withUnions(combined, pool),
 		decidedBy:     decidedBy,
-		verdicts:      named(summaries(perInterceptor), active),
+		verdicts:      named(summaries(perInterceptor), active, substituted),
 		foldTruncated: &f,
 		resolvedBy:    resolvedBy,
 	}
@@ -903,23 +1198,27 @@ func (e *InterceptionEmitter) dispatchFirstDeny(ctx context.Context, actx AgentC
 // (which, by severity, implies every deny in the emission is liftable).
 func (e *InterceptionEmitter) dispatchRunAll(ctx context.Context, actx AgentContext, active []*bound) dispatchOutcome {
 	var all []Verdict
-	for _, b := range active {
+	var substituted []string
+	for i, b := range active {
 		// §6.3 per-interceptor: a malformed verdict becomes that
-		// interceptor's synthesized deny; the rest still run.
-		v := e.invoke(ctx, b, actx)
+		// interceptor's synthesized deny (or, under on_error: continue,
+		// the substituted allow); the rest still run.
+		st := e.invoke(ctx, i, b, actx)
+		v := st.verdict
+		substituted = append(substituted, st.substitutedFor)
 		if v.Decision == Transform {
 			folded := e.foldTransform(actx, v)
 			if !folded.Decision.Permits() {
 				// §7.4: a transform that fails to apply short-circuits
 				// in both sequential profiles.
 				all = append(all, folded)
-				return dispatchOutcome{combined: folded, verdicts: named(summaries(all), active)}
+				return dispatchOutcome{combined: folded, verdicts: named(summaries(all), active, substituted)}
 			}
 			v = folded
 		}
 		all = append(all, v)
 	}
-	return e.aggregateAndConsult(ctx, actx, all, active)
+	return e.aggregateAndConsult(ctx, actx, all, active, substituted)
 }
 
 // dispatchParallel implements the parallel profiles (§7.5): isolated
@@ -928,28 +1227,31 @@ func (e *InterceptionEmitter) dispatchRunAll(ctx context.Context, actx AgentCont
 // copy IS the identical untransformed snapshot.
 func (e *InterceptionEmitter) dispatchParallel(ctx context.Context, actx AgentContext, active []*bound) dispatchOutcome {
 	all := make([]Verdict, 0, len(active))
-	for _, b := range active {
-		all = append(all, e.invoke(ctx, b, actx))
+	substituted := make([]string, 0, len(active))
+	for i, b := range active {
+		st := e.invoke(ctx, i, b, actx)
+		all = append(all, st.verdict)
+		substituted = append(substituted, st.substitutedFor)
 	}
-	return e.aggregateAndConsult(ctx, actx, all, active)
+	return e.aggregateAndConsult(ctx, actx, all, active, substituted)
 }
 
 // aggregateAndConsult delegates the §7.3/§7.5 aggregation (including
 // parallel/unanimous disagreement and transform-conflict synthesis) to
 // the core, then handles the environment-dependent follow-ups natively:
 // applying a single winning parallel transform and consulting the seam.
-func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx AgentContext, all []Verdict, active []*bound) dispatchOutcome {
+func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx AgentContext, all []Verdict, active []*bound, substituted []string) dispatchOutcome {
 	cfgJSON, err := json.Marshal(e.composition)
 	if err != nil {
-		return dispatchOutcome{combined: HostErrorVerdict(ErrContextInvalid, err.Error()), verdicts: named(summaries(all), active)}
+		return dispatchOutcome{combined: HostErrorVerdict(ErrContextInvalid, err.Error()), verdicts: named(summaries(all), active, substituted)}
 	}
 	allJSON, err := json.Marshal(all)
 	if err != nil {
-		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: named(summaries(all), active)}
+		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: named(summaries(all), active, substituted)}
 	}
 	out, err := nativeComposeAggregate(string(cfgJSON), string(allJSON))
 	if err != nil {
-		return dispatchOutcome{combined: coreErrVerdict(err, ErrVerdictInvalid), verdicts: named(summaries(all), active)}
+		return dispatchOutcome{combined: coreErrVerdict(err, ErrVerdictInvalid), verdicts: named(summaries(all), active, substituted)}
 	}
 	var agg struct {
 		Combined       Verdict          `json:"combined"`
@@ -959,7 +1261,7 @@ func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx Agen
 		Verdicts       []VerdictSummary `json:"verdicts"`
 	}
 	if err := json.Unmarshal([]byte(out), &agg); err != nil {
-		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: named(summaries(all), active)}
+		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: named(summaries(all), active, substituted)}
 	}
 	combined, decidedBy := agg.Combined, agg.DecidedBy
 	var resolvedBy *string
@@ -969,9 +1271,9 @@ func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx Agen
 		// (nothing folded during dispatch).
 		folded := e.foldTransform(actx, combined)
 		if !folded.Decision.Permits() {
-			return dispatchOutcome{combined: folded, verdicts: named(agg.Verdicts, active)}
+			return dispatchOutcome{combined: folded, verdicts: named(agg.Verdicts, active, substituted)}
 		}
-		return dispatchOutcome{combined: folded, decidedBy: decidedBy, verdicts: named(agg.Verdicts, active)}
+		return dispatchOutcome{combined: folded, decidedBy: decidedBy, verdicts: named(agg.Verdicts, active, substituted)}
 	}
 
 	if agg.Consult {
@@ -1004,7 +1306,7 @@ func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx Agen
 			}
 		}
 	}
-	return dispatchOutcome{combined: combined, decidedBy: decidedBy, verdicts: named(agg.Verdicts, active), resolvedBy: resolvedBy}
+	return dispatchOutcome{combined: combined, decidedBy: decidedBy, verdicts: named(agg.Verdicts, active, substituted), resolvedBy: resolvedBy}
 }
 
 // foldTransform applies (enforce) or validates (evaluate_only) one
@@ -1168,11 +1470,17 @@ func summaries(verdicts []Verdict) []VerdictSummary {
 }
 
 // named attaches the bound names positionally (§10.3): the
-// registration name, or the binding id under a declaration (§7.7.8).
-func named(sums []VerdictSummary, active []*bound) []VerdictSummary {
+// registration name, or the binding id under a declaration (§7.7.8),
+// and the substituted_for reason of a slot the host substituted under
+// on_error: continue (§6.3.1).
+func named(sums []VerdictSummary, active []*bound, substituted []string) []VerdictSummary {
 	for i := range sums {
-		if idx := sums[i].Index; idx < len(active) && active[idx].name != "" {
+		idx := sums[i].Index
+		if idx < len(active) && active[idx].name != "" {
 			sums[i].Name = active[idx].name
+		}
+		if idx < len(substituted) && substituted[idx] != "" {
+			sums[i].SubstitutedFor = substituted[idx]
 		}
 	}
 	return sums

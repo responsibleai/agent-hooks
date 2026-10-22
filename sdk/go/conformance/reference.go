@@ -49,6 +49,20 @@ type ReferenceHarness struct {
 	builder  *agenthooks.AgentContextBuilder
 	toolLog  []ToolInvocation
 	sess     int
+	// hostMessages is what this host told its principal (the agent)
+	// during the session, verbatim and in order (§6.3.1). The
+	// reference agent has no user; its host-message channel is this
+	// log, reported as RunRecord.HostMessages.
+	hostMessages []string
+}
+
+// principalChannel registers this host's principal channel on a
+// registry (§6.3.1): every control failure notice is delivered to the
+// agent as a host message and kept for the run record.
+func (h *ReferenceHarness) principalChannel(registry *agenthooks.HostRegistry) error {
+	return registry.ControlFailureNotifier(func(n agenthooks.ControlFailureNotice) {
+		h.hostMessages = append(h.hostMessages, n.Message)
+	})
 }
 
 // NewReferenceHarness returns a fresh harness instance.
@@ -86,6 +100,7 @@ func (h *ReferenceHarness) Declaration() map[string]any { return referenceDocume
 func (h *ReferenceHarness) startSession(scenario Scenario, em *agenthooks.InterceptionEmitter) {
 	h.scenario = scenario
 	h.toolLog = nil
+	h.hostMessages = nil
 	h.emitter = em
 	h.sess++
 	h.builder = agenthooks.NewAgentContextBuilder(
@@ -97,6 +112,9 @@ func (h *ReferenceHarness) startSession(scenario Scenario, em *agenthooks.Interc
 // the vector's document and the CTK registry through the loader, and
 // a refusal is returned as is.
 func (h *ReferenceHarness) SetupDeclared(scenario Scenario, document map[string]any, registry *agenthooks.HostRegistry) error {
+	if err := h.principalChannel(registry); err != nil {
+		return err
+	}
 	em, err := agenthooks.NewInterceptionEmitterFromDeclarationValue(document, registry)
 	if err != nil {
 		return err
@@ -175,6 +193,9 @@ func (h *ReferenceHarness) Setup(
 		return i, nil
 	}
 	if err := registry.Kind("ctk.instance", instance); err != nil {
+		return err
+	}
+	if err := h.principalChannel(registry); err != nil {
 		return err
 	}
 	bindings := make([]any, 0, len(interceptors))
@@ -323,6 +344,7 @@ func (h *ReferenceHarness) Run(ctx context.Context) (RunRecord, error) {
 		ToolInvocations: append([]ToolInvocation(nil), h.toolLog...),
 		Identities:      ids,
 		Records:         recs,
+		HostMessages:    append([]string(nil), h.hostMessages...),
 	}, nil
 }
 

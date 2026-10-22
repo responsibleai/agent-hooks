@@ -523,8 +523,10 @@ func TestOneClassPerDocumentInPipelineOrder(t *testing.T) {
 			if !reflect.DeepEqual(de.Accepted, SupportedDeclarationVersions) {
 				t.Errorf("%s: accepted = %v", name, de.Accepted)
 			}
-			if !strings.Contains(de.Error(), "accepted: "+DeclarationVersion) {
-				t.Errorf("%s: message must name the accepted set: %v", name, de)
+			for _, v := range SupportedDeclarationVersions {
+				if !strings.Contains(de.Error(), v) {
+					t.Errorf("%s: message must name the accepted set: %v", name, de)
+				}
 			}
 		}
 		if !errors.Is(err, &DeclarationError{Class: c.class}) || !errors.Is(err, &DeclarationError{}) {
