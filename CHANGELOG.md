@@ -5,6 +5,10 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+- Repository Windows MSVC builds enable Control Flow Guard (CFG).
+  CI and release gates validate CFG metadata in the Windows x64 native DLL;
+  the NuGet gate also verifies that the packaged DLL matches the staged DLL.
+
 - Spec §5.5 (adopted under P-006, Decided 2026-10-15) adds an optional hosted/cross-process
   `InterceptorResponse` envelope:
   `{verdict, extensions?}`. Canonical `Verdict`, in-process interceptor
