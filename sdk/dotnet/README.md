@@ -120,6 +120,21 @@ it resolvable at process start:
 | macOS | `libagent_hooks_ffi.dylib` | `DYLD_LIBRARY_PATH`, or next to the app binary |
 | Windows | `agent_hooks_ffi.dll` | `PATH`, or next to the app binary |
 
+The bundled Windows x64 DLL must enable Control Flow Guard (CFG,
+BinSkim BA2008). Windows MSVC builds inherit real CFG instrumentation
+and linking from the root `.cargo/config.toml`; keep that configuration
+when building from source. The release checks require the CFG PE flag,
+load-configuration instrumentation and a nonempty function table, then
+verify that the NuGet payload is byte-identical to the staged release DLL:
+
+```powershell
+./scripts/check-windows-cfg.ps1 -Dll sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.dll
+./scripts/check-windows-cfg.ps1 -Package <package.nupkg> -ExpectedDll <staged-agent_hooks_ffi.dll>
+```
+
+Run these commands from the repository root with PowerShell 7.4 or later.
+The binary check complements BinSkim; it does not replace a full security scan.
+
 For self-contained deployment, ship the library app-local using the
 standard RID layout — add to your **application** csproj:
 

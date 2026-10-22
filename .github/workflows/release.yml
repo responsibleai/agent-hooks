@@ -403,6 +403,10 @@ jobs:
         shell: bash
         run: cargo build --locked --release -p agent-hooks-ffi --target ${{ matrix.target }}
         working-directory: sdk/rust
+      - name: Check Windows release DLL CFG
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/check-windows-cfg.ps1 -Dll sdk/rust/target/${{ matrix.target }}/release/${{ matrix.lib }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ffi-${{ matrix.rid }}
@@ -445,6 +449,13 @@ jobs:
             unzip -l "$pkg" | grep -q "runtimes/$rid/native/" || { echo "::error::$rid native library missing from $pkg"; exit 1; }
           done
         working-directory: sdk/dotnet
+      - name: Check bundled Windows DLL CFG and release-asset identity
+        shell: pwsh
+        run: |
+          $packages = @(Get-ChildItem sdk/dotnet/dist/*.nupkg)
+          if ($packages.Count -ne 1) { throw 'Expected exactly one NuGet package.' }
+          ./scripts/check-windows-cfg.ps1 -Package $packages[0].FullName `
+            -ExpectedDll sdk/dotnet/src/AgentHooks/runtimes/win-x64/native/agent_hooks_ffi.dll
       - name: SBOM
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:

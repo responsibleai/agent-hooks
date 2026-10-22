@@ -109,3 +109,12 @@ for the other four SDKs; build it with
 `cargo build --release -p agent-hooks-ffi` when developing against
 Python/TypeScript/.NET/Go locally (their READMEs cover per-OS
 placement).
+
+Windows MSVC builds use the repository's `.cargo/config.toml` to enable
+Control Flow Guard (CFG) instrumentation and linking with
+`-C control-flow-guard=checks`. Run Cargo from this checkout or one of
+its subdirectories so that Cargo discovers the configuration. Do not
+replace it with `nochecks`, which emits metadata without runtime checks.
+The setting does not change non-Windows targets or the GNU cgo build.
+Windows release FFI assets are checked by
+`scripts/check-windows-cfg.ps1` before upload.

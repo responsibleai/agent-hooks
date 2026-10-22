@@ -172,6 +172,10 @@ jobs:
       - name: Build ffi cdylib
         run: cargo build --locked -p agent-hooks-ffi --release
         working-directory: sdk/rust
+      - name: Check Windows release DLL CFG and regression gate
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/test-windows-cfg.ps1 -Dll sdk/rust/target/release/agent_hooks_ffi.dll
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore --locked-mode
