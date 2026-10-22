@@ -3,6 +3,13 @@
 User-visible changes to the spec and SDKs. Versioning rules:
 [VERSIONING.md](VERSIONING.md).
 
+## Unreleased
+
+- Windows x64 FFI/NuGet builds use a pinned nightly Rust compiler and rebuild
+  the standard library with strong stack protection. CI and release builds
+  require matching-PDB BinSkim BA2014 and CFG passes for the exact DLL.
+  Other SDK toolchains and non-Windows builds are unchanged.
+
 ## 0.1.0-beta.4 — 2026-10-22 — tag `v0.1.0-beta.4`
 
 - Spec §6.3.1 adds one failure posture knob, `on_error`, with the
@@ -70,7 +77,6 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `expect.host_messages_must_contain`, and `RunRecord.host_messages`;
   a vector document validates against the schema of the version it
   writes. Claims gain the `on_error: continue` disclosure. Additive.
-
 ## 0.1.0-beta.3 — 2026-10-22 — tag `v0.1.0-beta.3`
 
 - Repository Windows MSVC builds enable Control Flow Guard (CFG).

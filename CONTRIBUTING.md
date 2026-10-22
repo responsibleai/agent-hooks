@@ -42,6 +42,11 @@ cd sdk/dotnet && LD_LIBRARY_PATH=../rust/target/release dotnet test
 cd sdk/go && CGO_ENABLED=1 go test ./...
 ```
 
+For the protected Windows x64 FFI used by .NET/NuGet, follow the
+[Windows source-build instructions](sdk/dotnet/README.md#windows-x64-source-builds-and-release-checks).
+That artifact needs a pinned nightly compiler and a rebuilt, stack-protected
+standard library; a plain stable FFI build is not equivalent.
+
 ## Style
 
 - Fail closed; never normalize values (§4.4 — reject with an
