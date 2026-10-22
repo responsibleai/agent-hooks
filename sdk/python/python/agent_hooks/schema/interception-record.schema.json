@@ -29,7 +29,7 @@
       ]
     },
     "verdict": {
-      "description": "The payload-free projection of the combined verdict (§10.3): transform.value dropped, approval members stripped, messages truncated to 256 UTF-8 bytes.",
+      "description": "The payload-free projection of the combined verdict (§10.3): transform.value dropped, approval members stripped, messages truncated to 256 UTF-8 bytes. warnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1).",
       "type": "object",
       "properties": {
         "transform": {
@@ -202,10 +202,19 @@
           "name": {
             "type": "string",
             "description": "Host-chosen payload-free registration identifier for the interceptor at index (§10.3)."
+          },
+          "substituted_for": {
+            "type": "string",
+            "enum": [
+              "host_error:interceptor_failed",
+              "host_error:interceptor_timeout",
+              "host_error:verdict_invalid"
+            ],
+            "description": "Present iff this slot's verdict is the allow the host substituted under on_error: continue (§6.3.1): the host_error reason the §6.3 deny would have carried. The entry's decision is allow and reason is absent."
           }
         }
       },
-      "description": "Payload-free per-interceptor summary. REQUIRED in multi-verdict profiles (sequential/run_all, parallel/*); OPTIONAL in sequential/first_deny."
+      "description": "Payload-free per-interceptor summary. REQUIRED in multi-verdict profiles (sequential/run_all, parallel/*) and whenever any slot carries substituted_for (§6.3.1); otherwise OPTIONAL in sequential/first_deny."
     },
     "fold_truncated": {
       "type": "boolean",

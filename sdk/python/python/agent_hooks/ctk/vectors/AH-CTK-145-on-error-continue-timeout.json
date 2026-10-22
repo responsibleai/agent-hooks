@@ -1,0 +1,163 @@
+{
+  "id": "AH-CTK-145",
+  "title": "§6.3.1: on_error continue and a hanging interceptor: allow with host_warning:control_failed, substituted_for host_error:interceptor_timeout, the next binding still runs, the principal is told, tool invoked",
+  "spec_clause": "6.3.1, 7.3, 7.7.5, 10.3, 11.1",
+  "part": "failure_posture/continue",
+  "capabilities": [
+    "host_declaration",
+    "model_calls",
+    "tool_calls"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.1",
+    "id": "ctk-on-error-continue",
+    "surface": {
+      "interception_points": [
+        "agent_startup",
+        "input",
+        "pre_model_call",
+        "post_model_call",
+        "pre_tool_call",
+        "post_tool_call",
+        "output",
+        "agent_shutdown"
+      ],
+      "capabilities": [
+        "host_declaration",
+        "model_calls",
+        "tool_calls"
+      ],
+      "declaration_versions": [
+        "agent-hooks-declaration/1.0",
+        "agent-hooks-declaration/1.1"
+      ]
+    },
+    "bindings": [
+      {
+        "id": "slow",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        },
+        "timeout_ms": 50,
+        "on_error": "continue"
+      },
+      {
+        "id": "second",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 1
+        }
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "ok"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "fault": "hang"
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow",
+          "reason": "ctk:second-ran"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "accepted"
+    },
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      },
+      {
+        "interception_point": "post_tool_call"
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://x"
+        }
+      }
+    ],
+    "host_messages_must_contain": [
+      "slow",
+      "host_error:interceptor_timeout",
+      "continued"
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.1",
+          "verdict.decision": "allow",
+          "verdict.warnings[0].reason": "host_warning:control_failed",
+          "verdict.warnings[0].message": "slow: host_error:interceptor_timeout; host continued",
+          "decided_by": null,
+          "fold_truncated": false,
+          "interceptors_registered": 2,
+          "verdicts[0].name": "slow",
+          "verdicts[0].decision": "allow",
+          "verdicts[0].substituted_for": "host_error:interceptor_timeout",
+          "verdicts[1].name": "second",
+          "verdicts[1].decision": "allow",
+          "verdicts[1].reason": "ctk:second-ran"
+        },
+        "absent": [
+          "verdicts[0].reason"
+        ]
+      }
+    ],
+    "run_outcome": "completed",
+    "final_output": "done"
+  }
+}

@@ -35,12 +35,36 @@ except InterceptionBlocked as e:
 result = invoke_tool(ctx["tool_call"]["args"])  # post-transform args
 ```
 
+## Failure handling
+
+Every registration fails closed by default: a raise, a timeout or a
+§5-invalid return value becomes a `host_error:*` deny in that
+registration's slot (spec §6.3). `register(..., on_error=OnError.CONTINUE)`
+makes the registration best effort instead: the host substitutes an
+allow carrying the warning `host_warning:control_failed`, records the
+underlying reason on `verdicts[].substituted_for`, and tells the
+principal through the notifier set with `set_control_failure_notifier`
+(required first; without it the registration raises
+`RegistrationError`). Nothing else is covered: context failures,
+cancellation, transform failures, approval failures, `no_interceptor`
+and an explicit deny never continue. An interceptor that runs external
+work can own its deadline with `register_managed`: it implements
+`intercept_managed(ctx, bound)` and returns a
+`ManagedInterceptorOutcome` (`of_verdict`, `timeout` after cleaning up,
+`cancelled`, `failed`); a cancelled outcome never continues.
+
 ## Host declaration
 
 A host can load its configuration, declared surface and interceptor
 bindings from a host declaration document (spec §7.7) instead of
 calling the setters. The document is a versioned contract of its own,
-`agent-hooks-declaration/1.0`, separate from the wire version. The host
+`agent-hooks-declaration/1.1`, separate from the wire version; the
+loader also accepts `1.0`, whose documents keep their meaning. Version
+1.1 adds two optional members, `configuration.failure.on_error` (the
+document default) and `bindings[].on_error` (one binding's posture); a
+document in which any binding resolves to `continue` is refused
+(`binding_rejected`) unless the registry holds a
+`control_failure_notifier`. The host
 registers in code what the document may reference: kind resolvers,
 custom identity providers, approval resolvers and redactors, plus the
 surface its code supports.

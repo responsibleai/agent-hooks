@@ -42,13 +42,15 @@ from agent_hooks import _core
 from agent_hooks._types import (
     DECLARATION_VERSION,
     SUPPORTED_DECLARATION_VERSIONS,
+    ControlFailureNotice,
     EnforcementMode,
     InterceptionPoint,
+    OnError,
 )
 from agent_hooks.approval import ApprovalResolver
 from agent_hooks.composition import CompositionConfig, CompositionProfile
 from agent_hooks.context import AgentContext
-from agent_hooks.interceptor import Interceptor
+from agent_hooks.interceptor import Interceptor, ManagedInterceptor
 
 # ---- fixed bounds (§7.7.3) ---------------------------------------------------
 
@@ -438,8 +440,15 @@ class HostSurface:
         floor and the omission pairs, in the core. A surface that fails
         is a programming error of the host (``ValueError``), never a
         refusal of a document."""
+        # The probe names a version this surface accepts (a host still on
+        # 1.0 is a valid surface, §7.7.2); the SDK's current version when
+        # the surface names none it knows, so the core reports that.
+        probe_version = next(
+            (v for v in SUPPORTED_DECLARATION_VERSIONS if v in self.declaration_versions),
+            DECLARATION_VERSION,
+        )
         probe = {
-            "declaration": DECLARATION_VERSION,
+            "declaration": probe_version,
             "configuration": {"posture": {"tool_seam_host_error": self.tool_seam_host_error}},
             "bindings": [],
         }
@@ -469,11 +478,22 @@ class BindingContext:
     host: Mapping[str, Any] | None
     #: The document's ``declaration`` value.
     declaration_version: str
+    #: The resolved failure posture of the binding (§6.3.1, §7.7.5): its
+    #: own ``on_error``, else ``configuration.failure.on_error``, else
+    #: ``deny``.
+    on_error: OnError = OnError.DENY
 
 
 #: Host code that turns one binding's ``config`` into one interceptor,
 #: or refuses it by raising (the message MUST NOT echo the config).
 KindResolver = Callable[[Any, BindingContext], Interceptor]
+
+#: Host code that turns one binding's ``config`` into one
+#: :class:`~agent_hooks.ManagedInterceptor` (an interceptor that owns
+#: its own deadline, §6.3.1), or refuses it by raising.
+#: ``BindingContext.timeout`` is the bound the interceptor receives
+#: again on every call.
+ManagedKindResolver = Callable[[Any, BindingContext], ManagedInterceptor]
 
 
 def valid_reference(name: str) -> bool:
@@ -510,6 +530,8 @@ class HostRegistry:
         "_approval_resolvers",
         "_identity_providers",
         "_kinds",
+        "_managed_kinds",
+        "_notifier",
         "_surface",
     )
 
@@ -518,6 +540,8 @@ class HostRegistry:
         self._surface.validate()
         self._allow_reserved = False
         self._kinds: dict[str, KindResolver] = {}
+        self._managed_kinds: dict[str, ManagedKindResolver] = {}
+        self._notifier: Callable[[ControlFailureNotice], None] | None = None
         self._identity_providers: dict[str, Callable[[AgentContext], str]] = {}
         self._approval_resolvers: dict[str, ApprovalResolver] = {}
         self._approval_redactors: dict[str, Callable[[AgentContext], AgentContext]] = {}
@@ -537,6 +561,22 @@ class HostRegistry:
     def kind(self, kind: str, resolver: KindResolver) -> HostRegistry:
         """Register a kind resolver: ``resolver(config, BindingContext)``
         returns one interceptor or raises."""
+        self._check_kind(kind)
+        self._kinds[kind] = resolver
+        return self
+
+    def managed_kind(self, kind: str, resolver: ManagedKindResolver) -> HostRegistry:
+        """Register a resolver for a kind whose interceptors own their
+        own deadline (§6.3.1): ``resolver(config, BindingContext)``
+        returns one :class:`~agent_hooks.ManagedInterceptor` or raises.
+        The kind grammar, the reserved segments and the one-registration
+        rule are the same as for :meth:`kind`; one kind name is either
+        managed or not."""
+        self._check_kind(kind)
+        self._managed_kinds[kind] = resolver
+        return self
+
+    def _check_kind(self, kind: str) -> None:
         if not valid_kind(kind):
             raise ValueError(
                 f"host registry: kind {_q(kind)} does not match the kind grammar (see spec §7.7.5)"
@@ -547,9 +587,21 @@ class HostRegistry:
                 f"host registry: kind {_q(kind)} uses the reserved segment {_q(head)} "
                 "(see spec §7.7.5)"
             )
-        if kind in self._kinds:
+        if kind in self._kinds or kind in self._managed_kinds:
             raise ValueError(f"host registry: kind {_q(kind)} registered twice")
-        self._kinds[kind] = resolver
+
+    def control_failure_notifier(
+        self, notifier: Callable[[ControlFailureNotice], None]
+    ) -> HostRegistry:
+        """Register the channel through which the host tells the
+        principal that a control failed and the action continued
+        (§6.3.1): the user in an interactive session, else the agent
+        through the host's own message channel. A document in which any
+        binding resolves to ``on_error: continue`` is refused at
+        construction (``binding_rejected``) unless the registry holds
+        one, so silent continuation cannot be reached by leaving this
+        out."""
+        self._notifier = notifier
         return self
 
     def identity_provider(self, name: str, fn: Callable[[AgentContext], str]) -> HostRegistry:
@@ -600,7 +652,7 @@ class HostRegistry:
             "identity_providers": sorted(self._identity_providers),
             "approval_resolvers": sorted(self._approval_resolvers),
             "approval_redactors": sorted(self._approval_redactors),
-            "kinds": sorted(self._kinds),
+            "kinds": sorted([*self._kinds, *self._managed_kinds]),
         }
 
     def _host_json(self) -> str:
@@ -631,6 +683,12 @@ class HostRegistry:
     # closed (§7.7.5).
     def _kind_resolver(self, kind: str) -> KindResolver | None:
         return self._kinds.get(kind)
+
+    def _managed_kind_resolver(self, kind: str) -> ManagedKindResolver | None:
+        return self._managed_kinds.get(kind)
+
+    def _control_failure_notifier_ref(self) -> Callable[[ControlFailureNotice], None] | None:
+        return self._notifier
 
     def _identity_fn(self, name: str) -> Callable[[AgentContext], str] | None:
         return self._identity_providers.get(name)
@@ -869,6 +927,17 @@ class DeclarationBuilder:
         self._configuration_sub("posture")["tool_seam_host_error"] = posture
         return self
 
+    def failure_on_error(self, on_error: OnError | str) -> DeclarationBuilder:
+        """``configuration.failure.on_error``: the document default every
+        binding without its own ``on_error`` inherits (§6.3.1). Needs
+        ``agent-hooks-declaration/1.1``, the builder's default version.
+        The value is written as given, so a wrong one is refused by
+        :meth:`build` as ``invalid_field``, exactly as in a file."""
+        self._configuration_sub("failure")["on_error"] = (
+            on_error.value if isinstance(on_error, OnError) else on_error
+        )
+        return self
+
     def interceptor_timeout_ms(self, ms: int | None) -> DeclarationBuilder:
         """``None`` writes ``null`` (unbounded)."""
         self._configuration_sub("timeouts")["interceptor_ms"] = ms
@@ -924,12 +993,15 @@ class DeclarationBuilder:
         *,
         at: Iterable[InterceptionPoint | str] | None = None,
         timeout_ms: int | None = _UNSET,
+        on_error: OnError | str | None = None,
     ) -> DeclarationBuilder:
         """Append one binding. ``config`` is written verbatim (``None``
         writes ``null``) and left out takes the document default ``{}``;
         ``at=None`` binds at every surface point; ``timeout_ms`` left
         out inherits the configured interceptor timeout, ``None`` writes
-        ``null`` (unbounded), an integer bounds."""
+        ``null`` (unbounded), an integer bounds; ``on_error`` left
+        ``None`` inherits ``configuration.failure.on_error`` (§6.3.1),
+        else the binding's own posture is written as given."""
         b: dict[str, Any] = {"id": id, "kind": kind}
         if config is not _UNSET:
             b["config"] = config
@@ -937,6 +1009,8 @@ class DeclarationBuilder:
             b["at"] = _points_sorted(_point(p) for p in at)
         if timeout_ms is not _UNSET:
             b["timeout_ms"] = timeout_ms
+        if on_error is not None:
+            b["on_error"] = on_error.value if isinstance(on_error, OnError) else on_error
         self._doc.setdefault("bindings", []).append(b)
         return self
 
@@ -966,13 +1040,16 @@ class DeclarationBuilder:
 
 @dataclass(frozen=True, slots=True)
 class ResolvedBinding:
-    """One binding with ``at`` and ``timeout_ms`` filled."""
+    """One binding with ``at``, ``timeout_ms`` and ``on_error`` filled."""
 
     id: str
     kind: str
     config: Any
     at: frozenset[InterceptionPoint]
     timeout_ms: int | None
+    #: The binding's own ``on_error``, else the document default, else
+    #: ``deny`` (§6.3.1).
+    on_error: OnError = OnError.DENY
 
 
 @dataclass(frozen=True, slots=True)
@@ -1046,6 +1123,13 @@ class ResolvedDeclaration:
         return name
 
     @property
+    def failure_on_error(self) -> OnError:
+        """``configuration.failure.on_error`` with its default filled
+        (§6.3.1): the posture every binding without its own inherits.
+        A 1.0 document resolves to ``deny``."""
+        return OnError(self.configuration["failure"]["on_error"])
+
+    @property
     def bindings(self) -> tuple[ResolvedBinding, ...]:
         return tuple(
             ResolvedBinding(
@@ -1054,6 +1138,7 @@ class ResolvedDeclaration:
                 config=b["config"],
                 at=frozenset(InterceptionPoint(p) for p in b["at"]),
                 timeout_ms=b["timeout_ms"],
+                on_error=OnError(b["on_error"]),
             )
             for b in self._wire["bindings"]
         )
@@ -1081,6 +1166,7 @@ __all__ = [
     "HostSurface",
     "KindResolver",
     "KnobSupport",
+    "ManagedKindResolver",
     "ResolvedBinding",
     "ResolvedDeclaration",
     "valid_kind",

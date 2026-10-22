@@ -437,7 +437,7 @@ def test_unreadable_classes_from_path(tmp_path: pathlib.Path) -> None:
     text.write_text('{"declaration": "agent-hooks-declaration/0.1", "bindings": []}')
     e = refused(text)
     assert e.error_class is DeclarationErrorClass.VERSION_UNSUPPORTED
-    assert e.accepted == (DECLARATION_VERSION,)
+    assert e.accepted == tuple(SUPPORTED_DECLARATION_VERSIONS)
 
 
 def test_malformed_text_and_values() -> None:
@@ -713,7 +713,7 @@ def test_each_refusal_class_names_its_pointer(
     assert e.findings[0].pointer == pointer
     assert str(e).startswith(e.code)
     if error_class is DeclarationErrorClass.VERSION_UNSUPPORTED:
-        assert e.accepted == (DECLARATION_VERSION,)
+        assert e.accepted == tuple(SUPPORTED_DECLARATION_VERSIONS)
         assert DECLARATION_VERSION in e.findings[0].detail
     else:
         assert e.accepted == ()
@@ -903,7 +903,7 @@ def test_surface_absent_resolves_to_the_hosts_own_surface() -> None:
         "capabilities": ["host_declaration", "model_calls", "tool_calls"],
         "profiles": {p.value: KnobSupport.full(p).to_wire() for p in sorted(CompositionProfile)},
         "buffered_output": True,
-        "declaration_versions": [DECLARATION_VERSION],
+        "declaration_versions": list(SUPPORTED_DECLARATION_VERSIONS),
     }
     # Zero bindings: every emission denies host_error:no_interceptor.
     records = run_session(em)

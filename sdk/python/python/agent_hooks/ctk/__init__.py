@@ -23,6 +23,7 @@ from agent_hooks.ctk.runner import (
 from agent_hooks.ctk.scripted import (
     RecordingInterceptor,
     ScriptedInterceptor,
+    ScriptedManagedInterceptor,
     ScriptedResolver,
     redact_paths,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "RunRecord",
     "Scenario",
     "ScriptedInterceptor",
+    "ScriptedManagedInterceptor",
     "ScriptedResolver",
     "VectorResult",
     "builder_from_value",

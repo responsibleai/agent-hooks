@@ -30,13 +30,14 @@ from typing import Any
 
 from agent_hooks import _core
 from agent_hooks._marshal import dumps
-from agent_hooks._types import EnforcementMode, InterceptionPoint
+from agent_hooks._types import EnforcementMode, InterceptionPoint, OnError
 from agent_hooks.composition import CompositionConfig, CompositionProfile
 from agent_hooks.context import AgentContext
 from agent_hooks.ctk.harness import Harness, LoadRecord, RunOutcome, RunRecord, Scenario
 from agent_hooks.ctk.scripted import (
     RecordingInterceptor,
     ScriptedInterceptor,
+    ScriptedManagedInterceptor,
     ScriptedResolver,
     redact_paths,
 )
@@ -96,6 +97,9 @@ def _run_record_to_wire(rr: RunRecord, postures: dict[str, str]) -> str:
         "error": rr.error,
         "identities": [{"input_identity": i, "enforced_identity": e} for i, e in rr.identities],
         "records": rr.records,
+        # §6.3.1: what the host told the principal, for
+        # expect.host_messages_must_contain.
+        "host_messages": list(rr.host_messages),
         # Harness *declarations* (§13.1), not observed behavior: the
         # engine selects expect.run_outcome_by_posture entries by them.
         "postures": postures,
@@ -141,18 +145,43 @@ class _Scripts:
         return ScriptedResolver(self.approval) if self.approval else None
 
     def registry(self, surface: HostSurface) -> HostRegistry:
-        """The CTK registry for a declaration vector (§7.7.9): kind
-        ``ctk.scripted`` (config ``{"script": i}``), identity provider
+        """The CTK registry for a declaration vector (§7.7.9): two kinds
+        over the same scripted interceptor, identity provider
         ``ctk-fault``, approval resolver ``ctk-scripted``, redactor
-        ``ctk-redact``."""
+        ``ctk-redact``. For both kinds config ``{"script": i}`` selects
+        ``interceptor_scripts[i]`` and script 0 records.
 
-        def scripted(config: Any, ctx: BindingContext) -> Any:
+        ``ctk.scripted`` is a standard registration: the emitter wraps
+        it in its own timer, so ``fault: hang`` blocks past the
+        binding's ``timeout_ms`` and the emitter's
+        ``host_error:interceptor_timeout`` path is what the vector
+        observes (``AH-CTK-144``, ``AH-CTK-145``). ``ctk.managed`` goes
+        through the managed-interceptor path (§7): it receives the
+        resolved bound and reports a typed outcome, so ``fault: hang``
+        reports ``timeout`` after cancelling its work and
+        ``fault: cancel`` reports ``cancelled`` (``AH-CTK-150``). The
+        principal channel is the harness's own: it adds its
+        ``control_failure_notifier`` in ``setup_declared`` and reports
+        what it delivered as ``RunRecord.host_messages``."""
+
+        def select(config: Any, ctx: BindingContext) -> int:
             i = config.get("script") if isinstance(config, dict) else None
             if not isinstance(i, int) or isinstance(i, bool) or i < 0:
                 raise ValueError("config.script must be an unsigned integer index")
             if i >= len(self.scripts):
                 raise ValueError(f"config.script {i} is out of range for binding {ctx.id}")
-            return self.interceptor(i)
+            return i
+
+        def scripted(
+            config: Any, ctx: BindingContext
+        ) -> ScriptedInterceptor | RecordingInterceptor:
+            return self.interceptor(select(config, ctx))
+
+        def managed(config: Any, ctx: BindingContext) -> ScriptedManagedInterceptor:
+            i = select(config, ctx)
+            return ScriptedManagedInterceptor(
+                ScriptedInterceptor(self.scripts[i]), recorded=self.recorded if i == 0 else None
+            )
 
         def fault(_ctx: AgentContext) -> str:
             raise RuntimeError("ctk scripted provider fault")
@@ -161,6 +190,7 @@ class _Scripts:
         return (
             HostRegistry.for_conformance(surface)
             .kind("ctk.scripted", scripted)
+            .managed_kind("ctk.managed", managed)
             .identity_provider("ctk-fault", fault)
             .approval_resolver("ctk-scripted", ScriptedResolver(self.approval))
             .approval_redactor("ctk-redact", lambda ctx: redact_paths(ctx, redact))
@@ -251,6 +281,10 @@ def _typed_configuration(b: DeclarationBuilder, c: dict[str, Any]) -> bool:
             if n is not None and not _is_uint(n):
                 return False
             b.max_buffered_records(n)
+        elif k == "failure" and isinstance(v, dict):
+            if set(v) != {"on_error"} or v["on_error"] not in ("deny", "continue"):
+                return False
+            b.failure_on_error(OnError(v["on_error"]))
         else:
             return False
     return True
@@ -305,7 +339,7 @@ def _typed_surface(b: DeclarationBuilder, sf: dict[str, Any]) -> bool:
 
 
 def _typed_bindings(b: DeclarationBuilder, items: list[Any]) -> bool:
-    known = {"id", "kind", "config", "at", "timeout_ms"}
+    known = {"id", "kind", "config", "at", "timeout_ms", "on_error"}
     if not items:
         # The written-down empty-deny host (§7.7.5): ``bind`` is never
         # called, so the member is set explicitly.
@@ -331,6 +365,10 @@ def _typed_bindings(b: DeclarationBuilder, items: list[Any]) -> bool:
             # Verbatim, ``null`` included: the builder must not collapse
             # a stated value into the default.
             kw["config"] = item["config"]
+        if "on_error" in item:
+            if item["on_error"] not in ("deny", "continue"):
+                return False
+            kw["on_error"] = OnError(item["on_error"])
         b.bind(item["id"], item["kind"], at=at, **kw)
     return True
 
@@ -516,12 +554,16 @@ async def run_vector(harness: Harness, vector: dict[str, Any]) -> VectorResult:
             return fail([f"harness declaration refused: {e}"])
         caps: list[str] = sorted(resolved_own["surface"]["capabilities"])
         posture: str = resolved_own["configuration"]["posture"]["tool_seam_host_error"]
+        # §6.3.1: the harness document's default failure posture, what
+        # a claim states; a vector's own document may set its own.
+        on_error: str = resolved_own["configuration"]["failure"]["on_error"]
     else:
         caps = sorted(c.value for c in harness.capabilities)
         # §13.1 posture declaration; getattr keeps structural
         # (non-subclass) Harness implementations working, absent means
         # the spec default.
         posture = getattr(harness, "tool_seam_host_error", "continue")
+        on_error = OnError.DENY.value
 
     skip = json.loads(_core.ctk_should_skip(vector_json, dumps(caps)))
     if skip is not None:
@@ -604,7 +646,7 @@ async def run_vector(harness: Harness, vector: dict[str, Any]) -> VectorResult:
         _core.ctk_assert(
             vector_json,
             dumps(scripts.recorded),
-            _run_record_to_wire(rr, {"tool_seam_host_error": posture}),
+            _run_record_to_wire(rr, {"tool_seam_host_error": posture, "on_error": on_error}),
         )
     )
     return VectorResult(

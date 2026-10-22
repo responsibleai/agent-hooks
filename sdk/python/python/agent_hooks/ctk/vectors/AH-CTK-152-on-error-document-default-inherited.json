@@ -1,0 +1,122 @@
+{
+  "id": "AH-CTK-152",
+  "title": "§7.7.3, §7.7.5: configuration.failure.on_error continue is inherited by a binding that states no on_error: the raise is substituted and recorded",
+  "spec_clause": "6.3.1, 7.7.3, 7.7.5, 10.3",
+  "part": "failure_posture/continue",
+  "capabilities": [
+    "host_declaration",
+    "model_calls",
+    "tool_calls"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.1",
+    "configuration": {
+      "failure": {
+        "on_error": "continue"
+      }
+    },
+    "bindings": [
+      {
+        "id": "flaky",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        }
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "ok"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "fault": "raise"
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "accepted"
+    },
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      },
+      {
+        "interception_point": "post_tool_call"
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://x"
+        }
+      }
+    ],
+    "host_messages_must_contain": [
+      "flaky",
+      "host_error:interceptor_failed",
+      "continued"
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.1",
+          "verdict.decision": "allow",
+          "verdict.warnings[0].reason": "host_warning:control_failed",
+          "verdict.warnings[0].message": "flaky: host_error:interceptor_failed; host continued",
+          "decided_by": null,
+          "verdicts[0].name": "flaky",
+          "verdicts[0].substituted_for": "host_error:interceptor_failed"
+        },
+        "absent": [
+          "verdicts[0].reason"
+        ]
+      }
+    ],
+    "run_outcome": "completed",
+    "final_output": "done"
+  }
+}
