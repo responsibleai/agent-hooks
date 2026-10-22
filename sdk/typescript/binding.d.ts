@@ -19,6 +19,14 @@ export declare function composeAggregate(compositionJson: string, verdictsJson: 
 
 export declare function contextIdentity(ctxJson: string): string
 
+/**
+ * §6.3 `on_error: continue`: the substituted allow, its
+ * `substituted_for` value and the principal notice for one failing
+ * registration. Request `{binding, reason, index?, interception_point?}`;
+ * a reason outside the three covered failures is refused.
+ */
+export declare function controlFailureSubstitute(requestJson: string): string
+
 export declare function ctkAssert(vectorJson: string, recordedJson: string, runRecordJson: string): string
 
 export declare function ctkScriptedIntercept(rulesJson: string, ctxJson: string): string
@@ -53,6 +61,13 @@ export declare function declarationValidate(documentJson: string): string
 export declare function declarationVersions(): string
 
 export declare function finalize(ctxJson: string, verdictJson: string, mode: string, optionsJson: string): string
+
+/**
+ * §6.3 typed outcome of a managed interceptor, mapped as the Rust
+ * emitter maps it: `{verdict, failure: null | {reason, detail,
+ * continuable}}`. `continuable` is false for a cancelled outcome.
+ */
+export declare function managedOutcome(outcomeJson: string): string
 
 export declare function normalizeInterceptorResponse(responseJson: string): string
 

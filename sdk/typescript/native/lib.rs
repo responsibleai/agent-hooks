@@ -97,6 +97,23 @@ pub fn compose_aggregate(composition_json: String, verdicts_json: String) -> Res
     core::compose_aggregate(&composition_json, &verdicts_json).map_err(map_err)
 }
 
+/// §6.3 `on_error: continue`: the substituted allow, its
+/// `substituted_for` value and the principal notice for one failing
+/// registration. Request `{binding, reason, index?, interception_point?}`;
+/// a reason outside the three covered failures is refused.
+#[napi]
+pub fn control_failure_substitute(request_json: String) -> Result<String> {
+    core::control_failure_substitute(&request_json).map_err(map_err)
+}
+
+/// §6.3 typed outcome of a managed interceptor, mapped as the Rust
+/// emitter maps it: `{verdict, failure: null | {reason, detail,
+/// continuable}}`. `continuable` is false for a cancelled outcome.
+#[napi]
+pub fn managed_outcome(outcome_json: String) -> Result<String> {
+    core::managed_outcome(&outcome_json).map_err(map_err)
+}
+
 // ---- host declaration (§7.7) ----------------------------------------------
 
 fn decl_err(e: DeclarationError) -> Error {

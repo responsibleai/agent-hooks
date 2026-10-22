@@ -91,6 +91,13 @@ export interface RunRecord {
   /** Set by the runner for vectors carrying `host_declaration`
    * (§7.7.9); a harness never fills it. */
   load?: LoadRecord;
+  /** §6.3.1: the host messages the harness delivered to the principal
+   * during the run, verbatim and in order; for a continuation that is
+   * the `ControlFailureNotice` message. `expect.host_messages_must_contain`
+   * asserts on them. A harness registers its principal channel
+   * (`HostRegistry.controlFailureNotifier`) and reports here what it
+   * delivered; absent means none. */
+  host_messages?: string[];
 }
 
 /** The single interface a framework adapter implements for the CTK. */
@@ -153,7 +160,10 @@ export interface Harness {
    * (`InterceptionEmitter.fromDeclarationValue`) and let the
    * `DeclarationError` propagate, never fall back to the field-based
    * `setup`. The document and the registry carry the interceptors,
-   * resolver, composition and identity provider. Only harnesses
-   * declaring the `host_declaration` capability receive this call. */
+   * resolver, composition and identity provider; the harness adds its
+   * principal channel (`registry.controlFailureNotifier`, §6.3.1)
+   * before building, and reports what it delivered as
+   * `RunRecord.host_messages`. Only harnesses declaring the
+   * `host_declaration` capability receive this call. */
   setupDeclared?(scenario: Scenario, document: JsonValue, registry: HostRegistry): void;
 }

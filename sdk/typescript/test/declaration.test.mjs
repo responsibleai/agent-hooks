@@ -32,7 +32,10 @@ import {
 } from "../dist/index.js";
 import { builderFromValue } from "../dist/ctk/index.js";
 
+// 1.0 documents: they load unchanged under the 1.1 loader (§7.7.2).
 const V = "agent-hooks-declaration/1.0";
+// The current contract version, which the builder writes by default.
+const V11 = "agent-hooks-declaration/1.1";
 
 const ctx = (point = "pre_tool_call", seq = 0) => ({
   spec: "agent-hooks/0.1",
@@ -110,7 +113,8 @@ test("declaration version constants match the core", () => {
   const v = declarationVersions();
   assert.equal(DECLARATION_VERSION, v.current);
   assert.deepEqual([...SUPPORTED_DECLARATION_VERSIONS], v.supported);
-  assert.equal(DECLARATION_VERSION, V);
+  assert.equal(DECLARATION_VERSION, V11);
+  assert.deepEqual([...SUPPORTED_DECLARATION_VERSIONS], [V, V11]);
 });
 
 test("capability vocabulary is the closed list", () => {
@@ -168,6 +172,7 @@ test("value, JSON, file and builder paths resolve to one canonical form", async 
     const path = join(dir, "decl.json");
     writeFileSync(path, text, "utf8");
     const builder = HostDeclaration.builder()
+      .version(V)
       .composition({ profile: "parallel/strictest" })
       .interceptorTimeoutMs(4000)
       .bind("audit", "com.example.allow", undefined, undefined, 2000)
@@ -266,11 +271,11 @@ test("builder writes what a file would and is validated like one", () => {
     .surfaceCapabilities(["host_declaration"])
     .surfaceProfile("parallel/unanimous", { on_disagreement: ["deny", "approval"] })
     .bufferedOutput(true)
-    .surfaceDeclarationVersions([V])
+    .surfaceDeclarationVersions([V, V11])
     .bind("a", "com.example.allow", { x: 1 })
     .extension("acme", { note: "kept verbatim" });
   const value = b.toValue();
-  assert.equal(value.declaration, V);
+  assert.equal(value.declaration, V11);
   assert.deepEqual(value.host, { name: "example-runtime", version: "3.2.0" });
   assert.deepEqual(value.configuration.composition, {
     profile: "parallel/unanimous",
@@ -453,7 +458,13 @@ test("the builder refuses a __proto__ key the same way the value path does", () 
 // ---- refusal classes -----------------------------------------------------------------
 
 test("version_unsupported: reserved major, missing, higher minor, non-string", () => {
-  for (const declaration of ["agent-hooks-declaration/0.1", "agent-hooks-declaration/1.9", 1, undefined]) {
+  for (const declaration of [
+    "agent-hooks-declaration/0.1",
+    "agent-hooks-declaration/1.2",
+    "agent-hooks-declaration/1.9",
+    1,
+    undefined,
+  ]) {
     const doc = { ...minimal() };
     if (declaration === undefined) delete doc.declaration;
     else doc.declaration = declaration;
@@ -462,8 +473,8 @@ test("version_unsupported: reserved major, missing, higher minor, non-string", (
       DeclarationErrorClass.VersionUnsupported,
       "/declaration",
     );
-    assert.deepEqual(err.accepted, [V]);
-    assert.match(err.message, /accepted: agent-hooks-declaration\/1\.0/);
+    assert.deepEqual(err.accepted, [V, V11]);
+    assert.match(err.message, /accepted: agent-hooks-declaration\/1\.0, agent-hooks-declaration\/1\.1/);
   }
 });
 
@@ -903,4 +914,355 @@ test("per-binding timeout_ms bounds that interceptor only", async () => {
   assert.equal(r.verdicts[0].reason, "host_error:interceptor_timeout");
   assert.equal(r.verdicts[1].decision, "allow");
   assert.equal(r.verdict.reason, "host_error:interceptor_timeout");
+});
+
+// ---- failure posture: on_error in a declaration (§6.3.1, §7.7.3, §7.7.5) ---
+//
+// Mirrors the on_error tests in sdk/rust/core/src/declaration.rs and
+// tests/declaration.rs. Validation runs in the core; what this SDK
+// owns is the resolved form it reads back, the binding context it
+// hands resolvers, the registry's notifier and managed kinds, and the
+// builder members.
+
+const throws = {
+  intercept() {
+    throw new Error("boom");
+  },
+};
+
+/** A registry with a notifier that collects notices plus a kind that
+ * always throws. */
+function postureRegistry(extra = (r) => r) {
+  const notices = [];
+  const reg = registry((r) =>
+    extra(
+      r
+        .kind("com.example.flaky", () => throws)
+        .controlFailureNotifier((n) => notices.push(n)),
+    ),
+  );
+  return { reg, notices };
+}
+
+test("on_error: a 1.0 document resolves to deny everywhere and keeps its version", async () => {
+  const doc = {
+    declaration: V,
+    configuration: { composition: { profile: "sequential/run_all" } },
+    bindings: [
+      { id: "flaky", kind: "com.example.flaky" },
+      { id: "second", kind: "com.example.allow" },
+    ],
+  };
+  const em = InterceptionEmitter.fromDeclarationValue(doc, registry((r) => r.kind("com.example.flaky", () => throws)));
+  assert.equal(em.declaration.declaration, V);
+  assert.deepEqual(em.declaration.configuration.failure, { on_error: "deny" });
+  assert.equal(em.declaration.bindings[0].on_error, "deny");
+  assert.equal(em.declaration.bindings[1].on_error, "deny");
+  const r = await em.emitUnchecked(ctx());
+  assert.equal(r.declaration, V);
+  assert.equal(r.verdict.decision, "deny");
+  assert.equal(r.verdict.reason, "host_error:interceptor_failed");
+  assert.equal(r.decided_by, 0);
+  assert.equal("substituted_for" in r.verdicts[0], false);
+  assert.equal(r.verdicts[1].decision, "allow");
+});
+
+test("on_error: binding member and document default resolve as §7.7.5 says", () => {
+  const seen = [];
+  const { reg } = postureRegistry((r) =>
+    r.kind("com.example.see", (_config, context) => {
+      seen.push([context.id, context.onError, context.timeoutMs]);
+      return allow;
+    }),
+  );
+  const em = InterceptionEmitter.fromDeclarationValue(
+    {
+      declaration: V11,
+      configuration: { failure: { on_error: "continue" } },
+      bindings: [
+        { id: "inherits", kind: "com.example.see" },
+        { id: "overrides", kind: "com.example.see", on_error: "deny", timeout_ms: 250 },
+      ],
+    },
+    reg,
+  );
+  const d = em.declaration;
+  assert.equal(d.declaration, V11);
+  assert.deepEqual(d.configuration.failure, { on_error: "continue" });
+  assert.equal(d.bindings[0].on_error, "continue");
+  assert.equal(d.bindings[1].on_error, "deny");
+  assert.deepEqual(seen, [
+    ["inherits", "continue", 5000],
+    ["overrides", "deny", 250],
+  ]);
+  // An explicit document default of deny with a binding that opens it.
+  const em2 = InterceptionEmitter.fromDeclarationValue(
+    {
+      declaration: V11,
+      configuration: { failure: { on_error: "deny" } },
+      bindings: [{ id: "opens", kind: "com.example.see", on_error: "continue" }],
+    },
+    reg,
+  );
+  assert.equal(em2.declaration.configuration.failure.on_error, "deny");
+  assert.equal(em2.declaration.bindings[0].on_error, "continue");
+  // A 1.1 document without either member means what 1.0 meant.
+  const em3 = InterceptionEmitter.fromDeclarationValue({ ...minimal(), declaration: V11 }, reg);
+  assert.equal(em3.declaration.configuration.failure.on_error, "deny");
+  assert.equal(em3.declaration.bindings[0].on_error, "deny");
+});
+
+test("on_error: declared continue substitutes, declared deny does not, and the principal is told", async () => {
+  const { reg, notices } = postureRegistry();
+  const em = InterceptionEmitter.fromDeclarationValue(
+    {
+      declaration: V11,
+      configuration: { composition: { profile: "sequential/run_all" }, failure: { on_error: "continue" } },
+      bindings: [
+        { id: "flaky", kind: "com.example.flaky" },
+        { id: "strict", kind: "com.example.flaky", on_error: "deny" },
+        { id: "second", kind: "com.example.allow" },
+      ],
+    },
+    reg,
+  );
+  const r = await em.emitUnchecked(ctx());
+  // The strict binding's deny wins; the flaky slot was substituted.
+  assert.equal(r.verdict.decision, "deny");
+  assert.equal(r.verdict.reason, "host_error:interceptor_failed");
+  assert.equal(r.decided_by, 1);
+  assert.equal(r.verdicts[0].decision, "allow");
+  assert.equal(r.verdicts[0].name, "flaky");
+  assert.equal(r.verdicts[0].substituted_for, "host_error:interceptor_failed");
+  assert.equal("reason" in r.verdicts[0], false);
+  assert.equal(r.verdicts[1].reason, "host_error:interceptor_failed");
+  assert.equal("substituted_for" in r.verdicts[1], false);
+  assert.deepEqual(r.verdict.warnings, [
+    { reason: "host_warning:control_failed", message: "flaky: host_error:interceptor_failed; host continued" },
+  ]);
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].binding, "flaky");
+  assert.equal(notices[0].message, "flaky: host_error:interceptor_failed; host continued");
+  // Alone, the continuation proceeds with decided_by null.
+  const em2 = InterceptionEmitter.fromDeclarationValue(
+    { declaration: V11, bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "continue" }] },
+    reg,
+  );
+  const r2 = await em2.emitUnchecked(ctx("pre_tool_call", 1));
+  assert.equal(r2.verdict.decision, "allow");
+  assert.equal(r2.decided_by, null);
+  assert.equal(r2.fold_truncated, false);
+  assert.equal(r2.verdicts[0].substituted_for, "host_error:interceptor_failed");
+  assert.equal(r2.declaration, V11);
+});
+
+test("on_error: continue without a registry notifier is binding_rejected at the posture's pointer", () => {
+  const noChannel = registry((r) => r.kind("com.example.flaky", () => throws));
+  // Stated on the binding: the binding member is at fault.
+  refused(
+    () =>
+      InterceptionEmitter.fromDeclarationValue(
+        { declaration: V11, bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "continue" }] },
+        noChannel,
+      ),
+    DeclarationErrorClass.BindingRejected,
+    "/bindings/0/on_error",
+  );
+  // Inherited from the document default: the default is at fault.
+  const e = refused(
+    () =>
+      InterceptionEmitter.fromDeclarationValue(
+        {
+          declaration: V11,
+          configuration: { failure: { on_error: "continue" } },
+          bindings: [{ id: "flaky", kind: "com.example.flaky" }],
+        },
+        noChannel,
+      ),
+    DeclarationErrorClass.BindingRejected,
+    "/configuration/failure/on_error",
+  );
+  assert.match(e.message, /control failure notifier/);
+  // Deny needs no channel.
+  InterceptionEmitter.fromDeclarationValue(
+    {
+      declaration: V11,
+      configuration: { failure: { on_error: "deny" } },
+      bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "deny" }],
+    },
+    noChannel,
+  );
+  // With the channel the same document loads.
+  const { reg } = postureRegistry();
+  InterceptionEmitter.fromDeclarationValue(
+    { declaration: V11, bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "continue" }] },
+    reg,
+  );
+  assert.throws(() => new HostRegistry(HostSurface.sdkDefault()).controlFailureNotifier("nope"), HostRegistryError);
+});
+
+test("on_error: refusal classes for the 1.1 members", () => {
+  // Outside the closed set: invalid_field at the member.
+  for (const bad of ["ignore", "Continue", true, null]) {
+    refused(
+      () => HostDeclaration.fromValue({ declaration: V11, bindings: [{ id: "a", kind: "com.example.allow", on_error: bad }] }),
+      DeclarationErrorClass.InvalidField,
+      "/bindings/0/on_error",
+    );
+    refused(
+      () => HostDeclaration.fromValue({ ...minimal(), declaration: V11, configuration: { failure: { on_error: bad } } }),
+      DeclarationErrorClass.InvalidField,
+      "/configuration/failure/on_error",
+    );
+  }
+  // Under a 1.0 version string: unknown_field; the document opts in by
+  // writing 1.1.
+  refused(
+    () => HostDeclaration.fromValue({ declaration: V, bindings: [{ id: "a", kind: "com.example.allow", on_error: "continue" }] }),
+    DeclarationErrorClass.UnknownField,
+    "/bindings/0/on_error",
+  );
+  refused(
+    () => HostDeclaration.fromValue({ ...minimal(), configuration: { failure: { on_error: "deny" } } }),
+    DeclarationErrorClass.UnknownField,
+    "/configuration/failure",
+  );
+  // An unknown member inside failure is unknown at that level.
+  refused(
+    () => HostDeclaration.fromValue({ ...minimal(), declaration: V11, configuration: { failure: { on_timeout: "deny" } } }),
+    DeclarationErrorClass.UnknownField,
+    "/configuration/failure/on_timeout",
+  );
+  // A host whose surface accepts 1.0 only refuses a 1.1 document as
+  // version_unsupported with its own accepted set (the "1.0 loader
+  // refuses 1.1" case, §7.7.2).
+  const surface = { ...HostSurface.fromCapabilities(["host_declaration"]), declaration_versions: [V] };
+  const reg = new HostRegistry(surface).kind("com.example.allow", () => allow);
+  const e = refused(
+    () => InterceptionEmitter.fromDeclarationValue({ ...minimal(), declaration: V11 }, reg),
+    DeclarationErrorClass.VersionUnsupported,
+    "/declaration",
+  );
+  assert.deepEqual(e.accepted, [V]);
+  InterceptionEmitter.fromDeclarationValue(minimal(), reg);
+});
+
+test("managed kinds: resolver output, name collision, the resolved bound", async () => {
+  const bounds = [];
+  const outcomes = [];
+  const managed = {
+    interceptManaged(_c, boundMs) {
+      bounds.push(boundMs);
+      return outcomes.shift();
+    },
+  };
+  const contexts = [];
+  const { reg, notices } = postureRegistry((r) =>
+    r.managedKind("com.example.proc", (_config, context) => {
+      contexts.push(context);
+      return managed;
+    }),
+  );
+  assert.ok(reg.names().kinds.includes("com.example.proc"), "managed kinds are registry names");
+  // One name is managed or standard, never both.
+  assert.throws(() => reg.kind("com.example.proc", () => allow), HostRegistryError);
+  assert.throws(() => reg.managedKind("com.example.allow", () => managed), HostRegistryError);
+  assert.throws(() => reg.managedKind("ctk.proc", () => managed), HostRegistryError);
+  assert.throws(() => reg.managedKind("com.example.other", "not a function"), HostRegistryError);
+
+  const em = InterceptionEmitter.fromDeclarationValue(
+    {
+      declaration: V11,
+      configuration: { composition: { profile: "sequential/run_all" } },
+      bindings: [
+        { id: "bounded", kind: "com.example.proc", timeout_ms: 250, on_error: "continue" },
+        { id: "unbounded", kind: "com.example.proc", timeout_ms: null },
+      ],
+    },
+    reg,
+  );
+  assert.equal(contexts[0].timeoutMs, 250);
+  assert.equal(contexts[0].onError, "continue");
+  assert.equal(contexts[1].timeoutMs, null);
+  assert.equal(contexts[1].onError, "deny");
+  outcomes.push({ outcome: "timeout" }, { outcome: "verdict", verdict: { decision: "allow" } });
+  const r = await em.emitUnchecked(ctx());
+  assert.deepEqual(bounds, [250, null]);
+  assert.equal(r.verdict.decision, "allow");
+  assert.equal(r.verdicts[0].name, "bounded");
+  assert.equal(r.verdicts[0].substituted_for, "host_error:interceptor_timeout");
+  assert.equal(r.verdicts[1].decision, "allow");
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].binding, "bounded");
+  // Cancelled never continues, whatever the binding says.
+  outcomes.push({ outcome: "cancelled" }, { outcome: "verdict", verdict: { decision: "allow" } });
+  const r2 = await em.emitUnchecked(ctx("pre_tool_call", 1));
+  assert.equal(r2.verdict.decision, "deny");
+  assert.equal(r2.verdict.reason, "host_error:interceptor_failed");
+  assert.equal(r2.decided_by, 0);
+  assert.equal("substituted_for" in r2.verdicts[0], false);
+  assert.equal(notices.length, 1);
+  // A managed kind whose resolver returns a plain interceptor is
+  // rejected, and so is a standard kind returning a managed one.
+  refused(
+    () =>
+      InterceptionEmitter.fromDeclarationValue(
+        { declaration: V11, bindings: [{ id: "a", kind: "com.example.wrong", config: {} }] },
+        registry((r) => r.managedKind("com.example.wrong", () => allow)),
+      ),
+    DeclarationErrorClass.BindingRejected,
+    "/bindings/0",
+  );
+  refused(
+    () =>
+      InterceptionEmitter.fromDeclarationValue(
+        { declaration: V11, bindings: [{ id: "a", kind: "com.example.wrong", config: {} }] },
+        registry((r) => r.kind("com.example.wrong", () => managed)),
+      ),
+    DeclarationErrorClass.BindingRejected,
+    "/bindings/0",
+  );
+});
+
+test("builder: failureOnError and bindWith write the 1.1 members; the builder path agrees with the value path", () => {
+  const b = new DeclarationBuilder()
+    .failureOnError("continue")
+    .bindWith("flaky", "com.example.flaky", {}, { onError: "deny", timeoutMs: 100, at: ["output", "input"] })
+    .bindWith("second", "com.example.allow");
+  const value = b.toValue();
+  assert.equal(value.declaration, V11);
+  assert.deepEqual(value.configuration, { failure: { on_error: "continue" } });
+  assert.deepEqual(value.bindings[0], {
+    id: "flaky",
+    kind: "com.example.flaky",
+    config: {},
+    at: ["input", "output"],
+    timeout_ms: 100,
+    on_error: "deny",
+  });
+  assert.deepEqual(value.bindings[1], { id: "second", kind: "com.example.allow", config: {} });
+  const { reg } = postureRegistry();
+  const viaBuilder = InterceptionEmitter.fromDeclaration(b.build(), reg);
+  const viaValue = InterceptionEmitter.fromDeclarationValue(value, reg);
+  const viaRunner = InterceptionEmitter.fromDeclaration(builderFromValue(value).build(), reg);
+  assert.equal(canonicalDeclaration(viaBuilder.declaration), canonicalDeclaration(viaValue.declaration));
+  assert.equal(canonicalDeclaration(viaRunner.declaration), canonicalDeclaration(viaValue.declaration));
+  assert.equal(viaValue.declaration.bindings[1].on_error, "continue");
+  // Written under 1.0 the builder's output is refused like a file.
+  refused(
+    () => new DeclarationBuilder().version(V).failureOnError("deny").bind("a", "com.example.allow").build(),
+    DeclarationErrorClass.UnknownField,
+    "/configuration/failure",
+  );
+});
+
+test("sealed emitter: the notifier is a host channel, the registration options are not", () => {
+  const { reg } = postureRegistry();
+  const em = InterceptionEmitter.fromDeclarationValue(
+    { declaration: V11, bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "continue" }] },
+    reg,
+  );
+  em.setControlFailureNotifier(() => {});
+  assert.throws(() => em.registerWithOptions(allow, { onError: "continue" }), EmitterSealed);
+  assert.throws(() => em.registerManaged({ interceptManaged: () => ({ outcome: "timeout" }) }), EmitterSealed);
 });

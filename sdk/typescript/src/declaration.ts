@@ -24,24 +24,31 @@ import {
   ApprovalResolver,
   CompositionConfig,
   CompositionProfile,
+  ControlFailureNotifier,
   EnforcementMode,
   InterceptionPoint,
   Interceptor,
   JsonValue,
+  ManagedInterceptor,
   OnApproval,
+  OnError,
   SynthesisPolicy,
   findNonFinite,
   nonFiniteDetail,
 } from "./index";
 import { AgentHooksCoreError, native } from "./native";
 
-/** The declaration contract version this SDK writes and accepts
- * (§7.7.2). A test pins it to the core's `declaration_versions()`. */
-export const DECLARATION_VERSION = "agent-hooks-declaration/1.0";
+/** The declaration contract version this SDK writes and the newest it
+ * accepts (§7.7.2). 1.1 adds the OPTIONAL `on_error` members (§6.3.1,
+ * §7.7.5); a document without them keeps its 1.0 meaning. A test pins
+ * it to the core's `declaration_versions()`. */
+export const DECLARATION_VERSION = "agent-hooks-declaration/1.1";
 
-/** Every contract version the loader accepts (§7.7.2). Any other
- * `declaration` value is refused as `declaration_error:version_unsupported`. */
+/** Every contract version the loader accepts (§7.7.2), oldest first.
+ * Any other `declaration` value is refused as
+ * `declaration_error:version_unsupported`. */
 export const SUPPORTED_DECLARATION_VERSIONS: readonly string[] = Object.freeze([
+  "agent-hooks-declaration/1.0",
   DECLARATION_VERSION,
 ]);
 
@@ -378,8 +385,13 @@ export interface BindingContext {
   kind: string;
   /** The resolved `at` set, in lifecycle order. */
   at: readonly InterceptionPoint[];
-  /** The resolved per-binding bound in milliseconds; `null` is unbounded. */
+  /** The resolved per-binding bound in milliseconds; `null` is unbounded.
+   * A managed interceptor receives this same value on every call. */
   timeoutMs: number | null;
+  /** The resolved failure posture (§6.3.1): the binding's `on_error`,
+   * else the document default `configuration.failure.on_error`, else
+   * `deny`. */
+  onError: OnError;
   host: HostInfo | null;
   declarationVersion: string;
 }
@@ -388,6 +400,14 @@ export interface BindingContext {
  * or refuses it by throwing. The thrown message MUST NOT echo the
  * config (§7.7.5); the loader never does. */
 export type KindResolver = (config: JsonValue, context: BindingContext) => Interceptor;
+
+/** As {@link KindResolver}, for a kind whose interceptor owns its own
+ * deadline (§6.3): the emitter hands the result `context.timeoutMs`
+ * on every call and does not wrap it in a second timer. */
+export type ManagedKindResolver = (
+  config: JsonValue,
+  context: BindingContext,
+) => ManagedInterceptor;
 
 /** The names a registry holds, derived from what was registered and
  * never hand-written (§7.7.5). */
@@ -418,9 +438,14 @@ export function validKind(s: string): boolean {
  * can build many emitters. */
 export class HostRegistry {
   private readonly kinds = new Map<string, KindResolver>();
+  private readonly managedKinds = new Map<string, ManagedKindResolver>();
   private readonly identityProviders = new Map<string, (ctx: AgentContext) => string>();
   private readonly approvalResolvers = new Map<string, ApprovalResolver>();
   private readonly approvalRedactors = new Map<string, (ctx: AgentContext) => AgentContext>();
+  /** §6.3.1: the principal channel every emitter built from this
+   * registry notifies on a continuation. A document that resolves any
+   * binding to `on_error: continue` is refused without one. */
+  private notifier: ControlFailureNotifier | null = null;
 
   /** A registry over the given code surface. Kinds under the reserved
    * `agent_hooks` and `ctk` segments are refused. */
@@ -437,6 +462,32 @@ export class HostRegistry {
 
   /** Register a kind resolver. */
   kind(kind: string, resolver: KindResolver): this {
+    this.checkKind(kind, resolver);
+    this.kinds.set(kind, resolver);
+    return this;
+  }
+
+  /** Register a kind whose interceptor owns its own deadline (§6.3).
+   * One kind name is managed or standard, never both. */
+  managedKind(kind: string, resolver: ManagedKindResolver): this {
+    this.checkKind(kind, resolver);
+    this.managedKinds.set(kind, resolver);
+    return this;
+  }
+
+  /** Set the principal channel (§6.3.1) for every emitter built from
+   * this registry. Required before a document that resolves any
+   * binding to `on_error: continue` can load; the refusal is
+   * `declaration_error:binding_rejected` otherwise. */
+  controlFailureNotifier(notifier: ControlFailureNotifier): this {
+    if (typeof notifier !== "function") {
+      throw new HostRegistryError("control failure notifier is not a function");
+    }
+    this.notifier = notifier;
+    return this;
+  }
+
+  private checkKind(kind: string, resolver: unknown): void {
     if (!validKind(kind)) {
       throw new HostRegistryError(
         `kind ${JSON.stringify(kind)} does not match the kind grammar (see spec §7.7.5)`,
@@ -448,14 +499,12 @@ export class HostRegistry {
         `kind ${JSON.stringify(kind)} uses the reserved segment ${JSON.stringify(head)} (see spec §7.7.5)`,
       );
     }
-    if (this.kinds.has(kind)) {
+    if (this.kinds.has(kind) || this.managedKinds.has(kind)) {
       throw new HostRegistryError(`kind ${JSON.stringify(kind)} registered twice`);
     }
     if (typeof resolver !== "function") {
       throw new HostRegistryError(`kind ${JSON.stringify(kind)} resolver is not a function`);
     }
-    this.kinds.set(kind, resolver);
-    return this;
   }
 
   /** Register a custom identity provider (§10.1 name rules apply). */
@@ -503,7 +552,7 @@ export class HostRegistry {
       identity_providers: sortedStrings(this.identityProviders.keys()),
       approval_resolvers: sortedStrings(this.approvalResolvers.keys()),
       approval_redactors: sortedStrings(this.approvalRedactors.keys()),
-      kinds: sortedStrings(this.kinds.keys()),
+      kinds: sortedStrings([...this.kinds.keys(), ...this.managedKinds.keys()]),
     };
   }
 
@@ -516,6 +565,16 @@ export class HostRegistry {
   /** @internal */
   kindResolver(kind: string): KindResolver | undefined {
     return this.kinds.get(kind);
+  }
+
+  /** @internal */
+  managedKindResolver(kind: string): ManagedKindResolver | undefined {
+    return this.managedKinds.get(kind);
+  }
+
+  /** @internal */
+  controlFailureNotifierRef(): ControlFailureNotifier | null {
+    return this.notifier;
   }
 
   /** @internal */
@@ -693,8 +752,16 @@ export interface ResolvedConfiguration {
   identity_provider: string | null;
   approval: { resolver: string | null; redactor: string | null };
   posture: { tool_seam_host_error: ToolSeamPosture };
+  /** The document default failure posture (§6.3.1, since 1.1); filled
+   * (`deny`) for a 1.0 document too. */
+  failure: ResolvedFailure;
   timeouts: { interceptor_ms: number | null; approval_resolver_ms: number | null };
   records: { max_buffered: number | null };
+}
+
+/** Resolved `configuration.failure` (§7.7.3). */
+export interface ResolvedFailure {
+  on_error: OnError;
 }
 
 /** Resolved surface (§7.7.4): the document's, or the code's when the
@@ -708,13 +775,16 @@ export interface ResolvedSurface {
   declaration_versions: string[];
 }
 
-/** One binding with `at` and `timeout_ms` filled. */
+/** One binding with `at`, `timeout_ms` and `on_error` filled. */
 export interface ResolvedBinding {
   id: string;
   kind: string;
   config: JsonValue;
   at: InterceptionPoint[];
   timeout_ms: number | null;
+  /** The binding's failure posture (§6.3.1): its own `on_error`, else
+   * the document default. */
+  on_error: OnError;
 }
 
 /** The resolved declaration (§7.7.3 "Resolved form"): every default
@@ -771,6 +841,16 @@ export function declarationVersions(): { current: string; supported: string[] } 
 }
 
 // ---- builder (code path) ----------------------------------------------------
+
+/** The optional members of one binding envelope (§7.7.5) for
+ * {@link DeclarationBuilder.bindWith}. An absent member is not written
+ * and takes the document default at load; `timeoutMs: null` writes
+ * `null` (unbounded). */
+export interface BindingOptions {
+  at?: Iterable<InterceptionPoint>;
+  timeoutMs?: number | null;
+  onError?: OnError;
+}
 
 /** A null-prototype object: every key, `__proto__` included, is an
  * own member that serializes, so the builder path refuses exactly what
@@ -890,6 +970,14 @@ export class DeclarationBuilder {
     return this;
   }
 
+  /** The document default failure posture, `configuration.failure.on_error`
+   * (§6.3.1, §7.7.3). A 1.1 member: written under a 1.0 version the
+   * document is refused as `unknown_field`. */
+  failureOnError(onError: OnError): this {
+    this.configurationSub("failure")["on_error"] = onError;
+    return this;
+  }
+
   /** `null` writes `null` (unbounded). */
   interceptorTimeoutMs(ms: number | null): this {
     this.configurationSub("timeouts")["interceptor_ms"] = ms;
@@ -957,9 +1045,17 @@ export class DeclarationBuilder {
     at?: Iterable<InterceptionPoint>,
     timeoutMs?: number | null,
   ): this {
+    return this.bindWith(id, kind, config, { at, timeoutMs });
+  }
+
+  /** Append one binding with every optional envelope member named
+   * (§7.7.5). `onError` omitted inherits the document default; written,
+   * it is a 1.1 member and a 1.0 document carrying it is refused. */
+  bindWith(id: string, kind: string, config: JsonValue = {}, opts: BindingOptions = {}): this {
     const b: Record<string, JsonValue> = { id, kind, config };
-    if (at !== undefined) b["at"] = sortedPoints(at);
-    if (timeoutMs !== undefined) b["timeout_ms"] = timeoutMs;
+    if (opts.at !== undefined) b["at"] = sortedPoints(opts.at);
+    if (opts.timeoutMs !== undefined) b["timeout_ms"] = opts.timeoutMs;
+    if (opts.onError !== undefined) b["on_error"] = opts.onError;
     const bindings = this.doc["bindings"];
     if (Array.isArray(bindings)) bindings.push(b);
     else this.doc["bindings"] = [b];

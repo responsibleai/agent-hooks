@@ -81,6 +81,87 @@ export const HostError = Object.freeze({
 } as const);
 export type HostError = (typeof HostError)[keyof typeof HostError];
 
+/** Reserved `host_warning:*` reasons a host synthesizes (§11.1,
+ * `spec/reserved-warnings.json`). Interceptors MUST NOT emit them; the
+ * §5 gate refuses such a verdict as `host_error:verdict_invalid`. */
+export const HostWarning = Object.freeze({
+  /** A registration whose `on_error` is `continue` failed and the host
+   * substituted an allow for its slot (§6.3.1). */
+  ControlFailed: "host_warning:control_failed",
+} as const);
+export type HostWarning = (typeof HostWarning)[keyof typeof HostWarning];
+
+/** What a registration does when its interceptor fails (§6.3.1): the
+ * interceptor raised, exceeded its timeout, or returned a value that
+ * fails §5 validation. `deny` is the default and the fail-closed
+ * posture. `continue` substitutes an allow carrying
+ * `host_warning:control_failed` in the failing registration's slot,
+ * records the underlying reason as `verdicts[].substituted_for` and
+ * tells the principal. Nothing else is affected by this setting. */
+export const OnError = Object.freeze({
+  Deny: "deny",
+  Continue: "continue",
+} as const);
+export type OnError = (typeof OnError)[keyof typeof OnError];
+
+/** The three failures `on_error` covers (§6.3.1). */
+export function isControlFailure(reason: string): boolean {
+  return (
+    reason === HostError.InterceptorFailed ||
+    reason === HostError.InterceptorTimeout ||
+    reason === HostError.VerdictInvalid
+  );
+}
+
+/** What the host tells the principal when a control failed and the
+ * action continued (§6.3.1). Payload-free: the registration label, the
+ * reserved reason and the host-synthesized message, never context or
+ * target content. */
+export interface ControlFailureNotice {
+  /** The interception point of the emission, when the context carried
+   * a parseable one. */
+  interception_point?: InterceptionPoint;
+  /** Dispatch index of the failing registration (`verdicts[].index`). */
+  index: number;
+  /** The registration name (a declaration binding id) or
+   * `interceptor-<index>` for an unnamed code registration. */
+  binding: string;
+  /** The underlying `host_error:*` reason, also recorded as
+   * `verdicts[].substituted_for`. */
+  reason: string;
+  /** `<binding>: <reason>; host continued`. */
+  message: string;
+}
+
+/** Host callback that relays a {@link ControlFailureNotice} to the
+ * principal (§6.3.1): the user in an interactive session, otherwise
+ * the agent through the host's own message channel. A notifier that
+ * throws withdraws the continuation: the deny stands. */
+export type ControlFailureNotifier = (notice: ControlFailureNotice) => void;
+
+/** Options for {@link InterceptionEmitter.registerWithOptions} and
+ * {@link InterceptionEmitter.registerManaged} (§7.7.5, §6.3.1). */
+export interface RegistrationOptions {
+  /** Payload-free name recorded on `verdicts[].name` (§10.3). */
+  name?: string;
+  /** Points the interceptor runs at; omitted binds every point. */
+  at?: Iterable<InterceptionPoint>;
+  /** Failure posture; `deny` when omitted. `continue` needs a
+   * notifier set first ({@link InterceptionEmitter.setControlFailureNotifier}). */
+  onError?: OnError;
+}
+
+/** Thrown by {@link InterceptionEmitter.registerWithOptions} and
+ * {@link InterceptionEmitter.registerManaged} when a registration asks
+ * for `on_error: continue` on an emitter with no control failure
+ * notifier. Nothing is registered then. */
+export class RegistrationError extends Error {
+  constructor(public readonly detail: string) {
+    super(`registration refused: ${detail}`);
+    this.name = "RegistrationError";
+  }
+}
+
 /** A single `$target`-rooted replacement (§5.2). */
 export interface Transform {
   /** Path rooted at `$target` (or the deprecated `$policy_target` alias). */
@@ -263,6 +344,11 @@ export interface VerdictSummary {
   reason?: string | null;
   /** Host-chosen payload-free registration identifier (§10.3). */
   name?: string;
+  /** Present iff the host substituted an allow for this registration's
+   * failure under `on_error: continue` (§6.3.1, §10.3): the underlying
+   * `host_error:*` reason. The entry's `decision` is then `allow` and
+   * its `reason` absent. */
+  substituted_for?: string;
 }
 
 /** Host-side record of one emission (§10.3).
@@ -307,7 +393,8 @@ export interface InterceptionRecord {
    * an emitter configured in code. */
   declaration?: string;
   /** Per-interceptor summary; populated in multi-verdict profiles
-   * (`sequential/run_all`, `parallel/*`). */
+   * (`sequential/run_all`, `parallel/*`) and whenever a slot was
+   * substituted under `on_error: continue` (§6.3.1). */
   verdicts?: VerdictSummary[];
   /** `true` iff one or more registered interceptors were never invoked
    * in this emission (short-circuit, approval-stop, or a failed
@@ -329,6 +416,39 @@ export function proceeds(r: InterceptionRecord): boolean {
 /** Interceptor protocol (§7). */
 export interface Interceptor {
   intercept(context: AgentContext): Verdict | Promise<Verdict>;
+}
+
+/** Typed completion of a {@link ManagedInterceptor} (§6.3, timeout
+ * ownership). `timeout` is reported only after the interceptor has
+ * cancelled and cleaned up its external work; `cancelled` is never a
+ * timeout and never continues. */
+export type ManagedInterceptorOutcome =
+  /** A verdict; it crosses the same §5 gate as any interceptor's. */
+  | { outcome: "verdict"; verdict: Verdict }
+  /** The work exceeded the resolved bound and has been cleaned up.
+   * Recorded as `host_error:interceptor_timeout`; eligible for
+   * `on_error: continue`. */
+  | { outcome: "timeout" }
+  /** The host or runtime cancelled the emission. Recorded as
+   * `host_error:interceptor_failed`; never continues. */
+  | { outcome: "cancelled" }
+  /** The work failed. `detail` is payload-free (an error type name,
+   * never content). Recorded as `host_error:interceptor_failed`;
+   * eligible for `continue`. */
+  | { outcome: "failed"; detail?: string };
+
+/** An interceptor that owns external work (a child process, an HTTP
+ * call) and therefore its own deadline (§6.3). The emitter does not
+ * wrap it in the outer timer; it hands the interceptor the resolved
+ * bound for the registration (`null` is unbounded), and the
+ * interceptor MUST cancel and clean up the work before it reports
+ * `timeout`. Register through {@link InterceptionEmitter.registerManaged}
+ * or a {@link ManagedKindResolver}. */
+export interface ManagedInterceptor {
+  interceptManaged(
+    context: AgentContext,
+    boundMs: number | null,
+  ): ManagedInterceptorOutcome | Promise<ManagedInterceptorOutcome>;
 }
 
 /** Approval seam (§9). */
@@ -575,14 +695,17 @@ export {
 } from "./declaration";
 export type {
   BindingContext,
+  BindingOptions,
   Finding,
   HostInfo,
   KindResolver,
   KnobSupport,
+  ManagedKindResolver,
   RegistryNames,
   ResolvedBinding,
   ResolvedConfiguration,
   ResolvedDeclaration,
+  ResolvedFailure,
   ResolvedSurface,
   TimeoutSupport,
   ToolSeamPosture,

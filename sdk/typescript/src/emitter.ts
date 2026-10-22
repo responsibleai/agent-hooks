@@ -32,6 +32,17 @@
  * on any block — the ignorable-result variant is the explicitly named
  * {@link InterceptionEmitter.emitUnchecked}.
  *
+ * Failure posture (§6.3.1): every registration is `on_error: deny`
+ * unless a declaration binding or {@link InterceptionEmitter.registerWithOptions}
+ * says `continue`. Under `continue` the three covered failures (raise,
+ * timeout, invalid verdict) settle to an allow carrying
+ * `host_warning:control_failed` in the failing slot, the record keeps
+ * the reason as `verdicts[].substituted_for`, and the principal is told
+ * through {@link InterceptionEmitter.setControlFailureNotifier}, which
+ * must exist before such a registration is accepted. Cancellation,
+ * approval failures, context failures, transform failures,
+ * `no_interceptor` and an explicit deny never continue.
+ *
  * Concurrency (§12.2): emissions for different tool calls may interleave
  * on the event loop; sequence assignment and record append are atomic on
  * a single JS thread. Sharing one emitter across workers is unsupported.
@@ -44,6 +55,8 @@ import {
   Composition,
   CompositionConfig,
   CompositionProfile,
+  ControlFailureNotice,
+  ControlFailureNotifier,
   Decision,
   EnforcementMode,
   FinalizeMeta,
@@ -56,6 +69,11 @@ import {
   Interceptor,
   JCS_SHA256,
   JsonValue,
+  ManagedInterceptor,
+  ManagedInterceptorOutcome,
+  OnError,
+  RegistrationError,
+  RegistrationOptions,
   Verdict,
   VerdictSummary,
   Warning,
@@ -158,24 +176,79 @@ function withUnions(combined: Verdict, pool: Verdict[]): Verdict {
   return out;
 }
 
-/** Payload-free per-interceptor summaries for the record (§10.3). */
-function summaries(verdicts: Verdict[]): VerdictSummary[] {
+/** Payload-free per-interceptor summaries for the record (§10.3).
+ * `substituted[i]` is the `host_error:*` reason the host substituted an
+ * allow for in slot `i` under `on_error: continue` (§6.3.1), else
+ * `null`. */
+function summaries(verdicts: Verdict[], substituted: ReadonlyArray<string | null>): VerdictSummary[] {
   return verdicts.map((v, index) => ({
     index,
     decision: v.decision,
     ...(v.reason != null ? { reason: v.reason } : {}),
+    ...(substituted[index] != null ? { substituted_for: substituted[index] as string } : {}),
   }));
 }
 
+/** Attach `substituted_for` positionally to summaries the core built. */
+function withSubstitutions(
+  sums: VerdictSummary[],
+  substituted: ReadonlyArray<string | null>,
+): VerdictSummary[] {
+  return sums.map((s) =>
+    substituted[s.index] != null ? { ...s, substituted_for: substituted[s.index] as string } : s,
+  );
+}
+
+/** What runs for one registration: a standard interceptor the emitter
+ * times itself, or a managed one that owns its own deadline (§6.3). */
+type BoundInterceptor =
+  | { managed: false; interceptor: Interceptor }
+  | { managed: true; interceptor: ManagedInterceptor };
+
 /** One registered interceptor with its binding facts (§7.7.5): the
  * payload-free name stamped on `verdicts[].name`, the points it runs at
- * (`null` = every point, the pre-declaration behaviour) and its
- * timeout (`undefined` = the emitter-wide value, `null` = unbounded). */
+ * (`null` = every point, the pre-declaration behaviour), its timeout
+ * (`undefined` = the emitter-wide value, `null` = unbounded) and its
+ * failure posture (§6.3.1). */
 interface Bound {
-  interceptor: Interceptor;
+  interceptor: BoundInterceptor;
   name: string | null;
   at: ReadonlySet<InterceptionPoint> | null;
   timeoutMs: number | null | undefined;
+  onError: OnError;
+}
+
+/** One failed interceptor call (§6.3) before the failure posture is
+ * applied: the reserved reason, a payload-free detail, and whether
+ * `on_error: continue` may substitute for it. Only the three covered
+ * failures are continuable; a cancelled managed outcome is not. */
+interface CallFailure {
+  reason: HostError;
+  detail?: string;
+  continuable: boolean;
+}
+
+function covered(reason: HostError, detail?: string): CallFailure {
+  return { reason, detail, continuable: true };
+}
+
+function isCallFailure(v: Verdict | CallFailure): v is CallFailure {
+  return "continuable" in v;
+}
+
+/** What one slot settled to: the verdict in the slot and, when the
+ * host substituted an allow under `on_error: continue`, the reason it
+ * stands in for (§6.3.1, §10.3 `substituted_for`). */
+interface Settled {
+  verdict: Verdict;
+  substitutedFor: string | null;
+}
+
+/** Whether `v` is a typed managed outcome (§6.3). */
+function isManagedOutcome(v: unknown): v is ManagedInterceptorOutcome {
+  if (v === null || typeof v !== "object") return false;
+  const o = (v as { outcome?: unknown }).outcome;
+  return o === "verdict" || o === "timeout" || o === "cancelled" || o === "failed";
 }
 
 /** Internal result of one profile dispatch. */
@@ -239,6 +312,51 @@ function isInterceptor(v: unknown): v is Interceptor {
   );
 }
 
+/** Whether `v` looks like a managed interceptor (§6.3): an object with
+ * an `interceptManaged` method. */
+function isManagedInterceptor(v: unknown): v is ManagedInterceptor {
+  return (
+    v !== null &&
+    (typeof v === "object" || typeof v === "function") &&
+    typeof (v as { interceptManaged?: unknown }).interceptManaged === "function"
+  );
+}
+
+/** Validate `at` from a plain-JS caller: the point set is closed (§3). */
+function pointSet(at: Iterable<InterceptionPoint> | undefined): Set<InterceptionPoint> | null {
+  if (at === undefined) return null;
+  // The compile-time type does not protect plain-JS callers: a
+  // misspelled point must not bind nowhere without a word.
+  const points = new Set<InterceptionPoint>();
+  const known: readonly string[] = Object.values(InterceptionPoint);
+  for (const p of at) {
+    if (!known.includes(p)) {
+      throw new RangeError(
+        `unknown interception point ${JSON.stringify(p)}: the point set is closed (§3)`,
+      );
+    }
+    points.add(p);
+  }
+  if (points.size === 0) {
+    throw new RangeError(
+      "at must name at least one interception point; omit it to bind every point (§7.7.5)",
+    );
+  }
+  return points;
+}
+
+/** Validate `onError` from a plain-JS caller: the value set is closed
+ * (§6.3.1); omitted is `deny`. */
+function onErrorOf(v: OnError | undefined): OnError {
+  if (v === undefined) return OnError.Deny;
+  if (v !== OnError.Deny && v !== OnError.Continue) {
+    throw new RangeError(
+      `unknown on_error value ${JSON.stringify(v)}: "deny" | "continue" (§6.3.1)`,
+    );
+  }
+  return v;
+}
+
 export class InterceptionEmitter {
   private readonly interceptors: Bound[] = [];
   private _records: InterceptionRecord[] = [];
@@ -258,6 +376,8 @@ export class InterceptionEmitter {
   private sealed = false;
   /** The resolved declaration this emitter was built from, if any. */
   private _declaration: ResolvedDeclaration | null = null;
+  /** §6.3.1: the principal channel a continuation is announced on. */
+  private notifier: ControlFailureNotifier | null = null;
 
   /**
    * `timeoutMs` bounds each interceptor `intercept()` and resolver
@@ -369,15 +489,34 @@ export class InterceptionEmitter {
       approvalRedactor = fn;
     }
 
+    const notifier = registry.controlFailureNotifierRef();
     const bound: Bound[] = [];
     resolved.bindings.forEach((b, i) => {
       const pointer = `/bindings/${i}`;
-      const resolverFn = registry.kindResolver(b.kind);
-      if (resolverFn === undefined) {
+      const standard = registry.kindResolver(b.kind);
+      const managed = registry.managedKindResolver(b.kind);
+      if (standard === undefined && managed === undefined) {
         throw DeclarationError.single(
           DeclarationErrorClass.KindUnknown,
           `${pointer}/kind`,
           `kind ${JSON.stringify(b.kind)} vanished from the registry`,
+        );
+      }
+      // §6.3.1: a continuation must be announced, so a document that
+      // resolves a binding to `continue` needs the registry's principal
+      // channel before it loads. Refusing here, not falling back to
+      // deny at emission, keeps a configured `continue` from silently
+      // not applying. The pointer names where the posture came from.
+      const onError = onErrorOf(b.on_error);
+      if (onError === OnError.Continue && notifier === null) {
+        const at =
+          b.on_error === cfg.failure.on_error
+            ? "/configuration/failure/on_error"
+            : `${pointer}/on_error`;
+        throw DeclarationError.single(
+          DeclarationErrorClass.BindingRejected,
+          at,
+          `binding ${JSON.stringify(b.id)} resolves to on_error: continue but the host registry has no control failure notifier (see spec §6.3.1)`,
         );
       }
       // The dispatch set is fixed before the resolver runs and the
@@ -390,15 +529,16 @@ export class InterceptionEmitter {
         kind: b.kind,
         at: Object.freeze([...b.at]),
         timeoutMs: b.timeout_ms,
+        onError,
         host: resolved.host ?? null,
         declarationVersion: resolved.declaration,
       };
       // §7.7.5: a resolver that throws or returns a non-interceptor
       // refuses the document; the message is bounded and the config is
       // never echoed by the loader.
-      let interceptor: unknown;
+      let built: unknown;
       try {
-        interceptor = resolverFn(b.config, context);
+        built = standard !== undefined ? standard(b.config, context) : managed!(b.config, context);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "resolver threw a non-Error value";
         throw DeclarationError.single(
@@ -407,11 +547,18 @@ export class InterceptionEmitter {
           `binding ${JSON.stringify(b.id)} (kind ${JSON.stringify(b.kind)}) rejected: ${msg}`,
         );
       }
-      if (!isInterceptor(interceptor)) {
+      let interceptor: BoundInterceptor;
+      if (standard !== undefined && isInterceptor(built)) {
+        interceptor = { managed: false, interceptor: built };
+      } else if (standard === undefined && isManagedInterceptor(built)) {
+        interceptor = { managed: true, interceptor: built };
+      } else {
         const why =
-          interceptor instanceof Promise
+          built instanceof Promise
             ? "resolver returned a Promise; kind resolvers are synchronous"
-            : "resolver did not return an interceptor";
+            : standard !== undefined
+              ? "resolver did not return an interceptor"
+              : "resolver did not return a managed interceptor";
         throw DeclarationError.single(
           DeclarationErrorClass.BindingRejected,
           pointer,
@@ -423,11 +570,13 @@ export class InterceptionEmitter {
         name: b.id,
         at,
         timeoutMs: b.timeout_ms,
+        onError,
       });
     });
 
     const em = new InterceptionEmitter(cfg.mode, resolver, cfg.timeouts.interceptor_ms);
     em.resolverTimeoutMs = cfg.timeouts.approval_resolver_ms;
+    em.notifier = notifier;
     // The emitter owns its own copy of the composition and the
     // declaration it exposes is frozen all the way down, so the seal
     // cannot be bypassed by writing through `emitter.declaration`.
@@ -477,33 +626,67 @@ export class InterceptionEmitter {
    * {@link EmitterSealed} on a declaration-built emitter. */
   register(interceptor: Interceptor, name?: string, at?: Iterable<InterceptionPoint>): this {
     this.unsealed("register");
-    let points: Set<InterceptionPoint> | null = null;
-    if (at !== undefined) {
-      // The compile-time type does not protect plain-JS callers: a
-      // misspelled point must not bind nowhere without a word.
-      points = new Set();
-      const known: readonly string[] = Object.values(InterceptionPoint);
-      for (const p of at) {
-        if (!known.includes(p)) {
-          throw new RangeError(
-            `unknown interception point ${JSON.stringify(p)}: the point set is closed (§3)`,
-          );
-        }
-        points.add(p);
-      }
-      if (points.size === 0) {
-        throw new RangeError(
-          "at must name at least one interception point; omit it to bind every point (§7.7.5)",
-        );
-      }
+    // `register` always means on_error: deny (§6.3.1); only the options
+    // form can open the default, and it needs the notifier first.
+    this.pushBound({ managed: false, interceptor }, { name, at });
+    return this;
+  }
+
+  /** {@link register} with every registration option named (§7.7.5,
+   * §6.3.1). `onError: "continue"` is refused with
+   * {@link RegistrationError}, and nothing is registered, unless
+   * {@link setControlFailureNotifier} ran first: a continuation the
+   * principal cannot be told about is not conformant. Throws
+   * {@link EmitterSealed} on a declaration-built emitter. */
+  registerWithOptions(interceptor: Interceptor, options: RegistrationOptions = {}): this {
+    this.unsealed("registerWithOptions");
+    this.pushBound({ managed: false, interceptor }, options);
+    return this;
+  }
+
+  /** Register an interceptor that owns its own deadline (§6.3). The
+   * emitter does not time it; on every call it receives the bound this
+   * registration resolves to (the emitter-wide timeout, or `null` when
+   * that is disabled) and reports a typed outcome: `verdict`
+   * (gated like any return), `timeout` (after cleanup; follows
+   * `onError`), `failed` (follows `onError`) or `cancelled` (always
+   * `deny host_error:interceptor_failed`). Same refusals as
+   * {@link registerWithOptions}. */
+  registerManaged(interceptor: ManagedInterceptor, options: RegistrationOptions = {}): this {
+    this.unsealed("registerManaged");
+    this.pushBound({ managed: true, interceptor }, options);
+    return this;
+  }
+
+  /** Set the principal channel (§6.3.1): the callback that tells the
+   * user, or the agent through the host's own message channel, that a
+   * control failed and the action continued. Required before any
+   * registration with `onError: "continue"`. Allowed on a sealed
+   * emitter: like the record sink it is a host channel, not declared
+   * configuration (§7.7.7). */
+  setControlFailureNotifier(notifier: ControlFailureNotifier): this {
+    if (typeof notifier !== "function") {
+      throw new TypeError("control failure notifier must be a function");
+    }
+    this.notifier = notifier;
+    return this;
+  }
+
+  private pushBound(interceptor: BoundInterceptor, options: RegistrationOptions): void {
+    const points = pointSet(options.at);
+    const onError = onErrorOf(options.onError);
+    if (onError === OnError.Continue && this.notifier === null) {
+      throw new RegistrationError(
+        `${options.name ?? "unnamed registration"}: on_error is continue but the emitter has no control failure notifier; call setControlFailureNotifier first (see spec §6.3.1)`,
+      );
     }
     this.interceptors.push({
       interceptor,
-      name: name ?? null,
+      name: options.name ?? null,
       at: points,
       timeoutMs: undefined,
+      onError,
     });
-    return this;
   }
 
   /**
@@ -805,28 +988,132 @@ export class InterceptionEmitter {
     }
   }
 
-  /** Invoke one interceptor on its own copy of `ctx` (§7) and pass the
-   * result through the §5 gate. Never throws: every failure becomes the
-   * §6.3 synthesized deny. */
-  private async invoke(bound: Bound, ctx: AgentContext): Promise<Verdict> {
+  /** Invoke one interceptor on its own copy of `ctx` (§7), pass the
+   * result through the §5 gate and apply the registration's failure
+   * posture (§6.3.1). Never throws: every failure settles to the §6.3
+   * deny or, under `continue`, to the substituted allow. `idx` is the
+   * dispatch index of the registration (`verdicts[].index`). */
+  private async invoke(bound: Bound, ctx: AgentContext, idx: number): Promise<Settled> {
+    const out = await this.call(bound, ctx);
+    if (!isCallFailure(out)) return { verdict: out, substitutedFor: null };
+    return this.settle(ctx, idx, bound, out);
+  }
+
+  /** The raw call: a gated verdict, or the failure it produced. */
+  private async call(bound: Bound, ctx: AgentContext): Promise<Verdict | CallFailure> {
+    if (bound.interceptor.managed) return this.callManaged(bound.interceptor.interceptor, ctx, bound);
     let v: Verdict;
     try {
       // §7: each interceptor gets its own copy — in-place mutation of
       // the copy cannot alter enforcement.
-      v = await this.withTimeout(
-        () => bound.interceptor.intercept(structuredClone(ctx)),
-        this.limit(bound),
-      );
+      const interceptor = bound.interceptor.interceptor;
+      v = await this.withTimeout(() => interceptor.intercept(structuredClone(ctx)), this.limit(bound));
     } catch (e) {
-      if (e instanceof InterceptTimeout) {
-        return hostErrorVerdict(HostError.InterceptorTimeout);
-      }
-      return hostErrorVerdict(
-        HostError.InterceptorFailed,
-        (e as Error)?.constructor?.name ?? "Error",
+      if (e instanceof InterceptTimeout) return covered(HostError.InterceptorTimeout);
+      return covered(HostError.InterceptorFailed, (e as Error)?.constructor?.name ?? "Error");
+    }
+    return this.gated(v);
+  }
+
+  /** A managed interceptor (§6.3) owns its deadline: it receives the
+   * resolved bound and is not raced against a second timer. Its typed
+   * outcome is mapped by the core so every SDK agrees; `cancelled` is
+   * the one failure `on_error: continue` never covers. */
+  private async callManaged(
+    interceptor: ManagedInterceptor,
+    ctx: AgentContext,
+    bound: Bound,
+  ): Promise<Verdict | CallFailure> {
+    let outcome: unknown;
+    try {
+      outcome = await interceptor.interceptManaged(structuredClone(ctx), this.limit(bound));
+    } catch (e) {
+      return covered(HostError.InterceptorFailed, (e as Error)?.constructor?.name ?? "Error");
+    }
+    if (!isManagedOutcome(outcome)) {
+      // A value that is not a typed outcome is a return that fails
+      // validation (§6.3), like a malformed verdict.
+      return covered(
+        HostError.VerdictInvalid,
+        "managed outcome is not one of verdict | timeout | cancelled | failed (see spec §6.3)",
       );
     }
-    return this.gate(v);
+    if (outcome.outcome === "verdict") return this.gated(outcome.verdict);
+    let mapped: {
+      verdict: Verdict;
+      failure: { reason: HostError; detail: string | null; continuable: boolean } | null;
+    };
+    try {
+      mapped = JSON.parse(
+        native.managedOutcome(
+          JSON.stringify(
+            outcome.outcome === "failed"
+              ? { outcome: "failed", ...(outcome.detail !== undefined ? { detail: String(outcome.detail) } : {}) }
+              : { outcome: outcome.outcome },
+          ),
+        ),
+      );
+    } catch (e) {
+      const [code, detail] = codeAndDetail(e, HostError.InterceptorFailed);
+      return { reason: code, detail, continuable: false };
+    }
+    if (mapped.failure === null) return this.gated(mapped.verdict);
+    return {
+      reason: mapped.failure.reason,
+      detail: mapped.failure.detail ?? undefined,
+      continuable: mapped.failure.continuable,
+    };
+  }
+
+  /** §5 gate as a call result: the normalized verdict, or the
+   * `verdict_invalid` failure. */
+  private gated(v: Verdict): Verdict | CallFailure {
+    const g = this.gate(v);
+    if (isHostSynthesized(g)) return covered(HostError.VerdictInvalid, g.message ?? undefined);
+    return g;
+  }
+
+  /** Apply the registration's failure posture to one failed call
+   * (§6.3.1). Under `deny`, or for a failure `continue` does not cover,
+   * the §6.3 deny stands in the slot. Under `continue` the principal is
+   * told first; only then does the substituted allow take the slot, so
+   * a channel that fails withdraws the continuation and the deny
+   * stands. The core builds the substituted shape and the notice so
+   * every SDK writes the same bytes. */
+  private settle(ctx: AgentContext, idx: number, bound: Bound, failure: CallFailure): Settled {
+    const deny = (detail?: string): Settled => ({
+      verdict: hostErrorVerdict(failure.reason, detail),
+      substitutedFor: null,
+    });
+    if (bound.onError !== OnError.Continue || !failure.continuable) return deny(failure.detail);
+    const binding = bound.name ?? `interceptor-${idx}`;
+    let sub: { verdict: Verdict; substituted_for: string; notice: ControlFailureNotice };
+    try {
+      const point = pointOf(ctx);
+      sub = JSON.parse(
+        native.controlFailureSubstitute(
+          JSON.stringify({
+            binding,
+            reason: failure.reason,
+            index: idx,
+            ...(point !== null ? { interception_point: point } : {}),
+          }),
+        ),
+      );
+    } catch {
+      // The core refused the request (a reason continue does not
+      // cover): the deny stands, as it must.
+      return deny(failure.detail);
+    }
+    if (this.notifier === null) {
+      return deny("on_error: continue without a control failure notifier; the deny stands (see spec §6.3.1)");
+    }
+    try {
+      this.notifier(sub.notice);
+    } catch {
+      return deny("control failure notifier failed; the deny stands (see spec §6.3.1)");
+    }
+    return { verdict: sub.verdict, substitutedFor: sub.substituted_for };
   }
 
   /** §5 gate: normalize a wire verdict or synthesize the §6.3 deny. The
@@ -854,14 +1141,19 @@ export class InterceptionEmitter {
     const n = active.length;
     const onApproval = this.composition.on_approval ?? "stop";
     const perInterceptor: Verdict[] = [];
+    const substituted: Array<string | null> = [];
     const pool: Verdict[] = [];
     let lastTransform: [number, Verdict] | null = null;
     let resolvedBy: "approval" | "rejection" | null = null;
     const truncated = (i: number) => i + 1 < n;
 
     for (let i = 0; i < n; i++) {
-      let v = await this.invoke(active[i], ctx);
+      // §6.3.1: a slot substituted under `continue` holds an allow and
+      // the fold goes on; it never short-circuits.
+      const settled = await this.invoke(active[i], ctx, i);
+      let v = settled.verdict;
       perInterceptor.push(v);
+      substituted.push(settled.substitutedFor);
       pool.push(v);
       if (isHostSynthesized(v)) {
         // §6.3: malformed verdict fails closed and — in this profile —
@@ -871,7 +1163,7 @@ export class InterceptionEmitter {
         return {
           combined: withUnions(v, pool),
           decidedBy: i,
-          verdicts: summaries(perInterceptor),
+          verdicts: summaries(perInterceptor, substituted),
           foldTruncated: truncated(i),
           resolvedBy,
         };
@@ -883,7 +1175,7 @@ export class InterceptionEmitter {
           return {
             combined: withUnions(v, pool),
             decidedBy: i,
-            verdicts: summaries(perInterceptor),
+            verdicts: summaries(perInterceptor, substituted),
             foldTruncated: truncated(i),
             resolvedBy,
           };
@@ -894,7 +1186,7 @@ export class InterceptionEmitter {
           return {
             combined: withUnions(c.verdict, pool),
             decidedBy: isHostSynthesized(c.verdict) ? null : i,
-            verdicts: summaries(perInterceptor),
+            verdicts: summaries(perInterceptor, substituted),
             foldTruncated: truncated(i),
             resolvedBy: "rejection",
           };
@@ -908,7 +1200,7 @@ export class InterceptionEmitter {
           return {
             combined: sub,
             decidedBy: null,
-            verdicts: summaries(perInterceptor),
+            verdicts: summaries(perInterceptor, substituted),
             foldTruncated: truncated(i),
             resolvedBy,
           };
@@ -920,7 +1212,7 @@ export class InterceptionEmitter {
           return {
             combined: withUnions(sub, pool),
             decidedBy: i,
-            verdicts: summaries(perInterceptor),
+            verdicts: summaries(perInterceptor, substituted),
             foldTruncated: truncated(i),
             resolvedBy,
           };
@@ -934,7 +1226,7 @@ export class InterceptionEmitter {
           return {
             combined: v,
             decidedBy: null,
-            verdicts: summaries(perInterceptor),
+            verdicts: summaries(perInterceptor, substituted),
             foldTruncated: truncated(i),
             resolvedBy,
           };
@@ -949,7 +1241,7 @@ export class InterceptionEmitter {
     return {
       combined: withUnions(combined, pool),
       decidedBy,
-      verdicts: summaries(perInterceptor),
+      verdicts: summaries(perInterceptor, substituted),
       foldTruncated: false,
       resolvedBy,
     };
@@ -962,10 +1254,14 @@ export class InterceptionEmitter {
    * deny already won the severity order). */
   private async dispatchRunAll(ctx: AgentContext, active: Bound[]): Promise<DispatchOutcome> {
     const all: Verdict[] = [];
-    for (const bound of active) {
+    const substituted: Array<string | null> = [];
+    for (let i = 0; i < active.length; i++) {
       // §6.3 per-interceptor: a malformed verdict becomes that
-      // interceptor's synthesized deny; the rest still run.
-      const v = await this.invoke(bound, ctx);
+      // interceptor's synthesized deny (or, under `continue`, the
+      // substituted allow); the rest still run.
+      const settled = await this.invoke(active[i], ctx, i);
+      const v = settled.verdict;
+      substituted.push(settled.substitutedFor);
       if (v.decision === Decision.Transform) {
         const folded = this.foldTransform(ctx, v);
         if (!permits(folded.decision)) {
@@ -975,7 +1271,7 @@ export class InterceptionEmitter {
           return {
             combined: folded,
             decidedBy: null,
-            verdicts: summaries(all),
+            verdicts: summaries(all, substituted),
             foldTruncated: null,
             resolvedBy: null,
           };
@@ -985,7 +1281,7 @@ export class InterceptionEmitter {
         all.push(v);
       }
     }
-    return this.aggregateAndConsult(ctx, all);
+    return this.aggregateAndConsult(ctx, all, substituted);
   }
 
   /** Parallel profiles (§7.5): isolated snapshots, no fold; serial
@@ -995,10 +1291,13 @@ export class InterceptionEmitter {
     // snapshot ({@link invoke} clones per call).
     const snapshot = structuredClone(ctx);
     const all: Verdict[] = [];
-    for (const bound of active) {
-      all.push(await this.invoke(bound, snapshot));
+    const substituted: Array<string | null> = [];
+    for (let i = 0; i < active.length; i++) {
+      const settled = await this.invoke(active[i], snapshot, i);
+      all.push(settled.verdict);
+      substituted.push(settled.substitutedFor);
     }
-    return this.aggregateAndConsult(ctx, all);
+    return this.aggregateAndConsult(ctx, all, substituted);
   }
 
   /** Severity-max aggregation + winner handling, shared by `run_all`
@@ -1007,7 +1306,11 @@ export class InterceptionEmitter {
    * per the declared knobs — delegates to the core's
    * `composeAggregate` so all SDKs agree; the seam consultation and
    * transform application stay here (they call back into user JS). */
-  private async aggregateAndConsult(ctx: AgentContext, all: Verdict[]): Promise<DispatchOutcome> {
+  private async aggregateAndConsult(
+    ctx: AgentContext,
+    all: Verdict[],
+    substituted: ReadonlyArray<string | null>,
+  ): Promise<DispatchOutcome> {
     let agg: {
       combined: Verdict;
       decided_by: number | null;
@@ -1022,6 +1325,9 @@ export class InterceptionEmitter {
     } catch (e) {
       return synthesized(...codeAndDetail(e));
     }
+    // §10.3: the core's summaries carry no substitution; attach
+    // `substituted_for` positionally, as the names are attached later.
+    const verdicts = withSubstitutions(agg.verdicts, substituted);
     let combined = agg.combined;
     let decidedBy = agg.decided_by;
     let resolvedBy: "approval" | "rejection" | null = null;
@@ -1034,7 +1340,7 @@ export class InterceptionEmitter {
         return {
           combined,
           decidedBy: null,
-          verdicts: agg.verdicts,
+          verdicts,
           foldTruncated: null,
           resolvedBy,
         };
@@ -1067,7 +1373,7 @@ export class InterceptionEmitter {
     return {
       combined,
       decidedBy,
-      verdicts: agg.verdicts,
+      verdicts,
       foldTruncated: null,
       resolvedBy,
     };

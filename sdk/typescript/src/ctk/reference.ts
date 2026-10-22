@@ -56,6 +56,11 @@ export class ReferenceHarness implements Harness {
   private emitter!: InterceptionEmitter;
   private builder!: AgentContextBuilder;
   private toolLog: Array<{ name: string; args: ToolArgs }> = [];
+  /** §6.3.1: what this host told its principal (the agent) during the
+   * session, verbatim and in order. The reference agent has no user;
+   * its host-message channel is this log, reported as
+   * `RunRecord.host_messages`. */
+  private hostMessages: string[] = [];
 
   hostSurface(): HostSurface {
     return HostSurface.fromCapabilities(this.capabilities, "continue");
@@ -65,9 +70,19 @@ export class ReferenceHarness implements Harness {
     return JSON.parse(JSON.stringify(REFERENCE_DECLARATION)) as JsonValue;
   }
 
+  /** The principal channel this host registers (§6.3.1): every
+   * control-failure notice is delivered to the agent as a host message
+   * and kept for the run record. */
+  private withPrincipalChannel(registry: HostRegistry): HostRegistry {
+    return registry.controlFailureNotifier((n) => {
+      this.hostMessages.push(n.message);
+    });
+  }
+
   private startSession(scenario: Scenario, emitter: InterceptionEmitter): void {
     this.scenario = scenario;
     this.toolLog = [];
+    this.hostMessages = [];
     this.emitter = emitter;
     this.builder = new AgentContextBuilder({
       agentId: "ref-agent",
@@ -114,7 +129,7 @@ export class ReferenceHarness implements Harness {
     cfg["approval"] = approval;
 
     const slots: Array<Interceptor | undefined> = [...interceptors];
-    registry.kind("ctk.instance", (config, ctx) => {
+    this.withPrincipalChannel(registry).kind("ctk.instance", (config, ctx) => {
       const index = (config as Record<string, JsonValue> | null)?.["index"];
       if (typeof index !== "number" || !Number.isInteger(index) || index < 0) {
         throw new Error("config.index must be an unsigned integer");
@@ -136,7 +151,10 @@ export class ReferenceHarness implements Harness {
 
   setupDeclared(scenario: Scenario, document: JsonValue, registry: HostRegistry): void {
     // A refusal (DeclarationError) propagates to the runner (§7.7.9).
-    this.startSession(scenario, InterceptionEmitter.fromDeclarationValue(document, registry));
+    this.startSession(
+      scenario,
+      InterceptionEmitter.fromDeclarationValue(document, this.withPrincipalChannel(registry)),
+    );
   }
 
   async run(): Promise<RunRecord> {
@@ -225,6 +243,7 @@ export class ReferenceHarness implements Harness {
         (r) => [r.input_identity, r.enforced_identity] as [string | null, string | null],
       ),
       records: em.records as unknown as JsonValue[],
+      host_messages: [...this.hostMessages],
     };
   }
 
