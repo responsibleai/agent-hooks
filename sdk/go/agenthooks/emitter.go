@@ -44,6 +44,35 @@ import (
 // DefaultTimeout is the §7 RECOMMENDED interceptor/resolver timeout.
 const DefaultTimeout = 5000 * time.Millisecond
 
+type TimeoutAction string
+
+const (
+	TimeoutDeny     TimeoutAction = "deny"
+	TimeoutContinue TimeoutAction = "continue"
+)
+
+type ResultLabelPolicy string
+
+const (
+	ResultLabelsFlow       ResultLabelPolicy = "flow"
+	ResultLabelsRecordOnly ResultLabelPolicy = "record_only"
+)
+
+type HostExecutionProfile struct {
+	TimeoutAction     TimeoutAction
+	ResultLabelPolicy ResultLabelPolicy
+}
+
+func StrictExecutionProfile() HostExecutionProfile {
+	return HostExecutionProfile{TimeoutAction: TimeoutDeny, ResultLabelPolicy: ResultLabelsFlow}
+}
+
+type RegistrationOptions struct {
+	Name      string
+	At        []InterceptionPoint
+	OnTimeout TimeoutAction
+}
+
 // IdentityProvider is the host-declared identity provider (§10.1). A
 // nil *IdentityProvider is the null provider: approvals bind by
 // correlation only; records carry null identities and self-describe as
@@ -125,8 +154,9 @@ type bound struct {
 	at          []InterceptionPoint
 	// inherit selects the emitter-wide Timeout; otherwise timeout is
 	// the per-binding bound from a declaration (0 = unbounded).
-	inherit bool
-	timeout time.Duration
+	inherit   bool
+	timeout   time.Duration
+	onTimeout TimeoutAction
 }
 
 // runsAt reports whether the binding dispatches at point. An
@@ -189,7 +219,9 @@ type InterceptionEmitter struct {
 	// declaration is the resolved document this emitter was built
 	// from, when it was built from one; it feeds the record's
 	// `declaration` member (§7.7.8).
-	declaration *ResolvedDeclaration
+	declaration        *ResolvedDeclaration
+	executionProfile   HostExecutionProfile
+	declarationSources []DeclarationSourceInfo
 }
 
 // Declaration returns the resolved declaration this emitter runs under,
@@ -199,6 +231,34 @@ func (e *InterceptionEmitter) Declaration() *ResolvedDeclaration { return e.decl
 // Sealed reports whether the emitter was built from a host declaration
 // and refuses reconfiguration (§7.7.7).
 func (e *InterceptionEmitter) Sealed() bool { return e.sealed }
+
+func (e *InterceptionEmitter) ExecutionProfile() HostExecutionProfile { return e.executionProfile }
+
+func (e *InterceptionEmitter) DeclarationSources() []DeclarationSourceInfo {
+	return append([]DeclarationSourceInfo(nil), e.declarationSources...)
+}
+
+func (e *InterceptionEmitter) SetExecutionProfile(profile HostExecutionProfile) *InterceptionEmitter {
+	e.unsealed("SetExecutionProfile")
+	e.executionProfile = profile
+	return e
+}
+
+func (e *InterceptionEmitter) EnabledPoints() []InterceptionPoint {
+	var out []InterceptionPoint
+	for _, b := range e.bound {
+		points := b.at
+		if points == nil {
+			points = allPoints
+		}
+		for _, p := range points {
+			if !containsPoint(out, p) {
+				out = append(out, p)
+			}
+		}
+	}
+	return out
+}
 
 // unsealed panics when a setter whose signature has no error channel
 // is called on a sealed emitter.
@@ -273,11 +333,12 @@ func (e *InterceptionEmitter) Records() []InterceptionRecord {
 // identity provider.
 func NewInterceptionEmitter(mode EnforcementMode, resolver ApprovalResolver) *InterceptionEmitter {
 	return &InterceptionEmitter{
-		mode:        mode,
-		resolver:    resolver,
-		composition: DefaultComposition(),
-		identity:    DefaultIdentityProvider(),
-		Timeout:     DefaultTimeout,
+		mode:             mode,
+		resolver:         resolver,
+		composition:      DefaultComposition(),
+		identity:         DefaultIdentityProvider(),
+		Timeout:          DefaultTimeout,
+		executionProfile: StrictExecutionProfile(),
 	}
 }
 
@@ -402,6 +463,14 @@ func (e *InterceptionEmitter) RegisterNamed(i Interceptor, name string) *Interce
 	e.unsealed("Register")
 	e.bound = append(e.bound, &bound{interceptor: i, name: name, inherit: true})
 	return e
+}
+
+func (e *InterceptionEmitter) RegisterWithOptions(i Interceptor, options RegistrationOptions) error {
+	if err := e.RegisterAt(i, options.Name, options.At); err != nil {
+		return err
+	}
+	e.bound[len(e.bound)-1].onTimeout = options.OnTimeout
+	return nil
 }
 
 // RegisterAt appends an interceptor with a payload-free name at the
@@ -742,6 +811,19 @@ func (e *InterceptionEmitter) invoke(ctx context.Context, b *bound, actx AgentCo
 	v, err, timedOut := callWithTimeout(ctx, e.limit(b),
 		func(c context.Context) (Verdict, error) { return ic.Intercept(c, cp) })
 	if timedOut {
+		action := b.onTimeout
+		if action == "" {
+			action = e.executionProfile.TimeoutAction
+		}
+		if action == TimeoutContinue {
+			return Verdict{
+				Decision: Allow,
+				Warnings: []Warning{{
+					Reason:  "host_warning:interceptor_timeout",
+					Message: "interceptor exceeded the host timeout; host continued",
+				}},
+			}
+		}
 		return HostErrorVerdict(ErrInterceptorTimeout, "") // §7
 	}
 	if err != nil {

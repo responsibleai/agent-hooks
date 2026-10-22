@@ -173,6 +173,21 @@ property (default interface member, .NET), or the
 The declaration belongs in the host's §13.3 claim alongside its
 capabilities.
 
+The §7.8 host execution profile adds two more declared postures:
+
+- `timeout_action: deny | continue` (default `deny`). A `continue`
+  harness must expose the resulting
+  `host_warning:interceptor_timeout` on the interception record; it
+  cannot report only that the run proceeded.
+- `result_label_policy: flow | record_only` (default `flow`).
+  `record_only` attests that labels end at the interception record and
+  are not persisted or resurfaced as application-data labels.
+
+Enforcement mode remains setup/group configuration. A harness that
+supports independently supplied declarations groups only sources with
+identical resolved global configuration. It reports each group's real
+records; an `evaluate_only` deny is not rewritten to allow.
+
 ## Incremental mediation
 
 Vectors in the `streaming/incremental` part carry a chunked mock

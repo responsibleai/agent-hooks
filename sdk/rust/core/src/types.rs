@@ -454,6 +454,24 @@ pub trait Interceptor: Send + Sync {
     }
 }
 
+/// Typed completion from an interceptor that owns its physical
+/// deadline and cleanup. `Timeout` is returned only after the
+/// interceptor has cancelled/killed/reaped its work.
+#[derive(Debug, Clone)]
+pub enum ManagedInterceptorOutcome {
+    Verdict(Box<Verdict>),
+    Timeout,
+    Cancelled,
+    Failed,
+}
+
+/// Host adapter that owns timeout enforcement rather than having its
+/// future dropped by the SDK's outer timer.
+#[async_trait]
+pub trait ManagedInterceptor: Send + Sync {
+    async fn intercept_managed(&self, context: &AgentContext) -> ManagedInterceptorOutcome;
+}
+
 /// Approval resolver outcome (§9).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

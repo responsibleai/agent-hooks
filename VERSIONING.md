@@ -72,6 +72,6 @@ contract versions to schema files and SDK releases to the contract
 versions they accept.
 
 A conformance claim is the tuple
-`(<framework>, <adapter-version>, agent-hooks/<spec-version>, <capabilities>, <profiles>, <identity-provider>, <sdk-lang>@<sdk-version>)`
+`(<framework>, <adapter-version>, agent-hooks/<spec-version>, <capabilities>, <profiles>, <identity-provider>, <host-execution-profile>, <sdk-lang>@<sdk-version>)`
 plus the attached CTK per-part report (spec §13.3). There are no
 conformance levels or tiers.

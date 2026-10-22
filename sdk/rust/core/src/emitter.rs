@@ -44,11 +44,12 @@ use crate::declaration::{
 use crate::enforce::{apply_transform_to_ctx, finalize, validate_transform, FinalizeMeta};
 use crate::types::{
     AgentContext, ApprovalOutcome, ApprovalRequest, ApprovalResolution, ApprovalResolver, Decision,
-    EnforcementMode, HostError, InterceptionPoint, InterceptionRecord, Interceptor, Verdict,
-    VerdictSummary, JCS_SHA256,
+    EnforcementMode, HostError, InterceptionPoint, InterceptionRecord, Interceptor,
+    ManagedInterceptor, ManagedInterceptorOutcome, Verdict, VerdictSummary, JCS_SHA256,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::Path;
 use std::sync::Arc;
@@ -61,6 +62,90 @@ use std::sync::Arc;
 pub struct EmitOutcome {
     pub record: InterceptionRecord,
     pub target: Value,
+}
+
+/// What the host does when one interceptor exceeds its bound.
+///
+/// `Deny` is the existing fail-closed behaviour. `Continue` is an
+/// explicitly adopted host posture: the timed-out slot becomes an
+/// `allow` carrying `host_warning:interceptor_timeout`, so the bypass
+/// is observable in the combined record.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TimeoutAction {
+    #[default]
+    Deny,
+    Continue,
+}
+
+/// Whether permit-verdict labels participate in host data-label flow.
+///
+/// The SDK always keeps labels in the interception record. `RecordOnly`
+/// makes that record the end of their lifecycle; it creates no host
+/// obligation to persist or resurface them with application data.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResultLabelPolicy {
+    #[default]
+    Flow,
+    RecordOnly,
+}
+
+/// Explicit host adoption profile. Existing hosts get [`Self::strict`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HostExecutionProfile {
+    #[serde(default)]
+    pub timeout_action: TimeoutAction,
+    #[serde(default)]
+    pub result_label_policy: ResultLabelPolicy,
+}
+
+impl HostExecutionProfile {
+    /// Existing Agent Hooks semantics: timeouts deny and result labels flow.
+    pub const fn strict() -> Self {
+        Self {
+            timeout_action: TimeoutAction::Deny,
+            result_label_policy: ResultLabelPolicy::Flow,
+        }
+    }
+}
+
+/// Additive options for one programmatic registration.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RegistrationOptions {
+    pub name: Option<String>,
+    pub at: Option<BTreeSet<InterceptionPoint>>,
+    /// `None` inherits [`HostExecutionProfile::timeout_action`].
+    pub on_timeout: Option<TimeoutAction>,
+}
+
+/// One independently supplied declaration used only as a source of
+/// bindings. The declaration is still fully resolved; `binding_options`
+/// may only override execution posture for binding ids it contains.
+#[derive(Debug, Clone)]
+pub struct DeclarationSource {
+    pub id: String,
+    pub declaration: HostDeclaration,
+    pub binding_options: BTreeMap<String, RegistrationOptions>,
+}
+
+impl DeclarationSource {
+    pub fn new(id: impl Into<String>, declaration: HostDeclaration) -> Self {
+        Self {
+            id: id.into(),
+            declaration,
+            binding_options: BTreeMap::new(),
+        }
+    }
+}
+
+/// Payload-free metadata for one imported declaration source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclarationSourceInfo {
+    pub id: String,
+    pub declaration_version: String,
+    pub binding_count: usize,
 }
 
 /// Returned by [`InterceptionEmitter::emit`] when the combined verdict
@@ -156,31 +241,72 @@ impl IdentityProvider {
 /// host-synthesized failure verdict that MUST bypass the §5 gate — the
 /// gate exists to stop *interceptors* spoofing reserved reasons, not
 /// the host substituting them (TM-02).
+#[cfg_attr(not(feature = "tokio-timeout"), allow(dead_code))]
+enum CallFailure {
+    Timeout,
+    Failed(Box<Verdict>),
+}
+
 async fn call_isolated(
-    interceptor: &dyn Interceptor,
+    interceptor: &BoundInterceptor,
     ctx: &AgentContext,
     #[allow(unused_variables)] limit: Option<std::time::Duration>,
-) -> Result<Verdict, Verdict> {
+) -> Result<Verdict, CallFailure> {
     use futures_util::FutureExt;
+    if let BoundInterceptor::Managed(interceptor) = interceptor {
+        return std::panic::AssertUnwindSafe(interceptor.intercept_managed(ctx))
+            .catch_unwind()
+            .await
+            .map_err(|_| {
+                CallFailure::Failed(Box::new(Verdict::host_error(
+                    HostError::InterceptorFailed,
+                    Some("managed interceptor panicked (see spec §6.3)".into()),
+                )))
+            })
+            .and_then(|outcome| match outcome {
+                ManagedInterceptorOutcome::Verdict(verdict) => Ok(*verdict),
+                ManagedInterceptorOutcome::Timeout => Err(CallFailure::Timeout),
+                ManagedInterceptorOutcome::Cancelled => {
+                    Err(CallFailure::Failed(Box::new(Verdict::host_error(
+                        HostError::InterceptorFailed,
+                        Some("managed interceptor was cancelled".into()),
+                    ))))
+                }
+                ManagedInterceptorOutcome::Failed => Err(CallFailure::Failed(Box::new(
+                    Verdict::host_error(HostError::InterceptorFailed, None),
+                ))),
+            });
+    }
+    let BoundInterceptor::Standard(interceptor) = interceptor else {
+        unreachable!()
+    };
     let fut = std::panic::AssertUnwindSafe(interceptor.intercept(ctx)).catch_unwind();
     #[cfg(feature = "tokio-timeout")]
     let caught = match limit {
         Some(d) => match tokio::time::timeout(d, fut).await {
             Ok(c) => c,
-            Err(_) => {
-                return Err(Verdict::host_error(HostError::InterceptorTimeout, None));
-            }
+            Err(_) => return Err(CallFailure::Timeout),
         },
         None => fut.await,
     };
     #[cfg(not(feature = "tokio-timeout"))]
     let caught = fut.await;
     caught.map_err(|_| {
-        Verdict::host_error(
+        CallFailure::Failed(Box::new(Verdict::host_error(
             HostError::InterceptorFailed,
             Some("interceptor panicked (see spec §6.3)".into()),
-        )
+        )))
     })
+}
+
+fn timeout_verdict(action: TimeoutAction) -> Verdict {
+    match action {
+        TimeoutAction::Deny => Verdict::host_error(HostError::InterceptorTimeout, None),
+        TimeoutAction::Continue => Verdict::warn(
+            Some("host_warning:interceptor_timeout".into()),
+            Some("interceptor exceeded the host timeout; host continued".into()),
+        ),
+    }
 }
 
 /// Whether a verdict was synthesized by the host (§11) rather than
@@ -235,10 +361,16 @@ enum BoundTimeout {
 /// at (`None` = every point, the pre-declaration behaviour) and its
 /// timeout.
 struct Bound {
-    interceptor: Box<dyn Interceptor>,
+    interceptor: BoundInterceptor,
     name: Option<String>,
     at: Option<BTreeSet<InterceptionPoint>>,
     timeout: BoundTimeout,
+    on_timeout: Option<TimeoutAction>,
+}
+
+enum BoundInterceptor {
+    Standard(Box<dyn Interceptor>),
+    Managed(Box<dyn ManagedInterceptor>),
 }
 
 impl Bound {
@@ -326,6 +458,8 @@ pub struct InterceptionEmitter {
     max_records: Option<usize>,
     records_dropped: u64,
     records: Vec<InterceptionRecord>,
+    execution_profile: HostExecutionProfile,
+    declaration_sources: Vec<DeclarationSourceInfo>,
     /// §7.7.7: a declaration-built emitter refuses reconfiguration.
     sealed: bool,
     /// The resolved declaration this emitter was built from, if any.
@@ -339,6 +473,7 @@ impl fmt::Debug for InterceptionEmitter {
             .field("composition", &self.composition)
             .field("identity_provider", &self.identity.name())
             .field("interceptors", &self.interceptors.len())
+            .field("execution_profile", &self.execution_profile)
             .field("sealed", &self.sealed)
             .field("declaration", &self.declaration_version())
             .finish_non_exhaustive()
@@ -360,6 +495,8 @@ impl InterceptionEmitter {
             max_records: None,
             records_dropped: 0,
             records: Vec::new(),
+            execution_profile: HostExecutionProfile::strict(),
+            declaration_sources: Vec::new(),
             sealed: false,
             declaration: None,
         }
@@ -403,6 +540,122 @@ impl InterceptionEmitter {
         Self::from_declaration(HostDeclaration::from_value(value)?, registry)
     }
 
+    /// Build one sealed emitter from independently supplied declaration
+    /// bindings without claiming that any one declaration describes the
+    /// combined host.
+    ///
+    /// Every source is resolved in full. All resolved global
+    /// configuration must match exactly; a mismatch is refused rather
+    /// than flattened away. Each source's surface is independently
+    /// checked against the same [`HostRegistry`]. Registration names
+    /// become `source/binding` for payload-free provenance. Records omit
+    /// the single-declaration stamp and [`Self::declaration`] is `None`.
+    pub fn from_declaration_sources(
+        sources: impl IntoIterator<Item = DeclarationSource>,
+        registry: &HostRegistry,
+        profile: HostExecutionProfile,
+    ) -> Result<Self, DeclarationError> {
+        let sources: Vec<DeclarationSource> = sources.into_iter().collect();
+        if sources.is_empty() {
+            return Err(DeclarationError::new(
+                DeclarationErrorClass::Inconsistent,
+                "/sources",
+                "at least one declaration source is required",
+            ));
+        }
+        let mut ids = BTreeSet::new();
+        let mut resolved_sources = Vec::with_capacity(sources.len());
+        for (index, source) in sources.into_iter().enumerate() {
+            if !declaration::valid_reference(&source.id) {
+                return Err(DeclarationError::new(
+                    DeclarationErrorClass::InvalidField,
+                    format!("/sources/{index}/id"),
+                    format!(
+                        "source id {:?} does not match ^[a-z][a-z0-9_-]{{0,63}}$",
+                        source.id
+                    ),
+                ));
+            }
+            if !ids.insert(source.id.clone()) {
+                return Err(DeclarationError::new(
+                    DeclarationErrorClass::Inconsistent,
+                    format!("/sources/{index}/id"),
+                    format!("source id {:?} appears more than once", source.id),
+                ));
+            }
+            let resolved =
+                declaration::resolve(&source.declaration, registry.surface(), &registry.names())?;
+            let binding_ids: BTreeSet<&str> =
+                resolved.bindings.iter().map(|b| b.id.as_str()).collect();
+            for (binding_id, options) in &source.binding_options {
+                if !binding_ids.contains(binding_id.as_str()) {
+                    return Err(DeclarationError::new(
+                        DeclarationErrorClass::Inconsistent,
+                        format!("/sources/{index}/binding_options/{binding_id}"),
+                        format!(
+                            "binding {binding_id:?} is not declared by source {:?}",
+                            source.id
+                        ),
+                    ));
+                }
+                if options.name.is_some() || options.at.is_some() {
+                    return Err(DeclarationError::new(
+                        DeclarationErrorClass::Inconsistent,
+                        format!("/sources/{index}/binding_options/{binding_id}"),
+                        "imported declaration options may set on_timeout only; name and at belong to the declaration",
+                    ));
+                }
+            }
+            resolved_sources.push((source, resolved));
+        }
+
+        let expected = resolved_sources[0].1.configuration.clone();
+        for (index, (source, resolved)) in resolved_sources.iter().enumerate().skip(1) {
+            if resolved.configuration != expected {
+                return Err(DeclarationError::new(
+                    DeclarationErrorClass::Inconsistent,
+                    format!("/sources/{index}/configuration"),
+                    format!(
+                        "source {:?} resolves to global configuration incompatible with source {:?}",
+                        source.id, resolved_sources[0].0.id
+                    ),
+                ));
+            }
+        }
+
+        let mut group = resolved_sources[0].1.clone();
+        group.bindings.clear();
+        let mut emitter = Self::from_resolved_with_source(group, registry, None)?;
+        let mut source_info = Vec::with_capacity(resolved_sources.len());
+        for (source, resolved) in &resolved_sources {
+            source_info.push(DeclarationSourceInfo {
+                id: source.id.clone(),
+                declaration_version: resolved.declaration.clone(),
+                binding_count: resolved.bindings.len(),
+            });
+            let mut source_emitter =
+                Self::from_resolved_with_source(resolved.clone(), registry, Some(&source.id))?;
+            for (bound, binding) in source_emitter
+                .interceptors
+                .iter_mut()
+                .zip(&resolved.bindings)
+            {
+                bound.name = Some(format!("{}/{}", source.id, binding.id));
+                bound.on_timeout = source
+                    .binding_options
+                    .get(&binding.id)
+                    .and_then(|options| options.on_timeout);
+            }
+            emitter
+                .interceptors
+                .append(&mut source_emitter.interceptors);
+        }
+        emitter.execution_profile = profile;
+        emitter.declaration = None;
+        emitter.declaration_sources = source_info;
+        Ok(emitter)
+    }
+
     /// The resolved declaration this emitter runs under, when it was
     /// built from one (§7.7.7). Its canonical JSON is the equivalence
     /// oracle for the construction paths.
@@ -416,6 +669,14 @@ impl InterceptionEmitter {
     fn from_resolved(
         resolved: ResolvedDeclaration,
         registry: &HostRegistry,
+    ) -> Result<Self, DeclarationError> {
+        Self::from_resolved_with_source(resolved, registry, None)
+    }
+
+    fn from_resolved_with_source(
+        resolved: ResolvedDeclaration,
+        registry: &HostRegistry,
+        source_id: Option<&str>,
     ) -> Result<Self, DeclarationError> {
         let cfg = &resolved.configuration;
         let resolver: Option<Box<dyn ApprovalResolver>> = match &cfg.approval.resolver {
@@ -467,17 +728,20 @@ impl InterceptionEmitter {
         let mut interceptors = Vec::with_capacity(resolved.bindings.len());
         for (i, b) in resolved.bindings.iter().enumerate() {
             let pointer = format!("/bindings/{i}");
-            let Some(resolver_fn) = registry.kind_resolver(&b.kind) else {
+            let resolver_fn = registry.kind_resolver(&b.kind);
+            let managed_resolver_fn = registry.managed_kind_resolver(&b.kind);
+            if resolver_fn.is_none() && managed_resolver_fn.is_none() {
                 return Err(DeclarationError::new(
                     DeclarationErrorClass::KindUnknown,
                     format!("{pointer}/kind"),
                     format!("kind {:?} vanished from the registry", b.kind),
                 ));
-            };
+            }
             let timeout = b.timeout_ms.map(std::time::Duration::from_millis);
             let bctx = BindingContext {
                 id: &b.id,
                 kind: &b.kind,
+                source_id,
                 at: &b.at,
                 timeout,
                 host: resolved.host.as_ref(),
@@ -487,7 +751,12 @@ impl InterceptionEmitter {
             // refuses the document; the message is bounded and the
             // config is never echoed by the loader.
             let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                resolver_fn(&b.config, &bctx)
+                if let Some(resolver_fn) = resolver_fn {
+                    resolver_fn(&b.config, &bctx).map(BoundInterceptor::Standard)
+                } else {
+                    managed_resolver_fn.expect("checked above")(&b.config, &bctx)
+                        .map(BoundInterceptor::Managed)
+                }
             }));
             let interceptor = match built {
                 Ok(Ok(i)) => i,
@@ -509,14 +778,20 @@ impl InterceptionEmitter {
                     ))
                 }
             };
+            let managed = matches!(interceptor, BoundInterceptor::Managed(_));
             interceptors.push(Bound {
                 interceptor,
                 name: Some(b.id.clone()),
                 at: Some(b.at.clone()),
-                timeout: match timeout {
-                    Some(d) => BoundTimeout::Bounded(d),
-                    None => BoundTimeout::Unbounded,
+                timeout: if managed {
+                    BoundTimeout::Unbounded
+                } else {
+                    match timeout {
+                        Some(d) => BoundTimeout::Bounded(d),
+                        None => BoundTimeout::Unbounded,
+                    }
                 },
+                on_timeout: None,
             });
         }
 
@@ -539,6 +814,8 @@ impl InterceptionEmitter {
             max_records: cfg.records.max_buffered.map(|n| n as usize),
             records_dropped: 0,
             records: Vec::new(),
+            execution_profile: HostExecutionProfile::strict(),
+            declaration_sources: Vec::new(),
             sealed: true,
             declaration: Some(resolved),
         })
@@ -555,6 +832,45 @@ impl InterceptionEmitter {
 
     pub fn mode(&self) -> EnforcementMode {
         self.mode
+    }
+
+    /// The explicit host adoption profile in effect.
+    pub fn execution_profile(&self) -> HostExecutionProfile {
+        self.execution_profile
+    }
+
+    /// Configure timeout and result-label adoption for an unsealed emitter.
+    pub fn set_execution_profile(&mut self, profile: HostExecutionProfile) -> &mut Self {
+        self.unsealed("set_execution_profile");
+        self.execution_profile = profile;
+        self
+    }
+
+    /// Source metadata for a combined declaration emitter.
+    pub fn declaration_sources(&self) -> &[DeclarationSourceInfo] {
+        &self.declaration_sources
+    }
+
+    /// Points with at least one enabled registration. This is distinct
+    /// from [`HostSurface::interception_points`], which describes support.
+    pub fn enabled_points(&self) -> BTreeSet<InterceptionPoint> {
+        let all = [
+            InterceptionPoint::AgentStartup,
+            InterceptionPoint::Input,
+            InterceptionPoint::PreModelCall,
+            InterceptionPoint::PostModelCall,
+            InterceptionPoint::PreToolCall,
+            InterceptionPoint::PostToolCall,
+            InterceptionPoint::Output,
+            InterceptionPoint::AgentShutdown,
+        ];
+        self.interceptors
+            .iter()
+            .flat_map(|b| match &b.at {
+                Some(at) => at.iter().copied().collect::<Vec<_>>(),
+                None => all.to_vec(),
+            })
+            .collect()
     }
 
     /// Declare the composition profile for subsequent emissions (§7.1).
@@ -671,12 +987,55 @@ impl InterceptionEmitter {
         name: Option<String>,
         at: Option<BTreeSet<InterceptionPoint>>,
     ) -> &mut Self {
-        self.unsealed("register");
-        self.interceptors.push(Bound {
+        self.register_with_options(
             interceptor,
-            name,
-            at,
+            RegistrationOptions {
+                name,
+                at,
+                on_timeout: None,
+            },
+        )
+    }
+
+    /// Register with explicit per-registration execution options.
+    pub fn register_with_options(
+        &mut self,
+        interceptor: Box<dyn Interceptor>,
+        options: RegistrationOptions,
+    ) -> &mut Self {
+        self.unsealed("register");
+        assert!(
+            options.at.as_ref().map_or(true, |at| !at.is_empty()),
+            "register: `at` must name at least one interception point"
+        );
+        self.interceptors.push(Bound {
+            interceptor: BoundInterceptor::Standard(interceptor),
+            name: options.name,
+            at: options.at,
             timeout: BoundTimeout::Inherit,
+            on_timeout: options.on_timeout,
+        });
+        self
+    }
+
+    /// Register a host adapter that owns deadline enforcement and
+    /// returns a typed timeout only after cleanup completes.
+    pub fn register_managed_with_options(
+        &mut self,
+        interceptor: Box<dyn ManagedInterceptor>,
+        options: RegistrationOptions,
+    ) -> &mut Self {
+        self.unsealed("register");
+        assert!(
+            options.at.as_ref().map_or(true, |at| !at.is_empty()),
+            "register: `at` must name at least one interception point"
+        );
+        self.interceptors.push(Bound {
+            interceptor: BoundInterceptor::Managed(interceptor),
+            name: options.name,
+            at: options.at,
+            timeout: BoundTimeout::Unbounded,
+            on_timeout: options.on_timeout,
         });
         self
     }
@@ -697,6 +1056,11 @@ impl InterceptionEmitter {
             BoundTimeout::Unbounded => None,
             BoundTimeout::Bounded(d) => Some(d),
         }
+    }
+
+    fn timeout_action(&self, b: &Bound) -> TimeoutAction {
+        b.on_timeout
+            .unwrap_or(self.execution_profile.timeout_action)
     }
 
     fn declaration_version(&self) -> Option<String> {
@@ -937,13 +1301,13 @@ impl InterceptionEmitter {
             // §5 gate on the interceptor's own return; host-synthesized
             // failure substitutions (Err) bypass it (TM-02 is about
             // interceptor spoofing, not host substitution).
-            let v = match call_isolated(bound.interceptor.as_ref(), &*ctx, self.limit(bound)).await
-            {
+            let v = match call_isolated(&bound.interceptor, &*ctx, self.limit(bound)).await {
                 Ok(v) if v.validate().is_err() => {
                     Verdict::host_error(HostError::VerdictInvalid, None)
                 }
                 Ok(v) => v,
-                Err(f) => f,
+                Err(CallFailure::Timeout) => timeout_verdict(self.timeout_action(bound)),
+                Err(CallFailure::Failed(f)) => *f,
             };
             per_interceptor.push(v.clone());
             pool.push(v.clone());
@@ -1076,13 +1440,13 @@ impl InterceptionEmitter {
             // §6.3 per-interceptor: a malformed verdict becomes that
             // interceptor's synthesized deny; the rest still run.
             // Host-synthesized substitutions (Err) bypass the §5 gate.
-            let v = match call_isolated(bound.interceptor.as_ref(), &*ctx, self.limit(bound)).await
-            {
+            let v = match call_isolated(&bound.interceptor, &*ctx, self.limit(bound)).await {
                 Ok(v) if v.validate().is_err() => {
                     Verdict::host_error(HostError::VerdictInvalid, None)
                 }
                 Ok(v) => v,
-                Err(f) => f,
+                Err(CallFailure::Timeout) => timeout_verdict(self.timeout_action(bound)),
+                Err(CallFailure::Failed(f)) => *f,
             };
             if v.decision == Decision::Transform {
                 let folded = self.fold_transform(ctx, v);
@@ -1118,18 +1482,15 @@ impl InterceptionEmitter {
         let mut all: Vec<Verdict> = Vec::new();
         for bound in active.iter() {
             // Host-synthesized substitutions (Err) bypass the §5 gate.
-            let v = match call_isolated(
-                bound.interceptor.as_ref(),
-                &snapshot.clone(),
-                self.limit(bound),
-            )
-            .await
+            let v = match call_isolated(&bound.interceptor, &snapshot.clone(), self.limit(bound))
+                .await
             {
                 Ok(v) if v.validate().is_err() => {
                     Verdict::host_error(HostError::VerdictInvalid, None)
                 }
                 Ok(v) => v,
-                Err(f) => f,
+                Err(CallFailure::Timeout) => timeout_verdict(self.timeout_action(bound)),
+                Err(CallFailure::Failed(f)) => *f,
             };
             all.push(v);
         }
@@ -1857,6 +2218,120 @@ mod tests {
             Some("host_error:interceptor_timeout")
         );
         assert_eq!(r.verdict.decision, Decision::Deny);
+    }
+
+    #[cfg(feature = "tokio-timeout")]
+    #[tokio::test]
+    async fn explicit_timeout_continue_is_observable_and_not_cancellation() {
+        struct Slow;
+        #[async_trait::async_trait]
+        impl Interceptor for Slow {
+            async fn intercept(&self, _c: &AgentContext) -> Verdict {
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                Verdict::allow()
+            }
+        }
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.set_timeout(std::time::Duration::from_millis(20));
+        e.set_execution_profile(HostExecutionProfile {
+            timeout_action: TimeoutAction::Continue,
+            result_label_policy: ResultLabelPolicy::RecordOnly,
+        });
+        e.register(Box::new(Slow));
+        e.register(Box::new(Scripted(Verdict::allow())));
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(r.proceeds());
+        assert_eq!(r.verdict.decision, Decision::Allow);
+        assert_eq!(
+            r.verdict.warnings[0].reason.as_deref(),
+            Some("host_warning:interceptor_timeout")
+        );
+        assert_eq!(r.verdicts.len(), 2, "the profile continues the fold");
+        assert_eq!(
+            e.execution_profile().result_label_policy,
+            ResultLabelPolicy::RecordOnly
+        );
+    }
+
+    #[tokio::test]
+    async fn managed_timeout_returns_after_cleanup_and_cancellation_still_blocks() {
+        struct Managed {
+            outcome: ManagedInterceptorOutcome,
+            cleaned: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        }
+        #[async_trait::async_trait]
+        impl ManagedInterceptor for Managed {
+            async fn intercept_managed(&self, _c: &AgentContext) -> ManagedInterceptorOutcome {
+                self.cleaned
+                    .store(true, std::sync::atomic::Ordering::SeqCst);
+                self.outcome.clone()
+            }
+        }
+
+        let cleaned = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut timed_out = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        timed_out.set_execution_profile(HostExecutionProfile {
+            timeout_action: TimeoutAction::Continue,
+            result_label_policy: ResultLabelPolicy::Flow,
+        });
+        timed_out.register_managed_with_options(
+            Box::new(Managed {
+                outcome: ManagedInterceptorOutcome::Timeout,
+                cleaned: cleaned.clone(),
+            }),
+            RegistrationOptions::default(),
+        );
+        let record = timed_out.emit_unchecked(&mut ctx()).await;
+        assert!(cleaned.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(record.proceeds());
+
+        let mut cancelled = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        cancelled.set_execution_profile(HostExecutionProfile {
+            timeout_action: TimeoutAction::Continue,
+            result_label_policy: ResultLabelPolicy::Flow,
+        });
+        cancelled.register_managed_with_options(
+            Box::new(Managed {
+                outcome: ManagedInterceptorOutcome::Cancelled,
+                cleaned,
+            }),
+            RegistrationOptions::default(),
+        );
+        let record = cancelled.emit_unchecked(&mut ctx()).await;
+        assert!(!record.proceeds());
+        assert_eq!(
+            record.verdict.reason.as_deref(),
+            Some("host_error:interceptor_failed")
+        );
+    }
+
+    #[test]
+    fn enabled_points_are_registration_scope_not_host_support() {
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.register_with_options(
+            Box::new(Scripted(Verdict::allow())),
+            RegistrationOptions {
+                name: Some("tool-only".into()),
+                at: Some(
+                    [
+                        InterceptionPoint::PreToolCall,
+                        InterceptionPoint::PostToolCall,
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+                on_timeout: Some(TimeoutAction::Continue),
+            },
+        );
+        assert_eq!(
+            e.enabled_points(),
+            [
+                InterceptionPoint::PreToolCall,
+                InterceptionPoint::PostToolCall
+            ]
+            .into_iter()
+            .collect()
+        );
     }
 
     #[tokio::test]

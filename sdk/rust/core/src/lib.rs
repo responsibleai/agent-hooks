@@ -84,16 +84,21 @@ pub use composition::{
 };
 pub use declaration::{
     DeclarationBuilder, DeclarationError, DeclarationErrorClass, HostDeclaration, HostRegistry,
-    HostSurface, KindResolver, ResolvedDeclaration,
+    HostSurface, KindResolver, ManagedKindResolver, ResolvedDeclaration,
 };
-pub use emitter::{HostFailure, IdentityProvider, InterceptionBlocked, InterceptionEmitter};
+pub use emitter::{
+    DeclarationSource, DeclarationSourceInfo, HostExecutionProfile, HostFailure, IdentityProvider,
+    InterceptionBlocked, InterceptionEmitter, RegistrationOptions, ResultLabelPolicy,
+    TimeoutAction,
+};
 pub use enforce::{apply_transform_to_ctx, finalize, validate_transform, FinalizeMeta};
 pub use path::{apply as apply_transform_path, parse as parse_transform_path, resolve, Segment};
 pub use response::{InterceptorResponse, RESPONSE_METADATA_MAX_BYTES};
 pub use types::{
     AgentContext, ApprovalOutcome, ApprovalRequest, ApprovalResolution, ApprovalResolver, Decision,
     EnforcementMode, Evidence, HostError, InterceptionPoint, InterceptionRecord, Interceptor,
-    Transform, Verdict, VerdictSummary, Warning, DECLARATION_VERSION, EVIDENCE_MAX_BYTES,
-    JCS_SHA256, SPEC_VERSION, SUPPORTED_DECLARATION_VERSIONS,
+    ManagedInterceptor, ManagedInterceptorOutcome, Transform, Verdict, VerdictSummary, Warning,
+    DECLARATION_VERSION, EVIDENCE_MAX_BYTES, JCS_SHA256, SPEC_VERSION,
+    SUPPORTED_DECLARATION_VERSIONS,
 };
 pub use verdict::from_wire as verdict_from_wire;
