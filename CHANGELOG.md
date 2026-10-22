@@ -3,7 +3,7 @@
 User-visible changes to the spec and SDKs. Versioning rules:
 [VERSIONING.md](VERSIONING.md).
 
-## Unreleased
+## 0.1.0-beta.3 — 2026-10-22 — tag `v0.1.0-beta.3`
 
 - Repository Windows MSVC builds enable Control Flow Guard (CFG).
   CI and release gates validate CFG metadata in the Windows x64 native DLL;
