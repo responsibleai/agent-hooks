@@ -3,7 +3,7 @@
 User-visible changes to the spec and SDKs. Versioning rules:
 [VERSIONING.md](VERSIONING.md).
 
-## Unreleased
+## 0.1.0-beta.4 — 2026-10-22 — tag `v0.1.0-beta.4`
 
 - Spec §6.3.1 adds one failure posture knob, `on_error`, with the
   values `deny` (the default) and `continue`. It covers the three
