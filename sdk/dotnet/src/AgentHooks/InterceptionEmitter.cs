@@ -405,7 +405,13 @@ public sealed class InterceptionEmitter
         if (completed != task) throw new TimeoutException();
         try
         {
-            return await task;
+            var result = await task;
+            // A value produced after the limit fired is a late verdict
+            // (section 6.3): the timer wins, the value is dropped. This
+            // closes the race where a callee completes in the same
+            // instant the linked token cancels and WhenAny picks it.
+            if (cts.IsCancellationRequested && !ct.IsCancellationRequested) throw new TimeoutException();
+            return result;
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested && !ct.IsCancellationRequested)
         {

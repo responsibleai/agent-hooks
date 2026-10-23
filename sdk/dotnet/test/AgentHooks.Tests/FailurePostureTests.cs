@@ -54,6 +54,21 @@ public sealed class FailurePostureTests
         }
     }
 
+    /// <summary>Returns an allow the instant the timer's token fires.
+    /// A verdict produced after the limit is late (section 6.3): the
+    /// timer must win even when the callee completes in the same
+    /// instant and WhenAny could pick its task first.</summary>
+    private sealed class AllowsOnCancel : IInterceptor
+    {
+        public async ValueTask<Verdict> InterceptAsync(AgentContext ctx, CancellationToken ct = default)
+        {
+            var fired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            await using var reg = ct.Register(() => fired.TrySetResult());
+            await fired.Task;
+            return Verdict.Allow;
+        }
+    }
+
     private sealed class Managed(ManagedInterceptorOutcome outcome) : IManagedInterceptor
     {
         public bool Cleaned;
@@ -206,6 +221,19 @@ public sealed class FailurePostureTests
         e.Register(new Cooperative());
         var r = await e.EmitUncheckedAsync(Ctx());
         Assert.Equal(HostError.InterceptorTimeout, r.Verdict.Reason);
+    }
+
+    [Fact]
+    public async Task AnAllowProducedAsTheTimerFiresIsATimeout()
+    {
+        for (var i = 0; i < 25; i++)
+        {
+            var e = new InterceptionEmitter(timeout: TimeSpan.FromMilliseconds(10));
+            e.Register(new AllowsOnCancel());
+            var r = await e.EmitUncheckedAsync(Ctx());
+            Assert.False(r.Proceeds);
+            Assert.Equal(HostError.InterceptorTimeout, r.Verdict.Reason);
+        }
     }
 
     [Fact]
