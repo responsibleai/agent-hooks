@@ -168,7 +168,7 @@ jobs:
           subject-path: dist/*
       - name: Publish to PyPI (trusted publishing)
         if: env.DRY_RUN != 'true' && github.ref_type == 'tag'
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1
         with:
           packages-dir: dist
           skip-existing: true
