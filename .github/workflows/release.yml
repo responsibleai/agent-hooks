@@ -375,6 +375,7 @@ jobs:
         working-directory: sdk/typescript
 
   ffi-build:
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -389,10 +390,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master; toolchain pinned via sdk/rust/rust-toolchain.toml
+        if: runner.os != 'Windows'
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
       - name: Install ${{ matrix.target }} for the pinned toolchain
+        if: runner.os != 'Windows'
         # rust-toolchain.toml pins the toolchain inside sdk/rust; the
         # setup action installs targets for `stable` only, so cross
         # targets must be added in the pinned context.
@@ -400,9 +403,14 @@ jobs:
         run: rustup target add ${{ matrix.target }}
         working-directory: sdk/rust
       - name: Build FFI cdylib for ${{ matrix.target }}
+        if: runner.os != 'Windows'
         shell: bash
         run: cargo build --locked --release -p agent-hooks-ffi --target ${{ matrix.target }}
         working-directory: sdk/rust
+      - name: Build and scan protected Windows FFI
+        if: runner.os == 'Windows'
+        timeout-minutes: 15
+        uses: ./.github/actions/windows-ffi
       - name: Check Windows release DLL CFG
         if: runner.os == 'Windows'
         shell: pwsh

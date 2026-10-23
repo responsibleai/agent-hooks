@@ -15,7 +15,7 @@ composition profiles, the identity-provider seam, and the CTK runner.
 > before relying on it.
 
 ```bash
-# Or build from source (needs a Rust toolchain):
+# Or build from source on Linux/macOS (needs a Rust toolchain):
 git clone https://github.com/responsibleai/agent-hooks && cd agent-hooks
 cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
 dotnet build sdk/dotnet
@@ -144,20 +144,67 @@ it resolvable at process start:
 | macOS | `libagent_hooks_ffi.dylib` | `DYLD_LIBRARY_PATH`, or next to the app binary |
 | Windows | `agent_hooks_ffi.dll` | `PATH`, or next to the app binary |
 
-The bundled Windows x64 DLL must enable Control Flow Guard (CFG,
-BinSkim BA2008). Windows MSVC builds inherit real CFG instrumentation
-and linking from the root `.cargo/config.toml`; keep that configuration
-when building from source. The release checks require the CFG PE flag,
-load-configuration instrumentation and a nonempty function table, then
-verify that the NuGet payload is byte-identical to the staged release DLL:
+### Windows x64 source builds and release checks
+
+The bundled Windows x64 DLL must pass both Control Flow Guard (CFG,
+BinSkim BA2008) and the per-function stack-protection check (BA2014).
+The latter also examines Rust's linked standard-library/runtime code:
+protecting just the FFI crate leaves precompiled runtime functions unprotected.
+Stable Rust 1.95.0 does not support the required stack-protector option.
+
+From the repository root, in a Windows developer shell with the x64 MSVC
+linker available and PowerShell 7.4 or later:
 
 ```powershell
-./scripts/check-windows-cfg.ps1 -Dll sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.dll
-./scripts/check-windows-cfg.ps1 -Package <package.nupkg> -ExpectedDll <staged-agent_hooks_ffi.dll>
+rustup toolchain install nightly-2026-10-21 --profile minimal --component rust-src --target x86_64-pc-windows-msvc
+$env:RUSTFLAGS = '-C control-flow-guard=checks -Z stack-protector=strong -D partial-stack-protector'
+$env:CARGO_ENCODED_RUSTFLAGS = $null
+Push-Location sdk\rust
+try {
+    cargo +nightly-2026-10-21 -Z build-std=std,panic_unwind build --locked --release `
+        -p agent-hooks-ffi --target x86_64-pc-windows-msvc
+    if ($LASTEXITCODE -ne 0) { throw 'Protected Windows FFI build failed.' }
+} finally { Pop-Location }
+$env:RUSTFLAGS = $null
+$env:PATH = "$(Resolve-Path sdk\rust\target\x86_64-pc-windows-msvc\release);$env:PATH"
+dotnet test sdk\dotnet\test\AgentHooks.Tests
+```
+
+Use a dedicated developer shell: the environment flags above are process-local.
+Keep the checkout/output path short enough for MSVC's native library paths.
+This nightly pin is limited to the Windows x64 FFI/NuGet artifact; direct Rust,
+Python, TypeScript, GNU cgo and non-Windows builds retain their existing toolchains.
+The compiler rejects partial stack protection rather than allowing unprotected
+runtime dependencies. No public API or wire format changes.
+
+CI and release use the same
+[Windows FFI action](../../.github/actions/windows-ffi/action.yml), including
+a hash-pinned, signature-verified Microsoft.CodeAnalysis.BinSkim 4.4.9 package.
+They retain the DLL, matching PDB and full scan report as
+`windows-ffi-hardening` build artifacts. The gate requires a completed analysis,
+the exact DLL hash, successful adjacent-PDB loading, unsuppressed BA2014/BA2008
+passes and no error findings; warnings remain visible in the full report.
+To check an equivalent local scan produced with `--hashes true --trace PdbLoad`:
+
+```powershell
+.\scripts\check-windows-stack-protection.ps1 `
+    -Dll sdk\rust\target\x86_64-pc-windows-msvc\release\agent_hooks_ffi.dll `
+    -Report <full-binskim.sarif>
+```
+
+The existing CFG gate additionally checks the PE flag, load-configuration
+instrumentation and nonempty function table. The NuGet gate verifies that
+the payload is byte-identical to the scanned/staged release DLL:
+
+```powershell
+.\scripts\check-windows-cfg.ps1 -Dll sdk\rust\target\x86_64-pc-windows-msvc\release\agent_hooks_ffi.dll
+.\scripts\check-windows-cfg.ps1 -Package <package.nupkg> -ExpectedDll <staged-agent_hooks_ffi.dll>
 ```
 
 Run these commands from the repository root with PowerShell 7.4 or later.
-The binary check complements BinSkim; it does not replace a full security scan.
+These checks do not establish downstream Guardian acceptance or waive other
+BinSkim findings. For example, the existing BA2024/BA2025/BA2026/BA2027/BA6006
+warnings are separate from BA2014.
 
 For self-contained deployment, ship the library app-local using the
 standard RID layout — add to your **application** csproj:
@@ -172,5 +219,3 @@ standard RID layout — add to your **application** csproj:
 
 A missing library fails at first native call with `DllNotFoundException`
 naming `agent_hooks_ffi` — it is a deployment error, not a package bug.
-Per-RID bundling inside the NuGet package (`runtimes/<rid>/native/`) is
-planned but not yet shipped.
