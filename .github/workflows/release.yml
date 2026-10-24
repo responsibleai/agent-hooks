@@ -340,6 +340,7 @@ jobs:
               targets.map(t => ["@responsibleai/agent-hooks-" + t, p.version]));
             fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n");
           '
+          channel_packages=()
           for dir in npm/linux-x64-gnu npm/linux-arm64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc .; do
             name=$(node -p "require('./$dir/package.json').name")
             if [ "$dir" != "." ] && ! ls "$dir"/*.node >/dev/null 2>&1; then
@@ -347,8 +348,9 @@ jobs:
             fi
             if npm view "$name@$V" version >/dev/null 2>&1; then
               echo "$name@$V already on npm — skipping"
+              channel_packages+=("$name")
             elif (cd "$dir" && npm publish --access public --tag latest); then
-              :
+              channel_packages+=("$name")
             elif ! npm view "$name" name >/dev/null 2>&1; then
               # npm trusted publishing cannot be configured for a package
               # that has never been published, so a brand-new platform
@@ -361,12 +363,9 @@ jobs:
             fi
           done
           if [ -n "$NPM_CHANNEL" ]; then
-            for dir in npm/linux-x64-gnu npm/linux-arm64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc .; do
-              name=$(node -p "require('./$dir/package.json').name")
-              if ! npm view "$name@$V" version >/dev/null 2>&1; then
-                echo "$name@$V is not on npm (first publish failed soft above), no channel tag"
-                continue
-              fi
+            # A successful publish is eligible even before npm view catches up.
+            # Only explicit first-publication soft failures were left out above.
+            for name in "${channel_packages[@]}"; do
               # is enabled on the trusted publisher of every package; the
               # command must then fail the job.
               npm dist-tag add "$name@$V" "$NPM_CHANNEL"
