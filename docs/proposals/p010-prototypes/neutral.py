@@ -826,6 +826,14 @@ def _anthropic_blocks_out(parts: list[dict[str, Any]]) -> Any:
     return out
 
 
+def _as_blocks(content: Any) -> list[dict[str, Any]]:
+    return (
+        [{"type": "text", "text": content}]
+        if isinstance(content, str)
+        else list(content)
+    )
+
+
 def neutral_to_anthropic(
     neutral: dict[str, Any], request_residue: dict[str, Any]
 ) -> dict[str, Any]:
@@ -840,6 +848,13 @@ def neutral_to_anthropic(
         role = "user" if m["role"] == "tool" else m["role"]
         msg = {"role": role, "content": _anthropic_blocks_out(m["content"])}
         msg.update(res)
+        if messages and messages[-1]["role"] == role and not res:
+            # The Messages API alternates roles: fold a split turn back into one message.
+            previous = messages[-1]
+            previous["content"] = _as_blocks(previous["content"]) + _as_blocks(
+                msg["content"]
+            )
+            continue
         messages.append(msg)
     if system_parts:
         req["system"] = _anthropic_blocks_out(system_parts)

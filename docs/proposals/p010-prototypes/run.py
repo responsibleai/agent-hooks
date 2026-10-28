@@ -22,6 +22,7 @@ import candidates as cd  # noqa: E402
 import jcs  # noqa: E402
 import neutral as nz  # noqa: E402
 import paths  # noqa: E402
+import policies as pol  # noqa: E402
 from fixtures import FIXTURES, PROVIDER_FORMATS, fixture, response_fixture  # noqa: E402
 
 SHORT = {
@@ -340,6 +341,100 @@ def section_current_shape() -> None:
     print()
 
 
+def section_ergonomics() -> None:
+    print("## Policy ergonomics across seven target shapes\n")
+    print(
+        "The same three policy tasks written against each shape: redact a secret in the latest user turn, "
+        "block when any tool result contains the pattern, cap the system prompt. Lines count the three "
+        "format-specific locators a policy author writes; path shapes are the distinct section 5.2 paths "
+        "(indices replaced by `*`) needed across the three fixtures and three sources; write-back is exact "
+        "when the restored provider request equals the same edit made natively; loss and size sum over "
+        "the nine fixture and source pairs.\n"
+    )
+    rows = []
+    shapes_report: dict[str, dict[str, set[str]]] = {}
+    for target in pol.TARGETS:
+        user_fn, tool_fn, sys_fn = pol.LOCATORS[target]
+        lines = (
+            pol.logic_lines(user_fn),
+            pol.logic_lines(tool_fn),
+            pol.logic_lines(sys_fn),
+        )
+        user_paths: set[str] = set()
+        tool_paths: set[str] = set()
+        sys_paths: set[str] = set()
+        redact_exact = cap_exact = 0
+        pii_hits = pii_false = 0
+        lossy_pairs = 0
+        loss_kinds: set[str] = set()
+        size = 0
+        for name in FIXTURES:
+            for src in PROVIDER_FORMATS:
+                req = fixture(name, src)
+                built = pol.build(target, src, req)
+                view = pol._view(target, built)
+                user_paths |= {pol.shape(p) for _, p, _ in user_fn(view)}
+                tool_paths |= {pol.shape(p) for _, p, _ in tool_fn(view)}
+                sys_paths |= {pol.shape(p) for _, p, _ in sys_fn(view)}
+                redact_exact += pol.task_redact(target, src, req)["exact"]
+                cap_exact += pol.task_cap_system(target, src, req)["exact"]
+                pii_false += pol.task_block_pii(target, src, req)["deny"]
+                if name == "weather":
+                    pii_hits += pol.task_block_pii(
+                        target, src, pol.with_pii_tool_result(src, req)
+                    )["deny"]
+                lost = pol.round_trip_loss(target, src, req)
+                lossy_pairs += bool(lost)
+                loss_kinds |= {descriptor(x) for x in lost}
+                size += jcs.size(built)
+        shapes_report[target] = {
+            "user": user_paths,
+            "tool": tool_paths,
+            "system": sys_paths,
+        }
+        rows.append(
+            [
+                target,
+                pol.ARGS_KIND[target],
+                f"{lines[0]}+{lines[1]}+{lines[2]}={sum(lines)}",
+                len(user_paths),
+                len(tool_paths),
+                len(sys_paths),
+                f"{redact_exact}/9",
+                f"{pii_hits}/3, {pii_false} false",
+                f"{cap_exact}/9",
+                f"{lossy_pairs}/9"
+                + (f" ({', '.join(sorted(loss_kinds))})" if loss_kinds else ""),
+                size,
+            ]
+        )
+    print(
+        table(
+            [
+                "target shape",
+                "tool args",
+                "locator lines (user+tool+system)",
+                "user-text paths",
+                "tool-result paths",
+                "system paths",
+                "redact exact",
+                "PII deny (leaked, clean)",
+                "cap exact",
+                "lossy pairs",
+                "size (9 pairs)",
+            ],
+            rows,
+        )
+    )
+    print()
+    print("Path shapes a policy must know (indices as `*`):\n")
+    for target, groups in shapes_report.items():
+        print(f"- {target}:")
+        for label in ("user", "tool", "system"):
+            print(f"  - {label}: " + "; ".join(f"`{p}`" for p in sorted(groups[label])))
+    print()
+
+
 def main() -> None:
     print("# P-010 prototype results\n")
     print(
@@ -351,6 +446,7 @@ def main() -> None:
     section_transforms()
     section_responses()
     section_current_shape()
+    section_ergonomics()
 
 
 if __name__ == "__main__":
