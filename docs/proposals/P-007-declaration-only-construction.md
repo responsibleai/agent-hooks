@@ -283,6 +283,16 @@ such records carry no `declaration`). Replace it with:
 > There is no emitter without a declaration. Configuration in code is
 > a way of writing a declaration, not a way around it, and such a
 > host's records carry `declaration` like every other host's (§7.7.8).
+
+Add, after that paragraph:
+
+> One document per emitter says nothing about where bindings come
+> from. `bindings` is an ordered list and may carry bindings from any
+> number of sources, written in code or in a file: an audit set and a
+> policy set sit side by side, and the composition profile combines
+> their verdicts. Assembling one document from several files is a host
+> or channel step; this version defines no includes or overlays
+> (§7.7.4).
 > An emitter a host configures by `register` and setters before its
 > first emission is written down the same way (§7.7.7).
 
