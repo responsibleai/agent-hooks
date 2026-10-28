@@ -53,30 +53,39 @@ bind by order but by the content identity of the context. `target`
 duplicates the point's payload and exists only because the context was
 once an open object in which a transform needed a fixed root; the SDK
 keeps the two copies in step by hand. `agent.id` and `session.id` are
-real where a host has them and placeholders where it does not. The
-framework name says who emitted the context, which is a host, not a
-framework. And the specification never says whether an unknown member is
-an error: the schema files close the per-point payloads and call that
-strict validation, while the code checks presence and type only, so an
-adopter who reads the files assumes a strictness the kit does not
-enforce. The sections below carry the evidence for each of these claims.
+real where a host has them and placeholders where it does not, and in
+neither case a credential. The framework name says who emitted the
+context, which is a host, not a framework. And the specification never
+says whether an unknown member is an error: the schema files close the
+per-point payloads and call that strict validation, while the code
+checks presence and type only, so an adopter who reads the files assumes
+a strictness the kit does not enforce. The sections below carry the
+evidence for each of these claims.
 
 ## Goals and non-goals
 
+This is a breaking change to the wire contract: the version moves from
+`agent-hooks/0.1` to `agent-hooks/0.2`, and the SDKs absorb what they
+can of it.
+
 Goals:
 
-- A required core that a gateway fills truthfully and a harness fills
-  the same way.
+- A required core that every layer of the stack can fill truthfully:
+  harness, runtime and gateway alike.
 - Identity members that are present when the host knows them and absent
-  when it does not, never filled with a placeholder.
+  when it does not, never filled with a placeholder, and read as
+  correlation labels the host asserts, never as an authenticated
+  principal. Authorization binds to the identity the transport
+  authenticated, which lives outside the context.
 - One rule for unknown members, stated in the spec and matched by the
   schemas, the SDKs and the conformance kit.
-- A transform root that needs no duplicate member.
+- A transform that writes into the point's own payload. Today the
+  context carries a second copy of the value under evaluation (`target`)
+  so a transform has a fixed place to write, and the SDK keeps the two
+  copies in step; the goal is one copy and nothing to keep in step.
 - The conditional shapes of `input`, `pre_model_call`,
   `post_model_call`, `pre_tool_call`, `post_tool_call`, `output` and
   `agent_shutdown` unchanged.
-- One version bump, labelled and numbered by the written rules, with as
-  much of the break as possible absorbed inside the SDKs.
 
 Non-goals:
 
@@ -210,26 +219,28 @@ Against:
 The required core becomes `spec`, `interception_point` and `timestamp`.
 `host.name`, `agent.id` and `session.id` join the well-known optional
 members of §4.5 under one rule: present when the host has the value,
-absent otherwise, never a placeholder. `target` leaves the context;
-`$target` stays as the root of a transform path and denotes the §3 slice
-of the context's interception point. The per-point conditional members
-are the contract and the identity preimage.
+absent otherwise, never a placeholder, and read as correlation labels
+the host asserts, not as authenticated principals. `target` leaves the
+context; `$target` stays as the root of a transform path and denotes the
+§3 slice of the context's interception point. The per-point conditional
+members are the contract and the identity preimage.
 
 For: every host can fill the core truthfully; an interceptor relies on
 the per-point payload, which is what it evaluates; the transform root is
 unchanged for every existing verdict and for agent-control-spec's policy
 output; the removed members are the ones nothing in the tree reads.
 
-Against: every `jcs-sha256` identity changes once; the record loses
-`sequence` and makes `session_id` optional, so a record consumer that
-ordered by `sequence` moves to `timestamp`; a third-party interceptor
-that read `ctx.target` directly must read the slice instead; two filed
-claims are re-run.
+Against: every host that moves to 0.2 sees its `jcs-sha256` identities
+change once; the record loses `sequence` and makes `session_id`
+optional, so a record consumer that ordered by `sequence` moves to
+`timestamp`; a third-party interceptor that read `ctx.target` directly
+must read the slice instead; two filed claims are re-run.
 
 ### D. Remove all five, `agent.id` included
 
-The gateway-shaped end of the range: the context names no principal at
-all, and identity comes from the authentication context only.
+The gateway-shaped end of the range: the context carries no agent
+identity at all, and correlation as well as authorization come from the
+transport.
 
 For: nothing in the context can be mistaken for a verified identity; the
 gateway story is the simplest.
@@ -237,10 +248,11 @@ gateway story is the simplest.
 Against: a harness that knows which agent definition is running, and
 which sub-agent a harness spawned under it, has no standard place to say
 so. agent-control-spec selects remote policy by `agent.id` and builds
-its Cedar principal from it; both would move to extensions, which
-fragments the one thing security reviewers asked to keep. The member
-costs nothing when absent. D is not recommended now; the remote identity
-proposal may revisit it with a verifiable caller identity in hand.
+its Cedar principal from it; both would move to extensions or to the
+transport identity, which fragments the correlation security reviewers
+asked to keep for sub-agent tracking. The member costs nothing when
+absent. D is not recommended now; the remote identity proposal may
+revisit it with a verifiable caller identity in hand.
 
 ### Questions inside C
 
@@ -269,20 +281,29 @@ the grammar can stay `^[a-z0-9_-]+$`, so `agent-framework`,
 `github-copilot`, `reference-agent` and
 `agent-control-spec-reference-host` remain valid values.
 
-`agent.id` can stay required, become optional, or go. Required lets a
-policy always key on it, but the gateway and toolbox case above turns it
-into a placeholder. Removal is option D. Optional, with two normative
-sentences (the host sets it from its own knowledge of the agent
-definition and never copies it from content the agent produced; a host
-that cannot name the agent omits the member), serves both the security
-case for keeping it (sub-agent tracking, per-agent policy and approvals)
-and the gateway case against requiring it: the harnesses that know the
-agent say so, the gateway says nothing rather than something false, and
-a policy that needs a principal fails closed on absence instead of
-binding to filler. The preimage is a separate question. As an optional
-member it stays out of the `jcs-sha256` projection (§10.2); hashing it
-when present is the alternative, but the approval binding that would add
-is in-process and per emission, and "optional data never perturbs the
+`agent.id` can stay required, become optional, or go. Whichever answer
+the group takes, the member is a correlation label the host asserts, not
+an authenticated principal. It sits in the payload and is bound to no
+token, so it is never a basis for an authorization decision;
+authorization binds to the identity the transport authenticated, the
+token a gateway or runtime verified, which lives outside the context.
+WorkIQ already works this way: it takes the agent identity from the
+token, not from the context. With that settled, the choice is about
+correlation. Required lets a policy always key on the label, but the
+gateway and toolbox case above turns it into a placeholder. Removal is
+option D: correlation and authorization both from the transport.
+Optional, with two normative sentences (the host sets it from its own
+knowledge of the agent definition and never copies it from content the
+agent produced; a host that cannot name the agent omits the member),
+serves both the correlation case for keeping it (sub-agent tracking,
+per-agent policy selection inside a trusted host, approval context) and
+the gateway case against requiring it: the harnesses that know the agent
+say so, the gateway says nothing rather than something false, and a
+policy that keys on the label fails closed on absence instead of binding
+to filler. The preimage is a separate question. As an optional member it
+stays out of the `jcs-sha256` projection (§10.2); hashing it when
+present is the alternative, but the approval binding that would add is
+in-process and per emission, and "optional data never perturbs the
 identity" is the rule hosts rely on when they add data.
 
 `agent_init.tools_registered` can stay required, become optional, or go.
@@ -312,9 +333,12 @@ the list at the end records the alternatives.
 
 - The required core is `spec`, `interception_point` and `timestamp`.
   `sequence` and `target` leave the context.
-- `agent.id` is optional. The host sets it from its own knowledge, never
-  from agent-produced content, and omits it when it cannot name the
-  agent. It is never part of the `jcs-sha256` preimage.
+- `agent.id` is optional and is a correlation label the host asserts,
+  not an authenticated principal: it is never a basis for an
+  authorization decision, which binds to the identity the transport
+  authenticated, outside the context. The host sets it from its own
+  knowledge, never from agent-produced content, and omits it when it
+  cannot name the agent. It is never part of the `jcs-sha256` preimage.
 - `session.id` stays as a well-known optional member; it is not deleted.
   The discussion leaned toward deletion, so this point stays open until
   the group has talked it through.
@@ -327,10 +351,16 @@ the list at the end records the alternatives.
   `host_error:context_invalid` never means an unknown member.
 - `$target` stays as the root of a transform path and resolves to the §3
   slice.
+- Identity rules follow the context's own `spec`. A context tagged
+  `agent-hooks/0.1` is projected and hashed under the 0.1 rules by every
+  SDK that accepts it and is never converted silently; an SDK that does
+  not implement those rules refuses it as `host_error:context_invalid`.
+  The record gains an optional `spec` member saying which rules produced
+  its identities.
 - The change ships as `agent-hooks/0.2` under `spec:breaking`, with
   package version 0.2.0 and the pre-1.0 numbering convention written
-  into `VERSIONING.md`. This proposal is the draft; the deciding PR
-  edits the specification in place.
+  into `VERSIONING.md`. Where the 0.2 text lives while it is decided, an
+  in-place edit or the draft bundle of PR #169, follows #169.
 
 ## Analysis
 
@@ -357,15 +387,19 @@ the `agent-hooks/0.1` string, is rejected: the identities and the record
 shape change, so a reader of a record or a context must be able to tell
 which rules applied, and the `spec` string is the only signal it has.
 
-The mechanism is the one the repository already has. This proposal is
-the draft: the text is debated and amended here while the published
-specification stands. Once decided, one PR edits
+Where the 0.2 text lives while it is decided depends on a layout
+decision that is pending in PR #169, and this proposal follows it. Under
+the layout in `main` today, the deciding PR edits
 `spec/AGENT-HOOKS-0.1.md` in place, bumps its header to 0.2 and adds the
-`CHANGELOG.md` entry, under `spec:breaking`. That satisfies the
-change-class workflow (`.github/workflows/change-class.yml`), which
-requires a `spec:breaking` PR to change a version surface in the same
-PR: a path under `spec/AGENT-HOOKS`, an SDK manifest, or `CHANGELOG.md`.
-No parallel copy of the specification is kept.
+`CHANGELOG.md` entry, under `spec:breaking`; that meets the change-class
+workflow (`.github/workflows/change-class.yml`), which requires a
+`spec:breaking` PR to change a version surface in the same PR: a path
+under `spec/AGENT-HOOKS`, an SDK manifest, or `CHANGELOG.md`. Under the
+layout #169 proposes, a versioned bundle per published specification
+plus a draft bundle, the deciding PR writes the 0.2 text into the draft
+bundle and the version bump happens when that draft is published as the
+next release. The content of the change, the label and the version
+number are the same under both.
 
 ### Identity and the record
 
@@ -381,25 +415,31 @@ because optional members are excluded by rule. Keeping them in it when
 present would make two hosts that emit the same tool call produce
 different identities depending on which placeholders they filled; the
 identity would measure the adapter, not the content. B therefore changes
-every identity as much as C does.
+every 0.2 identity as much as C does.
 
-Every existing golden identity changes under either option. All 18
-fixtures in `conformance/golden/identity.json` carry `sequence`,
-`agent`, `session` and `target`; `scripts/gen-golden-identity.py`
-regenerates them from the Rust core. No continuity is promised across
-the bump: approvals bind inside one emission, and an identity is
-meaningful only against records produced under the same rules.
+Which rules apply is decided by the context's own `spec` value, so a
+0.1-tagged context keeps its identity on every SDK that accepts it, and
+a host sees its identities change once, when it starts tagging 0.2 (the
+rule is stated under Migration). No existing golden identity changes:
+the 18 fixtures in `conformance/golden/identity.json` are tagged
+`agent-hooks/0.1` and keep their identities under the 0.1 rules, which
+an SDK that accepts 0.1 contexts must still pass. The 0.2 corpus adds
+the same 18 scenarios tagged 0.2, with new identities generated by
+`scripts/gen-golden-identity.py` from the Rust core. Approvals bind
+inside one emission, so no binding crosses the change.
 
-The record (§10.3) drops `sequence` and makes `session_id` OPTIONAL,
-present when the context carried `session.id`. The sentence "records are
-totally ordered within a session" goes, and with it the host projection
-failure rule that consumes the next sequence number. The record keeps
-`timestamp` (the context's event time, which every conformant context
-has) and `trace` (W3C Trace Context, when the host supplies it); a SIEM
-orders by those. A host that needs its own order across concurrent
-emissions keeps a counter in its extension namespace. `decided_by`,
-`verdicts`, `composition` and the identities are unchanged, so
-attribution and tamper evidence are as they were.
+The record (§10.3) drops `sequence`, makes `session_id` OPTIONAL,
+present when the context carried `session.id`, and gains an OPTIONAL
+`spec` member, the context's `spec` copied verbatim, so a reader knows
+which rules produced the identities on the record. The sentence "records
+are totally ordered within a session" goes, and with it the host
+projection failure rule that consumes the next sequence number. The
+record keeps `timestamp` (the context's event time, which every
+conformant context has) and `trace` (W3C Trace Context, when the host
+supplies it); a SIEM orders by those. A host that needs its own order
+across concurrent emissions keeps a counter in its extension namespace.
+`decided_by`, `verdicts`, `composition` and the identities are
+unchanged, so attribution and tamper evidence are as they were.
 
 ### What a host and an interceptor see
 
@@ -448,12 +488,14 @@ transform to the slice the §3 table names and proceeds with that value.
 
 A conforming interceptor evaluates the point's payload, which is the
 same object it evaluated before. It addresses a transform at `$target`
-as before. It reads `agent.id` when present and treats it as the host's
-assertion, under the §1.4 trust model, not as a verified claim. It must
-not fail a context for an unknown member or for an absent optional one.
-Under B an interceptor would have to handle absence of all five members
-anyway, so the interceptor-side change is the same; C removes the
-temptation to rely on them.
+as before. It reads `agent.id` when present as a correlation label the
+host asserts under the §1.4 trust model, not as a verified claim and
+never as the principal for an authorization decision; that principal
+comes from the identity the transport authenticated. It must not fail a
+context for an unknown member or for an absent optional one. Under B an
+interceptor would have to handle absence of all five members anyway, so
+the interceptor-side change is the same; C removes the temptation to
+rely on them.
 
 The risk that optional-but-present members invite garbage is real and is
 answered by a rule, not by hope: a host MUST omit an optional identity
@@ -461,26 +503,45 @@ member it does not have and MUST NOT fill a placeholder. The conformance
 kit cannot test what a production host knows, so the rule is enforced
 where it can be: the adapters named above drop their literals
 (`"agent"`, `"copilot-session"`), the SDK builders accept an absent
-agent and session, and a policy that needs a principal fails closed on
-absence (agent-control-spec already does; see the impact section).
-Absence is visible; filler is not.
+agent and session, and a policy that keys on the label fails closed on
+absence rather than binding to filler (agent-control-spec already does;
+see the impact section), while a policy that needs an authenticated
+principal takes it from the transport, not from the context. Absence is
+visible; filler is not.
 
 ### Migration and what the SDKs can hide
 
-The read side hides most of it. The core accepts any well-formed
-`agent-hooks/<major>.<minor>` string and compares nothing to
-`SPEC_VERSION` (`canonical.rs:327-341`), and the declaration loader
-accepts a document whose `spec` minor is at most its own
-(`sdk/rust/core/src/declaration.rs:1329-1333`). A 0.2 SDK therefore
-accepts a 0.1-shaped context and a 0.1 declaration document. The members
-a 0.1 host still sends (`sequence`, `session`, `target`,
-`agent.framework`) are unknown members under 0.2: passed through to
-interceptors, kept out of the preimage, not copied to the record. One
-exception is recommended: the SDK drops a root `target` member on the
-way in for one minor, with a CHANGELOG note, because it is the member
-the SDK's own builder used to write and a stale copy next to the
-rewritten slice would mislead a host that reads it after `emit` instead
-of `outcome.target`.
+The read side hides most of it, under one rule: the validation and
+identity rules an SDK applies are selected by the context's own `spec`
+value. A context tagged `agent-hooks/0.1` is validated, projected and
+hashed under the 0.1 rules by every SDK that accepts it, and is never
+converted silently; a 0.2 host emits 0.2 contexts; a host that wants to
+convert does so as an explicit step before `emit`. An SDK that does not
+implement the rules of a context's `spec` version refuses the emission
+as `host_error:context_invalid` with a detail naming the version. The
+specification reserves no other reason for this case: §11 has
+`adapter_unsupported` and `streaming_unsupported`, neither of which
+fits, and `declaration_error:spec_unsupported` is for documents. Today
+the core accepts any well-formed `agent-hooks/<major>.<minor>` string
+and applies the 0.1 rules to all of them (`canonical.rs:327-341`); under
+the rule the string selects the rules and an unknown version is refused.
+So the same tagged context gets the same identity from every SDK, and a
+0.1 host keeps its identities until it moves to 0.2.
+
+The 0.2 SDKs accept 0.1-tagged contexts for one minor, which is the
+migration window; the declaration loader already accepts a document
+whose `spec` minor is at most its own
+(`sdk/rust/core/src/declaration.rs:1329-1333`). The record of a
+0.1-tagged emission has the SDK's 0.2 shape, with `spec` saying which
+rules produced the identities. For a 0.2-tagged context, the members a
+half-migrated host still sends (`sequence`, `session`, `target`,
+`agent.framework`) are unknown members: passed through to interceptors,
+kept out of the preimage, not copied to the record. One exception is
+recommended: the SDK drops a root `target` member from a 0.2-tagged
+context on the way in for one minor, with a CHANGELOG note, because it
+is the member the SDK's own builder used to write and a stale copy next
+to the rewritten slice would mislead a host that reads it after `emit`
+instead of `outcome.target`.
 
 The write side is mechanical. The five builders keep their `(agent_id,
 framework, session_id)` constructors as forwarding overloads without a
@@ -510,8 +571,8 @@ dependent package.
 
 The edits below are the change to the specification text under option C
 with the recommended answers. Quoted text is new text. Section numbers
-refer to the current document; the deciding PR applies the edits in
-place and bumps the header to 0.2.
+refer to the current document; the deciding PR applies them under the
+layout PR #169 settles and bumps the header to 0.2.
 
 ### §3.1 Ordering
 
@@ -540,8 +601,13 @@ After the tier list add:
 }
 ```
 
-The table keeps the `spec`, `interception_point` and `timestamp` rows
-unchanged and drops the other five.
+The table drops the other five rows. The `spec` row gains: "The value
+selects the validation and identity rules the host and the SDK apply
+(§10.2). An SDK that does not implement the rules of the given version
+MUST refuse the emission as `host_error:context_invalid`, naming the
+version, and MUST NOT convert a context from one version to another; a
+host that wants to convert does so before it emits." The
+`interception_point` and `timestamp` rows are unchanged.
 
 ### §4.2 Conditional fields
 
@@ -582,14 +648,16 @@ Add rows and one rule:
 | --- | --- | --- |
 | `host.name` | all | string matching `^[a-z0-9_-]+$`: the software that emits the context (the host of §2), whether a framework, a runtime or a gateway. Replaces `agent.framework`. |
 | `host.version` | all | string |
-| `agent.id` | all | non-empty string: the host's stable identifier for the agent definition, stable across sessions. Set from the host's own knowledge, never from content the agent produced. |
+| `agent.id` | all | non-empty string: the host's stable identifier for the agent definition, stable across sessions. Set from the host's own knowledge, never from content the agent produced. A correlation label, not an authenticated principal. |
 | `session.id` | all | non-empty string, stable across all hooks of one session |
 
 > A host MUST omit an optional identity member (`host.*`, `agent.*`,
 > `session.*`, `actor.*`, `tenant.*`) whose value it does not have,
 > and MUST NOT fill a placeholder. An interceptor MUST NOT fail a
 > context for an absent optional member, and treats a present one as
-> the host's assertion under §1.4, not as a verified claim.
+> the host's assertion under §1.4, not as a verified claim and never
+> as the principal for an authorization decision; that principal is
+> the identity the transport authenticated, outside the context.
 
 The existing `agent.name`, `agent.version`, `session.started_at` and
 `session.turn` rows stand.
@@ -610,17 +678,25 @@ The root members of `ctx_rc` become `spec`, `interception_point` and
 `timestamp`; `agent.{id,framework}`, `session.{id}` and `target` leave
 the list; the per-point allowlists are unchanged. Add: "A listed member
 that is absent from the context is absent from the projection;
-`tools_registered` is projected when present."
+`tools_registered` is projected when present." Add also: "The projection
+is selected by the context's `spec`. A context tagged `agent-hooks/0.1`
+is projected under the 0.1 list, with `sequence`,
+`agent.{id,framework}`, `session.{id}` and `target`; a context tagged
+`agent-hooks/0.2` under the list above. A provider never converts a
+context from one version to another."
 
 ### §10.3 The interception record
 
-Remove `sequence` from the example and the table. `session_id` becomes
-OPTIONAL: "The context's `session.id`, copied verbatim; absent when the
-context carried none." The row text "records are totally ordered within
-a session" goes. In the host projection failure paragraph, delete the
-two sentences on consuming the next sequence number; `session_id` is
-present when the host knows it and absent otherwise, and the `""`/`-1`
-sentinels go.
+Add `spec`, OPTIONAL in the schema for records written before this
+revision and written on every record by a host of this revision: "The
+context's `spec`, copied verbatim; names the rules that produced
+`input_identity` and `enforced_identity`." Remove `sequence` from the
+example and the table. `session_id` becomes OPTIONAL: "The context's
+`session.id`, copied verbatim; absent when the context carried none."
+The row text "records are totally ordered within a session" goes. In the
+host projection failure paragraph, delete the two sentences on consuming
+the next sequence number; `session_id` is present when the host knows it
+and absent otherwise, and the `""`/`-1` sentinels go.
 
 ### §11 Reserved reasons
 
@@ -641,10 +717,14 @@ Replace rule 3 with:
 
 ### §14 Security considerations
 
-One bullet: `agent.id` and `session.id` are host assertions, present
-only when the host knows them. A policy that keys on `agent.id` fails
-closed when it is absent rather than binding to a default, and a host
-never derives the member from agent-produced content.
+One bullet: `agent.id` and `session.id` are correlation labels the host
+asserts, present only when the host knows them and never derived from
+agent-produced content. They sit in the payload and are bound to no
+token, so an interceptor MUST NOT base an authorization decision on
+them; authorization binds to the identity the transport authenticated,
+the token a gateway or runtime verified, which lives outside the
+context. A policy that keys on the label for correlation fails closed
+when it is absent rather than binding to a default.
 
 ### Schemas and inventories
 
@@ -659,8 +739,9 @@ never derives the member from agent-produced content.
   longer claims strict validation; the preimage allowlist in
   `canonical.rs` is the only closed thing and §10.2 says so.
 - `spec/schema/interception-record.schema.json`: `sequence` removed from
-  `properties` and `required`; `session_id` removed from `required`; the
-  description drops "ordering".
+  `properties` and `required`; `session_id` removed from `required`;
+  `spec` added as an OPTIONAL string matching `^agent-hooks/\d+\.\d+$`;
+  the description drops "ordering".
 - `spec/schema/path-grammar.abnf`: unchanged.
 - `spec/reserved-reasons.json`: text of the `context_invalid` entry
   only.
@@ -679,7 +760,17 @@ never derives the member from agent-produced content.
   governs how the expected interception-point list is matched against
   the recorded one (`ctk_engine.rs:272-316`), not the member. A rename
   to `order_strict` would be cosmetic and is not proposed.
-- `conformance/golden/identity.json`: all 18 fixtures regenerated.
+- `conformance/golden/identity.json`: the 18 fixtures keep their 0.1
+  identities; 18 fixtures tagged `agent-hooks/0.2` are added with new
+  identities.
+- `AH-CTK-160` feeds a 0.1-tagged context through a 0.2 emitter (the
+  scenario grammar gains a member that asks the harness to tag its
+  contexts with a given spec version): it expects the 0.1 golden
+  identity and a 0.2-shaped record carrying `spec: agent-hooks/0.1`. It
+  is gated on a new capability, `spec_0_1`, declared by a harness whose
+  SDK accepts 0.1 contexts. A per-SDK unit test pins that an SDK which
+  does not accept them refuses with `host_error:context_invalid` naming
+  the version, and that no SDK converts between versions.
 - Per-SDK unit tests pin the unknown-member rule on `validate_envelope`
   (a root member and a member inside `tool_call` that the schema does
   not define both pass) and the omit-never-fill behaviour of the
@@ -700,13 +791,21 @@ removals cost it nothing at the engine. Three things change:
   string (`spec/SPECIFICATION.md`, the Cedar request table;
   `engine/src/cedar.rs:90-98` and `:165-184`). With `agent.id` optional,
   a host that omits it makes every Cedar-backed binding fail closed.
-  That is the right default; agent-control-spec decides whether to also
-  offer a configured fallback principal for anonymous hosts, a one-file
-  change in `cedar.rs` plus its specification row.
-- The remote-policy evaluator rejects a context whose `agent.id` is not
-  a configured agent (`integration.py:73-77`). Unchanged in code; the
-  remote-policy README gains the sentence that it requires a host that
-  supplies `agent.id`.
+  That is the right default. Under this proposal the member is a
+  correlation label, so a principal built from it is trusted only as far
+  as the host that asserted it (§1.4): sound for an in-process host, not
+  for a remote evaluation, where the principal should come from the
+  token the transport verified, as WorkIQ does. agent-control-spec
+  decides whether to offer a configured fallback principal for anonymous
+  hosts, a one-file change in `cedar.rs` plus its specification row, and
+  whether its remote path takes the principal from the transport.
+- The remote-policy evaluator selects and scopes policy by `agent.id`
+  and rejects a context whose value is not a configured agent
+  (`integration.py:73-77`). That is selection by a host-asserted label;
+  for a remote caller the identity should come from the verified token.
+  Unchanged in this proposal; the remote-policy README states that it
+  requires a host that supplies `agent.id`, and agent-control-spec
+  decides whether to move the selection to the transport identity.
 - The harness builds contexts with
   `AgentContextBuilder::new("acs-agent",
   "agent-control-spec-reference-host", "sess-<n>")`
@@ -786,11 +885,13 @@ drops `sequence`, `session` and `target`, sets `host.name`, and omits
 `agent.id` unless the caller it authenticated is the agent. That is a
 removal of code, not an addition.
 
-WorkIQ: no checkout is available. The assumption is a tool-call-only
-integration through the Python builder with invented agent and session
-values, the same shortcut the gateway took. The change is the builder
-keyword mapping the SDK performs plus dropping the invented values; the
-maintainers of this repository can make it with the owner's agreement.
+WorkIQ: no checkout is available. From the review discussion it takes
+the agent identity from the token it verified, not from the context,
+which is the transport side of the position above. The remaining
+assumption is a tool-call-only integration through the Python builder;
+the change is the builder keyword mapping the SDK performs plus dropping
+any invented members, and the maintainers of this repository can make it
+with the owner's agreement.
 
 Copilot SDK (github/copilot-agent-runtime#25730): the first consumer of
 the final shape, phased so that the hooks land with the final payload
@@ -812,15 +913,15 @@ and a `spec` string, which becomes `agent-hooks/0.2`.
 
 ## Rollout
 
-The deciding PR edits the specification in place with the 0.2 header and
-carries the schemas, the generator, the golden file, the `VERSIONING.md`
-sentence, the `CHANGELOG.md` entry and the Rust core change, so `main`
-never holds a specification its own core does not implement. The four
+The deciding PR carries the specification text under the layout PR #169
+settles (an in-place edit with the 0.2 header, or the draft bundle), the
+schemas, the generator, the golden file, the `VERSIONING.md` sentence,
+the `CHANGELOG.md` entry and the Rust core change, so `main` never holds
+a published specification its own core does not implement. The four
 wrapper SDKs and the conformance runners build on the core and follow in
 the same release, with the conformance kit changes, the docs, and the
-record and builder compatibility overloads. Until that PR merges the
-published specification is unchanged, and this proposal is the only
-place the new shape exists.
+record and builder compatibility overloads. Until the 0.2 text is
+published, the published specification is unchanged.
 
 Downstream, in dependency order: agent-control-spec re-vendors the
 corpus, decides the Cedar fallback and re-runs its claim;
@@ -833,10 +934,17 @@ each adopter re-runs.
 
 ## Risks
 
-- Every `jcs-sha256` identity changes once. No in-flight binding crosses
-  the upgrade (approvals bind inside one emission), and records carry
-  the `spec` string, so a reader never compares identities across
-  versions by accident. The CHANGELOG headline says so.
+- Every host that moves to 0.2 sees its `jcs-sha256` identities change
+  once. No in-flight binding crosses the upgrade (approvals bind inside
+  one emission), a 0.1-tagged context keeps its identity on every SDK,
+  and the record's `spec` says which rules produced its identities, so a
+  reader never compares identities across versions by accident. The
+  CHANGELOG headline says so.
+- An interceptor keys an authorization decision on `agent.id`. The
+  member is a host-asserted label bound to no token, so such a decision
+  is only as sound as the host; §14 says so and names the transport
+  identity as the basis, and agent-control-spec's remote path is the
+  known case to move.
 - Optional members go unfilled. That is accepted for `host`, `agent` and
   `session`, because nothing in the contract depends on them; a
   per-agent policy fails closed on absence, which is visible. The
@@ -851,11 +959,8 @@ each adopter re-runs.
   CHANGELOG entry make the break loud rather than silent.
 - A consumer that validates against the 0.1 record schema, which
   requires `sequence` and `session_id`, rejects 0.2 records until it
-  takes the 0.2 schema. The `spec` version in the context, not the
-  record, is the discriminator; a record consumer learns the version
-  from its host. Adding `spec` to the record is recorded as a possible
-  follow-up and not proposed here, to keep this change to the members it
-  is about.
+  takes the 0.2 schema. The record's new `spec` member tells such a
+  consumer which rules produced the identities it carries.
 - The 0.2 bump lands while 0.1.0 final has not shipped, so the 0.1.0
   pre-release line ends at its last beta. The alternative, shipping
   0.1.0 with the old shape first, would publish a required core the
@@ -875,8 +980,11 @@ each adopter re-runs.
 - [ ] Host identifier: `host.name` with optional `host.version`, grammar
       `^[a-z0-9_-]+$` unchanged (recommended); alternatives
       `client.name`, `caller.id`.
-- [ ] `agent.id` stays out of the `jcs-sha256` preimage (recommended);
-      alternative: project it when present.
+- [ ] `agent.id`: keep it as an optional correlation label
+      (recommended), or drop it and rely on the transport identity
+      alone. In either case it is never a basis for an authorization
+      decision, and it stays out of the `jcs-sha256` preimage
+      (alternative: project it when present).
 - [ ] `agent_init.tools_registered`: optional and documented as not
       exhaustive (recommended); alternatives: keep required, remove.
 - [ ] `$target` stays as the symbolic root resolved to the §3 slice
@@ -884,14 +992,21 @@ each adopter re-runs.
       allowlist. Separately: fold the scheduled `$policy_target` alias
       removal into 0.2, or keep it for 0.3.
 - [ ] Version: wire `agent-hooks/0.2`, label `spec:breaking`, package
-      0.2.0, one sentence in `VERSIONING.md` on pre-1.0 numbering; this
-      proposal is the draft and the deciding PR edits the specification
-      in place (recommended); alternative: change the shape under the
-      `agent-hooks/0.1` string.
+      0.2.0, one sentence in `VERSIONING.md` on pre-1.0 numbering
+      (recommended); alternative: change the shape under the
+      `agent-hooks/0.1` string. Where the 0.2 text lives follows the
+      layout decision pending in PR #169.
+- [ ] Identity rules keyed by the context's `spec`: a 0.1-tagged context
+      is hashed under the 0.1 rules by an SDK that accepts it and
+      refused as `host_error:context_invalid` by one that does not; no
+      silent conversion; the 0.2 SDKs accept 0.1 contexts for one minor;
+      the record gains an OPTIONAL `spec` member.
 - [ ] SDK compatibility: builder and .NET record constructors kept as
       forwarding overloads without deprecation diagnostics; the SDK
       drops a root `target` member on the way in for one minor;
       `EmitOutcome.target` kept; `target_of` accessor added.
 - [ ] agent-control-spec: fail closed on an absent Cedar principal
       (current behaviour) with or without a configured fallback
-      principal; the decision is theirs and precedes their claim re-run.
+      principal, and whether its remote-policy path takes the principal
+      from the transport identity rather than from `agent.id`; both
+      decisions are theirs and precede their claim re-run.
