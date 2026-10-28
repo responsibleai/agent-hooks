@@ -1,91 +1,65 @@
 # P-009: The required core of the agent context
 
-**Status:** Draft.
+**Status:** Draft. A written proposal is required for this change under
+[README.md](README.md): it changes the required context fields and the
+record shape.
 **Raised by:** Mohammad Abuomar, from the design discussion of 2026-10-27
 on adopter feedback (the Copilot SDK review and the AI Gateway
 integration).
 
-## Why a proposal
-
-[README.md](README.md) requires a proposal for a change to the required
-or conditional context fields, which `VERSIONING.md` classes as spec
-MAJOR, and for a change to the identity or record shape (§10). This
-change does both. It removes two required members of the context
-(`sequence` and `target`), moves three to optional (`agent.id`,
-`session.id` and the host identifier), renames one, and so changes the
-`jcs-sha256` preimage (§10.2) and the record envelope (§10.3). The claim
-tuple of §13.3 is unchanged.
-
 ## The gap
 
-§4.1 requires seven root members at every interception point: `spec`,
-`interception_point`, `timestamp`, `sequence`, `agent` (with `id` and
-`framework`), `session` (with `id`) and `target`. `sequence`, `agent`
-and `session` describe a harness that runs one agent loop in one
-process, and `target` duplicates a member the harness already sends. A
-gateway that mediates tool calls for many agents has none of that state.
-It does not run the loop. It knows the caller it authenticated, which
-may be a toolbox that fronts several agents, not the agent definition.
-It holds no session, and it cannot count emissions, because the next
-request may land on another instance. The spec says the member is
-required and the SDK denies the emission without it
-(`host_error:context_invalid`,
-`sdk/rust/core/src/canonical.rs:320-383`), so an adapter fills something
-in.
+Every time an agent does something a host mediates, the host builds one
+JSON object, the agent context, and hands it to each interceptor bound
+at that point: a policy engine, a security scanner, an approval flow.
+The interceptor reads it and returns a verdict. The context is the whole
+of what a control sees, so what the specification requires in it decides
+who can implement the hooks.
 
-The adapters in reach show the pattern. The agent-framework Python
-middleware sets `agent_id` to the agent's id, else its name, else the
-literal `"agent"`, and a fresh UUID per run as the session
-(`python/packages/core/agent_framework/_agent_hooks.py:1030-1037`). The
-.NET middleware does the same with `Id ?? Name ?? "agent"` and a GUID
-(`dotnet/src/Microsoft.Agents.AI.AgentHooks/Core/AgentHooksAgent.cs:205-209`).
-The Copilot runtime adapter under review builds every context with
-`AgentContextBuilder::new("copilot", "copilot", &run_id)`
-(`src/runtime/src/hooks/agent_hooks.rs:981` in
-github/copilot-agent-runtime#25730); its rebuilt form falls back to
-`"copilot-session"` when the input carries no session id
-(`src/runtime/src/hooks/agent_hooks/projection.rs:113-118`). The AI
-Gateway, by the account given in the discussion, emits the two tool-call
-points, keeps no state between requests and is understood to fill
-`sequence` with a placeholder. These values pass validation and enter
-the identity preimage and the record. None of them tells an interceptor
-anything.
+Today the context requires, on every hook, a per-session counter
+(`sequence`), a session id, an agent id, a framework name and a copy of
+the value under evaluation (`target`), next to the point's own payload.
+Those members are natural for an agent framework that runs one loop in
+one process, which is where the first adapters came from. They are not
+natural anywhere else. An AI gateway mediates tool calls for many agents
+at once: it knows the caller it authenticated, which may be a toolbox
+fronting several agents, holds no session, and cannot count emissions
+when the next request lands on another instance. An agent runtime knows
+its session but may have no stable identifier for the agent definition
+behind a run. The specification rejects a context without the members,
+so the early integrations filled them in.
 
-`sequence` promises a total order that no host can keep. §12.2 lets
-emissions of different tool calls interleave and asks the host to assign
-numbers atomically; a stateless gateway has no counter to share; an
-asynchronous host has no single line to count along. The order is not
-what approvals bind by: an approval binds to the context identity
-through the echo rule (§9, §10.1) inside one emission. A timestamp does
-not establish causality off box either, so no replacement order is
-promised below. Nothing in the tree reads `sequence` except the record
-copy (`sdk/rust/core/src/enforce.rs:202`) and the conformance kit's own
-monotonic check (`sdk/rust/core/src/ctk_engine.rs:678-689`).
+The two early integrations show it. The Copilot SDK adapter under review
+could supply timestamps, messages and tool calls at every point, and set
+one fixed string for both the agent id and the framework name, with the
+run id as the session. The AI Gateway integration implemented the two
+tool-call points: it could supply the tool call and knows the
+authenticated caller, had no sequence or session to give, and is
+understood to fill `sequence` with a placeholder. The agent-framework
+middleware falls back to the literal `"agent"` when an agent has no id.
+Each of these values passes validation, enters the identity hash and the
+audit record, and tells an interceptor nothing.
 
-`target` duplicates the conditional member named in the §3 table. It
-exists because the 0.1 context was an open object and a transform needed
-a fixed root. The core keeps the two copies in step by hand:
-`apply_transform_to_ctx` rewrites `target` and then `write_back_target`
-mirrors the value into `tool_call.args`, `tool_result.value`,
-`messages`, `response`, `input` or `output`
-(`sdk/rust/core/src/enforce.rs:52-65` and `:299-325`). Once the
-per-point members are the contract, the duplicate adds a consistency
-rule and nothing else.
+The goal of this proposal is to take the learnings from those early
+implementations and make sure every required value can be filled with
+meaningful data at every layer of the stack: harness, runtime and
+gateway. A required field that cannot be filled becomes garbage data,
+and garbage data in a security control is worse than no field.
 
-The spec says nothing explicit about unknown members. The core's
-envelope check tests presence and JSON type only. The eight per-point
-schemas under `spec/schema/agent-context/` close the conditional payload
-objects (`additionalProperties: false` on `tool_call`, `tool_result`,
-`model`, `response`, `input`, `output`, `agent_init` and `summary`,
-written by `scripts/gen-per-point-schemas.py`) and describe themselves
-as "used by the CTK for strict validation". No runner does that: all
-five runners delegate assertion to the engine in the Rust core
-(`ctk_assert`), which calls `validate_envelope`
-(`sdk/rust/core/src/ctk_engine.rs:267`), and the Python package's loader
-for those schemas (`sdk/python/python/agent_hooks/ctk/_schemas.py`) has
-no importer. An adopter who reads the schema files concludes that an
-extra member fails conformance. The contract should say one thing and
-the files should match it.
+Member by member, the case is short. `sequence` promises a total order
+no host can keep: the specification itself lets parallel tool calls
+interleave, a stateless gateway has no counter, and approvals do not
+bind by order but by the content identity of the context. `target`
+duplicates the point's payload and exists only because the context was
+once an open object in which a transform needed a fixed root; the SDK
+keeps the two copies in step by hand. `agent.id` and `session.id` are
+real where a host has them and placeholders where it does not. The
+framework name says who emitted the context, which is a host, not a
+framework. And the specification never says whether an unknown member is
+an error: the schema files close the per-point payloads and call that
+strict validation, while the code checks presence and type only, so an
+adopter who reads the files assumes a strictness the kit does not
+enforce. The sections below carry the evidence for each of these claims.
 
 ## Goals and non-goals
 
@@ -122,10 +96,31 @@ Non-goals:
   contract (`agent-hooks-declaration/1.1` is unchanged) and the claim
   tuple.
 
+## Well-defined interceptor contracts
+
+The design discussion of 2026-10-27 agreed the direction this proposal
+sits in. The context stops being one open object with a `target` slice
+pointing into it. It becomes a small common envelope carried on every
+hook plus a defined, typed payload per interception point: the tool call
+at the tool points, the messages at the model request, the response at
+the model response, and so on. A host projects its native objects into
+that known shape, and a policy can be written against it once and run
+under any conformant host.
+
+This proposal settles the common envelope: which members every context
+carries, which are optional, and how unknown members are treated. The
+per-point payload shapes come in their own proposals. The model request
+shape, where the discussion found the most open questions, comes first
+as P-010. The tool-call, tool-result, input, output and model-response
+payloads are already close to the typed shape and are not changed here;
+the startup payload changes only in whether its tool list is required.
+
 ## What each member does today
 
 The table lists who writes and who reads each member in the code in
-reach. "The builders" are the five per-session context builders:
+reach. The SDK denies an emission that lacks any of them as
+`host_error:context_invalid` (`sdk/rust/core/src/canonical.rs:320-383`).
+"The builders" are the five per-session context builders:
 `sdk/rust/core/src/builder.rs:59-98`,
 `sdk/python/python/agent_hooks/context.py:44-76`,
 `sdk/typescript/src/builder.ts:19-44`,
@@ -138,7 +133,7 @@ reach. "The builders" are the five per-session context builders:
 | `session.id` | Non-empty string, stable across all hooks of one session | The builders | The record copy (`enforce.rs:196-201`), the same agent-framework tests. No interceptor. |
 | `agent.id` | Non-empty string, stable across sessions of one agent definition | The builders | agent-control-spec: the Cedar principal (`engine/src/cedar.rs:90-98` and `:165-184`) and the remote-policy scope check (`sdk/remote-policy/python/agent_control_spec_remote_policy/integration.py:73-77`). |
 | `agent.framework` | Lowercase host identifier, `^[a-z0-9_-]+$` | The builders | No reader beyond the envelope grammar check (`canonical.rs:362-370`). The declaration document names the host as `host.name` under the same grammar (§7.7.3). |
-| `target` | The §3 slice, root of `$target` (§4.3, §5.2) | The builders | The core's transform application (`enforce.rs:60-63`) and `EmitOutcome.target` (`sdk/rust/core/src/emitter.rs:943`); agent-framework reads `outcome.target` at six write-back sites. agent-control-spec reads the context by path (`$.tool_call.args`, `engine/src/runtime.rs:313-319`) and never reads `target`. |
+| `target` | The §3 slice, root of `$target` (§4.3, §5.2) | The builders | The core's transform application (`enforce.rs:52-65`), which rewrites `target` and then mirrors the value into the per-point member by hand (`write_back_target`, `:299-325`), and `EmitOutcome.target` (`sdk/rust/core/src/emitter.rs:943`); agent-framework reads `outcome.target` at six write-back sites. agent-control-spec reads the context by path (`$.tool_call.args`, `engine/src/runtime.rs:313-319`) and never reads `target`. |
 
 The preimage of the default identity provider is an allowlist that
 mirrors the required core and the per-point payloads
@@ -146,6 +141,18 @@ mirrors the required core and the per-point payloads
 record copies `session.id` and `sequence` and requires both
 (`spec/schema/interception-record.schema.json`, `required`, with
 `additionalProperties: false` at the root).
+
+On unknown members the files and the code disagree. The eight per-point
+schemas under `spec/schema/agent-context/` close the conditional payload
+objects (`additionalProperties: false` on `tool_call`, `tool_result`,
+`model`, `response`, `input`, `output`, `agent_init` and `summary`,
+written by `scripts/gen-per-point-schemas.py`) and describe themselves
+as "used by the CTK for strict validation". No runner validates against
+them: all five runners delegate assertion to the engine in the Rust core
+(`ctk_assert`), which checks presence and JSON type through
+`validate_envelope` (`sdk/rust/core/src/ctk_engine.rs:267`), and the
+Python package's loader for those schemas
+(`sdk/python/python/agent_hooks/ctk/_schemas.py`) has no importer.
 
 ## Options
 
@@ -238,82 +245,79 @@ proposal may revisit it with a verifiable caller identity in hand.
 ### Questions inside C
 
 Five points inside C have more than one defensible answer. The
-trade-offs are below; the stance on each is in the Recommendation
-section that follows.
+trade-offs are below; the Recommendation section that follows takes a
+position on each.
 
-`session.id`: delete the member, or keep it as a well-known optional
-member. For keeping it: the `session` object already lives in §4.5
-(`started_at`, `turn`); the record keeps a correlation key for hosts
-that have one; nothing in the contract depends on it. For deletion: one
-member fewer, and no temptation to invent a session where the host has
-none, which is what the `"copilot-session"` fallback did.
+`session.id` can be deleted or kept as a well-known optional member.
+Keeping it costs nothing: the `session` object already lives in §4.5
+with `started_at` and `turn`, the record keeps a correlation key for
+hosts that have one, and nothing in the contract depends on it. Deleting
+it is one member fewer and removes the temptation to invent a session
+where the host has none, which is what the `"copilot-session"` fallback
+did.
 
-The host identifier's name: `host.name`, `client.name` (the MCP analogy,
-`clientInfo.name`) or `caller.id`. For `host.name`, with an optional
-`host.version`: "host" is this specification's own word for the party
-that emits a context (§2), the declaration document already carries
-`host.name` under the same grammar (§7.7.3), and the claim tuple's first
-member names the same thing. For `client.name`: readers of MCP know it;
-against it, this specification already has a word for that party.
-Against `caller.id`: at a gateway the authenticated caller is the party
-the gateway serves, not the gateway, which is exactly the confusion that
-made `agent.id` hard to fill. Under any name the grammar can stay
-`^[a-z0-9_-]+$`, so `agent-framework`, `github-copilot`,
-`reference-agent` and `agent-control-spec-reference-host` remain valid
-values.
+The host identifier could be called `host.name`, `client.name` (the MCP
+analogy, `clientInfo.name`) or `caller.id`. "Host" is this
+specification's own word for the party that emits a context (§2), the
+declaration document already carries `host.name` under the same grammar
+(§7.7.3), and the claim tuple's first member names the same thing.
+Readers of MCP know `client.name`, but the specification already has a
+word for that party. "Caller" is wrong at a gateway, where the
+authenticated caller is the party the gateway serves, not the gateway;
+that is the confusion that made `agent.id` hard to fill. Under any name
+the grammar can stay `^[a-z0-9_-]+$`, so `agent-framework`,
+`github-copilot`, `reference-agent` and
+`agent-control-spec-reference-host` remain valid values.
 
-`agent.id`: required, optional, or removed. For required: a policy can
-always key on it. Against required: the gateway and toolbox case above
-turns it into a placeholder. For removal: option D. For optional,
-with two normative sentences (the host sets it from its own knowledge of
-the agent definition and never copies it from content the agent
-produced; a host that cannot name the agent omits the member): the
-security case for keeping it (sub-agent tracking, per-agent policy and
-approvals) and the gateway case against requiring it (a gateway knows
-the caller it authenticated, which may be a toolbox identity, not the
-agent) are both served. The harnesses that know the agent say so, the
-gateway says nothing rather than something false, and a policy that
-needs a principal fails closed on absence instead of binding to filler.
-A separate question is the preimage: as an optional member it stays out
-of the `jcs-sha256` projection (§10.2); hashing it when present is the
-alternative. The approval binding that would add is in-process and per
-emission, and "optional data never perturbs the identity" is the rule
-hosts rely on when they add data.
+`agent.id` can stay required, become optional, or go. Required lets a
+policy always key on it, but the gateway and toolbox case above turns it
+into a placeholder. Removal is option D. Optional, with two normative
+sentences (the host sets it from its own knowledge of the agent
+definition and never copies it from content the agent produced; a host
+that cannot name the agent omits the member), serves both the security
+case for keeping it (sub-agent tracking, per-agent policy and approvals)
+and the gateway case against requiring it: the harnesses that know the
+agent say so, the gateway says nothing rather than something false, and
+a policy that needs a principal fails closed on absence instead of
+binding to filler. The preimage is a separate question. As an optional
+member it stays out of the `jcs-sha256` projection (§10.2); hashing it
+when present is the alternative, but the approval binding that would add
+is in-process and per emission, and "optional data never perturbs the
+identity" is the rule hosts rely on when they add data.
 
-`agent_init.tools_registered`: required, optional, or removed. For
-optional and documented as not exhaustive: the runtime list a host
-enforces against is the per-call `tools` member at `pre_model_call`
-(§4.5) and the `tool_call` payload at the tool points; tools now arrive
-through MCP and skills after startup, so a static list at startup is
-advisory. Against removal: it takes away a member adopters asked for and
-that policies key on. Against required: a startup emission fails for a
-host that has no registry at that moment. Extensions carry richer
-catalogue data.
+`agent_init.tools_registered` can stay required, become optional, or go.
+The list a host enforces against at run time is the per-call `tools`
+member at `pre_model_call` (§4.5) and the `tool_call` payload at the
+tool points; tools now arrive through MCP and skills after startup, so a
+static list at startup is advisory. Removing it takes away a member
+adopters asked for and that policies key on. Requiring it makes a
+startup emission fail for a host that has no registry at that moment.
+Optional and documented as not exhaustive keeps it truthful; extensions
+carry richer catalogue data.
 
-The transform root: keep `$target` as a symbolic root that resolves to
-the §3 slice, or re-root paths at the context (`$.tool_call.args.url`)
-with a per-point allowlist of writable members. For keeping `$target`:
-every existing verdict, every vector and agent-control-spec's policy
-output (`engine/src/policy_output.rs:171-173`) already use it. Against a
-context-rooted path: it would widen what a transform may touch and
-change the §5.2 grammar for no gain. The `$policy_target` alias of §5.2
-is scheduled for removal in 0.3; folding that removal into this break is
-a separate line item in the decision list.
+The transform root can stay `$target`, a symbolic root that resolves to
+the §3 slice, or paths can be re-rooted at the context
+(`$.tool_call.args.url`) with a per-point allowlist of writable members.
+Every existing verdict, every vector and agent-control-spec's policy
+output (`engine/src/policy_output.rs:171-173`) already use `$target`; a
+context-rooted path would widen what a transform may touch and change
+the §5.2 grammar for no gain. The `$policy_target` alias of §5.2 is
+scheduled for removal in 0.3; folding that removal into this break is a
+separate line item in the decision list.
 
 ## Recommendation
 
-Option C, with these answers to the questions above. Each is a
-recommendation: the status is Draft, the group decides, and the list at
-the end records the alternatives.
+Option C, with these answers to the questions above. The group decides;
+the list at the end records the alternatives.
 
 - The required core is `spec`, `interception_point` and `timestamp`.
   `sequence` and `target` leave the context.
 - `agent.id` is optional. The host sets it from its own knowledge, never
   from agent-produced content, and omits it when it cannot name the
   agent. It is never part of the `jcs-sha256` preimage.
-- `session.id` stays as a well-known optional member; it is not
-  deleted. The discussion leaned toward deletion, so this point stays
-  open until the group has talked it through.
+- `session.id` stays as a well-known optional member; it is not deleted.
+  The discussion leaned toward deletion, so this point stays open until
+  the group has talked it through.
 - `agent.framework` becomes `host.name`, optional, with an optional
   `host.version`. The grammar `^[a-z0-9_-]+$` is unchanged.
 - `agent_init.tools_registered` is optional and documented as not
@@ -330,8 +334,7 @@ the end records the alternatives.
 
 ## Analysis
 
-This section weighs B (all optional) against C (removal) on the four
-questions that decide the cost.
+Four questions decide the cost of B against C.
 
 ### Version consequence
 
@@ -367,18 +370,18 @@ No parallel copy of the specification is kept.
 ### Identity and the record
 
 The `jcs-sha256` preimage is the closed required-plus-conditional
-projection (§10.2, `canonical.rs:140-148`). Under C the root part of the
-projection shrinks to `spec`, `interception_point` and `timestamp`; the
-per-point allowlists are unchanged, and `tools_registered` stays on the
-`agent_init` allowlist when present. `target` leaves the preimage with
-no loss of content binding, because the slice it duplicated
-(`tool_call.args`, `tool_result.value`, `messages`, `response`, `input`,
-`output`) is on the allowlist already. Under B the members leave the
-preimage as well, because optional members are excluded by rule. Keeping
-them in it when present would make two hosts that emit the same tool
-call produce different identities depending on which placeholders they
-filled; the identity would measure the adapter, not the content. B
-therefore changes every identity as much as C does.
+projection (§10.2). Under C the root part of the projection shrinks to
+`spec`, `interception_point` and `timestamp`; the per-point allowlists
+are unchanged, and `tools_registered` stays on the `agent_init`
+allowlist when present. `target` leaves the preimage with no loss of
+content binding, because the slice it duplicated (`tool_call.args`,
+`tool_result.value`, `messages`, `response`, `input`, `output`) is on
+the allowlist already. Under B the members leave the preimage as well,
+because optional members are excluded by rule. Keeping them in it when
+present would make two hosts that emit the same tool call produce
+different identities depending on which placeholders they filled; the
+identity would measure the adapter, not the content. B therefore changes
+every identity as much as C does.
 
 Every existing golden identity changes under either option. All 18
 fixtures in `conformance/golden/identity.json` carry `sequence`,
@@ -459,8 +462,8 @@ kit cannot test what a production host knows, so the rule is enforced
 where it can be: the adapters named above drop their literals
 (`"agent"`, `"copilot-session"`), the SDK builders accept an absent
 agent and session, and a policy that needs a principal fails closed on
-absence (agent-control-spec already does, `engine/src/cedar.rs:165-184`
-and `integration.py:73-77`). Absence is visible; filler is not.
+absence (agent-control-spec already does; see the impact section).
+Absence is visible; filler is not.
 
 ### Migration and what the SDKs can hide
 
@@ -496,16 +499,12 @@ Default-fill on read, meaning the SDK synthesizing `sequence` or
 `session.id` so that an old interceptor keeps seeing them, is not
 recommended. It is the placeholder problem moved inside the SDK.
 
-The record types change in all five SDKs
-(`sdk/rust/core/src/types.rs:551-555`,
-`sdk/python/python/agent_hooks/_types.py:649-651`,
-`sdk/typescript/src/index.ts:374-377`,
-`sdk/dotnet/src/AgentHooks/Types.cs:629-630`,
-`sdk/go/agenthooks/types.go:532-535`). The .NET record keeps its
-previous positional constructor as a forwarding overload and
-`PublicApi.approved.txt` changes on purpose; the 0.1.0-beta.3 entry in
-`CHANGELOG.md` records what happened the last time a record signature
-moved under a published dependent package.
+The record types change in all five SDKs (the paths are in the SDK
+impact list below). The .NET record keeps its previous positional
+constructor as a forwarding overload and `PublicApi.approved.txt`
+changes on purpose; the 0.1.0-beta.3 entry in `CHANGELOG.md` records
+what happened the last time a record signature moved under a published
+dependent package.
 
 ## Normative changes
 
