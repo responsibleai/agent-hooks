@@ -18,7 +18,7 @@
         "decision"
       ]
     },
-    "ApprovalRequest": {
+    "request": {
       "description": "What the host hands the resolver (§9).",
       "additionalProperties": false,
       "type": "object",
@@ -177,7 +177,7 @@
         "outcome"
       ]
     },
-    "ApprovalResolution": {
+    "resolution": {
       "description": "What the resolver returns (§9).",
       "anyOf": [
         {

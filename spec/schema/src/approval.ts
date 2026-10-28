@@ -1,7 +1,9 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 // approval.schema.json: the approval request and resolution shapes (§9).
-// The file has no root type: validators reference its definitions.
+// The file has no root type: validators reference its definitions by
+// pointer, #/$defs/request and #/$defs/resolution. The tool names a
+// definition after its type, so the two types below keep those names.
 
 import { AgentContext } from "./agent-context";
 import { InterceptionPoint } from "./interception-point";
@@ -23,7 +25,7 @@ export interface LiftableDeny {
  * What the host hands the resolver (§9).
  * @additionalProperties false
  */
-export interface ApprovalRequest {
+export interface request {
   context_identity: string | null;
   interception_point: InterceptionPoint;
   verdict: LiftableDeny;
@@ -73,4 +75,4 @@ export interface UnresolvedResolution extends ResolutionBase {
 }
 
 /** What the resolver returns (§9). */
-export type ApprovalResolution = ApproveResolution | RejectResolution | UnresolvedResolution;
+export type resolution = ApproveResolution | RejectResolution | UnresolvedResolution;

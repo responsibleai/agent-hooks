@@ -564,25 +564,26 @@ function randomMutant(random: () => number, value: Json): Json {
 
 // ---- targets ------------------------------------------------------------------
 
+// One pointer per target, the same on both sides: a validator that
+// references a definition keeps resolving it across the two revisions.
 interface Target {
   name: string;
   file: string;
   shape: Shape;
-  oldPointer: string;
-  newPointer: string;
+  pointer: string;
 }
 
 const TARGETS: Target[] = [
-  { name: "interception-point", file: "interception-point.schema.json", shape: "point", oldPointer: "", newPointer: "" },
-  { name: "verdict", file: "verdict.schema.json", shape: "verdict", oldPointer: "", newPointer: "" },
-  { name: "interceptor-response", file: "interceptor-response.schema.json", shape: "response", oldPointer: "", newPointer: "" },
-  { name: "approval request", file: "approval.schema.json", shape: "request", oldPointer: "#/$defs/request", newPointer: "#/$defs/ApprovalRequest" },
-  { name: "approval resolution", file: "approval.schema.json", shape: "resolution", oldPointer: "#/$defs/resolution", newPointer: "#/$defs/ApprovalResolution" },
-  { name: "agent-context", file: "agent-context.schema.json", shape: "context", oldPointer: "", newPointer: "" },
-  ...POINTS.map((p) => ({ name: `agent-context/${p}`, file: `agent-context/${p}.schema.json`, shape: "context" as Shape, oldPointer: "", newPointer: "" })),
-  { name: "interception-record", file: "interception-record.schema.json", shape: "record", oldPointer: "", newPointer: "" },
-  { name: "host-declaration-1.0", file: "host-declaration-1.0.schema.json", shape: "declaration", oldPointer: "", newPointer: "" },
-  { name: "host-declaration-1.1", file: "host-declaration-1.1.schema.json", shape: "declaration", oldPointer: "", newPointer: "" },
+  { name: "interception-point", file: "interception-point.schema.json", shape: "point", pointer: "" },
+  { name: "verdict", file: "verdict.schema.json", shape: "verdict", pointer: "" },
+  { name: "interceptor-response", file: "interceptor-response.schema.json", shape: "response", pointer: "" },
+  { name: "approval request", file: "approval.schema.json", shape: "request", pointer: "#/$defs/request" },
+  { name: "approval resolution", file: "approval.schema.json", shape: "resolution", pointer: "#/$defs/resolution" },
+  { name: "agent-context", file: "agent-context.schema.json", shape: "context", pointer: "" },
+  ...POINTS.map((p) => ({ name: `agent-context/${p}`, file: `agent-context/${p}.schema.json`, shape: "context" as Shape, pointer: "" })),
+  { name: "interception-record", file: "interception-record.schema.json", shape: "record", pointer: "" },
+  { name: "host-declaration-1.0", file: "host-declaration-1.0.schema.json", shape: "declaration", pointer: "" },
+  { name: "host-declaration-1.1", file: "host-declaration-1.1.schema.json", shape: "declaration", pointer: "" },
 ];
 
 function pointerSchema(set: SchemaSet, file: string, pointer: string): Obj {
@@ -675,8 +676,8 @@ function main(): number {
   if (STRUCTURAL) {
     let total = 0;
     for (const t of TARGETS) {
-      const a = normalize(oldSet, t.file, pointerSchema(oldSet, t.file, t.oldPointer));
-      const b = normalize(newSet, t.file, pointerSchema(newSet, t.file, t.newPointer));
+      const a = normalize(oldSet, t.file, pointerSchema(oldSet, t.file, t.pointer));
+      const b = normalize(newSet, t.file, pointerSchema(newSet, t.file, t.pointer));
       const lines: string[] = [];
       diff(a, b, "", lines);
       total += lines.length;
@@ -698,11 +699,11 @@ function main(): number {
   const examples: string[] = [];
   console.log("target                        instances  valid(old)  valid(new)  disagree");
   for (const t of TARGETS) {
-    const validateOld = oldAjv.getSchema(ID_BASE + t.file + t.oldPointer);
-    const validateNew = newAjv.getSchema(ID_BASE + t.file + t.newPointer);
-    if (!validateOld || !validateNew) throw new Error(`${t.name}: validator missing`);
+    const validateOld = oldAjv.getSchema(ID_BASE + t.file + t.pointer);
+    const validateNew = newAjv.getSchema(ID_BASE + t.file + t.pointer);
+    if (!validateOld || !validateNew) throw new Error(`${t.name}: validator missing at ${t.pointer || "the root"}`);
     const own = seeds.get(t.shape) ?? [];
-    const oldSchema = pointerSchema(oldSet, t.file, t.oldPointer);
+    const oldSchema = pointerSchema(oldSet, t.file, t.pointer);
     const corpus = new Map<string, Json>();
     const add = (v: Json) => {
       const key = JSON.stringify(v);
