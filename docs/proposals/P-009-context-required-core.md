@@ -149,7 +149,7 @@ record copies `session.id` and `sequence` and requires both
 
 ## Options
 
-Four designs for the required core were considered. Each is weighed on
+This proposal weighs four designs for the required core, each on
 truthfulness (can every host fill it without inventing values), on what
 an interceptor can rely on, on the version cost, and on the work it
 takes.
@@ -159,7 +159,7 @@ takes.
 Keep the seven members required.
 
 For: nothing moves; the 18 golden identities and the record shape stay
-as they are; the three adopters with checked-in adapters need no change.
+as they are; the adopters with adapters in reach need no change.
 
 Against: the placeholders above are the steady state, not an accident,
 because the schema rejects an absent member. `sequence` states a
@@ -198,7 +198,7 @@ Against:
   (`sequence`, `target`) and optional status only for members whose
   absence costs nothing (`agent.id`, `session.id`, the host name).
 
-### C. Remove `sequence` and `target`, make the identity members optional, rename `agent.framework` to `host.name` (recommended, with the amendments below)
+### C. Remove `sequence` and `target`, make the identity members optional, rename `agent.framework` to `host.name` (recommended)
 
 The required core becomes `spec`, `interception_point` and `timestamp`.
 `host.name`, `agent.id` and `session.id` join the well-known optional
@@ -237,63 +237,96 @@ proposal may revisit it with a verifiable caller identity in hand.
 
 ### Questions inside C
 
-Five points inside C have more than one defensible answer. Each is
-stated with its alternative; the recommendation is marked.
+Five points inside C have more than one defensible answer. The
+trade-offs are below; the stance on each is in the Recommendation
+section that follows.
 
 `session.id`: delete the member, or keep it as a well-known optional
-member. Recommended: keep it optional. The `session` object already
-lives in §4.5 (`started_at`, `turn`); the record keeps a correlation key
-for hosts that have one; nothing in the contract depends on it. Deletion
-saves nothing and loses the correlation for the hosts that do have a
-session.
+member. For keeping it: the `session` object already lives in §4.5
+(`started_at`, `turn`); the record keeps a correlation key for hosts
+that have one; nothing in the contract depends on it. For deletion: one
+member fewer, and no temptation to invent a session where the host has
+none, which is what the `"copilot-session"` fallback did.
 
 The host identifier's name: `host.name`, `client.name` (the MCP analogy,
-`clientInfo.name`) or `caller.id`. Recommended: `host.name`, with an
-optional `host.version`. "Host" is this specification's own word for the
-party that emits a context (§2), the declaration document already
-carries `host.name` under the same grammar (§7.7.3), and the claim
-tuple's first member names the same thing. "Caller" is the wrong word at
-a gateway, where the authenticated caller is the party the gateway
-serves, not the gateway, which is exactly the confusion that made
-`agent.id` hard to fill. The grammar stays `^[a-z0-9_-]+$`, so
-`agent-framework`, `github-copilot`, `reference-agent` and
-`agent-control-spec-reference-host` remain valid values.
+`clientInfo.name`) or `caller.id`. For `host.name`, with an optional
+`host.version`: "host" is this specification's own word for the party
+that emits a context (§2), the declaration document already carries
+`host.name` under the same grammar (§7.7.3), and the claim tuple's first
+member names the same thing. For `client.name`: readers of MCP know it;
+against it, this specification already has a word for that party.
+Against `caller.id`: at a gateway the authenticated caller is the party
+the gateway serves, not the gateway, which is exactly the confusion that
+made `agent.id` hard to fill. Under any name the grammar can stay
+`^[a-z0-9_-]+$`, so `agent-framework`, `github-copilot`,
+`reference-agent` and `agent-control-spec-reference-host` remain valid
+values.
 
-`agent.id`: required, optional, or removed. Recommended: optional, with
-two normative sentences. The host sets it from its own knowledge of the
-agent definition and never copies it from content the agent produced; a
-host that cannot name the agent omits the member. The member stays out
-of the `jcs-sha256` preimage, as every optional member does (§10.2);
-hashing it when present is recorded as the alternative and not
-recommended, because the approval binding it would add is in-process and
-per emission, and because "optional data never perturbs the identity" is
-the rule hosts rely on when they add data. The security case for keeping
-it (sub-agent tracking, per-agent policy and approvals) and the gateway
-case against requiring it (a gateway knows the caller it authenticated,
-which may be a toolbox identity, not the agent) are both served by
-optional: the harnesses that know the agent say so, the gateway says
-nothing rather than something false, and a policy that needs a principal
-fails closed on absence instead of binding to filler.
+`agent.id`: required, optional, or removed. For required: a policy can
+always key on it. Against required: the gateway and toolbox case above
+turns it into a placeholder. For removal: option D. For optional,
+with two normative sentences (the host sets it from its own knowledge of
+the agent definition and never copies it from content the agent
+produced; a host that cannot name the agent omits the member): the
+security case for keeping it (sub-agent tracking, per-agent policy and
+approvals) and the gateway case against requiring it (a gateway knows
+the caller it authenticated, which may be a toolbox identity, not the
+agent) are both served. The harnesses that know the agent say so, the
+gateway says nothing rather than something false, and a policy that
+needs a principal fails closed on absence instead of binding to filler.
+A separate question is the preimage: as an optional member it stays out
+of the `jcs-sha256` projection (§10.2); hashing it when present is the
+alternative. The approval binding that would add is in-process and per
+emission, and "optional data never perturbs the identity" is the rule
+hosts rely on when they add data.
 
-`agent_init.tools_registered`: required, optional, or removed.
-Recommended: optional, and documented as not exhaustive. The runtime
-list a host enforces against is the per-call `tools` member at
-`pre_model_call` (§4.5) and the `tool_call` payload at the tool points;
-tools now arrive through MCP and skills after startup, so a static list
-at startup is advisory. Removing it takes away a member adopters asked
-for and that policies key on; requiring it makes a startup emission fail
-for a host that has no registry at that moment. Extensions carry richer
+`agent_init.tools_registered`: required, optional, or removed. For
+optional and documented as not exhaustive: the runtime list a host
+enforces against is the per-call `tools` member at `pre_model_call`
+(§4.5) and the `tool_call` payload at the tool points; tools now arrive
+through MCP and skills after startup, so a static list at startup is
+advisory. Against removal: it takes away a member adopters asked for and
+that policies key on. Against required: a startup emission fails for a
+host that has no registry at that moment. Extensions carry richer
 catalogue data.
 
 The transform root: keep `$target` as a symbolic root that resolves to
 the §3 slice, or re-root paths at the context (`$.tool_call.args.url`)
-with a per-point allowlist of writable members. Recommended: keep
-`$target`. Every existing verdict, every vector and agent-control-spec's
-policy output (`engine/src/policy_output.rs:171-173`) already use it; a
-context-rooted path would widen what a transform may touch and change
-the §5.2 grammar for no gain. The `$policy_target` alias of §5.2 is
-scheduled for removal in 0.3; folding that removal into this break is a
-separate line item in the decision list.
+with a per-point allowlist of writable members. For keeping `$target`:
+every existing verdict, every vector and agent-control-spec's policy
+output (`engine/src/policy_output.rs:171-173`) already use it. Against a
+context-rooted path: it would widen what a transform may touch and
+change the §5.2 grammar for no gain. The `$policy_target` alias of §5.2
+is scheduled for removal in 0.3; folding that removal into this break is
+a separate line item in the decision list.
+
+## Recommendation
+
+Option C, with these answers to the questions above. Each is a
+recommendation: the status is Draft, the group decides, and the list at
+the end records the alternatives.
+
+- The required core is `spec`, `interception_point` and `timestamp`.
+  `sequence` and `target` leave the context.
+- `agent.id` is optional. The host sets it from its own knowledge, never
+  from agent-produced content, and omits it when it cannot name the
+  agent. It is never part of the `jcs-sha256` preimage.
+- `session.id` stays as a well-known optional member; it is not
+  deleted. The discussion leaned toward deletion, so this point stays
+  open until the group has talked it through.
+- `agent.framework` becomes `host.name`, optional, with an optional
+  `host.version`. The grammar `^[a-z0-9_-]+$` is unchanged.
+- `agent_init.tools_registered` is optional and documented as not
+  exhaustive.
+- Unknown members never fail validation. The per-point schemas lose
+  their `additionalProperties: false` closure, and
+  `host_error:context_invalid` never means an unknown member.
+- `$target` stays as the root of a transform path and resolves to the §3
+  slice.
+- The change ships as `agent-hooks/0.2` under `spec:breaking`, with
+  package version 0.2.0 and the pre-1.0 numbering convention written
+  into `VERSIONING.md`. This proposal is the draft; the deciding PR
+  edits the specification in place.
 
 ## Analysis
 
@@ -304,37 +337,32 @@ questions that decide the cost.
 
 Both B and C change the required set, so both are spec MAJOR under
 `VERSIONING.md` ("MAJOR = required/conditional field change") and both
-need this proposal. The discussion called the change a minor bump with a
-draft folder. The two statements agree once the pre-1.0 convention is
-written down: the wire version is `MAJOR.MINOR` with no third component,
-the spec is at `0.1`, and before 1.0 a MAJOR-class change moves the
-MINOR digit. The bump is `agent-hooks/0.1` to `agent-hooks/0.2`, which
-is what both readings mean.
+need this proposal. The discussion called the change a minor bump. The
+two statements agree once the pre-1.0 convention is written down: the
+wire version is `MAJOR.MINOR` with no third component, the spec is at
+`0.1`, and before 1.0 a MAJOR-class change moves the MINOR digit. The
+bump is `agent-hooks/0.1` to `agent-hooks/0.2`, which is what both
+readings mean.
 
 The recommendation is to say so in `VERSIONING.md` in one sentence
 (while MAJOR is 0, a MAJOR-class change bumps MINOR and 0.x minors are
-not compatible with each other), to label the PRs `spec:breaking`, and
-to bump the package version from the 0.1.0 pre-release line to 0.2.0
-(the SDK rule, "MAJOR on spec MAJOR", under the same convention). The
-alternative, revising 0.1 in place under the draft process and
-publishing it under the same string, is rejected: the identities and the
-record shape change, so a reader of a record or a context must be able
-to tell which rules applied, and the `spec` string is the only signal it
-has.
+not compatible with each other), to label the deciding PR
+`spec:breaking`, and to bump the package version from the 0.1.0
+pre-release line to 0.2.0 (the SDK rule, "MAJOR on spec MAJOR", under
+the same convention). The alternative, changing the shape and keeping
+the `agent-hooks/0.1` string, is rejected: the identities and the record
+shape change, so a reader of a record or a context must be able to tell
+which rules applied, and the `spec` string is the only signal it has.
 
-Two mechanics follow from the change-class workflow
-(`.github/workflows/change-class.yml`). A PR that touches `spec/` or the
-vectors must carry `spec:breaking` or `spec:additive`, and a
-`spec:breaking` PR must change a version surface in the same PR: a path
-under `spec/AGENT-HOOKS`, an SDK manifest, or `CHANGELOG.md`. The draft
-layout agreed in the discussion (per-version folders plus a draft folder
-under `spec/`) is a separate action, but it meets this gate only if the
-draft text lives under a matching path or each draft PR adds its
-`CHANGELOG.md` entry; extending the regular expression to the draft path
-is the smaller fix. The `schema-drift` workflow regenerates the
-per-point schemas and the Python package's vendored copies from
-`spec/schema/`, so the layout decision also has to say which schema set
-is current.
+The mechanism is the one the repository already has. This proposal is
+the draft: the text is debated and amended here while the published
+specification stands. Once decided, one PR edits
+`spec/AGENT-HOOKS-0.1.md` in place, bumps its header to 0.2 and adds the
+`CHANGELOG.md` entry, under `spec:breaking`. That satisfies the
+change-class workflow (`.github/workflows/change-class.yml`), which
+requires a `spec:breaking` PR to change a version surface in the same
+PR: a path under `spec/AGENT-HOOKS`, an SDK manifest, or `CHANGELOG.md`.
+No parallel copy of the specification is kept.
 
 ### Identity and the record
 
@@ -483,8 +511,8 @@ moved under a published dependent package.
 
 The edits below are the change to the specification text under option C
 with the recommended answers. Quoted text is new text. Section numbers
-refer to the current document; the published file name and header move
-with the version.
+refer to the current document; the deciding PR applies the edits in
+place and bumps the header to 0.2.
 
 ### §3.1 Ordering
 
@@ -785,11 +813,15 @@ and a `spec` string, which becomes `agent-hooks/0.2`.
 
 ## Rollout
 
-The spec text, the schemas, the generator, the golden file and the Rust
-core land first, because the four wrapper SDKs and the conformance
-runners build on them; the wrappers, the conformance kit changes, the
-docs and `VERSIONING.md` follow in the same release. The record and
-builder compatibility overloads ship with it.
+The deciding PR edits the specification in place with the 0.2 header and
+carries the schemas, the generator, the golden file, the `VERSIONING.md`
+sentence, the `CHANGELOG.md` entry and the Rust core change, so `main`
+never holds a specification its own core does not implement. The four
+wrapper SDKs and the conformance runners build on the core and follow in
+the same release, with the conformance kit changes, the docs, and the
+record and builder compatibility overloads. Until that PR merges the
+published specification is unchanged, and this proposal is the only
+place the new shape exists.
 
 Downstream, in dependency order: agent-control-spec re-vendors the
 corpus, decides the Cedar fallback and re-runs its claim;
@@ -809,7 +841,7 @@ each adopter re-runs.
 - Optional members go unfilled. That is accepted for `host`, `agent` and
   `session`, because nothing in the contract depends on them; a
   per-agent policy fails closed on absence, which is visible. The
-  omit-never-fill rule and the removal of the in-tree literals keep
+  omit-never-fill rule and the removal of the adapter literals keep
   "unfilled" from becoming "filled with filler".
 - Records lose an in-session order. Consumers that sorted by `sequence`
   sort by `timestamp` and `trace`; within one host process timestamps
@@ -853,9 +885,10 @@ each adopter re-runs.
       allowlist. Separately: fold the scheduled `$policy_target` alias
       removal into 0.2, or keep it for 0.3.
 - [ ] Version: wire `agent-hooks/0.2`, label `spec:breaking`, package
-      0.2.0, one sentence in `VERSIONING.md` on pre-1.0 numbering, and
-      the change-class regular expression extended to the draft path
-      (recommended); alternative: revise 0.1 in place.
+      0.2.0, one sentence in `VERSIONING.md` on pre-1.0 numbering; this
+      proposal is the draft and the deciding PR edits the specification
+      in place (recommended); alternative: change the shape under the
+      `agent-hooks/0.1` string.
 - [ ] SDK compatibility: builder and .NET record constructors kept as
       forwarding overloads without deprecation diagnostics; the SDK
       drops a root `target` member on the way in for one minor;
