@@ -16,6 +16,7 @@ the same edit made natively on the provider request.
 from __future__ import annotations
 
 import copy
+import json
 import re
 from typing import Any
 
@@ -112,6 +113,33 @@ def native_system(fmt: str, request: dict[str, Any]) -> dict[str, Any]:
     return req
 
 
+NEW_AMOUNT = 1
+
+
+def native_edit_arg(fmt: str, request: dict[str, Any]) -> dict[str, Any]:
+    """Set the wire_transfer amount to NEW_AMOUNT on the provider's own shape."""
+    req = copy.deepcopy(request)
+    if fmt == CHAT:
+        for m in req["messages"]:
+            for tc in m.get("tool_calls", []) or []:
+                args = json.loads(tc["function"]["arguments"])
+                args["amount"] = NEW_AMOUNT
+                tc["function"]["arguments"] = json.dumps(args, separators=(",", ":"))
+    elif fmt == RESPONSES:
+        for item in req["input"]:
+            if item.get("type") == "function_call":
+                args = json.loads(item["arguments"])
+                args["amount"] = NEW_AMOUNT
+                item["arguments"] = json.dumps(args, separators=(",", ":"))
+    else:
+        for m in req["messages"]:
+            if isinstance(m["content"], list):
+                for b in m["content"]:
+                    if b.get("type") == "tool_use":
+                        b["input"]["amount"] = NEW_AMOUNT
+    return req
+
+
 # --- the transform a policy author writes against each candidate --------------------
 
 
@@ -195,7 +223,58 @@ def transform_for(
             if isinstance(raw["system"], str):
                 return "$target.raw.system", NEW_SYSTEM
             return "$target.raw.system[0].text", NEW_SYSTEM
+    if edit == "edit_arg":
+        return _edit_arg_transform(candidate, fmt, target)
     raise NotExpressible(f"{candidate}/{edit}")
+
+
+def _edit_arg_transform(
+    candidate: str, fmt: str, target: dict[str, Any]
+) -> tuple[str, Any]:
+    """The argument edit: object formats take a path into the arguments; string
+    formats need the whole string rewritten."""
+    if candidate == "A":
+        for i, m in enumerate(target["messages"]):
+            for j, tc in enumerate(m.get("tool_calls", []) or []):
+                args = json.loads(tc["function"]["arguments"])
+                args["amount"] = NEW_AMOUNT
+                return (
+                    f"$target.messages[{i}].tool_calls[{j}].function.arguments",
+                    json.dumps(args, separators=(",", ":")),
+                )
+    if candidate == "B":
+        for i, m in enumerate(target["messages"]):
+            for j, p in enumerate(m["content"]):
+                if p["type"] == "tool_call":
+                    return f"$target.messages[{i}].content[{j}].args.amount", NEW_AMOUNT
+    if candidate == "C":
+        raw = target["raw"]
+        if fmt == CHAT:
+            for i, m in enumerate(raw["messages"]):
+                for j, tc in enumerate(m.get("tool_calls", []) or []):
+                    args = json.loads(tc["function"]["arguments"])
+                    args["amount"] = NEW_AMOUNT
+                    return (
+                        f"$target.raw.messages[{i}].tool_calls[{j}].function.arguments",
+                        json.dumps(args, separators=(",", ":")),
+                    )
+        if fmt == RESPONSES:
+            for i, item in enumerate(raw["input"]):
+                if item.get("type") == "function_call":
+                    args = json.loads(item["arguments"])
+                    args["amount"] = NEW_AMOUNT
+                    return f"$target.raw.input[{i}].arguments", json.dumps(
+                        args, separators=(",", ":")
+                    )
+        for i, m in enumerate(raw["messages"]):
+            if isinstance(m["content"], list):
+                for j, b in enumerate(m["content"]):
+                    if b.get("type") == "tool_use":
+                        return (
+                            f"$target.raw.messages[{i}].content[{j}].input.amount",
+                            NEW_AMOUNT,
+                        )
+    raise NotExpressible("no tool call")
 
 
 def check(
@@ -213,7 +292,11 @@ def check(
     else:
         target = cd.target_c(fmt, request)
         restore = cd.restore_c
-    expected = {"redact": native_redact, "system": native_system}.get(edit)
+    expected = {
+        "redact": native_redact,
+        "system": native_system,
+        "edit_arg": native_edit_arg,
+    }.get(edit)
     expected_req = (
         expected(fmt, request)
         if expected

@@ -408,6 +408,181 @@ FIXTURES: dict[str, dict[str, dict[str, Any]]] = {
 }
 PROVIDER_FORMATS = ("openai.chat", "openai.responses", "anthropic.messages")
 
+# --- a fourth conversation for the argument-edit and identity tests ------------
+# The argument string carries spaces (so a projection keeps the original
+# string as residue) and a member named ``ext`` inside the arguments (user
+# data that must stay in the identity).
+
+USER_TRANSFER = "Move 100 from checking to brokerage."
+ARGS_TRANSFER = '{ "amount": 100, "to": "brokerage", "ext": { "memo": "rent" } }'
+ARGS_TRANSFER_OBJECT = {"amount": 100, "to": "brokerage", "ext": {"memo": "rent"}}
+TOOL_RESULT_TRANSFER = "transfer queued"
+ASSISTANT_TRANSFER = "Queued."
+TRANSFER_DESC = "Move money between accounts"
+TRANSFER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "amount": {"type": "number"},
+        "to": {"type": "string"},
+        "ext": {"type": "object"},
+    },
+    "required": ["amount", "to"],
+}
+
+TRANSFER: dict[str, dict[str, Any]] = {
+    "openai.chat": {
+        "model": "gpt-4.1",
+        "messages": [
+            {"role": "system", "content": SYSTEM_BANK},
+            {"role": "user", "content": USER_TRANSFER},
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_tx1",
+                        "type": "function",
+                        "function": {
+                            "name": "wire_transfer",
+                            "arguments": ARGS_TRANSFER,
+                        },
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_tx1",
+                "content": TOOL_RESULT_TRANSFER,
+            },
+            {"role": "assistant", "content": ASSISTANT_TRANSFER},
+        ],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "wire_transfer",
+                    "description": TRANSFER_DESC,
+                    "parameters": TRANSFER_SCHEMA,
+                },
+            }
+        ],
+    },
+    "openai.responses": {
+        "model": "gpt-4.1",
+        "instructions": SYSTEM_BANK,
+        "input": [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": USER_TRANSFER}],
+            },
+            {
+                "type": "function_call",
+                "id": "fc_tx1",
+                "call_id": "call_tx1",
+                "name": "wire_transfer",
+                "arguments": ARGS_TRANSFER,
+                "status": "completed",
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_tx1",
+                "output": TOOL_RESULT_TRANSFER,
+            },
+            {
+                "type": "message",
+                "id": "msg_tx1",
+                "role": "assistant",
+                "status": "completed",
+                "content": [
+                    {
+                        "type": "output_text",
+                        "text": ASSISTANT_TRANSFER,
+                        "annotations": [],
+                    }
+                ],
+            },
+        ],
+        "tools": [
+            {
+                "type": "function",
+                "name": "wire_transfer",
+                "description": TRANSFER_DESC,
+                "parameters": TRANSFER_SCHEMA,
+                "strict": False,
+            }
+        ],
+    },
+    "anthropic.messages": {
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 1024,
+        "system": SYSTEM_BANK,
+        "messages": [
+            {"role": "user", "content": USER_TRANSFER},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_tx1",
+                        "name": "wire_transfer",
+                        "input": ARGS_TRANSFER_OBJECT,
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_tx1",
+                        "content": TOOL_RESULT_TRANSFER,
+                    }
+                ],
+            },
+            {"role": "assistant", "content": ASSISTANT_TRANSFER},
+        ],
+        "tools": [
+            {
+                "name": "wire_transfer",
+                "description": TRANSFER_DESC,
+                "input_schema": TRANSFER_SCHEMA,
+            }
+        ],
+    },
+    "current": {
+        "messages": [
+            {"role": "system", "content": SYSTEM_BANK},
+            {"role": "user", "content": USER_TRANSFER},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "function_call",
+                        "call_id": "call_tx1",
+                        "name": "wire_transfer",
+                        "arguments": ARGS_TRANSFER,
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "content": [
+                    {
+                        "type": "function_result",
+                        "call_id": "call_tx1",
+                        "result": TOOL_RESULT_TRANSFER,
+                    }
+                ],
+            },
+            {"role": "assistant", "content": ASSISTANT_TRANSFER},
+        ],
+        "tools": [{"name": "wire_transfer", "description": TRANSFER_DESC}],
+    },
+}
+
+ARGUMENT_FIXTURES: dict[str, dict[str, dict[str, Any]]] = {"transfer": TRANSFER}
+
 # --- provider responses for post_model_call -----------------------------------
 
 RESPONSES: dict[str, dict[str, dict[str, Any]]] = {
@@ -542,7 +717,7 @@ RESPONSES: dict[str, dict[str, dict[str, Any]]] = {
 
 def fixture(name: str, fmt: str) -> dict[str, Any]:
     """A deep copy, so callers can edit freely."""
-    return copy.deepcopy(FIXTURES[name][fmt])
+    return copy.deepcopy((FIXTURES.get(name) or ARGUMENT_FIXTURES[name])[fmt])
 
 
 def response_fixture(name: str, fmt: str) -> dict[str, Any]:

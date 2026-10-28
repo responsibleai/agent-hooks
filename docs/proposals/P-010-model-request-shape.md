@@ -77,10 +77,13 @@ names were checked against the published SDK type definitions and API
 references listed under Sources. For each candidate the prototypes
 project every provider request into the candidate target and back,
 measure the target under RFC 8785 canonical JSON (the bytes the
-`jcs-sha256` provider hashes; 54 objects cross-checked byte for byte
-against the Rust core), and write each of three edits as one §5.2
+`jcs-sha256` provider hashes; 58 objects cross-checked byte for byte
+against the Rust core), and write each of four edits as one §5.2
 transform: redact a string in a user message, drop a tool definition,
-replace the system prompt.
+replace the system prompt, and set a tool argument. The fourth edit
+runs on a fourth, tool-call conversation (`transfer`) whose provider
+argument string carries spaces, so a projection keeps the original
+string as residue, and a member named `ext` inside the arguments.
 
 Round trip, provider to target to provider, after normalizing choices
 that mean the same thing to the model (a string versus one text part,
@@ -121,15 +124,23 @@ C from 267,391 to 267,763 because it carries the conversation twice.
 B- with the media part reduced to a digest and a byte count stays
 between 466 and 591 bytes.
 
-Transform expressiveness, one `{path, value}` per edit, fifteen cases
-per candidate (five edit and fixture pairs across three sources):
+Transform expressiveness, one `{path, value}` per edit, eighteen cases
+per candidate (six edit and fixture pairs across three sources):
 
 | candidate | distinct paths | write-back equals the native edit | other outcome |
 | --- | --- | --- | --- |
-| A | 5 | 8 of 15 | 7 strip something on write-back: item ids, the Responses reasoning item, the Anthropic thinking block and cache marker |
-| B | 4 | 15 of 15 | none |
-| C | 9 | 15 of 15 | the summary is stale after every edit; paths are provider specific (`raw.messages[0].content`, `raw.instructions`, `raw.system`, `raw.system[0].text`) |
+| A | 6 | 10 of 18 | 8 strip something on write-back: item ids, the Responses reasoning item, the Anthropic thinking block and cache marker |
+| B | 5 | 18 of 18 | none |
+| C | 12 | 18 of 18 | the summary is stale after every edit; paths are provider specific (`raw.messages[0].content`, `raw.instructions`, `raw.system`, `raw.system[0].text`, `raw.input[1].arguments`) |
 | D | host defined | not measurable | a policy cannot be written once |
+
+The argument edit is one path into an object under B
+(`messages[2].content[0].args.amount`). Under A, and under C for the
+chat and Responses raw forms, the author rewrites the whole argument
+string. The B write-back carries the new value because a host reuses
+the kept provider string only while the parsed arguments are unchanged;
+a first version of the prototype reused it unconditionally and sent the
+old amount back, which the `transfer` case now catches.
 
 Under every candidate the index of the text part inside a user message
 depends on the source (Anthropic puts the image first), so a policy
@@ -141,7 +152,13 @@ the request object.
 Identity under a provider-only change (the Anthropic cache marker on
 the system block moves): the digest of A and of B without `ext` is
 unchanged; the digest of B with `ext` and of C changes. Whatever shape is
-chosen, provider residue must stay out of the identity projection.
+chosen, provider residue must stay out of the identity projection. The
+exclusion must be by slot, not by member name: two `transfer` requests
+that differ only in `args.ext.memo` hash identically when every member
+named `ext` is dropped (a defect a first version of the prototype had)
+and differently when only the protocol's own `ext` slots are dropped,
+while two requests that differ only in a cache marker held as residue
+still hash identically.
 
 Provider responses through the same part vocabulary: text, reasoning
 and refusal become parts, tool calls stay in `tool_calls`, and what is
@@ -289,8 +306,8 @@ provider format has a projection and a write-back.
 
 **Advantages**
 
-- One part vocabulary and one path shape per edit (measured: four
-  distinct paths, fifteen of fifteen edits exact).
+- One part vocabulary and one path shape per edit (measured: five
+  distinct paths, eighteen of eighteen edits exact).
 - Lossless with `ext` on all nine fixture and source pairs; without
   `ext` the loss is provider bookkeeping only, never text the model
   reads (measured).
@@ -330,11 +347,11 @@ the shape of B without `ext`.
 - The raw member is the internal array the Copilot SDK review refused
   to expose.
 - Two sources of truth. A transform on `raw` leaves the summary stale
-  (measured: fifteen of fifteen), and a transform on the summary does
+  (measured: eighteen of eighteen), and a transform on the summary does
   nothing unless the host rebuilds `raw`, at which point the host has
   written B.
-- A policy that edits must know each format: nine distinct paths for
-  the same three edits (measured).
+- A policy that edits must know each format: twelve distinct paths for
+  the same four edits (measured).
 - 1.9 to 2.6 times the raw size, and media counted twice (measured).
 - The identity moves with provider bookkeeping (measured).
 - Conformance cannot pin `raw` against vendor schemas it does not own.
@@ -452,6 +469,10 @@ in place of `messages`:
 ```
 
 `format` and `messages` are REQUIRED; `tools` and `ext` are OPTIONAL.
+`ext` exists at four places and nowhere else: `request.ext`, each
+message's `ext`, each part's `ext` (the parts inside a `tool_result`
+included) and each tool's `ext`. A member named `ext` inside `args`,
+inside a `source` or inside text is ordinary data.
 `request` is the transform root for the point: today the value of
 `target`, and whatever P-009 names the root once `target` goes.
 `tools` moves from §4.5 into `request`, so a transform can rewrite the
@@ -471,7 +492,7 @@ part types form a closed set; each part MAY carry `ext`:
 | --- | --- | --- |
 | `text` | `text` | |
 | `media` | `media_type`?, `source` | `source.type` is `url`, `base64`, `file` or `digest` (`sha256`, `bytes`) |
-| `tool_call` | `id`, `name`, `args` | `args` is an object; a provider's JSON string is parsed on projection and re-serialized on write-back, with the original string kept in `ext` when the two differ |
+| `tool_call` | `id`, `name`, `args` | `args` is an object; a provider's JSON string is parsed on projection and re-serialized on write-back, with the original string kept in `ext` when the two differ; the host reuses that string only while the parsed arguments are unchanged and otherwise serializes the transformed arguments |
 | `tool_result` | `call_id`, `name`?, `content` (parts), `is_error` | `name` is the tool's name, carried when the host knows it; Gemini and the AI SDK require it on the result and a projection into them otherwise joins the result to its call |
 | `reasoning` | `text`?, `opaque`? | `opaque` is a provider token the host returns unchanged: a signature, redacted data, encrypted content |
 | `refusal` | `text` | |
@@ -505,8 +526,12 @@ Rules:
 The host passes it through untouched and restores it on write-back. A
 transform whose path enters `ext` is `host_error:transform_target_forbidden`.
 A transform that changes a `reasoning.opaque` value is
-`host_error:transform_invalid`. `ext` is excluded from the §10.2
-identity projection, as optional members are today.
+`host_error:transform_invalid`. The §10.2 identity projection omits
+`ext` at the four slots of section 1 and at the two slots on the
+response (the response and its parts), by path, not by member name; an
+`ext` member inside user data stays in the identity. A host restores
+provider residue only for parts a transform did not touch; a part the
+transform changed is written back from its neutral fields.
 
 ### 4. Formats and the escape hatch
 
@@ -573,7 +598,8 @@ is a table, not a design.
 ## Adopted schema
 
 - `spec/schema/agent-context.schema.json` (draft copy): `$defs.request`,
-  `$defs.message`, `$defs.part`; `pre_model_call` requires `model` and
+  `$defs.message`, `$defs.part`, with `ext` declared at the four slots
+  only; `pre_model_call` requires `model` and
   `request`; `response.content` becomes an array of parts and `response`
   gains `format`; `tools` leaves §4.5.
 - Per-point closed schemas regenerated.
@@ -581,7 +607,7 @@ is a table, not a design.
   `surface.model_request_transform`.
 - `conformance/vectors.schema.json`: capability `model_request_shape`.
 - `conformance/vectors/`: the part `model_request/projection`, built
-  from the prototype fixtures: nine projection vectors, fifteen edit
+  from the prototype fixtures: nine projection vectors, eighteen edit
   vectors, six response vectors, plus the identity and rejection cases
   below.
 
@@ -593,7 +619,7 @@ is a table, not a design.
   `model_request_shape`.
 - `project(format, payload)` and `restore(request)` for the three
   registered formats; `format` validation; `ext` pass-through.
-- The identity path excludes `ext`.
+- The identity path omits `ext` at the defined slots, by path.
 - The §5 gate rejects transforms under `ext` and transforms that change
   `opaque`.
 
@@ -612,11 +638,13 @@ is a table, not a design.
 | Case | Expected result |
 | --- | --- |
 | each registered format, each fixture | projection equals the golden request; write-back equals the fixture after normalization |
-| the three edits, each format | write-back equals the same edit made natively |
+| the four edits, each format | write-back equals the same edit made natively |
 | a transform under `ext` | `host_error:transform_target_forbidden` |
 | a transform that changes `opaque` | `host_error:transform_invalid` |
 | a cache marker moves between two requests | identical identity |
 | one character of user text changes | different identity |
+| two requests differ only in a member named `ext` inside tool arguments | different identities |
+| a transform sets a tool argument whose provider string was kept as residue | the provider request carries the new value; the kept string is not reused |
 | a tool is removed by transform | the provider request carries the remaining tools; identity differs from the untouched request |
 | a custom format with `model_request_transform: false` receives a transform | `host_error:transform_target_forbidden`, recorded |
 | an `unknown` part is present | conformant; a deny on it enforces |
@@ -634,6 +662,8 @@ is a table, not a design.
 | Media bytes in the context (size, retention, exfiltration surface) | `digest` source type; `url` and `file` preferred; §12.3 bounds apply; inlining is a claimed posture |
 | Malformed tool arguments bypass an argument policy | unparseable arguments project as `unknown` |
 | A host declares one format and emits another | the CTK checks the declared formats against the projections it can verify |
+| A kept provider string reverts a transformed tool argument on write-back | residue is reused only for parts the transform did not touch; the argument-edit vector pins it |
+| User data named `ext` falls out of the identity | the exclusion is by slot, not by member name; the `transfer` vectors pin it |
 
 ## Compatibility and versioning
 

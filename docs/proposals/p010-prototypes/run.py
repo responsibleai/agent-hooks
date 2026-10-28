@@ -229,6 +229,7 @@ def section_transforms() -> None:
         ("drop_tool", "weather"),
         ("system", "bank"),
         ("system", "chart"),
+        ("edit_arg", "transfer"),
     )
     for candidate in ("A", "B", "C"):
         rows = []
@@ -435,6 +436,94 @@ def section_ergonomics() -> None:
     print()
 
 
+def _strip_by_name(value: Any) -> Any:
+    """The defective rule: drop every member named ext, wherever it sits."""
+    if isinstance(value, dict):
+        return {k: _strip_by_name(v) for k, v in value.items() if k != "ext"}
+    if isinstance(value, list):
+        return [_strip_by_name(v) for v in value]
+    return value
+
+
+def section_identity_positional() -> None:
+    print("## Identity exclusion by slot, not by member name\n")
+    print(
+        "The `transfer` fixture carries a member named `ext` inside the tool arguments. Two requests that differ "
+        "only in that member must have different identities; two that differ only in a protocol `ext` slot "
+        "(a cache marker as residue) must not. Digests are over the neutral target without protocol residue.\n"
+    )
+    base = fixture("transfer", "openai.chat")
+    changed = fixture("transfer", "openai.chat")
+    changed["messages"][2]["tool_calls"][0]["function"]["arguments"] = (
+        '{ "amount": 100, "to": "brokerage", "ext": { "memo": "fees" } }'
+    )
+    n_base = cd.target_b("openai.chat", base)
+    n_changed = cd.target_b("openai.chat", changed)
+    anth = fixture("transfer", "anthropic.messages")
+    anth_marked = fixture("transfer", "anthropic.messages")
+    anth_marked["system"] = [
+        {"type": "text", "text": anth["system"], "cache_control": {"type": "ephemeral"}}
+    ]
+    a_base = cd.target_b("anthropic.messages", anth)
+    a_marked = cd.target_b("anthropic.messages", anth_marked)
+    rows = [
+        [
+            "args.ext.memo differs, exclusion by member name (defect)",
+            "identical"
+            if jcs.digest(_strip_by_name(n_base))
+            == jcs.digest(_strip_by_name(n_changed))
+            else "different",
+        ],
+        [
+            "args.ext.memo differs, exclusion by slot",
+            "identical"
+            if jcs.digest(nz.strip_ext(n_base)) == jcs.digest(nz.strip_ext(n_changed))
+            else "different",
+        ],
+        [
+            "cache marker in a protocol ext slot differs, exclusion by slot",
+            "identical"
+            if jcs.digest(nz.strip_ext(a_base)) == jcs.digest(nz.strip_ext(a_marked))
+            else "different",
+        ],
+    ]
+    print(table(["case", "digests"], rows))
+    print()
+    print(
+        jcs.cross_check(
+            [
+                nz.strip_ext(n_base),
+                nz.strip_ext(n_changed),
+                nz.strip_ext(a_base),
+                nz.strip_ext(a_marked),
+            ]
+        )
+    )
+    print()
+    print(
+        "Argument edit round trip (the `transfer` fixture, amount 100 to 1, through each candidate):\n"
+    )
+    rows = []
+    for candidate in ("A", "B", "C"):
+        for fmt in PROVIDER_FORMATS:
+            r = paths.check(candidate, "edit_arg", fmt, fixture("transfer", fmt))
+            rows.append(
+                [
+                    candidate,
+                    SHORT[fmt],
+                    f"`{r['path']}`" if r["path"] != "-" else "-",
+                    r["outcome"]
+                    + (
+                        " (" + summarize(r["collateral"]) + ")"
+                        if r["collateral"]
+                        else ""
+                    ),
+                ]
+            )
+    print(table(["candidate", "source", "path", "write-back"], rows))
+    print()
+
+
 def main() -> None:
     print("# P-010 prototype results\n")
     print(
@@ -443,6 +532,7 @@ def main() -> None:
     section_round_trip()
     section_sizes()
     section_identity_stability()
+    section_identity_positional()
     section_transforms()
     section_responses()
     section_current_shape()

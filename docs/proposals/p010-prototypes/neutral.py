@@ -65,7 +65,16 @@ def _args_in(arguments: str, residue: dict[str, Any]) -> Any:
 
 
 def _args_out(part: dict[str, Any], fmt: str) -> str:
-    return _res(part, fmt).get("arguments", _compact(part["args"]))
+    """Reuse the provider's original argument string only while the parsed
+    arguments are unchanged; transformed ``args`` are serialized afresh."""
+    original = _res(part, fmt).get("arguments")
+    if original is not None:
+        try:
+            if json.loads(original) == part["args"]:
+                return original
+        except ValueError:
+            pass
+    return _compact(part["args"])
 
 
 def _data_url_in(url: str) -> dict[str, Any]:
@@ -87,12 +96,34 @@ def _media(source: dict[str, Any], media_type: str | None = None) -> dict[str, A
     return part
 
 
-def strip_ext(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {k: strip_ext(v) for k, v in value.items() if k != "ext"}
-    if isinstance(value, list):
-        return [strip_ext(v) for v in value]
-    return value
+def strip_ext(value: dict[str, Any]) -> dict[str, Any]:
+    """Drop ``ext`` at the protocol's own slots only: the request, each
+    message, each part (the parts inside a tool result included), each tool,
+    and the same slots on a response. A member named ``ext`` inside user
+    data, such as a tool argument, is content and stays."""
+    out = {k: v for k, v in value.items() if k != "ext"}
+    if isinstance(out.get("messages"), list):
+        out["messages"] = [_strip_message(m) for m in out["messages"]]
+    if isinstance(out.get("tools"), list):
+        out["tools"] = [
+            {k: v for k, v in t.items() if k != "ext"} for t in out["tools"]
+        ]
+    if isinstance(out.get("content"), list):
+        out["content"] = [_strip_part(q) for q in out["content"]]
+    return out
+
+
+def _strip_message(m: dict[str, Any]) -> dict[str, Any]:
+    out = {k: v for k, v in m.items() if k != "ext"}
+    out["content"] = [_strip_part(q) for q in m.get("content", [])]
+    return out
+
+
+def _strip_part(q: dict[str, Any]) -> dict[str, Any]:
+    out = {k: v for k, v in q.items() if k != "ext"}
+    if out.get("type") == "tool_result":
+        out["content"] = [_strip_part(r) for r in out.get("content", [])]
+    return out
 
 
 def to_neutral(

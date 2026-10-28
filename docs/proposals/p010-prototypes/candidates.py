@@ -13,6 +13,7 @@ D: the host's current loose shape plus a ``format`` label.
 from __future__ import annotations
 
 import copy
+import json
 from typing import Any
 
 import neutral as nz
@@ -93,6 +94,14 @@ def target_d(fmt: str, current: dict[str, Any]) -> dict[str, Any]:
 # --- normalization and diff ----------------------------------------------------------
 
 
+def _parsed(arguments: str) -> Any:
+    """Compare argument strings by their JSON value, not their spacing."""
+    try:
+        return json.loads(arguments)
+    except ValueError:
+        return arguments
+
+
 def _as_parts(content: Any, text_type: str) -> Any:
     return (
         [{"type": text_type, "text": content}] if isinstance(content, str) else content
@@ -110,6 +119,9 @@ def normalize(fmt: str, request: dict[str, Any]) -> dict[str, Any]:
                 m["content"] = _as_parts(m["content"], "text")
             for tc in m.get("tool_calls", []) or []:
                 tc.pop("type", None)
+                fn = tc.get("function", {})
+                if isinstance(fn.get("arguments"), str):
+                    fn["arguments"] = _parsed(fn["arguments"])
             if m.get("refusal") is None:
                 m.pop("refusal", None)
             if m.get("content") == [] and m.get("tool_calls"):
@@ -126,6 +138,10 @@ def normalize(fmt: str, request: dict[str, Any]) -> dict[str, Any]:
                 item.pop("type")
             if item.get("status") == "completed":
                 item.pop("status")
+            if item.get("type") == "function_call" and isinstance(
+                item.get("arguments"), str
+            ):
+                item["arguments"] = _parsed(item["arguments"])
             if "content" in item:
                 text_type = (
                     "output_text" if item.get("role") == "assistant" else "input_text"

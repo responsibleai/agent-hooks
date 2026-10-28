@@ -17,7 +17,8 @@ Files:
 
 - `fixtures.py`: three conversations in four shapes (OpenAI chat
   completions, OpenAI Responses, Anthropic Messages, the shape the
-  agent-framework adapter emits today) and three provider responses.
+  agent-framework adapter emits today), a fourth tool-call conversation
+  for the argument-edit and identity tests, and three provider responses.
 - `neutral.py`: the candidate neutral shape and its projections to and
   from the three provider shapes, with residue kept under `ext`.
 - `formats.py`: projections between the neutral shape and three more
