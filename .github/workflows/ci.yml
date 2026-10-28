@@ -201,6 +201,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: "22" }
       - name: actionlint (pinned, checksum-verified)
         run: |
           curl -sSfL -o actionlint.tgz \
@@ -210,8 +212,13 @@ jobs:
           ./actionlint -color
       - name: Version surfaces agree across SDK manifests
         run: python3 scripts/check-version-consistency.py
-      - name: Committed JSON Schemas match their typed source
-        run: python3 scripts/gen-schemas.py --check
+      - run: npm ci
+        working-directory: sdk/typescript
+      - name: Committed JSON Schemas match their TypeScript source
+        # Type-checks spec/schema/src, regenerates to memory and compares
+        # with the committed files (sdk/typescript/scripts/generate-schemas.mts).
+        run: npm run check:schema
+        working-directory: sdk/typescript
       - name: Source files carry the standard file header
         run: python3 scripts/check-file-headers.py
 
