@@ -160,23 +160,33 @@ jobs:
         working-directory: sdk/rust
 
   dotnet-xplat:
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      FFI_NATIVE_DIR: ${{ matrix.os == 'windows-latest' && 'sdk/rust/target/x86_64-pc-windows-msvc/release' || 'sdk/rust/target/release' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        if: runner.os != 'Windows'
         with: { toolchain: stable }
       - name: Build ffi cdylib
+        if: runner.os != 'Windows'
         run: cargo build --locked -p agent-hooks-ffi --release
         working-directory: sdk/rust
+      - name: Build and scan protected Windows FFI
+        if: runner.os == 'Windows'
+        timeout-minutes: 15
+        uses: ./.github/actions/windows-ffi
       - name: Check Windows release DLL CFG and regression gate
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./scripts/test-windows-cfg.ps1 -Dll sdk/rust/target/release/agent_hooks_ffi.dll
+        run: ./scripts/test-windows-cfg.ps1 -Dll ${{ env.FFI_NATIVE_DIR }}/agent_hooks_ffi.dll
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        if: runner.os != 'Windows'
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore --locked-mode
         working-directory: sdk/dotnet
@@ -185,13 +195,13 @@ jobs:
         # vars cover the ELF/Mach-O loaders. Native.cs has no custom
         # resolver, so these are the only search knobs.
         shell: bash
-        run: echo "${{ github.workspace }}/sdk/rust/target/release" >> "$GITHUB_PATH"
+        run: echo "${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}" >> "$GITHUB_PATH"
       - name: Test
         run: dotnet test test/AgentHooks.Tests/ --nologo
         working-directory: sdk/dotnet
         env:
-          LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
-          DYLD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
+          LD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
 
   # Workflow files were ungated until a duplicate mapping key invalidated
   # release.yml for every event (PR #25) — actionlint gates them now, and
@@ -201,6 +211,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: "22" }
       - name: actionlint (pinned, checksum-verified)
         run: |
           curl -sSfL -o actionlint.tgz \
@@ -210,6 +222,13 @@ jobs:
           ./actionlint -color
       - name: Version surfaces agree across SDK manifests
         run: python3 scripts/check-version-consistency.py
+      - run: npm ci
+        working-directory: sdk/typescript
+      - name: Committed JSON Schemas match their TypeScript source
+        # Type-checks spec/schema/src, regenerates to memory and compares
+        # with the committed files (sdk/typescript/scripts/generate-schemas.mts).
+        run: npm run check:schema
+        working-directory: sdk/typescript
       - name: Source files carry the standard file header
         run: python3 scripts/check-file-headers.py
 

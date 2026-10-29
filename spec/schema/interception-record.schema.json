@@ -2,242 +2,8 @@
   "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-record.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — interception record",
-  "description": "Host-side record of one emission (AGENT-HOOKS-0.1 §10.3). Payload-free: identities (when a provider is declared) bind the record to the exact pre/post-composition context; session_id/sequence/decided_by provide ordering and attribution; composition makes the record interpretable without out-of-band host configuration.",
-  "type": "object",
+  "description": "Host-side record of one emission (AGENT-HOOKS-0.1 §10.3). Payload-free:\nidentities (when a provider is declared) bind the record to the exact\npre/post-composition context; session_id/sequence/decided_by provide ordering\nand attribution; composition makes the record interpretable without\nout-of-band host configuration.\n\nTwo rules relate members and cannot be typed, so they are written as JSON\nSchema in the allOf tag below and copied through by the generator: verdicts\nis REQUIRED under the multi-verdict profiles (§7.4), and the identities are\nnull when identity_provider is null (§10.3).",
   "additionalProperties": false,
-  "required": [
-    "interception_point",
-    "mode",
-    "verdict",
-    "input_identity",
-    "enforced_identity",
-    "identity_provider",
-    "session_id",
-    "sequence",
-    "composition",
-    "interceptors_registered"
-  ],
-  "properties": {
-    "interception_point": {
-      "$ref": "interception-point.schema.json"
-    },
-    "mode": {
-      "type": "string",
-      "enum": [
-        "enforce",
-        "evaluate_only"
-      ]
-    },
-    "verdict": {
-      "description": "The payload-free projection of the combined verdict (§10.3): transform.value dropped, approval members stripped, messages truncated to 256 UTF-8 bytes. warnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1).",
-      "type": "object",
-      "properties": {
-        "transform": {
-          "type": "object",
-          "required": [
-            "path"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "path": {
-              "type": "string"
-            }
-          }
-        },
-        "approval": {
-          "type": "object",
-          "additionalProperties": false,
-          "description": "Presence only; members are stripped by the projection."
-        }
-      }
-    },
-    "input_identity": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Identity provider output on the context before dispatch; null iff identity_provider is null."
-    },
-    "enforced_identity": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "Identity provider output after composition completes; null iff identity_provider is null."
-    },
-    "identity_provider": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "description": "The declared identity provider (§10.1): \"jcs-sha256\", a host-defined id (name rules enforced: ^[a-z][a-z0-9_-]*$ and never a jcs prefix), or null (identity-unbound).",
-      "anyOf": [
-        {
-          "const": null
-        },
-        {
-          "const": "jcs-sha256"
-        },
-        {
-          "allOf": [
-            {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9_-]*$"
-            },
-            {
-              "not": {
-                "pattern": "^jcs"
-              }
-            }
-          ]
-        }
-      ]
-    },
-    "session_id": {
-      "type": "string",
-      "description": "ctx.session.id — correlates records across a session."
-    },
-    "sequence": {
-      "type": "integer",
-      "description": "ctx.sequence — total order of records within the session (§12.2.3)."
-    },
-    "timestamp": {
-      "type": "string",
-      "description": "OPTIONAL. The context's RFC 3339 timestamp, copied verbatim (§10.3); absent when the context lacked the field."
-    },
-    "trace": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "trace_id": {
-          "type": "string"
-        },
-        "span_id": {
-          "type": "string"
-        }
-      },
-      "description": "OPTIONAL. W3C Trace Context identifiers echoed from the context's optional trace block (§4.5, §10.3); absent when the context carried neither member."
-    },
-    "decided_by": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "minimum": 0,
-      "description": "Registration index of the interceptor whose verdict won aggregation or whose liftable deny was consulted (§7.6); null for a pure-allow combination or a host-synthesized verdict."
-    },
-    "composition": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "profile"
-      ],
-      "properties": {
-        "profile": {
-          "type": "string",
-          "enum": [
-            "sequential/first_deny",
-            "sequential/run_all",
-            "parallel/strictest",
-            "parallel/unanimous"
-          ]
-        },
-        "on_approval": {
-          "type": "string",
-          "enum": [
-            "stop",
-            "resume"
-          ]
-        },
-        "on_disagreement": {
-          "type": "string",
-          "enum": [
-            "deny",
-            "approval"
-          ]
-        },
-        "on_transform_conflict": {
-          "type": "string",
-          "enum": [
-            "deny",
-            "approval"
-          ]
-        }
-      },
-      "description": "The composition profile and knobs in effect for this emission (§7.1)."
-    },
-    "declaration": {
-      "type": "string",
-      "pattern": "^agent-hooks-declaration/[0-9]+\\.[0-9]+$",
-      "description": "OPTIONAL. The host declaration contract version the emitter was built from (§7.7.8), e.g. agent-hooks-declaration/1.0. Present iff the emitter was constructed from a declaration document; absent for a host configured in code. One closed-grammar string, so payload-free by construction."
-    },
-    "verdicts": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "index",
-          "decision"
-        ],
-        "properties": {
-          "index": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "decision": {
-            "type": "string",
-            "enum": [
-              "allow",
-              "deny",
-              "transform"
-            ]
-          },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": "string",
-            "description": "Host-chosen payload-free registration identifier for the interceptor at index (§10.3)."
-          },
-          "substituted_for": {
-            "type": "string",
-            "enum": [
-              "host_error:interceptor_failed",
-              "host_error:interceptor_timeout",
-              "host_error:verdict_invalid"
-            ],
-            "description": "Present iff this slot's verdict is the allow the host substituted under on_error: continue (§6.3.1): the host_error reason the §6.3 deny would have carried. The entry's decision is allow and reason is absent."
-          }
-        }
-      },
-      "description": "Payload-free per-interceptor summary. REQUIRED in multi-verdict profiles (sequential/run_all, parallel/*) and whenever any slot carries substituted_for (§6.3.1); otherwise OPTIONAL in sequential/first_deny."
-    },
-    "fold_truncated": {
-      "type": "boolean",
-      "description": "true iff one or more registered interceptors were never invoked in this emission (short-circuit, approval-stop, or a failed fold-transform). Defined for the sequential profiles (§7.4)."
-    },
-    "resolved_by": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "enum": [
-        "approval",
-        "rejection",
-        null
-      ],
-      "description": "Consultation outcome (§7.6, §10.3): \"approval\" iff a permit resolution substituted for a verdict; \"rejection\" iff the seam was consulted and did not lift the deny; absent/null iff never consulted."
-    },
-    "interceptors_registered": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "Number of interceptors registered at emission time (§10.3)."
-    }
-  },
   "allOf": [
     {
       "if": {
@@ -282,5 +48,274 @@
         }
       }
     }
-  ]
+  ],
+  "type": "object",
+  "properties": {
+    "interception_point": {
+      "$ref": "#/$defs/InterceptionPoint"
+    },
+    "mode": {
+      "$ref": "#/$defs/Mode"
+    },
+    "verdict": {
+      "$ref": "#/$defs/VerdictProjection"
+    },
+    "input_identity": {
+      "description": "Identity provider output on the context before dispatch; null iff identity_provider is null.",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "enforced_identity": {
+      "description": "Identity provider output after composition completes; null iff identity_provider is null.",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "identity_provider": {
+      "description": "The declared identity provider (§10.1): \"jcs-sha256\", a host-defined id\n(name rules enforced: ^[a-z][a-z0-9_-]*$ and never a jcs prefix), or null\n(identity-unbound).",
+      "pattern": "^(jcs-sha256|(?!jcs)[a-z][a-z0-9_-]*)$",
+      "type": [
+        "null",
+        "string"
+      ]
+    },
+    "session_id": {
+      "description": "ctx.session.id — correlates records across a session.",
+      "type": "string"
+    },
+    "sequence": {
+      "description": "ctx.sequence — total order of records within the session (§12.2.3).",
+      "type": "integer"
+    },
+    "timestamp": {
+      "description": "OPTIONAL. The context's RFC 3339 timestamp, copied verbatim (§10.3); absent\nwhen the context lacked the field.",
+      "type": "string"
+    },
+    "trace": {
+      "description": "OPTIONAL. W3C Trace Context identifiers echoed from the context's optional\ntrace block (§4.5, §10.3); absent when the context carried neither member.",
+      "$ref": "#/$defs/Trace"
+    },
+    "decided_by": {
+      "description": "Registration index of the interceptor whose verdict won aggregation or whose\nliftable deny was consulted (§7.6); null for a pure-allow combination or a\nhost-synthesized verdict.",
+      "minimum": 0,
+      "type": [
+        "null",
+        "integer"
+      ]
+    },
+    "composition": {
+      "description": "The composition profile and knobs in effect for this emission (§7.1).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "profile": {
+          "$ref": "#/$defs/CompositionProfile"
+        },
+        "on_approval": {
+          "description": "Values of the on_approval knob (§7.2).",
+          "enum": [
+            "resume",
+            "stop"
+          ],
+          "type": "string"
+        },
+        "on_disagreement": {
+          "description": "Values of the on_disagreement and on_transform_conflict knobs (§7.2).",
+          "enum": [
+            "approval",
+            "deny"
+          ],
+          "type": "string"
+        },
+        "on_transform_conflict": {
+          "description": "Values of the on_disagreement and on_transform_conflict knobs (§7.2).",
+          "enum": [
+            "approval",
+            "deny"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile"
+      ]
+    },
+    "declaration": {
+      "description": "OPTIONAL. The host declaration contract version the emitter was built from\n(§7.7.8), e.g. agent-hooks-declaration/1.0. Present iff the emitter was\nconstructed from a declaration document; absent for a host configured in\ncode. One closed-grammar string, so payload-free by construction.",
+      "pattern": "^agent-hooks-declaration/[0-9]+\\.[0-9]+$",
+      "type": "string"
+    },
+    "verdicts": {
+      "description": "Payload-free per-interceptor summary. REQUIRED in multi-verdict profiles\n(sequential/run_all, parallel/*) and whenever any slot carries\nsubstituted_for (§6.3.1); otherwise OPTIONAL in sequential/first_deny.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/VerdictSlot"
+      }
+    },
+    "fold_truncated": {
+      "description": "true iff one or more registered interceptors were never invoked in this\nemission (short-circuit, approval-stop, or a failed fold-transform). Defined\nfor the sequential profiles (§7.4).",
+      "type": "boolean"
+    },
+    "resolved_by": {
+      "description": "Consultation outcome (§7.6, §10.3): \"approval\" iff a permit resolution\nsubstituted for a verdict; \"rejection\" iff the seam was consulted and did not\nlift the deny; absent/null iff never consulted.",
+      "anyOf": [
+        {
+          "enum": [
+            "approval",
+            "rejection"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "interceptors_registered": {
+      "description": "Number of interceptors registered at emission time (§10.3).",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "composition",
+    "enforced_identity",
+    "identity_provider",
+    "input_identity",
+    "interception_point",
+    "interceptors_registered",
+    "mode",
+    "sequence",
+    "session_id",
+    "verdict"
+  ],
+  "$defs": {
+    "InterceptionPoint": {
+      "description": "The closed set of agent lifecycle interception points (AGENT-HOOKS-0.1 §3).",
+      "title": "Agent Hooks — interception point",
+      "type": "string",
+      "enum": [
+        "agent_startup",
+        "input",
+        "pre_model_call",
+        "post_model_call",
+        "pre_tool_call",
+        "post_tool_call",
+        "output",
+        "agent_shutdown"
+      ]
+    },
+    "Mode": {
+      "description": "Enforcement modes (§8).",
+      "type": "string",
+      "enum": [
+        "enforce",
+        "evaluate_only"
+      ]
+    },
+    "VerdictProjection": {
+      "description": "The payload-free projection of the combined verdict (§10.3): transform.value\ndropped, approval members stripped, messages truncated to 256 UTF-8 bytes.\nwarnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1).",
+      "type": "object",
+      "properties": {
+        "transform": {
+          "description": "The transform member of the projection: path only.",
+          "$ref": "#/$defs/TransformProjection"
+        },
+        "approval": {
+          "description": "Presence only; members are stripped by the projection.",
+          "$ref": "#/$defs/ApprovalPresence"
+        }
+      }
+    },
+    "TransformProjection": {
+      "description": "The transform member of the projection: path only.",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "ApprovalPresence": {
+      "description": "Presence only; members are stripped by the projection.",
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Trace": {
+      "description": "W3C Trace Context identifiers echoed from the context's optional trace block\n(§4.5, §10.3).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "trace_id": {
+          "type": "string"
+        },
+        "span_id": {
+          "type": "string"
+        }
+      }
+    },
+    "CompositionProfile": {
+      "description": "Composition profiles (§7.1), in §7.2 table order.",
+      "type": "string",
+      "enum": [
+        "sequential/first_deny",
+        "sequential/run_all",
+        "parallel/strictest",
+        "parallel/unanimous"
+      ]
+    },
+    "VerdictSlot": {
+      "description": "Payload-free summary of one interceptor's verdict (§10.3).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "index": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "decision": {
+          "$ref": "#/$defs/Decision"
+        },
+        "reason": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "name": {
+          "description": "Host-chosen payload-free registration identifier for the interceptor at index (§10.3).",
+          "type": "string"
+        },
+        "substituted_for": {
+          "description": "Present iff this slot's verdict is the allow the host substituted under\non_error: continue (§6.3.1): the host_error reason the §6.3 deny would have\ncarried. The entry's decision is allow and reason is absent.",
+          "enum": [
+            "host_error:interceptor_failed",
+            "host_error:interceptor_timeout",
+            "host_error:verdict_invalid"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "index"
+      ]
+    },
+    "Decision": {
+      "description": "The three decisions (§5).",
+      "type": "string",
+      "enum": [
+        "allow",
+        "deny",
+        "transform"
+      ]
+    }
+  }
 }
