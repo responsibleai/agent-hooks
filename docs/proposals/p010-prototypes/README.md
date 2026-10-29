@@ -25,8 +25,9 @@ Files:
   target shapes (Gemini `generateContent`, Bedrock Converse, the AI SDK
   `ModelMessage`).
 - `candidates.py`: the four candidate targets, normalization and a diff.
-- `paths.py`: a resolver for the section 5.2 path grammar and the three
-  edits (redact a user string, drop a tool, replace the system prompt).
+- `paths.py`: a resolver for the section 5.2 path grammar and the four
+  edits (redact a user string, drop a tool, replace the system prompt,
+  set a tool argument).
 - `policies.py`: the three policy tasks (redact the latest user turn,
   deny on a pattern in a tool result, cap the system prompt) written
   against seven target shapes, with path-shape and line-count
