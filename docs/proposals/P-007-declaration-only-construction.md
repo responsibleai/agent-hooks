@@ -96,7 +96,7 @@ change does both: every record from a host configured in code gains
 `declaration` and `verdicts[].name`, and §13.3 gains a rule on which
 documents a claim may cite.
 
-## Goals and non-goals (optional)
+## Goals and non-goals
 
 Goals:
 
@@ -496,7 +496,7 @@ Editorial edits that keep the meaning and unify the vocabulary:
   own configuration at host trust, produced by code the host loaded,
   and the load log applies to it as to a file.
 
-### Schema and wire impact (when applicable)
+### Schema and wire impact
 
 The schemas keep their shape. The edits are description text,
 generated from the TypeScript sources under `spec/schema/src/`:
@@ -674,7 +674,7 @@ that the document the SDK writes is not invented. It is the host's
 configuration plus a surface the host states or the emitter admits,
 and one construction path is worth the one-time record change.
 
-### Related decisions (optional)
+### Related decisions
 
 - Issue [#138](https://github.com/responsibleai/agent-hooks/issues/138)
   sets the direction this proposal writes down.
@@ -842,7 +842,7 @@ call they make. What remains for each when it takes the release:
   declaration that states it. Until then the document the SDK writes for
   them says `continue` and is not citable; their records are unaffected.
 
-## Performance and operational impact (optional)
+## Performance and operational impact
 
 The construction numbers below come from a release build of the Rust
 core and from the Python package at 0.1.0b2. They are the author's
