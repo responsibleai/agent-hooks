@@ -1,6 +1,6 @@
 {
   "name": "@responsibleai/agent-hooks",
-  "version": "0.1.0-beta.3",
+  "version": "0.1.0-beta.4",
   "description": "Framework-neutral agent control contract (AGENT-HOOKS-0.1). TypeScript wrapper over the canonical Rust core. Cooperative contract, not a security boundary: the host is fully trusted (see SECURITY.md).",
   "license": "MIT",
   "main": "./dist/index.js",
@@ -33,12 +33,19 @@
     "build:native": "napi build --release --platform --js binding.js --dts binding.d.ts",
     "build:native:debug": "napi build --platform --js binding.js --dts binding.d.ts",
     "build": "npm run build:native && tsc",
-    "test": "npm run build && node --test test/*.mjs"
+    "test": "npm run build && node --test test/*.mjs",
+    "generate:schema": "tsx scripts/generate-schemas.mts",
+    "check:schema": "tsc -p ../../spec/schema/src/tsconfig.json && tsx scripts/generate-schemas.mts --check",
+    "check:schema:equivalence": "tsx scripts/schema-equivalence.mts"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.7.2",
     "@types/node": "^26.1.1",
-    "typescript": "^7.0.2"
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "tsx": "4.23.15",
+    "typescript": "^7.0.2",
+    "typescript-json-schema": "0.68.0"
   },
   "engines": {
     "node": ">=20"

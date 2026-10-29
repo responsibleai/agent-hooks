@@ -5,6 +5,19 @@ this directory (P-001 through P-008 to date; a missing number is a
 proposal still in review). This file defines when a proposal is
 required, its lifecycle, and who decides.
 
+## Writing a proposal
+
+Copy [TEMPLATE.md](TEMPLATE.md) to `P-XXX-<slug>.md`, keeping `XXX`
+as a placeholder and choosing a descriptive, unique slug. Keep `P-XXX`
+in the title while the proposal is a draft.
+
+When maintainers approve the proposal, they assign the next unused
+proposal number and replace `XXX` in both the filename and title
+(for example, `P-009-<slug>.md` and `P-009`). Update links to the
+renamed file as part of acceptance. Rejected proposals retain `P-XXX`;
+existing numbered proposals keep their numbers, and numbers are never
+reused.
+
 ## When a proposal is required
 
 Any change in these classes MUST go through a proposal before
@@ -27,24 +40,26 @@ a proposal — ordinary PR review applies (see
 
 ## Lifecycle
 
-`Draft` → `Decided` → (possibly) `Superseded`.
+**Status:** Draft | Accepted | Rejected | Final | Superseded
 
-- **Draft.** File `P-NNN-<slug>.md` following the structure of the
-  existing proposals: Status, Raised by, the gap, enumerated options
-  with trade-offs, a recommendation. Neutral framing of alternatives
-  is expected — P-001/P-002 were debated by independent per-option
-  advocates before decision, a practice worth keeping for contested
-  questions.
-- **Decided.** The Status line records the date, the decision, and any
-  amendments. Implementation follows the decision, not the other way
-  around; the deciding PR links the proposal.
-- **Superseded.** A later proposal that replaces a decision marks the
+`Draft` → `Accepted` → `Final`, or `Draft` → `Rejected`.
+An accepted or final proposal may later become `Superseded`.
+
+These statuses follow the corresponding meanings in the
+[MCP SEP guidelines](https://modelcontextprotocol.io/community/sep-guidelines#sep-statuses),
+using the five statuses above and this repository's decision authority
+and review window.
+
+- **Draft.** The proposal is undergoing informal review.
+- **Accepted.** Approved by the maintainers, awaiting implementation
+  and applicable conformance coverage. Maintainers assign the proposal's
+  permanent number when recording acceptance.
+- **Rejected.** Declined by the maintainers.
+- **Final.** Complete with implementation and applicable conformance
+  coverage.
+- **Superseded.** Replaced by a newer proposal. The newer proposal marks the
   old one `Superseded by P-NNN` and states what survives (see
   P-001/P-002 for the pattern).
-
-Decisions may be reopened only by a new proposal that names the
-evidence that changed (e.g. P-003's fold-resume reservation lists the
-specific field-frequency evidence that would reopen it).
 
 ## Decision authority and review window
 

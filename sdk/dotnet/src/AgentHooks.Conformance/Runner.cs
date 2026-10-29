@@ -791,21 +791,15 @@ public static class Runner
                     // Fault injection: exercise §6.3 interceptor_failed.
                     throw new InvalidOperationException("ctk scripted fault: raise");
                 case ScriptedFault.Hang:
-                    // Block past the binding's bound. The emitter's own
-                    // timer ends the call first and cancels this token;
-                    // the allow returned afterwards (or after the grace,
-                    // when no host timer fires) is what an unbounded host
+                    // Block past the binding's bound without watching the
+                    // token, as the Rust runner does: the emitter's own
+                    // timer ends the call and this delay runs out
+                    // unobserved. Returning on cancellation instead would
+                    // race the timer, and WhenAny can pick the allow. The
+                    // allow after the grace is what an unbounded host
                     // observes, and the vector then fails on
                     // tool_not_invoked.
-                    try
-                    {
-                        await Task.Delay(HangGrace, ct);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // Cancelled by the host's timer: the typed
-                        // timeout is already in the record.
-                    }
+                    await Task.Delay(HangGrace, CancellationToken.None);
                     return Verdict.Allow;
                 case ScriptedFault.Cancel:
                     // `cancel` is defined only for ctk.managed (HARNESS.md);

@@ -4286,28 +4286,46 @@ mod tests {
         assert!(f.detail.contains("buffered_output: false"), "{}", f.detail);
     }
 
+    /// The string values a schema node admits: its `enum`, or its one
+    /// `const`, following a local `$ref` first. The generated schemas
+    /// (spec/schema/src/) name shared enums as definitions and may list
+    /// an inlined enum in alphabetical order, so callers compare sets.
+    fn schema_values<'a>(root: &'a Value, node: &'a Value) -> Vec<&'a str> {
+        let node = match node["$ref"].as_str() {
+            Some(r) => &root["$defs"][r.trim_start_matches("#/$defs/")],
+            None => node,
+        };
+        let mut values: Vec<&str> = match node["enum"].as_array() {
+            Some(items) => items.iter().filter_map(Value::as_str).collect(),
+            None => node["const"].as_str().into_iter().collect(),
+        };
+        values.sort_unstable();
+        values
+    }
+
+    fn sorted<'a>(values: impl IntoIterator<Item = &'a str>) -> Vec<&'a str> {
+        let mut v: Vec<&str> = values.into_iter().collect();
+        v.sort_unstable();
+        v
+    }
+
     #[test]
     fn mirrored_enums_match_record_schema() {
         let schema: Value = serde_json::from_str(include_str!(
             "../../../../spec/schema/interception-record.schema.json"
         ))
         .unwrap();
-        let profiles: Vec<&str> = schema["properties"]["composition"]["properties"]["profile"]
-            ["enum"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter_map(Value::as_str)
-            .collect();
-        assert_eq!(profiles, CompositionProfile::ALL.map(|p| p.as_str()));
+        let composition = &schema["properties"]["composition"]["properties"];
+        assert_eq!(
+            schema_values(&schema, &composition["profile"]),
+            sorted(CompositionProfile::ALL.map(|p| p.as_str()))
+        );
         for knob in ["on_approval", "on_disagreement", "on_transform_conflict"] {
-            let vals: Vec<&str> = schema["properties"]["composition"]["properties"][knob]["enum"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .filter_map(Value::as_str)
-                .collect();
-            assert_eq!(vals, knob_values(knob), "{knob}");
+            assert_eq!(
+                schema_values(&schema, &composition[knob]),
+                sorted(knob_values(knob).iter().copied()),
+                "{knob}"
+            );
         }
         // One schema file per contract version. The 1.0 file names
         // 1.0 alone; the file for the current version names it and
@@ -4324,19 +4342,14 @@ mod tests {
                 continue;
             };
             let decl: Value = serde_json::from_str(&text).unwrap();
-            let caps: Vec<&str> = decl["$defs"]["capability"]["enum"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .filter_map(Value::as_str)
-                .collect();
-            assert_eq!(caps, CAPABILITIES, "{}", path.display());
-            let versions: Vec<&str> = decl["properties"]["declaration"]["enum"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .filter_map(Value::as_str)
-                .collect();
+            let caps = schema_values(&decl, &decl["$defs"]["Capability"]);
+            assert_eq!(
+                caps,
+                sorted(CAPABILITIES.iter().copied()),
+                "{}",
+                path.display()
+            );
+            let versions = schema_values(&decl, &decl["properties"]["declaration"]);
             assert!(versions.contains(v), "{} does not name {v}", path.display());
             for named in versions {
                 assert!(

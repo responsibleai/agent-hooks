@@ -49,6 +49,27 @@ environment.
    the nupkg, and the Go build and tests). It uploads the build
    artifacts to the run, publishes nothing and attests nothing.
 
+### Windows FFI hardening
+
+The Windows x64 FFI leg uses
+[the shared Windows build action](.github/actions/windows-ffi/action.yml):
+pinned nightly Rust `nightly-2026-10-21`, rebuilt `std`/`panic_unwind`,
+strong stack protection and CFG. Other release legs keep their existing
+toolchains. Do not replace this leg with a plain stable Cargo build.
+
+Before native upload, the full matching-PDB BinSkim scan must complete,
+match the DLL hash, pass BA2014 and BA2008 without suppression, and have
+no error findings. The `windows-ffi-hardening` artifact retains the DLL,
+PDB, SARIF and scanner log for 14 days. Existing warnings remain reported,
+not waived. The NuGet job then verifies exact identity between the scanned
+Windows DLL and the bundled payload. These checks do not establish a
+downstream consumer's security-policy acceptance.
+
+For local builds and checks, see the
+[Windows source-build instructions](sdk/dotnet/README.md#windows-x64-source-builds-and-release-checks).
+Changing the nightly pin requires rerunning the native scan, gate regressions,
+Rust tests, .NET tests, package-consumer smoke and latency comparison.
+
 ## Tag
 
 Tag the merged version-bump commit on `main` and push the tag. Only
