@@ -75,6 +75,51 @@ func testSurface() HostSurface {
 		[]string{"model_calls", "tool_calls", "host_declaration"}, PostureContinue)
 }
 
+func TestDeclarationSourcesPreserveFailurePosturesAndProvenance(t *testing.T) {
+	reg := NewHostRegistry(testSurface())
+	var seen []string
+	var notices []ControlFailureNotice
+	if err := reg.Kind("com.example.failing", func(_ json.RawMessage, ctx BindingContext) (Interceptor, error) {
+		seen = append(seen, ctx.SourceID)
+		return failing{}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.ControlFailureNotifier(func(n ControlFailureNotice) { notices = append(notices, n) }); err != nil {
+		t.Fatal(err)
+	}
+	var sources []DeclarationSource
+	for _, item := range []struct{ id, posture string }{{"optional", "continue"}, {"required", "deny"}} {
+		decl, err := DeclarationFromValue(map[string]any{
+			"declaration": DeclarationVersion,
+			"bindings": []any{map[string]any{
+				"id": "guard", "kind": "com.example.failing",
+				"at": []string{"pre_tool_call"}, "on_error": item.posture,
+			}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		sources = append(sources, DeclarationSource{ID: item.id, Declaration: decl})
+	}
+	em, err := NewInterceptionEmitterFromDeclarationSources(sources, reg, StrictExecutionProfile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec, err := em.EmitUnchecked(context.Background(), fixedCtx(PreToolCall, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Proceeds() || rec.Declaration != nil || len(rec.Verdicts) != 2 || len(notices) != 1 {
+		t.Fatalf("record = %#v; notices = %#v", rec, notices)
+	}
+	if !reflect.DeepEqual(seen, []string{"optional", "required"}) ||
+		rec.Verdicts[0].Name != "optional/guard" || rec.Verdicts[1].Name != "required/guard" ||
+		rec.Verdicts[0].SubstitutedFor != string(ErrInterceptorFailed) || rec.Verdicts[1].SubstitutedFor != "" {
+		t.Fatalf("sources = %#v; verdicts = %#v", seen, rec.Verdicts)
+	}
+}
+
 // verdictFrom is the test kind: config.decision selects the verdict.
 func verdictFrom(config json.RawMessage, _ BindingContext) (Interceptor, error) {
 	var c struct {
@@ -523,8 +568,10 @@ func TestOneClassPerDocumentInPipelineOrder(t *testing.T) {
 			if !reflect.DeepEqual(de.Accepted, SupportedDeclarationVersions) {
 				t.Errorf("%s: accepted = %v", name, de.Accepted)
 			}
-			if !strings.Contains(de.Error(), "accepted: "+DeclarationVersion) {
-				t.Errorf("%s: message must name the accepted set: %v", name, de)
+			for _, v := range SupportedDeclarationVersions {
+				if !strings.Contains(de.Error(), v) {
+					t.Errorf("%s: message must name the accepted set: %v", name, de)
+				}
 			}
 		}
 		if !errors.Is(err, &DeclarationError{Class: c.class}) || !errors.Is(err, &DeclarationError{}) {

@@ -160,6 +160,12 @@ class RunRecord:
     #: Set by the runner for vectors carrying ``host_declaration``
     #: (§7.7.9); the harness leaves it ``None``.
     load: LoadRecord | None = None
+    #: §6.3.1: the host messages the host delivered to the principal
+    #: during the run, verbatim and in order; for a continuation that
+    #: is the :class:`~agent_hooks.ControlFailureNotice` message.
+    #: ``expect.host_messages_must_contain`` asserts on them. A host
+    #: that never continues reports an empty list.
+    host_messages: list[str] = field(default_factory=list)
 
 
 class Harness(Protocol):

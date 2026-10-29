@@ -76,6 +76,14 @@ internal static partial class Native
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
     private static partial IntPtr ah_compose_aggregate(string compositionJson, string verdictsJson);
 
+    // ---- failure posture (§6.3.1) ------------------------------------------
+
+    [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
+    private static partial IntPtr ah_control_failure_substitute(string requestJson);
+
+    [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
+    private static partial IntPtr ah_managed_outcome(string outcomeJson);
+
     // ---- host declaration (§7.7) --------------------------------------------
 
     [LibraryImport(Lib)]
@@ -137,6 +145,19 @@ internal static partial class Native
         Unwrap(ah_finalize(ctxJson, verdictJson, mode, optionsJson));
     internal static string ComposeAggregate(string compositionJson, string verdictsJson) =>
         Unwrap(ah_compose_aggregate(compositionJson, verdictsJson));
+
+    /// <summary>§6.3.1 <c>on_error: continue</c>: request
+    /// <c>{binding, reason, index?, interception_point?}</c>; returns
+    /// <c>{verdict, substituted_for, notice}</c>. A reason outside the
+    /// three covered failures is refused (<c>host_error:context_invalid</c>).</summary>
+    internal static string ControlFailureSubstitute(string requestJson) =>
+        Unwrap(ah_control_failure_substitute(requestJson));
+
+    /// <summary>§7 typed outcome of a managed interceptor: returns
+    /// <c>{verdict, failure: null | {reason, detail, continuable}}</c>;
+    /// <c>continuable</c> is false for a cancelled outcome.</summary>
+    internal static string ManagedOutcome(string outcomeJson) =>
+        Unwrap(ah_managed_outcome(outcomeJson));
 
     /// <summary>§7.7.2: <c>{"current": "...", "supported": [...]}</c>.</summary>
     internal static string DeclarationVersions() => Unwrap(ah_declaration_versions());

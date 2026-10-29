@@ -11,7 +11,12 @@ text. This package provides:
   constructor sugar (§5.1)
 - :class:`CompositionConfig`, :class:`CompositionProfile` — composition profiles (§7)
 - :class:`AgentContext` and per-hook builders — host payload (§4)
-- :class:`Interceptor`, :class:`ApprovalResolver` — protocols (§7, §9)
+- :class:`Interceptor`, :class:`ApprovalResolver`: protocols (§7, §9);
+  :class:`ManagedInterceptor` and :class:`ManagedInterceptorOutcome` for an
+  interceptor that owns its own deadline (§6.3.1, §7)
+- :class:`OnError`, :class:`ControlFailureNotice`, :class:`HostWarning`: the
+  per-registration failure posture, its principal notice and the reserved
+  warning it writes (§6.3.1, §11.1)
 - :class:`InterceptionEmitter` — host-side helper that builds context, dispatches
   per the declared composition profile, applies the combined verdict, and
   returns a :class:`InterceptionRecord` (§6–§10)
@@ -32,12 +37,16 @@ from agent_hooks._types import (
     JCS_SHA256,
     SPEC_VERSION,
     SUPPORTED_DECLARATION_VERSIONS,
+    ControlFailureNotice,
     Decision,
     EnforcementMode,
     Evidence,
     HostError,
+    HostWarning,
     InterceptionPoint,
     InterceptionRecord,
+    ManagedInterceptorOutcome,
+    OnError,
     Transform,
     Verdict,
     VerdictSummary,
@@ -68,6 +77,7 @@ from agent_hooks.declaration import (
     HostSurface,
     KindResolver,
     KnobSupport,
+    ManagedKindResolver,
     ResolvedBinding,
     ResolvedDeclaration,
 )
@@ -78,12 +88,15 @@ from agent_hooks.emitter import (
     HostExecutionProfile,
     IdentityProvider,
     InterceptionEmitter,
-    RegistrationOptions,
     ResultLabelPolicy,
-    TimeoutAction,
 )
-from agent_hooks.exceptions import EmitterSealed, InterceptionBlocked, InterceptionSuspended
-from agent_hooks.interceptor import Interceptor
+from agent_hooks.exceptions import (
+    EmitterSealed,
+    InterceptionBlocked,
+    InterceptionSuspended,
+    RegistrationError,
+)
+from agent_hooks.interceptor import Interceptor, ManagedInterceptor
 from agent_hooks.response import InterceptorResponse
 
 __all__ = [
@@ -102,6 +115,7 @@ __all__ = [
     "BindingContext",
     "CompositionConfig",
     "CompositionProfile",
+    "ControlFailureNotice",
     "Decision",
     "DeclarationBuilder",
     "DeclarationError",
@@ -118,6 +132,7 @@ __all__ = [
     "HostExecutionProfile",
     "HostRegistry",
     "HostSurface",
+    "HostWarning",
     "IdentityProvider",
     "InterceptionBlocked",
     "InterceptionEmitter",
@@ -128,13 +143,16 @@ __all__ = [
     "InterceptorResponse",
     "KindResolver",
     "KnobSupport",
+    "ManagedInterceptor",
+    "ManagedInterceptorOutcome",
+    "ManagedKindResolver",
     "OnApproval",
-    "RegistrationOptions",
+    "OnError",
+    "RegistrationError",
     "ResolvedBinding",
     "ResolvedDeclaration",
     "ResultLabelPolicy",
     "SynthesisPolicy",
-    "TimeoutAction",
     "Transform",
     "Verdict",
     "VerdictSummary",

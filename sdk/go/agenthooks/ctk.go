@@ -8,23 +8,66 @@ package agenthooks
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 )
 
-// CtkScriptedIntercept evaluates a vector's interceptor_script against
-// ctx via the Rust core. First matching rule wins; unmatched → allow.
-// rulesJSON is the pre-marshalled interceptor_script array so callers
-// pay the marshal cost once per vector, not per interception.
-func CtkScriptedIntercept(rulesJSON string, ctx AgentContext) (Verdict, error) {
+// CtkScriptedFault is a scripted fault the wrapper acts out itself
+// (conformance/HARNESS.md "Faults"); the empty value is a plain
+// verdict.
+type CtkScriptedFault string
+
+const (
+	// CtkFaultRaise: the interceptor raises natively (§6.3
+	// interceptor_failed).
+	CtkFaultRaise CtkScriptedFault = "raise"
+	// CtkFaultMutate: the wrapper tampers with the context it received
+	// and returns allow (§7 copy isolation, TM-05).
+	CtkFaultMutate CtkScriptedFault = "mutate"
+	// CtkFaultHang: the interceptor does not return within the
+	// binding's bound (§6.3 interceptor_timeout); on the managed path it
+	// waits out the bound it was handed and reports the typed timeout.
+	CtkFaultHang CtkScriptedFault = "hang"
+	// CtkFaultCancel: the managed interceptor reports the typed
+	// cancelled outcome, which never continues (§6.3.1).
+	CtkFaultCancel CtkScriptedFault = "cancel"
+)
+
+// CtkScriptedEvaluate evaluates a vector's interceptor_script against
+// ctx via the Rust core and returns either the scripted verdict or the
+// fault the wrapper must act out. First matching rule wins; unmatched
+// is allow. rulesJSON is the pre-marshalled interceptor_script array
+// so callers pay the marshal cost once per vector, not per
+// interception.
+func CtkScriptedEvaluate(rulesJSON string, ctx AgentContext) (Verdict, CtkScriptedFault, error) {
 	cb, err := json.Marshal(map[string]any(ctx))
 	if err != nil {
-		return Verdict{}, err
+		return Verdict{}, "", err
 	}
 	out, err := nativeCtkScriptedIntercept(rulesJSON, string(cb))
 	if err != nil {
+		return Verdict{}, "", err
+	}
+	if fault := faultKind(out); fault != "" {
+		return Verdict{}, CtkScriptedFault(fault), nil
+	}
+	var v Verdict
+	return v, "", json.Unmarshal([]byte(out), &v)
+}
+
+// CtkScriptedIntercept is CtkScriptedEvaluate for a standard
+// interceptor without a context to wait on: mutate tampers with ctx in
+// place and returns allow, raise returns an error, and the faults that
+// need the wrapper's own clock or managed path (hang, cancel) return an
+// error naming them, so a host without that path fails closed.
+func CtkScriptedIntercept(rulesJSON string, ctx AgentContext) (Verdict, error) {
+	v, fault, err := CtkScriptedEvaluate(rulesJSON, ctx)
+	if err != nil {
 		return Verdict{}, err
 	}
-	switch faultKind(out) {
-	case "mutate":
+	switch fault {
+	case "":
+		return v, nil
+	case CtkFaultMutate:
 		// §7 isolation fault (TM-05): tamper with the received context
 		// in-place; the emitter's copy isolation must keep enforcement,
 		// identity, and siblings unaffected.
@@ -33,12 +76,12 @@ func CtkScriptedIntercept(rulesJSON string, ctx AgentContext) (Verdict, error) {
 			tc["args"] = map[string]any{"tampered": true}
 		}
 		return Verdict{Decision: Allow, Reason: "ctk:mutated"}, nil
-	case "raise":
+	case CtkFaultRaise:
 		// Fault injection: exercise §6.3 interceptor_failed.
 		return Verdict{}, errors.New("ctk scripted fault: raise")
+	default:
+		return Verdict{}, fmt.Errorf("ctk scripted fault: %s needs the conformance scripted interceptor", fault)
 	}
-	var v Verdict
-	return v, json.Unmarshal([]byte(out), &v)
 }
 
 // CtkScriptedResolve evaluates a vector's approval_script against the
@@ -154,8 +197,8 @@ func DeepCopyContext(ctx AgentContext) (AgentContext, error) {
 }
 
 // faultKind returns the CTK engine's fault sentinel value
-// ({"__ctk_fault__": "raise"|"mutate"}), or "" when the output is a
-// plain verdict.
+// ({"__ctk_fault__": "raise"|"mutate"|"hang"|"cancel"}), or "" when
+// the output is a plain verdict.
 func faultKind(out string) string {
 	var probe map[string]string
 	if err := json.Unmarshal([]byte(out), &probe); err != nil {

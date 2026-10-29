@@ -32,6 +32,28 @@ on the event loop; ``sequence`` assignment and record append are atomic
 under a single-threaded asyncio runtime. Sharing one emitter across OS
 threads is not supported.
 
+Failure posture (``on_error``, §6.3.1): every registration carries an
+:class:`~agent_hooks.OnError`. The default, ``DENY``, is the
+fail-closed posture above. ``CONTINUE`` covers exactly three failures
+of the registration's own interceptor (a raise, a timeout, a
+§5-invalid return value): the host substitutes an allow carrying
+``host_warning:control_failed`` in that registration's composition
+slot, records the underlying ``host_error:*`` reason on
+``verdicts[].substituted_for`` and tells the principal through the
+control failure notifier. Context failures, cancellation, transform
+failures, approval failures, ``no_interceptor`` and an explicit deny
+never continue. A ``CONTINUE`` registration without a notifier is
+refused at registration (:class:`RegistrationError`), so silent
+continuation is not reachable by leaving the channel out.
+
+An interceptor that owns external work implements
+:class:`~agent_hooks.ManagedInterceptor` instead and is registered
+with :meth:`InterceptionEmitter.register_managed`: the emitter does
+not wrap it in the outer timer but hands it the resolved bound, and
+the interceptor reports a typed
+:class:`~agent_hooks.ManagedInterceptorOutcome` after it has cleaned
+up. A cancelled outcome is never a timeout and never continues.
+
 A host can also build the emitter from a host declaration document
 (§7.7): :meth:`InterceptionEmitter.from_declaration_path`,
 :meth:`~InterceptionEmitter.from_declaration_json`,
@@ -62,11 +84,14 @@ from agent_hooks import declaration as _declaration
 from agent_hooks._marshal import dumps
 from agent_hooks._types import (
     JCS_SHA256,
+    ControlFailureNotice,
     Decision,
     EnforcementMode,
     HostError,
     InterceptionPoint,
     InterceptionRecord,
+    ManagedInterceptorOutcome,
+    OnError,
     Verdict,
     VerdictSummary,
     Warning,
@@ -87,18 +112,11 @@ from agent_hooks.declaration import (
     HostRegistry,
     ResolvedDeclaration,
 )
-from agent_hooks.exceptions import EmitterSealed, InterceptionBlocked
-from agent_hooks.interceptor import Interceptor
+from agent_hooks.exceptions import EmitterSealed, InterceptionBlocked, RegistrationError
+from agent_hooks.interceptor import Interceptor, ManagedInterceptor
 
 #: §7 RECOMMENDED interceptor/resolver timeout (seconds).
 DEFAULT_TIMEOUT: float = 5.0
-
-
-class TimeoutAction(str, Enum):
-    """Host action when one interceptor exceeds its timeout."""
-
-    DENY = "deny"
-    CONTINUE = "continue"
 
 
 class ResultLabelPolicy(str, Enum):
@@ -112,22 +130,13 @@ class ResultLabelPolicy(str, Enum):
 class HostExecutionProfile:
     """Explicit host adoption profile; defaults preserve strict semantics."""
 
-    timeout_action: TimeoutAction = TimeoutAction.DENY
     result_label_policy: ResultLabelPolicy = ResultLabelPolicy.FLOW
-
-
-@dataclass(frozen=True, slots=True)
-class RegistrationOptions:
-    name: str | None = None
-    at: frozenset[InterceptionPoint] | None = None
-    on_timeout: TimeoutAction | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class DeclarationSource:
     id: str
     declaration: HostDeclaration
-    binding_options: dict[str, RegistrationOptions] = dataclasses.field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,20 +230,52 @@ def _with_unions(combined: Verdict, pool: list[Verdict]) -> Verdict:
 
 
 def _summaries(
-    verdicts: list[Verdict], names: list[str | None] | None = None
+    verdicts: list[Verdict],
+    names: list[str | None] | None = None,
+    substituted: list[str | None] | None = None,
 ) -> tuple[VerdictSummary, ...]:
     """Payload-free per-interceptor summaries for the record (§10.3),
-    with the hosts' registration names attached positionally."""
+    with the hosts' registration names and the §6.3.1 ``substituted_for``
+    reasons attached positionally."""
     names = names or []
+    substituted = substituted or []
     return tuple(
         VerdictSummary(
             index=i,
             decision=v.decision,
             reason=v.reason,
             name=names[i] if i < len(names) else None,
+            substituted_for=substituted[i] if i < len(substituted) else None,
         )
         for i, v in enumerate(verdicts)
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _CallFailure:
+    """Why one interceptor call produced no usable verdict (§6.3). The
+    failure is host-synthesized and bypasses the §5 gate: the gate
+    exists to stop interceptors spoofing reserved reasons, not the host
+    substituting them (TM-02)."""
+
+    reason: HostError
+    detail: str | None = None
+    #: Whether ``on_error: continue`` may substitute an allow for this
+    #: failure. False for a cancelled managed outcome: cancellation is
+    #: not one of the three covered failures, whatever reason records
+    #: it (§6.3.1).
+    continuable: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class _Settled:
+    """One interceptor call after the registration's ``on_error`` has
+    been applied (§6.3.1): the verdict that takes the composition slot
+    and, when the host substituted an allow, the underlying reason for
+    ``verdicts[].substituted_for``."""
+
+    verdict: Verdict
+    substituted_for: str | None = None
 
 
 def _envelope_only(ctx: AgentContext) -> dict[str, Any]:
@@ -257,15 +298,18 @@ def _envelope_only(ctx: AgentContext) -> dict[str, Any]:
 class _Bound:
     """One registered interceptor with its binding facts (§7.7.5): the
     payload-free name stamped on ``verdicts[].name``, the points it runs
-    at (``None`` = every point, the pre-declaration behaviour) and its
-    timeout (``inherit_timeout`` selects the emitter-wide value)."""
+    at (``None`` = every point, the pre-declaration behaviour), its
+    timeout (``inherit_timeout`` selects the emitter-wide value), its
+    failure posture (§6.3.1) and whether it owns its own deadline
+    (``managed``, §7)."""
 
-    interceptor: Interceptor
+    interceptor: Interceptor | ManagedInterceptor
     name: str | None = None
     at: frozenset[InterceptionPoint] | None = None
     inherit_timeout: bool = True
     timeout: float | None = None
-    on_timeout: TimeoutAction | None = None
+    on_error: OnError = OnError.DENY
+    managed: bool = False
 
     def runs_at(self, point: InterceptionPoint | None) -> bool:
         if self.at is None:
@@ -327,6 +371,11 @@ class InterceptionEmitter:
     :class:`IdentityProvider` (custom name + function), or ``None``
     (identity-unbound records).
 
+    Every registration fails closed by default (``on_error: deny``,
+    §6.3.1). :meth:`register` and :meth:`register_managed` take
+    ``on_error=OnError.CONTINUE`` for a best-effort registration; that
+    needs :meth:`set_control_failure_notifier` first.
+
     This constructor and the setters are configuration in code without
     a declaration (§7.7.7): the records carry no ``declaration`` member
     and the emitter is not sealed. The ``from_declaration*`` class
@@ -343,6 +392,7 @@ class InterceptionEmitter:
         "_interceptors",
         "_max_records",
         "_mode",
+        "_notifier",
         "_record_sink",
         "_records",
         "_records_dropped",
@@ -373,6 +423,10 @@ class InterceptionEmitter:
         self._identity = self._check_provider(identity_provider)
         self._approval_redactor: Callable[[AgentContext], AgentContext] | None = None
         self._record_sink: Callable[[InterceptionRecord], None] | None = None
+        #: §6.3.1: the channel that tells the principal a control failed
+        #: and the action continued. Required before any ``continue``
+        #: registration exists.
+        self._notifier: Callable[[ControlFailureNotice], None] | None = None
         self._max_records: int | None = None
         self._records_dropped = 0
         self._execution_profile = HostExecutionProfile()
@@ -475,15 +529,34 @@ class InterceptionEmitter:
                     f"approval redactor {_declaration._q(name)} vanished from the registry",
                 )
 
+        notifier = registry._control_failure_notifier_ref()
         bounds: list[_Bound] = []
         for i, b in enumerate(resolved.bindings):
             pointer = f"/bindings/{i}"
             kind_resolver = registry._kind_resolver(b.kind)
-            if kind_resolver is None:
+            managed_resolver = registry._managed_kind_resolver(b.kind)
+            if kind_resolver is None and managed_resolver is None:
                 raise vanished(
                     DeclarationErrorClass.KIND_UNKNOWN,
                     f"{pointer}/kind",
                     f"kind {_declaration._q(b.kind)} vanished from the registry",
+                )
+            # §6.3.1: a binding that resolves to ``continue`` needs the
+            # channel that tells the principal; without it the host
+            # cannot honour the posture, and silently denying instead
+            # would be the opposite surprise. Refuse at construction,
+            # at the member that set the posture.
+            if b.on_error is OnError.CONTINUE and notifier is None:
+                at = (
+                    "/configuration/failure/on_error"
+                    if b.on_error is resolved.failure_on_error
+                    else f"{pointer}/on_error"
+                )
+                raise vanished(
+                    DeclarationErrorClass.BINDING_REJECTED,
+                    at,
+                    f"binding {_declaration._q(b.id)} resolves to on_error: continue but the "
+                    "host registry has no control failure notifier (see spec 6.3.1)",
                 )
             timeout = _declaration._ms_to_seconds(b.timeout_ms)
             # The resolver gets copies: a resolver that edits its config
@@ -497,6 +570,7 @@ class InterceptionEmitter:
                 timeout=timeout,
                 host=copy.deepcopy(resolved.host),
                 declaration_version=resolved.version,
+                on_error=b.on_error,
             )
             # §7.7.5: a resolver that raises or returns something other
             # than an interceptor refuses the document; the detail is
@@ -504,23 +578,40 @@ class InterceptionEmitter:
             rejected = (
                 f"binding {_declaration._q(b.id)} (kind {_declaration._q(b.kind)}) rejected: "
             )
+            managed = kind_resolver is None
+            method = "intercept_managed" if managed else "intercept"
             try:
-                built = kind_resolver(copy.deepcopy(b.config), bctx)
+                if kind_resolver is not None:
+                    built: Any = kind_resolver(copy.deepcopy(b.config), bctx)
+                else:
+                    assert managed_resolver is not None
+                    built = managed_resolver(copy.deepcopy(b.config), bctx)
             except Exception as e:  # noqa: BLE001 - any resolver failure refuses the document
                 raise vanished(
                     DeclarationErrorClass.BINDING_REJECTED,
                     pointer,
                     _declaration._truncate(rejected + (str(e) or type(e).__name__)),
                 ) from None
-            if not callable(getattr(built, "intercept", None)):
+            if not callable(getattr(built, method, None)):
+                what = "a managed interceptor" if managed else "an interceptor"
                 raise vanished(
                     DeclarationErrorClass.BINDING_REJECTED,
                     pointer,
                     _declaration._truncate(
-                        rejected + f"resolver returned {type(built).__name__}, not an interceptor"
+                        rejected + f"resolver returned {type(built).__name__}, not {what}"
                     ),
                 )
-            bounds.append(_Bound(built, b.id, b.at, inherit_timeout=False, timeout=timeout))
+            bounds.append(
+                _Bound(
+                    built,
+                    b.id,
+                    b.at,
+                    inherit_timeout=False,
+                    timeout=timeout,
+                    on_error=b.on_error,
+                    managed=managed,
+                )
+            )
 
         timeouts = cfg["timeouts"]
         em = cls(
@@ -532,6 +623,7 @@ class InterceptionEmitter:
         )
         em._resolver_timeout = _declaration._ms_to_seconds(timeouts["approval_resolver_ms"])
         em._interceptors = bounds
+        em._notifier = notifier
         em._approval_redactor = redactor
         em._max_records = cfg["records"]["max_buffered"]
         em._declaration = resolved
@@ -566,19 +658,6 @@ class InterceptionEmitter:
                 raise ValueError(f"from_declaration_sources: source id {source.id!r} appears twice")
             seen.add(source.id)
             item = registry.resolve(source.declaration)
-            ids = {binding.id for binding in item.bindings}
-            unknown = set(source.binding_options) - ids
-            if unknown:
-                raise ValueError(
-                    "from_declaration_sources: binding options name undeclared ids "
-                    + ", ".join(sorted(unknown))
-                )
-            for binding_id, options in source.binding_options.items():
-                if options.name is not None or options.at is not None:
-                    raise ValueError(
-                        "from_declaration_sources: imported binding options may set "
-                        f"on_timeout only ({source.id}/{binding_id})"
-                    )
             resolved.append((source, item))
         expected = resolved[0][1].configuration
         for source, item in resolved[1:]:
@@ -596,8 +675,6 @@ class InterceptionEmitter:
             part = cls._from_resolved(item, registry, source.id)
             for bound, binding in zip(part._interceptors, item.bindings, strict=True):
                 bound.name = f"{source.id}/{binding.id}"
-                options = source.binding_options.get(binding.id)
-                bound.on_timeout = None if options is None else options.on_timeout
             emitter._interceptors.extend(part._interceptors)
             infos.append(DeclarationSourceInfo(source.id, item.version, len(item.bindings)))
         emitter._execution_profile = profile
@@ -650,6 +727,12 @@ class InterceptionEmitter:
     def execution_profile(self) -> HostExecutionProfile:
         return self._execution_profile
 
+    def set_execution_profile(self, profile: HostExecutionProfile) -> InterceptionEmitter:
+        """Set result-label adoption on an unsealed emitter."""
+        self._unsealed("set_execution_profile")
+        self._execution_profile = profile
+        return self
+
     @property
     def declaration_sources(self) -> tuple[DeclarationSourceInfo, ...]:
         return self._declaration_sources
@@ -672,7 +755,8 @@ class InterceptionEmitter:
         interceptor: Interceptor,
         name: str | None = None,
         at: Iterable[InterceptionPoint | str] | None = None,
-        on_timeout: TimeoutAction | str | None = None,
+        *,
+        on_error: OnError | str = OnError.DENY,
     ) -> InterceptionEmitter:
         """Register an interceptor, optionally with a host-chosen
         payload-free ``name`` recorded on ``verdicts[].name`` (§10.3)
@@ -680,22 +764,82 @@ class InterceptionEmitter:
         P the interceptors that run are those bound there, in
         registration order; ``interceptors_registered``,
         ``verdicts[].index`` and ``decided_by`` count and index that
-        list (§7.7.8). Refused on a sealed emitter (§7.7.7)."""
+        list (§7.7.8). Refused on a sealed emitter (§7.7.7).
+
+        ``on_error`` is the registration's failure posture (§6.3.1),
+        ``deny`` unless the host says ``continue``; ``continue`` is
+        refused with :class:`RegistrationError` unless
+        :meth:`set_control_failure_notifier` ran first, and nothing is
+        registered then."""
         self._unsealed("register")
+        self._push_bound(interceptor, name, at, on_error, managed=False)
+        return self
+
+    def register_managed(
+        self,
+        interceptor: ManagedInterceptor,
+        name: str | None = None,
+        at: Iterable[InterceptionPoint | str] | None = None,
+        *,
+        on_error: OnError | str = OnError.DENY,
+    ) -> InterceptionEmitter:
+        """Register an interceptor that owns its own deadline (§6.3.1,
+        §7). The emitter does not wrap it in the timer; on every call
+        it receives the registration's resolved bound in seconds (the
+        emitter-wide ``timeout`` for a code registration) and reports a
+        typed :class:`~agent_hooks.ManagedInterceptorOutcome`. A
+        ``cancelled`` outcome is ``deny host_error:interceptor_failed``
+        and never continues. ``name``, ``at`` and ``on_error`` are as
+        for :meth:`register`."""
+        self._unsealed("register_managed")
+        self._push_bound(interceptor, name, at, on_error, managed=True)
+        return self
+
+    def _push_bound(
+        self,
+        interceptor: Interceptor | ManagedInterceptor,
+        name: str | None,
+        at: Iterable[InterceptionPoint | str] | None,
+        on_error: OnError | str,
+        *,
+        managed: bool,
+    ) -> None:
+        posture = OnError.coerce(on_error)
         bound_at = _at_set(at)
         if bound_at is not None and not bound_at:
             # The declaration path refuses an empty ``at`` as
             # invalid_field; the code path must not register an
             # interceptor that never runs.
             raise ValueError("register: `at` must name at least one interception point")
-        timeout_action = None if on_timeout is None else TimeoutAction(on_timeout)
-        self._interceptors.append(_Bound(interceptor, name, bound_at, on_timeout=timeout_action))
-        return self
+        if posture is OnError.CONTINUE and self._notifier is None:
+            raise RegistrationError(
+                f"{name if name is not None else 'unnamed registration'}: on_error is continue "
+                "but the emitter has no control failure notifier; call "
+                "set_control_failure_notifier first (see spec 6.3.1)"
+            )
+        self._interceptors.append(
+            _Bound(interceptor, name, bound_at, on_error=posture, managed=managed)
+        )
 
-    def set_execution_profile(self, profile: HostExecutionProfile) -> InterceptionEmitter:
-        """Set the explicit host adoption profile on an unsealed emitter."""
-        self._unsealed("set_execution_profile")
-        self._execution_profile = profile
+    def set_control_failure_notifier(
+        self, notifier: Callable[[ControlFailureNotice], None]
+    ) -> InterceptionEmitter:
+        """Register the channel through which the host tells the
+        principal that a control failed and the action continued
+        (§6.3.1): the user in an interactive session, otherwise the
+        agent through the host's own message channel. The callback
+        receives the binding label, the underlying ``host_error:*``
+        reason and the warning message; nothing from the context or
+        target.
+
+        Required before any registration with ``on_error: continue``;
+        a declaration-built emitter takes it from
+        :meth:`HostRegistry.control_failure_notifier`. The notifier
+        runs before the substitution takes effect; if it raises, the
+        deny stands, so a continuation the principal was not told about
+        cannot happen. Like the record sink, it may be set on a sealed
+        emitter: it is a host channel, not declared configuration."""
+        self._notifier = notifier
         return self
 
     def set_composition(self, composition: CompositionConfig) -> InterceptionEmitter:
@@ -1008,15 +1152,38 @@ class InterceptionEmitter:
             return await self._dispatch_run_all(ctx, active)
         return await self._dispatch_parallel(ctx, active)
 
-    async def _invoke(self, bound: _Bound, ctx: AgentContext) -> Verdict:
+    async def _invoke(self, bound: _Bound, ctx: AgentContext, idx: int = 0) -> _Settled:
         """Invoke one interceptor on its own deep copy of the context
-        (§7) and normalize the return through the §5 gate; every failure
-        maps to the §6.3 host-synthesized deny."""
+        (§7), normalize the return through the §5 gate and apply the
+        registration's ``on_error`` (§6.3.1): every failure maps to the
+        §6.3 host-synthesized deny, or under ``continue`` to the
+        substituted allow."""
         limit = self._timeout if bound.inherit_timeout else bound.timeout
+        if bound.managed:
+            called = await self._call_managed(bound, ctx, limit)
+        else:
+            called = await self._call_standard(bound, ctx, limit)
+        if isinstance(called, _CallFailure):
+            return self._settle(ctx, idx, bound, called)
+        try:
+            wire = called.to_wire() if isinstance(called, Verdict) else called
+            # §5 gate in the core; from_wire re-types the normalized JSON.
+            return _Settled(Verdict.from_wire(json.loads(_core.validate_verdict(dumps(wire)))))
+        except _core.AgentHooksCoreError as e:
+            failure = _CallFailure(_host_error_of(e, HostError.VERDICT_INVALID), str(e))
+        except Exception as e:  # noqa: BLE001 (non-JSON return etc.)
+            failure = _CallFailure(HostError.VERDICT_INVALID, str(e))
+        return self._settle(ctx, idx, bound, failure)
+
+    async def _call_standard(
+        self, bound: _Bound, ctx: AgentContext, limit: float | None
+    ) -> _CallFailure | Any:
+        """One standard interceptor call under the emitter's own timer
+        (§7). Returns the raw return value or the failure."""
         try:
             # §7: each interceptor gets its own deep copy — an in-place
             # mutation of the copy cannot alter enforcement.
-            raw = bound.interceptor.intercept(copy.deepcopy(ctx))
+            raw = bound.interceptor.intercept(copy.deepcopy(ctx))  # type: ignore[union-attr]
             if inspect.isawaitable(raw):
                 # §7 timeout: only the awaitable path is preemptible.
                 if limit is not None:
@@ -1024,23 +1191,94 @@ class InterceptionEmitter:
                 else:
                     raw = await raw
         except (TimeoutError, asyncio.TimeoutError):
-            action = bound.on_timeout or self._execution_profile.timeout_action
-            if action is TimeoutAction.CONTINUE:
-                return Verdict.warn(
-                    reason="host_warning:interceptor_timeout",
-                    message="interceptor exceeded the host timeout; host continued",
-                )
-            return Verdict.host_error(HostError.INTERCEPTOR_TIMEOUT)
+            return _CallFailure(HostError.INTERCEPTOR_TIMEOUT)
         except Exception as e:  # noqa: BLE001 — fail closed per §6.3
-            return Verdict.host_error(HostError.INTERCEPTOR_FAILED, type(e).__name__)
+            return _CallFailure(HostError.INTERCEPTOR_FAILED, type(e).__name__)
+        return raw
+
+    async def _call_managed(
+        self, bound: _Bound, ctx: AgentContext, limit: float | None
+    ) -> _CallFailure | Any:
+        """One managed interceptor call (§6.3.1, §7): not wrapped in the
+        timer, handed the resolved bound, mapped from its typed outcome
+        by the core (``_core.managed_outcome``) so every SDK records the
+        same reason and the same continuable flag. Returns the raw
+        verdict for the §5 gate or the failure."""
         try:
-            wire = raw.to_wire() if isinstance(raw, Verdict) else raw
-            # §5 gate in the core; from_wire re-types the normalized JSON.
-            return Verdict.from_wire(json.loads(_core.validate_verdict(dumps(wire))))
-        except _core.AgentHooksCoreError as e:
-            return Verdict.host_error(_host_error_of(e, HostError.VERDICT_INVALID), str(e))
-        except Exception as e:  # noqa: BLE001 — non-JSON return etc.
-            return Verdict.host_error(HostError.VERDICT_INVALID, str(e))
+            raw = bound.interceptor.intercept_managed(  # type: ignore[union-attr]
+                copy.deepcopy(ctx), limit
+            )
+            if inspect.isawaitable(raw):
+                raw = await raw
+        except Exception as e:  # noqa: BLE001 (the raise failure of §6.3)
+            return _CallFailure(HostError.INTERCEPTOR_FAILED, type(e).__name__)
+        if not isinstance(raw, ManagedInterceptorOutcome):
+            return _CallFailure(
+                HostError.VERDICT_INVALID,
+                f"managed interceptor returned {type(raw).__name__}, "
+                "not a ManagedInterceptorOutcome",
+            )
+        if raw.kind == "verdict":
+            # The verdict crosses the same §5 gate as any interceptor's.
+            return raw.verdict
+        try:
+            mapped = json.loads(_core.managed_outcome(dumps(raw.to_wire())))
+        except Exception as e:  # noqa: BLE001 (an outcome the core does not know)
+            return _CallFailure(HostError.VERDICT_INVALID, str(e))
+        failure = mapped["failure"]
+        return _CallFailure(
+            HostError(failure["reason"]),
+            failure.get("detail"),
+            continuable=bool(failure["continuable"]),
+        )
+
+    def _settle(
+        self, ctx: AgentContext, idx: int, bound: _Bound, failure: _CallFailure
+    ) -> _Settled:
+        """§6.3.1: under ``deny``, or for a failure ``on_error`` does not
+        cover, the host-synthesized deny takes the slot. Under
+        ``continue`` the principal is told first; then the substituted
+        allow takes the slot and the underlying reason goes to
+        ``substituted_for``. A notifier that fails leaves the deny
+        standing: a continuation nobody was told about is not
+        conformant."""
+
+        def deny(detail: str | None) -> _Settled:
+            return _Settled(Verdict.host_error(failure.reason, detail))
+
+        if bound.on_error is not OnError.CONTINUE or not failure.continuable:
+            return deny(failure.detail)
+        # The binding label (§6.3.1): the registration name, else
+        # ``interceptor-<index>`` with the registration index written as
+        # a decimal integer, as in the Rust core and the C ABI.
+        binding = bound.name if bound.name is not None else f"interceptor-{idx}"
+        request: dict[str, Any] = {"binding": binding, "reason": failure.reason.value, "index": idx}
+        point = _point_of(ctx)
+        if point is not None:
+            request["interception_point"] = point.value
+        try:
+            # Built in the core so every SDK writes the same bytes; a
+            # reason outside the three covered failures is refused there.
+            out = json.loads(_core.control_failure_substitute(dumps(request)))
+            notice = ControlFailureNotice._from_core(out["notice"])
+            substitute = Verdict._from_core(out["verdict"])
+        except Exception as e:  # noqa: BLE001 (fail closed)
+            return deny(
+                f"control failure substitution refused ({type(e).__name__}); the deny stands"
+            )
+        # Unreachable by construction (registration and the loader
+        # refuse ``continue`` without a notifier); kept as the
+        # fail-closed answer should that ever change.
+        if self._notifier is None:
+            return deny(
+                "on_error: continue without a control failure notifier; the deny stands "
+                "(see spec 6.3.1)"
+            )
+        try:
+            self._notifier(notice)
+        except Exception:  # noqa: BLE001 (a notice that failed means no continuation)
+            return deny("control failure notifier raised; the deny stands (see spec 6.3.1)")
+        return _Settled(substitute, str(out["substituted_for"]))
 
     async def _dispatch_first_deny(self, ctx: AgentContext, active: list[_Bound]) -> _Outcome:
         """``sequential/first_deny`` (§7.4): fold-through, first deny
@@ -1051,30 +1289,37 @@ class InterceptionEmitter:
         names = [b.name for b in active]
         per: list[Verdict] = []  # index-aligned §10.3 summaries
         pool: list[Verdict] = []  # + substituted resolutions, §7.3 unions
+        subs: list[str | None] = []  # index-aligned §6.3.1 substituted_for
         last_transform: tuple[int, Verdict] | None = None
         resolved_by: str | None = None
 
         def truncated(i: int) -> bool:
             return i + 1 < n
 
+        def summaries() -> tuple[VerdictSummary, ...]:
+            return _summaries(per, names, subs)
+
         for i, bound in enumerate(active):
-            v = await self._invoke(bound, ctx)
+            # Under ``on_error: continue`` a covered failure arrives
+            # here as the substituted allow (§6.3.1) and the fold
+            # continues past it like any allow.
+            settled = await self._invoke(bound, ctx, i)
+            v = settled.verdict
             per.append(v)
             pool.append(v)
+            subs.append(settled.substituted_for)
             if _is_host_synthesized(v):
                 # §6.3: malformed verdict fails closed and — in this
                 # profile — short-circuits like any deny. The failure
                 # deny is attributed to the failing interceptor (§10.3
                 # decided_by), matching the aggregation profiles.
-                return _Outcome(
-                    _with_unions(v, pool), i, _summaries(per, names), truncated(i), resolved_by
-                )
+                return _Outcome(_with_unions(v, pool), i, summaries(), truncated(i), resolved_by)
 
             if v.decision is Decision.DENY:
                 consultation = await self._consult(ctx, v)
                 if consultation is None:
                     return _Outcome(
-                        _with_unions(v, pool), i, _summaries(per, names), truncated(i), resolved_by
+                        _with_unions(v, pool), i, summaries(), truncated(i), resolved_by
                     )
                 rv, permitted = consultation
                 if not permitted:
@@ -1085,7 +1330,7 @@ class InterceptionEmitter:
                     return _Outcome(
                         _with_unions(rv, pool),
                         None if synthesized else i,
-                        _summaries(per, names),
+                        summaries(),
                         truncated(i),
                         "rejection",
                     )
@@ -1095,7 +1340,7 @@ class InterceptionEmitter:
                 # (§7.4).
                 sub = self._fold_transform(ctx, rv) if rv.decision is Decision.TRANSFORM else rv
                 if not sub.decision.permits:
-                    return _Outcome(sub, None, _summaries(per, names), truncated(i), resolved_by)
+                    return _Outcome(sub, None, summaries(), truncated(i), resolved_by)
                 pool.append(sub)
                 if on_approval is OnApproval.STOP:
                     # §7.4 stop: the resolution is the combined verdict;
@@ -1104,7 +1349,7 @@ class InterceptionEmitter:
                     return _Outcome(
                         _with_unions(sub, pool),
                         i,
-                        _summaries(per, names),
+                        summaries(),
                         truncated(i),
                         resolved_by,
                     )
@@ -1115,7 +1360,7 @@ class InterceptionEmitter:
                 v = self._fold_transform(ctx, v)
                 if not v.decision.permits:
                     # Transform failed closed (host-synthesized §5.2).
-                    return _Outcome(v, None, _summaries(per, names), truncated(i), resolved_by)
+                    return _Outcome(v, None, summaries(), truncated(i), resolved_by)
                 last_transform = (i, v)
             # allow: continue
 
@@ -1124,29 +1369,31 @@ class InterceptionEmitter:
             decided_by, combined = last_transform
         else:
             combined, decided_by = Verdict(decision=Decision.ALLOW), None
-        return _Outcome(
-            _with_unions(combined, pool), decided_by, _summaries(per, names), False, resolved_by
-        )
+        return _Outcome(_with_unions(combined, pool), decided_by, summaries(), False, resolved_by)
 
     async def _dispatch_run_all(self, ctx: AgentContext, active: list[_Bound]) -> _Outcome:
         """``sequential/run_all`` (§7.4): everything runs, transforms
         fold through for visibility, severity-max aggregate; the seam is
         consulted at most once, only when the winner is liftable."""
         all_v: list[Verdict] = []
-        for bound in active:
+        subs: list[str | None] = []
+        for i, bound in enumerate(active):
             # §6.3 per-interceptor: a malformed verdict becomes that
-            # interceptor's synthesized deny; the rest still run.
-            v = await self._invoke(bound, ctx)
+            # interceptor's synthesized deny (or, under ``continue``,
+            # the substituted allow, §6.3.1); the rest still run.
+            settled = await self._invoke(bound, ctx, i)
+            v = settled.verdict
+            subs.append(settled.substituted_for)
             if v.decision is Decision.TRANSFORM:
                 folded = self._fold_transform(ctx, v)
                 all_v.append(folded)
                 if not folded.decision.permits:
                     # §7.4: a transform that fails to apply
                     # short-circuits in both sequential profiles.
-                    return _Outcome(folded, None, _summaries(all_v, [b.name for b in active]))
+                    return _Outcome(folded, None, _summaries(all_v, [b.name for b in active], subs))
             else:
                 all_v.append(v)
-        return await self._aggregate_and_consult(ctx, all_v, active)
+        return await self._aggregate_and_consult(ctx, all_v, active, subs)
 
     async def _dispatch_parallel(self, ctx: AgentContext, active: list[_Bound]) -> _Outcome:
         """Parallel profiles (§7.5): isolated deep-copied snapshots of
@@ -1154,14 +1401,21 @@ class InterceptionEmitter:
         (isolation semantics, not scheduling)."""
         snapshot = copy.deepcopy(ctx)
         all_v: list[Verdict] = []
-        for bound in active:
+        subs: list[str | None] = []
+        for i, bound in enumerate(active):
             # _invoke deep-copies again, so each interceptor receives
             # its own copy of the identical snapshot.
-            all_v.append(await self._invoke(bound, snapshot))
-        return await self._aggregate_and_consult(ctx, all_v, active)
+            settled = await self._invoke(bound, snapshot, i)
+            all_v.append(settled.verdict)
+            subs.append(settled.substituted_for)
+        return await self._aggregate_and_consult(ctx, all_v, active, subs)
 
     async def _aggregate_and_consult(
-        self, ctx: AgentContext, all_v: list[Verdict], active: list[_Bound]
+        self,
+        ctx: AgentContext,
+        all_v: list[Verdict],
+        active: list[_Bound],
+        subs: list[str | None] | None = None,
     ) -> _Outcome:
         """Severity-max aggregation (§7.3, core-side) + winner handling,
         shared by ``sequential/run_all`` and the parallel profiles.
@@ -1178,10 +1432,14 @@ class InterceptionEmitter:
         )
         combined = Verdict._from_core(agg["combined"])
         decided_by: int | None = agg["decided_by"]
+        subs = subs or []
+        # The core's summaries carry no names or substituted_for; both
+        # are host facts attached positionally (§10.3, §6.3.1).
         verdicts = tuple(
             dataclasses.replace(
                 VerdictSummary.from_wire(s),
                 name=active[i].name if i < len(active) else None,
+                substituted_for=subs[i] if i < len(subs) else None,
             )
             for i, s in enumerate(agg["verdicts"])
         )

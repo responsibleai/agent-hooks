@@ -279,6 +279,37 @@ pub unsafe extern "C" fn ah_compose_aggregate(
     guarded(move || core::compose_aggregate(a?, b?).map_err(core_err))
 }
 
+/// §6.3 `on_error: continue`: the substituted allow, its
+/// `substituted_for` value and the principal notice for one failing
+/// registration (see `ffi_surface::control_failure_substitute`).
+/// `request_json` is `{binding, reason, index?, interception_point?}`;
+/// a reason outside the three covered failures is refused.
+///
+/// # Safety
+/// `request_json` must be null or a valid NUL-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn ah_control_failure_substitute(
+    request_json: *const c_char,
+) -> *mut AhResult {
+    let a = from_c(request_json, "request_json");
+    guarded(move || core::control_failure_substitute(a?).map_err(core_err))
+}
+
+/// §6.3 typed outcome of an interceptor that owns its own deadline
+/// (see `ffi_surface::managed_outcome`). `outcome_json` is one of
+/// `{"outcome": "verdict", "verdict": {...}}`, `{"outcome": "timeout"}`,
+/// `{"outcome": "cancelled"}` or `{"outcome": "failed", "detail"?}`;
+/// the value is `{verdict, failure: null | {reason, detail,
+/// continuable}}`.
+///
+/// # Safety
+/// `outcome_json` must be null or a valid NUL-terminated C string.
+#[no_mangle]
+pub unsafe extern "C" fn ah_managed_outcome(outcome_json: *const c_char) -> *mut AhResult {
+    let a = from_c(outcome_json, "outcome_json");
+    guarded(move || core::managed_outcome(a?).map_err(core_err))
+}
+
 // ---- CTK engine (§13.2) ----------------------------------------------------
 
 /// # Safety
@@ -462,7 +493,7 @@ mod tests {
             "tool_seam_host_error": "continue",
             "streams_unbuffered": false,
             "interceptor_timeout": "bounded",
-            "declaration_versions": ["agent-hooks-declaration/1.0"]
+            "declaration_versions": ["agent-hooks-declaration/1.0", "agent-hooks-declaration/1.1"]
         },
         "kinds": ["com.example.allow"]
     }"#;
@@ -475,9 +506,109 @@ mod tests {
             let v = CStr::from_ptr((*r).value).to_str().unwrap();
             assert_eq!(
                 v,
-                r#"{"current":"agent-hooks-declaration/1.0","supported":["agent-hooks-declaration/1.0"]}"#
+                r#"{"current":"agent-hooks-declaration/1.1","supported":["agent-hooks-declaration/1.0","agent-hooks-declaration/1.1"]}"#
             );
             ah_free_result(r);
+        }
+    }
+
+    #[test]
+    fn on_error_crosses_the_c_abi() {
+        unsafe {
+            // A 1.1 document with the new members resolves; the
+            // resolved form spells the posture out per binding.
+            let doc = r#"{"declaration": "agent-hooks-declaration/1.1",
+                          "configuration": {"failure": {"on_error": "continue"}},
+                          "bindings": [{"id": "allow", "kind": "com.example.allow", "on_error": "deny"},
+                                       {"id": "soft", "kind": "com.example.allow"}]}"#;
+            let (ok, value, _) = call2(ah_declaration_resolve, doc, HOST);
+            assert_eq!(ok, 1, "{value}");
+            assert!(
+                value.contains("\"failure\":{\"on_error\":\"continue\"}"),
+                "{value}"
+            );
+            // Binding order is document order; each binding's on_error
+            // follows its id in the resolved form.
+            let bindings = &value[value.find("\"bindings\"").unwrap()..];
+            let at = |needle: &str| {
+                bindings
+                    .find(needle)
+                    .unwrap_or_else(|| panic!("{needle} in {bindings}"))
+            };
+            assert!(
+                at("\"id\":\"allow\"") < at("\"on_error\":\"deny\""),
+                "{value}"
+            );
+            assert!(
+                at("\"on_error\":\"deny\"") < at("\"id\":\"soft\""),
+                "{value}"
+            );
+            assert!(
+                at("\"id\":\"soft\"") < at("\"on_error\":\"continue\""),
+                "{value}"
+            );
+
+            // A 1.0 document still loads and resolves to deny.
+            let old = r#"{"declaration": "agent-hooks-declaration/1.0",
+                          "bindings": [{"id": "allow", "kind": "com.example.allow"}]}"#;
+            let (ok, value, _) = call2(ah_declaration_resolve, old, HOST);
+            assert_eq!(ok, 1, "{value}");
+            assert!(value.contains("\"on_error\":\"deny\""), "{value}");
+            assert!(
+                value.contains("\"declaration\":\"agent-hooks-declaration/1.0\""),
+                "{value}"
+            );
+
+            // A host that accepts only 1.0 refuses a 1.1 document as
+            // version_unsupported with its own accepted set.
+            let host_1_0 = HOST.replace(", \"agent-hooks-declaration/1.1\"", "");
+            let (ok, detail, code) = call2(ah_declaration_resolve, doc, &host_1_0);
+            assert_eq!(ok, 0);
+            assert_eq!(code, "declaration_error:version_unsupported");
+            assert!(
+                detail.contains("\"accepted\":[\"agent-hooks-declaration/1.0\"]"),
+                "{detail}"
+            );
+
+            // An invalid value is invalid_field at the member.
+            let bad = doc.replace("\"continue\"", "\"allow\"");
+            let (ok, detail, code) = call2(ah_declaration_resolve, &bad, HOST);
+            assert_eq!(ok, 0);
+            assert_eq!(code, "declaration_error:invalid_field");
+            assert!(
+                detail.contains("/configuration/failure/on_error"),
+                "{detail}"
+            );
+
+            // The substitution helper and the managed outcome helper.
+            let (ok, value, _) = call1(
+                ah_control_failure_substitute,
+                br#"{"binding": "defender", "reason": "host_error:interceptor_timeout", "index": 1}"#,
+            );
+            assert_eq!(ok, 1, "{value}");
+            assert!(value.contains("\"host_warning:control_failed\""), "{value}");
+            assert!(
+                value.contains("\"substituted_for\":\"host_error:interceptor_timeout\""),
+                "{value}"
+            );
+            assert!(
+                value.contains("defender: host_error:interceptor_timeout; host continued"),
+                "{value}"
+            );
+            let (ok, _, code) = call1(
+                ah_control_failure_substitute,
+                br#"{"binding": "gate", "reason": "host_error:approval_resolver_failed"}"#,
+            );
+            assert_eq!(ok, 0);
+            assert_eq!(code, "host_error:context_invalid");
+            let (ok, value, _) = call1(ah_managed_outcome, br#"{"outcome": "cancelled"}"#);
+            assert_eq!(ok, 1);
+            assert!(value.contains("\"continuable\":false"), "{value}");
+            assert!(value.contains("host_error:interceptor_failed"), "{value}");
+            let (ok, value, _) = call1(ah_managed_outcome, br#"{"outcome": "timeout"}"#);
+            assert_eq!(ok, 1);
+            assert!(value.contains("\"continuable\":true"), "{value}");
+            assert!(value.contains("host_error:interceptor_timeout"), "{value}");
         }
     }
 
@@ -500,7 +631,9 @@ mod tests {
             assert_eq!(ok, 0);
             assert_eq!(code, "declaration_error:version_unsupported");
             assert!(
-                detail.contains("\"accepted\":[\"agent-hooks-declaration/1.0\"]"),
+                detail.contains(
+                    "\"accepted\":[\"agent-hooks-declaration/1.0\",\"agent-hooks-declaration/1.1\"]"
+                ),
                 "{detail}"
             );
             assert!(detail.contains("\"pointer\":\"/declaration\""), "{detail}");

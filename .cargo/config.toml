@@ -1,0 +1,6 @@
+# Copyright (c) Microsoft. All rights reserved.
+
+# Instrument indirect calls and enable CFG at link time for the Windows
+# production targets. Do not affect non-Windows or the GNU cgo build.
+[target.'cfg(all(target_os = "windows", target_env = "msvc"))']
+rustflags = ["-C", "control-flow-guard=checks"]

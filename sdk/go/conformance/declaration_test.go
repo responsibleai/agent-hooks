@@ -114,3 +114,54 @@ func TestScriptedConfigIndexBounds(t *testing.T) {
 		}
 	}
 }
+
+// TestBuilderPathCarriesTheFailurePosture: the typed builder setters
+// express configuration.failure.on_error and bindings[].on_error
+// (section 6.3.1), so a declaration vector that sets them resolves to
+// the same canonical form on every construction path.
+func TestBuilderPathCarriesTheFailurePosture(t *testing.T) {
+	sc := scriptsOf(map[string]any{"interceptor_scripts": []any{[]any{}, []any{}}})
+	reg, err := sc.registry(NewReferenceHarness().HostSurface())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.ControlFailureNotifier(func(agenthooks.ControlFailureNotice) {}); err != nil {
+		t.Fatal(err)
+	}
+	doc := map[string]any{
+		"declaration":   agenthooks.DeclarationVersion,
+		"configuration": map[string]any{"failure": map[string]any{"on_error": "continue"}},
+		"bindings": []any{
+			map[string]any{"id": "a", "kind": "ctk.scripted", "config": map[string]any{"script": json.Number("0")}, "on_error": "deny"},
+			map[string]any{"id": "b", "kind": "ctk.scripted", "config": map[string]any{"script": json.Number("1")}},
+		},
+	}
+	same, detail := provePaths(doc, reg, "on-error")
+	if !same {
+		t.Fatalf("paths diverged: %s", detail)
+	}
+	built := builderFromValue(doc).Value()
+	cfg := built["configuration"].(map[string]any)
+	if f, _ := cfg["failure"].(map[string]any); f["on_error"] != "continue" {
+		t.Errorf("builder dropped configuration.failure: %v", built)
+	}
+	if b := built["bindings"].([]any)[0].(map[string]any); b["on_error"] != "deny" {
+		t.Errorf("builder dropped bindings[0].on_error: %v", b)
+	}
+	// A value outside the closed set is not expressible and goes
+	// through Raw, where the loader refuses it like the text path.
+	doc["bindings"].([]any)[0].(map[string]any)["on_error"] = "ignore"
+	same, detail = provePaths(doc, reg, "on-error-invalid")
+	if !same {
+		t.Fatalf("paths diverged on the invalid value: %s", detail)
+	}
+	decl, err := agenthooks.DeclarationFromValue(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = reg.Resolve(decl)
+	var de *agenthooks.DeclarationError
+	if !errors.As(err, &de) || de.Class != agenthooks.DeclarationInvalidField {
+		t.Fatalf("expected invalid_field, got %v", err)
+	}
+}

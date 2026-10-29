@@ -107,6 +107,24 @@ fn compose_aggregate(
     core::compose_aggregate(composition_json, verdicts_json).map_err(|e| map_err(py, e))
 }
 
+/// §6.3.1 `on_error: continue`: the substituted allow, its
+/// `substituted_for` value and the principal notice for one failing
+/// registration (`{binding, reason, index?, interception_point?}` in,
+/// `{verdict, substituted_for, notice}` out). A reason outside the three
+/// covered failures is refused with `host_error:context_invalid`.
+#[pyfunction]
+fn control_failure_substitute(py: Python<'_>, request_json: &str) -> PyResult<String> {
+    core::control_failure_substitute(request_json).map_err(|e| map_err(py, e))
+}
+
+/// §6.3.1 typed outcome of an interceptor that owns its own deadline:
+/// `{"outcome": "verdict" | "timeout" | "cancelled" | "failed", ...}` in,
+/// `{verdict, failure: null | {reason, detail, continuable}}` out.
+#[pyfunction]
+fn managed_outcome(py: Python<'_>, outcome_json: &str) -> PyResult<String> {
+    core::managed_outcome(outcome_json).map_err(|e| map_err(py, e))
+}
+
 // ---- host declaration (§7.7) ---------------------------------------------
 
 /// §7.7.2: `{"current": "...", "supported": [...]}`.
@@ -174,6 +192,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_transform_ctx, m)?)?;
     m.add_function(wrap_pyfunction!(finalize, m)?)?;
     m.add_function(wrap_pyfunction!(compose_aggregate, m)?)?;
+    m.add_function(wrap_pyfunction!(control_failure_substitute, m)?)?;
+    m.add_function(wrap_pyfunction!(managed_outcome, m)?)?;
     m.add_function(wrap_pyfunction!(declaration_versions, m)?)?;
     m.add_function(wrap_pyfunction!(declaration_resolve, m)?)?;
     m.add_function(wrap_pyfunction!(ctk_scripted_intercept, m)?)?;

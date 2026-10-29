@@ -11,6 +11,10 @@ composition and provider into a copy of its own document
 (``reference.declaration.json``) and binds the scripted interceptors
 through a ``ctk.instance`` kind, so the field-based vectors exercise
 the loader too.
+
+The reference agent has no user; its principal channel (§6.3.1) is the
+host-message log it keeps for the run, reported as
+``RunRecord.host_messages``.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ import uuid
 from importlib.resources import files
 from typing import Any, ClassVar
 
-from agent_hooks._types import EnforcementMode
+from agent_hooks._types import ControlFailureNotice, EnforcementMode
 from agent_hooks.approval import ApprovalResolver
 from agent_hooks.composition import CompositionConfig
 from agent_hooks.context import AgentContext, AgentContextBuilder
@@ -62,6 +66,19 @@ class ReferenceHarness:
         self._emitter: InterceptionEmitter | None = None
         self._builder: AgentContextBuilder | None = None
         self._tool_log: list[dict[str, Any]] = []
+        #: §6.3.1: what this host told its principal (the agent) during
+        #: the session, verbatim and in order.
+        self._host_messages: list[str] = []
+
+    def _with_principal_channel(self, registry: HostRegistry) -> HostRegistry:
+        """The principal channel this host registers (§6.3.1): every
+        control-failure notice is delivered to the agent as a host
+        message and kept for the run record."""
+
+        def tell(notice: ControlFailureNotice) -> None:
+            self._host_messages.append(notice.message)
+
+        return registry.control_failure_notifier(tell)
 
     # ---- Harness protocol ---------------------------------------------------
 
@@ -122,6 +139,7 @@ class ReferenceHarness:
             return out
 
         registry.kind("ctk.instance", instance)
+        self._with_principal_channel(registry)
         doc["bindings"] = [
             {"id": f"interceptor-{i}", "kind": "ctk.instance", "config": {"index": i}}
             for i in range(len(slots))
@@ -133,11 +151,13 @@ class ReferenceHarness:
     ) -> None:
         # A refusal propagates: the runner records it as the load
         # outcome and never calls run (§7.7.9).
+        self._with_principal_channel(registry)
         self._start(scenario, InterceptionEmitter.from_declaration_value(document, registry))
 
     def _start(self, scenario: Scenario, emitter: InterceptionEmitter) -> None:
         self._scenario = scenario
         self._tool_log = []
+        self._host_messages = []
         self._emitter = emitter
         self._builder = AgentContextBuilder(
             agent_id="ref-agent",
@@ -199,6 +219,7 @@ class ReferenceHarness:
             tool_invocations=list(self._tool_log),
             identities=[(r.input_identity, r.enforced_identity) for r in em.results],
             records=[r.to_wire() for r in em.results],
+            host_messages=list(self._host_messages),
         )
 
     def teardown(self) -> None:

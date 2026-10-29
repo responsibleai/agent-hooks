@@ -1,0 +1,54 @@
+{
+  "id": "AH-CTK-157",
+  "title": "§7.7.5: an on_error value outside {deny, continue} is refused as invalid_field",
+  "spec_clause": "6.3.1, 7.7.5, 7.7.6",
+  "part": "declaration/refusal",
+  "capabilities": [
+    "host_declaration"
+  ],
+  "host_declaration_invalid": true,
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.1",
+    "bindings": [
+      {
+        "id": "allow",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        },
+        "on_error": "ignore"
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "hi",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "UNREACHED",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "refused",
+      "class": "declaration_error:invalid_field"
+    }
+  }
+}

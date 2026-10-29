@@ -10,8 +10,8 @@ from typing import Any
 from agent_hooks import (
     HostExecutionProfile,
     InterceptionEmitter,
+    OnError,
     ResultLabelPolicy,
-    TimeoutAction,
 )
 from agent_hooks.context import AgentContextBuilder
 
@@ -61,18 +61,20 @@ def test_fast_interceptor_passes_within_timeout() -> None:
     assert record.verdict.reason is None
 
 
-def test_explicit_timeout_continue_is_observable() -> None:
+def test_record_only_profile_preserves_notified_failure_continuation() -> None:
     em = InterceptionEmitter(timeout=0.05)
     em.set_execution_profile(
         HostExecutionProfile(
-            timeout_action=TimeoutAction.CONTINUE,
             result_label_policy=ResultLabelPolicy.RECORD_ONLY,
         )
     )
-    em.register(SlowInterceptor()).register(FastInterceptor())
+    notices = []
+    em.set_control_failure_notifier(notices.append)
+    em.register(SlowInterceptor(), on_error=OnError.CONTINUE).register(FastInterceptor())
     record = asyncio.run(em.emit_unchecked(_ctx()))
     assert record.proceeds
-    assert record.verdict.warnings[0].reason == "host_warning:interceptor_timeout"
+    assert record.verdict.warnings[0].reason == "host_warning:control_failed"
+    assert len(notices) == 1
     assert len(record.verdicts) == 2
 
 

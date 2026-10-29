@@ -50,14 +50,33 @@ interceptor runs at. At a point, `interceptors_registered`,
 `verdicts[].index` and `decided_by` count and index the interceptors
 bound there, in registration order.
 
+## Failure handling
+
+Every registration and every binding fails closed: an interceptor that
+throws, exceeds its timeout or returns an invalid verdict is recorded
+as `deny host_error:*` and the action stops. An administrator can set
+`on_error: "continue"` for one registration
+(`registerWithOptions(interceptor, { name, onError: "continue" })`, or
+`on_error` on a binding or `configuration.failure.on_error` in a 1.1
+document); the host then puts an `allow` carrying
+`host_warning:control_failed` in that slot, records the cause as
+`verdicts[].substituted_for` and calls the `setControlFailureNotifier`
+callback (required before such a registration is accepted) so the user
+or the agent is told, while cancellation, approval failures, context
+failures, transform failures, `no_interceptor` and an explicit deny
+never continue. An interceptor that owns external work implements
+`interceptManaged(ctx, boundMs)` (`registerManaged`, or a `managedKind`
+in the registry), receives the resolved bound and reports `verdict`,
+`timeout` after cleanup, `failed` or `cancelled`.
+
 ## Host declaration
 
 A host can load its configuration, declared surface and interceptor
 bindings from one JSON document (spec §7.7) instead of calling the
 setters. The document is a versioned contract,
-`agent-hooks-declaration/1.0`, separate from the wire version
-`agent-hooks/0.1`. The SDK exports the version it writes
-(`DECLARATION_VERSION`) and the set it accepts
+`agent-hooks-declaration/1.1` (1.0 documents load unchanged), separate
+from the wire version `agent-hooks/0.1`. The SDK exports the version
+it writes (`DECLARATION_VERSION`) and the set it accepts
 (`SUPPORTED_DECLARATION_VERSIONS`). A document of any other version is
 refused.
 
@@ -88,8 +107,8 @@ The three construction paths yield the same emitter and the same
 records: `fromDeclarationPath` reads a file, `fromDeclarationJson`
 takes the text, `fromDeclarationValue` takes a parsed object, and
 `fromDeclaration` takes a `HostDeclaration` (for example from
-`HostDeclaration.builder()`, one setter per member and `bind(...)` per
-binding). `emitter.declaration` is the resolved form with every default
+`HostDeclaration.builder()`, one setter per member and `bind(...)` or
+`bindWith(...)` per binding). `emitter.declaration` is the resolved form with every default
 filled; `canonicalDeclaration(emitter.declaration)` is its RFC 8785
 canonical JSON, the equivalence oracle.
 
@@ -102,8 +121,8 @@ the class is the same as in the other SDKs. An emitter built from a
 declaration is sealed: `register` and the setters throw
 `EmitterSealed`; `setRecordSink` and `takeRecords` stay allowed.
 Records from such an emitter carry `declaration:
-"agent-hooks-declaration/1.0"`; records from an emitter configured in
-code do not and are unchanged.
+"agent-hooks-declaration/1.1"` (or `1.0`, the document's own version);
+records from an emitter configured in code do not and are unchanged.
 
 **JavaScript value-domain caveat (spec §4.4):** `JSON.parse` rounds
 integers beyond 2^53 before any guard can run, so this SDK cannot claim

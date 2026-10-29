@@ -19,13 +19,22 @@ JCS_SHA256: Final[str] = "jcs-sha256"
 #: The host declaration contract version this SDK writes and accepts
 #: (§7.7.2). Independent of :data:`SPEC_VERSION` (the wire contract)
 #: and of the package version. Equal to the Rust core's constant; a
-#: test pins the two.
-DECLARATION_VERSION: Final[str] = "agent-hooks-declaration/1.0"
+#: test pins the two. 1.1 adds the optional ``on_error`` members
+#: (§6.3.1, §7.7.5); a document without them keeps its 1.0 meaning.
+DECLARATION_VERSION: Final[str] = "agent-hooks-declaration/1.1"
 
 #: Every declaration contract version this SDK's loader accepts
-#: (§7.7.2). A document carrying any other ``declaration`` value is
-#: refused with ``declaration_error:version_unsupported``.
-SUPPORTED_DECLARATION_VERSIONS: Final[tuple[str, ...]] = (DECLARATION_VERSION,)
+#: (§7.7.2), oldest first. A document carrying any other
+#: ``declaration`` value is refused with
+#: ``declaration_error:version_unsupported``.
+SUPPORTED_DECLARATION_VERSIONS: Final[tuple[str, ...]] = (
+    "agent-hooks-declaration/1.0",
+    DECLARATION_VERSION,
+)
+
+#: Warning ``reason`` prefixes reserved for the host (§11, §11.1). An
+#: interceptor verdict carrying either fails the §5 gate.
+_RESERVED_REASON_PREFIXES: Final[tuple[str, ...]] = ("host_error:", "host_warning:")
 
 
 class InterceptionPoint(str, Enum):
@@ -103,6 +112,87 @@ class HostError(str, Enum):
     NO_INTERCEPTOR = "host_error:no_interceptor"
     STREAMING_UNSUPPORTED = "host_error:streaming_unsupported"
 
+    @property
+    def is_control_failure(self) -> bool:
+        """Whether this is one of the three interceptor failures that
+        ``on_error`` covers (§6.3.1): the interceptor raised, exceeded
+        its timeout, or returned a value that fails §5 validation.
+        Every other reason stays fail closed with no knob."""
+        return self in {
+            HostError.INTERCEPTOR_FAILED,
+            HostError.INTERCEPTOR_TIMEOUT,
+            HostError.VERDICT_INVALID,
+        }
+
+
+class HostWarning(str, Enum):
+    """Reserved ``host_warning:*`` reasons a host synthesizes (§11.1,
+    ``spec/reserved-warnings.json``). Interceptors MUST NOT emit them;
+    the §5 gate refuses such a verdict as ``verdict_invalid``."""
+
+    #: A registration whose ``on_error`` is ``continue`` failed and the
+    #: host substituted an allow for its slot (§6.3.1).
+    CONTROL_FAILED = "host_warning:control_failed"
+
+
+class OnError(str, Enum):
+    """What a registration does when its interceptor fails (§6.3.1).
+
+    The three covered failures are a raise, a timeout and a §5-invalid
+    return value. ``DENY`` is the default and the fail-closed posture.
+    ``CONTINUE`` substitutes an allow carrying
+    ``host_warning:control_failed`` in the failing registration's
+    composition slot, records the underlying reason on
+    ``verdicts[].substituted_for`` and tells the principal. Nothing else
+    is affected by this setting.
+    """
+
+    DENY = "deny"
+    CONTINUE = "continue"
+
+    @classmethod
+    def coerce(cls, value: OnError | str) -> OnError:
+        """``OnError`` or its wire name; anything else is a ``ValueError``."""
+        if isinstance(value, OnError):
+            return value
+        try:
+            return cls(value)
+        except ValueError:
+            raise ValueError(f"on_error must be 'deny' or 'continue' (got {value!r})") from None
+
+
+@dataclass(frozen=True, slots=True)
+class ControlFailureNotice:
+    """What the host tells the principal when a control failed and the
+    action continued (§6.3.1). Payload-free: the binding label, the
+    reserved reason and the host-synthesized message; never context or
+    target content."""
+
+    #: Dispatch index of the failing registration (``verdicts[].index``).
+    index: int
+    #: The registration name (a declaration binding id) or the index
+    #: written as a decimal integer for an unnamed code registration.
+    binding: str
+    #: The underlying ``host_error:*`` reason, also recorded as
+    #: ``verdicts[].substituted_for``.
+    reason: str
+    #: ``<binding>: <reason>; host continued``.
+    message: str
+    #: The interception point of the emission, when the context carried
+    #: a parseable one.
+    interception_point: InterceptionPoint | None = None
+
+    @classmethod
+    def _from_core(cls, obj: dict[str, Any]) -> ControlFailureNotice:
+        point = obj.get("interception_point")
+        return cls(
+            index=int(obj["index"]),
+            binding=str(obj["binding"]),
+            reason=str(obj["reason"]),
+            message=str(obj["message"]),
+            interception_point=InterceptionPoint(point) if isinstance(point, str) else None,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class Transform:
@@ -171,8 +261,13 @@ class Warning:
         if not isinstance(obj, dict):
             raise ValueError("warnings must be an array of objects (§5)")
         reason = obj.get("reason")
-        if reason is not None and (not isinstance(reason, str) or reason.startswith("host_error:")):
-            raise ValueError("warnings[].reason must be a non-reserved string")
+        if reason is not None and (
+            not isinstance(reason, str) or reason.startswith(_RESERVED_REASON_PREFIXES)
+        ):
+            raise ValueError(
+                "warnings[].reason must be a string not starting with 'host_error:' or "
+                "'host_warning:' (§5, §11.1)"
+            )
         message = obj.get("message")
         if message is not None and not isinstance(message, str):
             raise ValueError("warnings[].message must be string or null")
@@ -204,6 +299,14 @@ class Verdict:
     def __post_init__(self) -> None:
         if self.reason is not None and self.reason.startswith("host_error:"):
             raise ValueError("verdict.reason MUST NOT start with 'host_error:' (§5)")
+        for w in self.warnings:
+            # §11.1: the host_warning: prefix is reserved like host_error:;
+            # an interceptor that emits either spoofs a host substitution.
+            if w.reason is not None and w.reason.startswith(_RESERVED_REASON_PREFIXES):
+                raise ValueError(
+                    "warnings[].reason MUST NOT start with 'host_error:' or "
+                    "'host_warning:' (§5, §11.1)"
+                )
         if self.approval is not None and self.decision is not Decision.DENY:
             raise ValueError("approval block permitted only on deny (§5.1)")
         if self.decision is Decision.TRANSFORM and self.transform is None:
@@ -336,6 +439,61 @@ class Verdict:
         object.__setattr__(v, "result_labels", ())
         return v
 
+    @staticmethod
+    def control_failure_message(binding: str, reason: HostError) -> str:
+        """The message of the §6.3.1 substituted allow and of the
+        principal notice: ``<binding>: <host_error reason>; host
+        continued``. Built from the registration label and the reserved
+        reason only, so it never carries target-derived content."""
+        return f"{binding}: {reason.value}; host continued"
+
+    @classmethod
+    def control_failure_substitute(cls, binding: str, reason: HostError) -> Verdict:
+        """The allow the host substitutes for a failing registration
+        whose ``on_error`` is ``continue`` (§6.3.1): decision ``allow``,
+        one warning with reason ``host_warning:control_failed``, nothing
+        else. ``reason`` MUST be one of the three covered failures
+        (:attr:`HostError.is_control_failure`). Bypasses the
+        interceptor-side reserved-prefix check, like :meth:`host_error`.
+        """
+        if not reason.is_control_failure:
+            raise ValueError(f"{reason.value} is not a failure on_error covers (§6.3.1)")
+        v = object.__new__(cls)
+        object.__setattr__(v, "decision", Decision.ALLOW)
+        object.__setattr__(v, "reason", None)
+        object.__setattr__(v, "message", None)
+        object.__setattr__(
+            v,
+            "warnings",
+            (
+                Warning(
+                    reason=HostWarning.CONTROL_FAILED.value,
+                    message=cls.control_failure_message(binding, reason),
+                ),
+            ),
+        )
+        object.__setattr__(v, "approval", None)
+        object.__setattr__(v, "transform", None)
+        object.__setattr__(v, "evidence", None)
+        object.__setattr__(v, "result_labels", ())
+        return v
+
+    @property
+    def is_control_failure_substitute(self) -> bool:
+        """Whether this verdict is exactly the shape
+        :meth:`control_failure_substitute` produces."""
+        return (
+            self.decision is Decision.ALLOW
+            and self.reason is None
+            and self.message is None
+            and self.approval is None
+            and self.transform is None
+            and self.evidence is None
+            and not self.result_labels
+            and len(self.warnings) == 1
+            and self.warnings[0].reason == HostWarning.CONTROL_FAILED.value
+        )
+
     @classmethod
     def _from_core(cls, vw: dict[str, Any]) -> Verdict:
         """Reconstruct from core-emitted JSON without the §5 gate.
@@ -383,6 +541,11 @@ class VerdictSummary:
     reason: str | None = None
     #: Host-chosen payload-free registration identifier (§10.3).
     name: str | None = None
+    #: Present iff the host substituted an allow for this registration's
+    #: failure under ``on_error: continue`` (§6.3.1, §10.3): the
+    #: underlying ``host_error:*`` reason, so an auditor can count
+    #: continuations and see their cause.
+    substituted_for: str | None = None
 
     def to_wire(self) -> dict[str, Any]:
         out: dict[str, Any] = {"index": self.index, "decision": self.decision.value}
@@ -390,6 +553,8 @@ class VerdictSummary:
             out["reason"] = self.reason
         if self.name is not None:
             out["name"] = self.name
+        if self.substituted_for is not None:
+            out["substituted_for"] = self.substituted_for
         return out
 
     @classmethod
@@ -399,7 +564,62 @@ class VerdictSummary:
             decision=Decision(obj["decision"]),
             reason=obj.get("reason"),
             name=obj.get("name"),
+            substituted_for=obj.get("substituted_for"),
         )
+
+
+@dataclass(frozen=True, slots=True)
+class ManagedInterceptorOutcome:
+    """Typed completion of a :class:`~agent_hooks.ManagedInterceptor`
+    (§6.3.1, timeout ownership; §7).
+
+    Build one with :meth:`of_verdict`, :meth:`timeout`,
+    :meth:`cancelled` or :meth:`failed`. ``timeout`` is reported only
+    after the interceptor has cancelled and cleaned up its external
+    work and follows the registration's ``on_error``; ``failed`` is
+    the raise failure of §6.3 and follows ``on_error``; ``cancelled``
+    is never a timeout, is recorded as ``host_error:interceptor_failed``
+    and never continues.
+    """
+
+    #: ``"verdict"`` | ``"timeout"`` | ``"cancelled"`` | ``"failed"``.
+    kind: str
+    #: The verdict (a :class:`Verdict` or a wire-shaped dict) for
+    #: ``kind == "verdict"``; it crosses the same §5 gate as any
+    #: interceptor's.
+    verdict: Verdict | dict[str, Any] | None = None
+    #: Payload-free detail for ``kind == "failed"`` (an error type
+    #: name, never content).
+    detail: str | None = None
+
+    @classmethod
+    def of_verdict(cls, verdict: Verdict | dict[str, Any]) -> ManagedInterceptorOutcome:
+        return cls(kind="verdict", verdict=verdict)
+
+    @classmethod
+    def timeout(cls) -> ManagedInterceptorOutcome:
+        """The work exceeded the resolved bound and has been cleaned up."""
+        return cls(kind="timeout")
+
+    @classmethod
+    def cancelled(cls) -> ManagedInterceptorOutcome:
+        """The host or runtime cancelled the emission."""
+        return cls(kind="cancelled")
+
+    @classmethod
+    def failed(cls, detail: str | None = None) -> ManagedInterceptorOutcome:
+        """The work failed; ``detail`` is payload-free."""
+        return cls(kind="failed", detail=detail)
+
+    def to_wire(self) -> dict[str, Any]:
+        """The shape ``_core.managed_outcome`` takes."""
+        out: dict[str, Any] = {"outcome": self.kind}
+        if self.kind == "verdict":
+            v = self.verdict
+            out["verdict"] = v.to_wire() if isinstance(v, Verdict) else v
+        elif self.kind == "failed" and self.detail is not None:
+            out["detail"] = self.detail
+        return out
 
 
 @dataclass(frozen=True, slots=True)

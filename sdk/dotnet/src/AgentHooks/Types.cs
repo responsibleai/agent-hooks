@@ -126,6 +126,81 @@ public static class HostError
     /// <summary>§7: an <c>enforce</c>-mode emission with zero registered
     /// interceptors fails closed rather than silently allowing everything.</summary>
     public const string NoInterceptor = "host_error:no_interceptor";
+
+    /// <summary>Whether <paramref name="reason"/> is one of the three
+    /// interceptor failures <c>on_error</c> covers (§6.3.1): the
+    /// interceptor raised, exceeded its timeout, or returned a value
+    /// that fails §5 validation. Every other reason stays fail closed
+    /// with no knob.</summary>
+    public static bool IsControlFailure(string reason) =>
+        reason is InterceptorFailed or InterceptorTimeout or VerdictInvalid;
+}
+
+/// <summary>Reserved <c>host_warning:*</c> reasons a host synthesizes
+/// (§11.1, <c>spec/reserved-warnings.json</c>). Interceptors MUST NOT
+/// emit them; the §5 gate refuses such a verdict as
+/// <c>host_error:verdict_invalid</c>.</summary>
+public static class HostWarning
+{
+    /// <summary>A registration whose <c>on_error</c> is <c>continue</c>
+    /// failed and the host substituted an allow for its slot (§6.3.1).</summary>
+    public const string ControlFailed = "host_warning:control_failed";
+}
+
+/// <summary>What a registration does when its interceptor fails
+/// (§6.3.1). The three covered failures are a raise, a timeout and a
+/// §5-invalid return value. <see cref="Deny"/> is the default and the
+/// fail-closed posture; <see cref="Continue"/> substitutes an allow
+/// carrying <see cref="HostWarning.ControlFailed"/> in the failing
+/// registration's slot, records the underlying reason on
+/// <c>verdicts[].substituted_for</c> and tells the principal. Nothing
+/// else is affected by this setting.</summary>
+public enum OnError
+{
+    Deny,
+    Continue,
+}
+
+public static class OnErrorExtensions
+{
+    public static string ToWireName(this OnError e) => e switch
+    {
+        OnError.Deny => "deny",
+        OnError.Continue => "continue",
+        _ => throw new ArgumentOutOfRangeException(nameof(e)),
+    };
+
+    public static OnError FromWireName(string s) => s switch
+    {
+        "deny" => OnError.Deny,
+        "continue" => OnError.Continue,
+        _ => throw new ArgumentOutOfRangeException(nameof(s), s, "Unknown on_error value"),
+    };
+}
+
+/// <summary>What the host tells the principal when a control failed
+/// and the action continued (§6.3.1). Payload-free: the binding label,
+/// the reserved reason and the host-synthesized message; never context
+/// or target content. <see cref="Binding"/> is the registration name
+/// (a declaration binding id) or <c>interceptor-&lt;index&gt;</c> for
+/// an unnamed code registration; <see cref="Index"/> is the dispatch
+/// index (<c>verdicts[].index</c>); <see cref="Message"/> is
+/// <c>&lt;binding&gt;: &lt;reason&gt;; host continued</c>.</summary>
+public sealed record ControlFailureNotice(
+    InterceptionPoint? InterceptionPoint,
+    int Index,
+    string Binding,
+    string Reason,
+    string Message)
+{
+    internal static ControlFailureNotice FromWire(JsonObject o) => new(
+        o["interception_point"] is JsonValue p && p.TryGetValue(out string? point)
+            ? InterceptionPointExtensions.FromWireName(point)
+            : null,
+        (int)o["index"]!,
+        (string)o["binding"]!,
+        (string)o["reason"]!,
+        (string)o["message"]!);
 }
 
 // ---- composition (§7) --------------------------------------------------------
@@ -300,6 +375,41 @@ public sealed record Verdict(
     public static Verdict FromHostErrorLiftable(string hookError, string? message = null) =>
         new(Decision.Deny, Reason: hookError, Message: message, Approval: []);
 
+    /// <summary>The message of the §6.3.1 substituted allow and of the
+    /// principal notice: <c>&lt;binding&gt;: &lt;host_error reason&gt;;
+    /// host continued</c>. Built from the registration label and the
+    /// reserved reason only, so it never carries target-derived
+    /// content.</summary>
+    public static string ControlFailureMessage(string binding, string reason) =>
+        $"{binding}: {reason}; host continued";
+
+    /// <summary>The allow the host substitutes for a failing registration
+    /// whose <c>on_error</c> is <c>continue</c> (§6.3.1): decision
+    /// <c>allow</c>, one warning with reason
+    /// <see cref="HostWarning.ControlFailed"/>, nothing else.
+    /// <paramref name="reason"/> MUST be one of the three covered
+    /// failures (<see cref="HostError.IsControlFailure"/>).</summary>
+    public static Verdict ControlFailureSubstitute(string binding, string reason)
+    {
+        if (!HostError.IsControlFailure(reason))
+            throw new ArgumentException(
+                $"{reason} is not a failure on_error covers (§6.3.1)", nameof(reason));
+        return Warn(HostWarning.ControlFailed, ControlFailureMessage(binding, reason));
+    }
+
+    /// <summary>Whether this verdict is exactly the shape
+    /// <see cref="ControlFailureSubstitute"/> produces.</summary>
+    public bool IsControlFailureSubstitute =>
+        Decision == Decision.Allow
+        && Reason is null
+        && Message is null
+        && Approval is null
+        && Transform is null
+        && Evidence is null
+        && (ResultLabels is null || ResultLabels.Count == 0)
+        && Warnings is { Count: 1 }
+        && Warnings[0].Reason == HostWarning.ControlFailed;
+
     /// <summary>A deny carrying an <c>approval</c> block (§5.1).</summary>
     public bool IsLiftable => Decision == Decision.Deny && Approval is not null;
 
@@ -308,6 +418,16 @@ public sealed record Verdict(
     {
         if (Reason?.StartsWith("host_error:", StringComparison.Ordinal) == true)
             throw new ArgumentException("verdict.reason MUST NOT start with 'host_error:' (§5)");
+        // §6.3.1/§11.1: host_warning:* is reserved for the host, like
+        // host_error:*; an interceptor that emits either spoofs a host
+        // substitution.
+        foreach (var w in Warnings ?? [])
+        {
+            if (w.Reason?.StartsWith("host_error:", StringComparison.Ordinal) == true
+                || w.Reason?.StartsWith("host_warning:", StringComparison.Ordinal) == true)
+                throw new ArgumentException(
+                    "verdict.warnings[].reason MUST NOT start with 'host_error:' or 'host_warning:' (§5, §11.1)");
+        }
         if (Approval is not null && Decision != Decision.Deny)
             throw new ArgumentException("approval block permitted only on deny (§5.1)");
         if (Decision == Decision.Transform && Transform is null)
@@ -424,10 +544,33 @@ public sealed record InterceptorResponse(
         value["extensions"] as JsonObject);
 }
 
-/// <summary>Payload-free per-interceptor summary on the record (§10.3).</summary>
+/// <summary>Payload-free per-interceptor summary on the record (§10.3).
+/// <c>SubstitutedFor</c> is present iff the host substituted an allow
+/// for this registration's failure under <c>on_error: continue</c>
+/// (§6.3.1): the underlying <c>host_error:*</c> reason, so an auditor
+/// can count continuations and see their cause.</summary>
 public sealed record VerdictSummary(
-    int Index, Decision Decision, string? Reason = null, string? Name = null)
+    int Index, Decision Decision, string? Reason, string? Name, string? SubstitutedFor)
 {
+    /// <summary>The four-component shape shipped before
+    /// <c>SubstitutedFor</c> existed. Kept for binary compatibility: an
+    /// assembly compiled against it binds to this exact signature. The
+    /// defaults let <c>new VerdictSummary(i, d)</c> keep resolving here.</summary>
+    public VerdictSummary(int Index, Decision Decision, string? Reason = null, string? Name = null)
+        : this(Index, Decision, Reason, Name, SubstitutedFor: null)
+    {
+    }
+
+    /// <summary>The four-component deconstruction, kept next to the
+    /// compiler's five-component one for the same reason.</summary>
+    public void Deconstruct(out int Index, out Decision Decision, out string? Reason, out string? Name)
+    {
+        Index = this.Index;
+        Decision = this.Decision;
+        Reason = this.Reason;
+        Name = this.Name;
+    }
+
     public JsonObject ToWire()
     {
         var o = new JsonObject
@@ -437,6 +580,7 @@ public sealed record VerdictSummary(
         };
         if (Reason is not null) o["reason"] = Reason;
         if (Name is not null) o["name"] = Name;
+        if (SubstitutedFor is not null) o["substituted_for"] = SubstitutedFor;
         return o;
     }
 
@@ -444,7 +588,8 @@ public sealed record VerdictSummary(
         (int)o["index"]!,
         DecisionExtensions.FromWireName((string)o["decision"]!),
         (string?)o["reason"],
-        (string?)o["name"]);
+        (string?)o["name"],
+        (string?)o["substituted_for"]);
 }
 
 /// <summary>W3C Trace Context correlation echoed onto the record from
@@ -601,6 +746,106 @@ public sealed record InterceptionRecord(
 public interface IInterceptor
 {
     ValueTask<Verdict> InterceptAsync(AgentContext context, CancellationToken ct = default);
+}
+
+/// <summary>The four typed completions of a managed interceptor (§7
+/// timeout ownership, §6.3.1).</summary>
+public enum ManagedOutcomeKind
+{
+    /// <summary>A verdict; it crosses the same §5 gate as any interceptor's.</summary>
+    Verdict,
+
+    /// <summary>The work exceeded the resolved bound and has been
+    /// cancelled and cleaned up. Recorded as
+    /// <c>host_error:interceptor_timeout</c>; follows <c>on_error</c>.</summary>
+    Timeout,
+
+    /// <summary>The host cancelled the work for its own reasons.
+    /// Recorded as <c>host_error:interceptor_failed</c>; never a
+    /// timeout and never continues, whatever <c>on_error</c> says.</summary>
+    Cancelled,
+
+    /// <summary>The work failed. Recorded as
+    /// <c>host_error:interceptor_failed</c>; follows <c>on_error</c>.</summary>
+    Failed,
+}
+
+/// <summary>Typed completion of an <see cref="IManagedInterceptor"/>
+/// (§7). <see cref="Timeout"/> is reported only after the interceptor
+/// has cancelled and cleaned up its external work; <see cref="Cancelled"/>
+/// is never a timeout and never continues.</summary>
+public sealed class ManagedInterceptorOutcome
+{
+    private ManagedInterceptorOutcome(ManagedOutcomeKind kind, Verdict? verdict, string? detail)
+    {
+        Kind = kind;
+        Verdict = verdict;
+        Detail = detail;
+    }
+
+    public ManagedOutcomeKind Kind { get; }
+
+    /// <summary>The verdict; non-null iff <see cref="Kind"/> is
+    /// <see cref="ManagedOutcomeKind.Verdict"/>.</summary>
+    public Verdict? Verdict { get; }
+
+    /// <summary>Payload-free detail of a <see cref="ManagedOutcomeKind.Failed"/>
+    /// outcome (an exception type name, never content).</summary>
+    public string? Detail { get; }
+
+    /// <summary>The work produced a verdict.</summary>
+    public static ManagedInterceptorOutcome FromVerdict(Verdict verdict)
+    {
+        ArgumentNullException.ThrowIfNull(verdict);
+        return new(ManagedOutcomeKind.Verdict, verdict, null);
+    }
+
+    /// <summary>The work exceeded the bound and is no longer running.</summary>
+    public static readonly ManagedInterceptorOutcome Timeout = new(ManagedOutcomeKind.Timeout, null, null);
+
+    /// <summary>The host cancelled the work.</summary>
+    public static readonly ManagedInterceptorOutcome Cancelled = new(ManagedOutcomeKind.Cancelled, null, null);
+
+    /// <summary>The work failed; <paramref name="detail"/> is a
+    /// payload-free type name or <c>null</c>.</summary>
+    public static ManagedInterceptorOutcome Failed(string? detail = null) =>
+        new(ManagedOutcomeKind.Failed, null, detail);
+
+    /// <summary>The wire shape <c>ah_managed_outcome</c> consumes:
+    /// <c>{"outcome": "verdict", "verdict": {...}}</c> |
+    /// <c>{"outcome": "timeout"}</c> | <c>{"outcome": "cancelled"}</c> |
+    /// <c>{"outcome": "failed", "detail"?: "..."}</c>.</summary>
+    public JsonObject ToWire()
+    {
+        var o = new JsonObject
+        {
+            ["outcome"] = Kind switch
+            {
+                ManagedOutcomeKind.Verdict => "verdict",
+                ManagedOutcomeKind.Timeout => "timeout",
+                ManagedOutcomeKind.Cancelled => "cancelled",
+                _ => "failed",
+            },
+        };
+        if (Verdict is not null) o["verdict"] = Verdict.ToWire();
+        if (Detail is not null) o["detail"] = Detail;
+        return o;
+    }
+}
+
+/// <summary>An interceptor that owns external work (a process, an HTTP
+/// call) and therefore its own deadline (§7). The emitter does not wrap
+/// it in the outer timer; instead it hands the interceptor the resolved
+/// bound for the registration (<c>null</c> is unbounded), and the
+/// interceptor MUST cancel and clean up the work before it reports
+/// <see cref="ManagedInterceptorOutcome.Timeout"/>. The cancellation
+/// token is the host's: a cancelled token is the
+/// <see cref="ManagedInterceptorOutcome.Cancelled"/> case, never a
+/// timeout.</summary>
+public interface IManagedInterceptor
+{
+    ValueTask<ManagedInterceptorOutcome> InterceptManagedAsync(
+        AgentContext context, TimeSpan? bound, CancellationToken ct = default);
 }
 
 /// <summary>Approval seam (§9).</summary>

@@ -31,6 +31,27 @@
 //! host-side wrapper interceptor must NOT return `host_error:*`
 //! reasons itself — the §5 gate treats that as spoofing (TM-02); use
 //! the feature or fail the future.
+//!
+//! # Failure posture (`on_error`, §6.3)
+//!
+//! Every registration carries an [`OnError`]. The default, `Deny`,
+//! is the fail-closed posture above. `Continue` covers exactly three
+//! failures of the registration's own interceptor (a raise or panic,
+//! a timeout, a §5-invalid return value): the host substitutes an
+//! allow carrying `host_warning:control_failed` in that registration's
+//! composition slot, records the underlying `host_error:*` reason on
+//! `verdicts[].substituted_for`, and tells the principal through the
+//! [`ControlFailureNotifier`]. Context failures, cancellation,
+//! transform failures, approval failures, `no_interceptor` and an
+//! explicit deny never continue. A `Continue` registration without a
+//! notifier is refused at construction, so silent continuation is not
+//! reachable by leaving the channel out.
+//!
+//! An interceptor that owns external work implements
+//! [`ManagedInterceptor`] instead: the emitter does not wrap it in the
+//! outer timer but hands it the resolved bound, and the interceptor
+//! reports a typed outcome after it has cleaned up. A cancelled
+//! outcome is never a timeout and never continues.
 
 use crate::canonical;
 use crate::composition::{
@@ -43,13 +64,14 @@ use crate::declaration::{
 };
 use crate::enforce::{apply_transform_to_ctx, finalize, validate_transform, FinalizeMeta};
 use crate::types::{
-    AgentContext, ApprovalOutcome, ApprovalRequest, ApprovalResolution, ApprovalResolver, Decision,
-    EnforcementMode, HostError, InterceptionPoint, InterceptionRecord, Interceptor,
-    ManagedInterceptor, ManagedInterceptorOutcome, Verdict, VerdictSummary, JCS_SHA256,
+    AgentContext, ApprovalOutcome, ApprovalRequest, ApprovalResolution, ApprovalResolver,
+    ControlFailureNotice, ControlFailureNotifier, Decision, EnforcementMode, HostError,
+    InterceptionPoint, InterceptionRecord, Interceptor, ManagedInterceptor,
+    ManagedInterceptorOutcome, OnError, Verdict, VerdictSummary, JCS_SHA256,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fmt;
 use std::path::Path;
 use std::sync::Arc;
@@ -62,20 +84,6 @@ use std::sync::Arc;
 pub struct EmitOutcome {
     pub record: InterceptionRecord,
     pub target: Value,
-}
-
-/// What the host does when one interceptor exceeds its bound.
-///
-/// `Deny` is the existing fail-closed behaviour. `Continue` is an
-/// explicitly adopted host posture: the timed-out slot becomes an
-/// `allow` carrying `host_warning:interceptor_timeout`, so the bypass
-/// is observable in the combined record.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TimeoutAction {
-    #[default]
-    Deny,
-    Continue,
 }
 
 /// Whether permit-verdict labels participate in host data-label flow.
@@ -96,38 +104,25 @@ pub enum ResultLabelPolicy {
 #[serde(deny_unknown_fields)]
 pub struct HostExecutionProfile {
     #[serde(default)]
-    pub timeout_action: TimeoutAction,
-    #[serde(default)]
     pub result_label_policy: ResultLabelPolicy,
 }
 
 impl HostExecutionProfile {
-    /// Existing Agent Hooks semantics: timeouts deny and result labels flow.
+    /// Existing Agent Hooks semantics: result labels flow with application data.
     pub const fn strict() -> Self {
         Self {
-            timeout_action: TimeoutAction::Deny,
             result_label_policy: ResultLabelPolicy::Flow,
         }
     }
 }
 
-/// Additive options for one programmatic registration.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct RegistrationOptions {
-    pub name: Option<String>,
-    pub at: Option<BTreeSet<InterceptionPoint>>,
-    /// `None` inherits [`HostExecutionProfile::timeout_action`].
-    pub on_timeout: Option<TimeoutAction>,
-}
-
 /// One independently supplied declaration used only as a source of
-/// bindings. The declaration is still fully resolved; `binding_options`
-/// may only override execution posture for binding ids it contains.
+/// bindings. Configuration and failure posture come from the fully
+/// resolved declaration.
 #[derive(Debug, Clone)]
 pub struct DeclarationSource {
     pub id: String,
     pub declaration: HostDeclaration,
-    pub binding_options: BTreeMap<String, RegistrationOptions>,
 }
 
 impl DeclarationSource {
@@ -135,7 +130,6 @@ impl DeclarationSource {
         Self {
             id: id.into(),
             declaration,
-            binding_options: BTreeMap::new(),
         }
     }
 }
@@ -236,77 +230,99 @@ impl IdentityProvider {
     }
 }
 
-/// §6.3/§7: invoke one interceptor with panic isolation and (with the
-/// `tokio-timeout` feature) the emitter-owned timeout. `Err` carries a
-/// host-synthesized failure verdict that MUST bypass the §5 gate — the
-/// gate exists to stop *interceptors* spoofing reserved reasons, not
-/// the host substituting them (TM-02).
-#[cfg_attr(not(feature = "tokio-timeout"), allow(dead_code))]
-enum CallFailure {
-    Timeout,
-    Failed(Box<Verdict>),
+/// Why one interceptor call produced no usable verdict (§6.3). The
+/// failure is host-synthesized and MUST bypass the §5 gate — the gate
+/// exists to stop *interceptors* spoofing reserved reasons, not the
+/// host substituting them (TM-02).
+struct CallFailure {
+    reason: HostError,
+    detail: Option<String>,
+    /// Whether `on_error: continue` may substitute an allow for this
+    /// failure. False for a cancelled managed outcome: cancellation is
+    /// not one of the three covered failures, whatever reason records
+    /// it.
+    continuable: bool,
 }
 
+impl CallFailure {
+    /// One of the three failures `on_error` covers.
+    fn covered(reason: HostError, detail: Option<String>) -> Self {
+        debug_assert!(reason.is_control_failure());
+        Self {
+            reason,
+            detail,
+            continuable: true,
+        }
+    }
+}
+
+/// §6.3/§7: invoke one interceptor with panic isolation and (with the
+/// `tokio-timeout` feature) the emitter-owned timeout. A managed
+/// interceptor is not wrapped in the timer: it receives `limit` as the
+/// resolved bound and reports a typed outcome after its own cleanup.
 async fn call_isolated(
     interceptor: &BoundInterceptor,
     ctx: &AgentContext,
-    #[allow(unused_variables)] limit: Option<std::time::Duration>,
+    limit: Option<std::time::Duration>,
 ) -> Result<Verdict, CallFailure> {
     use futures_util::FutureExt;
-    if let BoundInterceptor::Managed(interceptor) = interceptor {
-        return std::panic::AssertUnwindSafe(interceptor.intercept_managed(ctx))
-            .catch_unwind()
-            .await
-            .map_err(|_| {
-                CallFailure::Failed(Box::new(Verdict::host_error(
+    let interceptor = match interceptor {
+        BoundInterceptor::Managed(m) => {
+            let fut = std::panic::AssertUnwindSafe(m.intercept_managed(ctx, limit)).catch_unwind();
+            return match fut.await {
+                Err(_) => Err(CallFailure::covered(
                     HostError::InterceptorFailed,
-                    Some("managed interceptor panicked (see spec §6.3)".into()),
-                )))
-            })
-            .and_then(|outcome| match outcome {
-                ManagedInterceptorOutcome::Verdict(verdict) => Ok(*verdict),
-                ManagedInterceptorOutcome::Timeout => Err(CallFailure::Timeout),
-                ManagedInterceptorOutcome::Cancelled => {
-                    Err(CallFailure::Failed(Box::new(Verdict::host_error(
-                        HostError::InterceptorFailed,
-                        Some("managed interceptor was cancelled".into()),
-                    ))))
+                    Some("managed interceptor panicked (see spec 6.3)".into()),
+                )),
+                Ok(ManagedInterceptorOutcome::Verdict(v)) => Ok(*v),
+                Ok(ManagedInterceptorOutcome::Timeout) => {
+                    Err(CallFailure::covered(HostError::InterceptorTimeout, None))
                 }
-                ManagedInterceptorOutcome::Failed => Err(CallFailure::Failed(Box::new(
-                    Verdict::host_error(HostError::InterceptorFailed, None),
-                ))),
-            });
-    }
-    let BoundInterceptor::Standard(interceptor) = interceptor else {
-        unreachable!()
+                // Cancellation is recorded as a failure but is not one
+                // of the covered failures: it never continues.
+                Ok(ManagedInterceptorOutcome::Cancelled) => Err(CallFailure {
+                    reason: HostError::InterceptorFailed,
+                    detail: Some("managed interceptor was cancelled (see spec 6.3)".into()),
+                    continuable: false,
+                }),
+                Ok(ManagedInterceptorOutcome::Failed(detail)) => {
+                    Err(CallFailure::covered(HostError::InterceptorFailed, detail))
+                }
+            };
+        }
+        BoundInterceptor::Standard(i) => i,
     };
     let fut = std::panic::AssertUnwindSafe(interceptor.intercept(ctx)).catch_unwind();
     #[cfg(feature = "tokio-timeout")]
     let caught = match limit {
         Some(d) => match tokio::time::timeout(d, fut).await {
             Ok(c) => c,
-            Err(_) => return Err(CallFailure::Timeout),
+            Err(_) => {
+                return Err(CallFailure::covered(HostError::InterceptorTimeout, None));
+            }
         },
         None => fut.await,
     };
     #[cfg(not(feature = "tokio-timeout"))]
-    let caught = fut.await;
+    let caught = {
+        let _ = limit;
+        fut.await
+    };
     caught.map_err(|_| {
-        CallFailure::Failed(Box::new(Verdict::host_error(
+        CallFailure::covered(
             HostError::InterceptorFailed,
             Some("interceptor panicked (see spec §6.3)".into()),
-        )))
+        )
     })
 }
 
-fn timeout_verdict(action: TimeoutAction) -> Verdict {
-    match action {
-        TimeoutAction::Deny => Verdict::host_error(HostError::InterceptorTimeout, None),
-        TimeoutAction::Continue => Verdict::warn(
-            Some("host_warning:interceptor_timeout".into()),
-            Some("interceptor exceeded the host timeout; host continued".into()),
-        ),
-    }
+/// One interceptor call after the registration's `on_error` has been
+/// applied (§6.3): the verdict that takes the composition slot and,
+/// when the host substituted an allow, the underlying reason for
+/// `verdicts[].substituted_for`.
+struct Settled {
+    verdict: Verdict,
+    substituted_for: Option<String>,
 }
 
 /// Whether a verdict was synthesized by the host (§11) rather than
@@ -356,22 +372,58 @@ enum BoundTimeout {
     Bounded(std::time::Duration),
 }
 
+/// The interceptor behind one registration: a standard one the
+/// emitter bounds itself, or a managed one that owns its deadline
+/// (§6.3).
+enum BoundInterceptor {
+    Standard(Box<dyn Interceptor>),
+    Managed(Box<dyn ManagedInterceptor>),
+}
+
 /// One registered interceptor with its binding facts (§7.7.5): the
 /// payload-free name stamped on `verdicts[].name`, the points it runs
-/// at (`None` = every point, the pre-declaration behaviour) and its
-/// timeout.
+/// at (`None` = every point, the pre-declaration behaviour), its
+/// timeout and its failure posture (§6.3).
 struct Bound {
     interceptor: BoundInterceptor,
     name: Option<String>,
     at: Option<BTreeSet<InterceptionPoint>>,
     timeout: BoundTimeout,
-    on_timeout: Option<TimeoutAction>,
+    on_error: OnError,
 }
 
-enum BoundInterceptor {
-    Standard(Box<dyn Interceptor>),
-    Managed(Box<dyn ManagedInterceptor>),
+/// The optional facts of one code registration
+/// ([`InterceptionEmitter::register_with_options`],
+/// [`InterceptionEmitter::register_managed`]). The default is an
+/// unnamed registration at every point with `on_error: deny`, which
+/// is what [`InterceptionEmitter::register`] does.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RegistrationOptions {
+    /// Payload-free name stamped on `verdicts[].name` (§10.3).
+    pub name: Option<String>,
+    /// The points the interceptor runs at; `None` is every point.
+    pub at: Option<BTreeSet<InterceptionPoint>>,
+    /// The registration's failure posture (§6.3). `Continue` needs a
+    /// [`ControlFailureNotifier`] on the emitter first.
+    pub on_error: OnError,
 }
+
+/// A refused code registration: `on_error: continue` on an emitter
+/// without a control failure notifier (§6.3). Set the notifier with
+/// [`InterceptionEmitter::set_control_failure_notifier`] before the
+/// registration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegistrationError {
+    pub detail: String,
+}
+
+impl fmt::Display for RegistrationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "registration refused: {}", self.detail)
+    }
+}
+
+impl std::error::Error for RegistrationError {}
 
 impl Bound {
     fn runs_at(&self, point: Option<InterceptionPoint>) -> bool {
@@ -455,6 +507,10 @@ pub struct InterceptionEmitter {
     #[cfg_attr(not(feature = "tokio-timeout"), allow(dead_code))]
     resolver_timeout: Option<std::time::Duration>,
     record_sink: Option<RecordSink>,
+    /// §6.3: the channel that tells the principal a control failed and
+    /// the action continued. Required before any `continue`
+    /// registration exists.
+    notifier: Option<ControlFailureNotifier>,
     max_records: Option<usize>,
     records_dropped: u64,
     records: Vec<InterceptionRecord>,
@@ -473,7 +529,7 @@ impl fmt::Debug for InterceptionEmitter {
             .field("composition", &self.composition)
             .field("identity_provider", &self.identity.name())
             .field("interceptors", &self.interceptors.len())
-            .field("execution_profile", &self.execution_profile)
+            .field("control_failure_notifier", &self.notifier.is_some())
             .field("sealed", &self.sealed)
             .field("declaration", &self.declaration_version())
             .finish_non_exhaustive()
@@ -492,6 +548,7 @@ impl InterceptionEmitter {
             timeout: None,
             resolver_timeout: None,
             record_sink: None,
+            notifier: None,
             max_records: None,
             records_dropped: 0,
             records: Vec::new(),
@@ -505,14 +562,15 @@ impl InterceptionEmitter {
     // ---- host declaration (§7.7) -------------------------------------------
 
     /// Build an emitter from a validated declaration: steps 8 to 11 of
-    /// §7.7.6 (resolve against the registry's surface and names, then
-    /// run every binding's kind resolver). The result is sealed
-    /// (§7.7.7) and stamps `declaration` on every record (§7.7.8).
+    /// §7.7.6 (resolve against the registry's surface, notifier and
+    /// names, then run every binding's kind resolver). The result is
+    /// sealed (§7.7.7) and stamps `declaration` on every record
+    /// (§7.7.8).
     pub fn from_declaration(
         decl: HostDeclaration,
         registry: &HostRegistry,
     ) -> Result<Self, DeclarationError> {
-        let resolved = declaration::resolve(&decl, registry.surface(), &registry.names())?;
+        let resolved = registry.resolve(&decl)?;
         Self::from_resolved(resolved, registry)
     }
 
@@ -585,27 +643,6 @@ impl InterceptionEmitter {
             }
             let resolved =
                 declaration::resolve(&source.declaration, registry.surface(), &registry.names())?;
-            let binding_ids: BTreeSet<&str> =
-                resolved.bindings.iter().map(|b| b.id.as_str()).collect();
-            for (binding_id, options) in &source.binding_options {
-                if !binding_ids.contains(binding_id.as_str()) {
-                    return Err(DeclarationError::new(
-                        DeclarationErrorClass::Inconsistent,
-                        format!("/sources/{index}/binding_options/{binding_id}"),
-                        format!(
-                            "binding {binding_id:?} is not declared by source {:?}",
-                            source.id
-                        ),
-                    ));
-                }
-                if options.name.is_some() || options.at.is_some() {
-                    return Err(DeclarationError::new(
-                        DeclarationErrorClass::Inconsistent,
-                        format!("/sources/{index}/binding_options/{binding_id}"),
-                        "imported declaration options may set on_timeout only; name and at belong to the declaration",
-                    ));
-                }
-            }
             resolved_sources.push((source, resolved));
         }
 
@@ -641,10 +678,6 @@ impl InterceptionEmitter {
                 .zip(&resolved.bindings)
             {
                 bound.name = Some(format!("{}/{}", source.id, binding.id));
-                bound.on_timeout = source
-                    .binding_options
-                    .get(&binding.id)
-                    .and_then(|options| options.on_timeout);
             }
             emitter
                 .interceptors
@@ -725,18 +758,22 @@ impl InterceptionEmitter {
             }
         };
 
+        let notifier = registry.control_failure_notifier_ref();
         let mut interceptors = Vec::with_capacity(resolved.bindings.len());
         for (i, b) in resolved.bindings.iter().enumerate() {
             let pointer = format!("/bindings/{i}");
-            let resolver_fn = registry.kind_resolver(&b.kind);
-            let managed_resolver_fn = registry.managed_kind_resolver(&b.kind);
-            if resolver_fn.is_none() && managed_resolver_fn.is_none() {
+            let standard = registry.kind_resolver(&b.kind);
+            let managed = registry.managed_kind_resolver(&b.kind);
+            if standard.is_none() && managed.is_none() {
                 return Err(DeclarationError::new(
                     DeclarationErrorClass::KindUnknown,
                     format!("{pointer}/kind"),
                     format!("kind {:?} vanished from the registry", b.kind),
                 ));
             }
+            // `HostRegistry::resolve` (step 8) has already refused a
+            // `continue` binding on a registry without a notifier, so
+            // every posture reaching this loop can be honoured.
             let timeout = b.timeout_ms.map(std::time::Duration::from_millis);
             let bctx = BindingContext {
                 id: &b.id,
@@ -744,18 +781,17 @@ impl InterceptionEmitter {
                 source_id,
                 at: &b.at,
                 timeout,
+                on_error: b.on_error,
                 host: resolved.host.as_ref(),
                 declaration_version: &resolved.declaration,
             };
             // §7.7.5: a resolver error, panic or non-interceptor return
             // refuses the document; the message is bounded and the
             // config is never echoed by the loader.
-            let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                if let Some(resolver_fn) = resolver_fn {
-                    resolver_fn(&b.config, &bctx).map(BoundInterceptor::Standard)
-                } else {
-                    managed_resolver_fn.expect("checked above")(&b.config, &bctx)
-                        .map(BoundInterceptor::Managed)
+            let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match standard {
+                Some(f) => f(&b.config, &bctx).map(BoundInterceptor::Standard),
+                None => {
+                    managed.expect("checked above")(&b.config, &bctx).map(BoundInterceptor::Managed)
                 }
             }));
             let interceptor = match built {
@@ -778,20 +814,15 @@ impl InterceptionEmitter {
                     ))
                 }
             };
-            let managed = matches!(interceptor, BoundInterceptor::Managed(_));
             interceptors.push(Bound {
                 interceptor,
                 name: Some(b.id.clone()),
                 at: Some(b.at.clone()),
-                timeout: if managed {
-                    BoundTimeout::Unbounded
-                } else {
-                    match timeout {
-                        Some(d) => BoundTimeout::Bounded(d),
-                        None => BoundTimeout::Unbounded,
-                    }
+                timeout: match timeout {
+                    Some(d) => BoundTimeout::Bounded(d),
+                    None => BoundTimeout::Unbounded,
                 },
-                on_timeout: None,
+                on_error: b.on_error,
             });
         }
 
@@ -811,6 +842,7 @@ impl InterceptionEmitter {
                 .approval_resolver_ms
                 .map(std::time::Duration::from_millis),
             record_sink: None,
+            notifier,
             max_records: cfg.records.max_buffered.map(|n| n as usize),
             records_dropped: 0,
             records: Vec::new(),
@@ -839,7 +871,7 @@ impl InterceptionEmitter {
         self.execution_profile
     }
 
-    /// Configure timeout and result-label adoption for an unsealed emitter.
+    /// Configure result-label adoption for an unsealed emitter.
     pub fn set_execution_profile(&mut self, profile: HostExecutionProfile) -> &mut Self {
         self.unsealed("set_execution_profile");
         self.execution_profile = profile;
@@ -929,6 +961,30 @@ impl InterceptionEmitter {
         self
     }
 
+    /// Register the channel through which the host tells the principal
+    /// that a control failed and the action continued (§6.3): the user
+    /// in an interactive session, otherwise the agent through the
+    /// host's own message channel. The callback receives the binding
+    /// label, the underlying `host_error:*` reason and the warning
+    /// message; nothing from the context or target.
+    ///
+    /// Required before any registration with `on_error: continue`
+    /// ([`Self::register_with_options`], [`Self::register_managed`]);
+    /// a declaration-built emitter takes it from
+    /// `HostRegistry::control_failure_notifier`. The notifier runs
+    /// before the substitution takes effect; if it panics the
+    /// substituted deny stands, so a continuation the principal was
+    /// not told about cannot happen. Like the record sink, it may be
+    /// set on a sealed emitter: it is a host channel, not declared
+    /// configuration.
+    pub fn set_control_failure_notifier(
+        &mut self,
+        f: impl Fn(&ControlFailureNotice) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.notifier = Some(Arc::new(f));
+        self
+    }
+
     /// Bound the in-memory record buffer: when full, the OLDEST record
     /// is dropped and [`Self::records_dropped`] increments. Unbounded
     /// by default.
@@ -987,57 +1043,67 @@ impl InterceptionEmitter {
         name: Option<String>,
         at: Option<BTreeSet<InterceptionPoint>>,
     ) -> &mut Self {
-        self.register_with_options(
-            interceptor,
+        self.push_bound(
+            BoundInterceptor::Standard(interceptor),
             RegistrationOptions {
                 name,
                 at,
-                on_timeout: None,
+                on_error: OnError::Deny,
             },
         )
+        .expect("on_error: deny never needs a notifier");
+        self
     }
 
-    /// Register with explicit per-registration execution options.
+    /// Register an interceptor with every optional fact spelled out
+    /// (§7.7.5, §6.3). `register` and `register_at` are this call with
+    /// `on_error: deny`. `Continue` is refused unless
+    /// [`Self::set_control_failure_notifier`] ran first.
     pub fn register_with_options(
         &mut self,
         interceptor: Box<dyn Interceptor>,
         options: RegistrationOptions,
-    ) -> &mut Self {
-        self.unsealed("register");
-        assert!(
-            options.at.as_ref().map_or(true, |at| !at.is_empty()),
-            "register: `at` must name at least one interception point"
-        );
-        self.interceptors.push(Bound {
-            interceptor: BoundInterceptor::Standard(interceptor),
-            name: options.name,
-            at: options.at,
-            timeout: BoundTimeout::Inherit,
-            on_timeout: options.on_timeout,
-        });
-        self
+    ) -> Result<&mut Self, RegistrationError> {
+        self.push_bound(BoundInterceptor::Standard(interceptor), options)?;
+        Ok(self)
     }
 
-    /// Register a host adapter that owns deadline enforcement and
-    /// returns a typed timeout only after cleanup completes.
-    pub fn register_managed_with_options(
+    /// Register an interceptor that owns its own deadline (§6.3). The
+    /// emitter does not wrap it in the timer; on every call it
+    /// receives the registration's resolved bound (the emitter-wide
+    /// timeout for a code registration) and reports a typed outcome.
+    /// `Continue` is refused unless the notifier is set.
+    pub fn register_managed(
         &mut self,
         interceptor: Box<dyn ManagedInterceptor>,
         options: RegistrationOptions,
-    ) -> &mut Self {
+    ) -> Result<&mut Self, RegistrationError> {
+        self.push_bound(BoundInterceptor::Managed(interceptor), options)?;
+        Ok(self)
+    }
+
+    fn push_bound(
+        &mut self,
+        interceptor: BoundInterceptor,
+        options: RegistrationOptions,
+    ) -> Result<(), RegistrationError> {
         self.unsealed("register");
-        assert!(
-            options.at.as_ref().map_or(true, |at| !at.is_empty()),
-            "register: `at` must name at least one interception point"
-        );
+        if options.on_error == OnError::Continue && self.notifier.is_none() {
+            return Err(RegistrationError {
+                detail: format!(
+                    "{}: on_error is continue but the emitter has no control failure notifier; call set_control_failure_notifier first (see spec 6.3)",
+                    options.name.as_deref().unwrap_or("unnamed registration")
+                ),
+            });
+        }
         self.interceptors.push(Bound {
-            interceptor: BoundInterceptor::Managed(interceptor),
+            interceptor,
             name: options.name,
             at: options.at,
-            timeout: BoundTimeout::Unbounded,
-            on_timeout: options.on_timeout,
+            timeout: BoundTimeout::Inherit,
+            on_error: options.on_error,
         });
-        self
+        Ok(())
     }
 
     /// The interceptors bound at the context's point, in dispatch
@@ -1056,11 +1122,6 @@ impl InterceptionEmitter {
             BoundTimeout::Unbounded => None,
             BoundTimeout::Bounded(d) => Some(d),
         }
-    }
-
-    fn timeout_action(&self, b: &Bound) -> TimeoutAction {
-        b.on_timeout
-            .unwrap_or(self.execution_profile.timeout_action)
     }
 
     fn declaration_version(&self) -> Option<String> {
@@ -1266,10 +1327,82 @@ impl InterceptionEmitter {
         }
     }
 
-    /// §10.3 summaries with the bound names attached positionally.
-    fn summaries(verdicts: &[Verdict], active: &[&Bound]) -> Vec<VerdictSummary> {
+    /// §10.3 summaries with the bound names and the §6.3
+    /// `substituted_for` reasons attached positionally.
+    fn summaries(
+        verdicts: &[Verdict],
+        active: &[&Bound],
+        substituted: &[Option<String>],
+    ) -> Vec<VerdictSummary> {
         let names: Vec<Option<String>> = active.iter().map(|b| b.name.clone()).collect();
-        summaries_named(verdicts, &names)
+        let mut out = summaries_named(verdicts, &names);
+        for s in &mut out {
+            if let Some(Some(reason)) = substituted.get(s.index as usize) {
+                s.substituted_for = Some(reason.clone());
+            }
+        }
+        out
+    }
+
+    /// Call one bound interceptor, run its return through the §5 gate
+    /// and apply the registration's `on_error` (§6.3).
+    async fn invoke(&self, ctx: &AgentContext, idx: u32, bound: &Bound) -> Settled {
+        let failure = match call_isolated(&bound.interceptor, ctx, self.limit(bound)).await {
+            Ok(v) if v.validate().is_err() => CallFailure::covered(HostError::VerdictInvalid, None),
+            Ok(verdict) => {
+                return Settled {
+                    verdict,
+                    substituted_for: None,
+                }
+            }
+            Err(f) => f,
+        };
+        self.settle(ctx, idx, bound, failure)
+    }
+
+    /// §6.3: under `deny`, or for a failure `on_error` does not cover,
+    /// the host-synthesized deny takes the slot. Under `continue` the
+    /// principal is told first; then the substituted allow takes the
+    /// slot and the underlying reason goes to `substituted_for`. A
+    /// notifier that fails leaves the deny standing: a continuation
+    /// nobody was told about is not conformant.
+    fn settle(&self, ctx: &AgentContext, idx: u32, bound: &Bound, failure: CallFailure) -> Settled {
+        let deny = |detail: Option<String>| Settled {
+            verdict: Verdict::host_error(failure.reason, detail),
+            substituted_for: None,
+        };
+        if bound.on_error != OnError::Continue || !failure.continuable {
+            return deny(failure.detail.clone());
+        }
+        let binding = bound
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("interceptor-{idx}"));
+        let notice = ControlFailureNotice {
+            interception_point: point_of(ctx),
+            index: idx,
+            binding: binding.clone(),
+            reason: failure.reason.to_string(),
+            message: Verdict::control_failure_message(&binding, failure.reason),
+        };
+        // Unreachable by construction (registration and the loader
+        // refuse `continue` without a notifier); kept as the
+        // fail-closed answer should that ever change.
+        let Some(notifier) = &self.notifier else {
+            return deny(Some(
+                "on_error: continue without a control failure notifier; the deny stands (see spec 6.3)"
+                    .into(),
+            ));
+        };
+        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| notifier(&notice))).is_err() {
+            return deny(Some(
+                "control failure notifier panicked; the deny stands (see spec 6.3)".into(),
+            ));
+        }
+        Settled {
+            verdict: Verdict::control_failure_substitute(&binding, failure.reason),
+            substituted_for: Some(failure.reason.to_string()),
+        }
     }
 
     /// `sequential/first_deny` (§7.4): fold-through, first deny
@@ -1287,6 +1420,7 @@ impl InterceptionEmitter {
         let n = active.len();
         let on_approval = self.composition.on_approval.unwrap_or(OnApproval::Stop);
         let mut per_interceptor: Vec<Verdict> = Vec::new();
+        let mut substituted: Vec<Option<String>> = Vec::new();
         let mut pool: Vec<Verdict> = Vec::new();
         let mut last_transform: Option<(u32, Verdict)> = None;
         let mut resolved_by: Option<&'static str> = None;
@@ -1299,17 +1433,16 @@ impl InterceptionEmitter {
             // clone is needed (previously one full deep copy per
             // interceptor per emission).
             // §5 gate on the interceptor's own return; host-synthesized
-            // failure substitutions (Err) bypass it (TM-02 is about
-            // interceptor spoofing, not host substitution).
-            let v = match call_isolated(&bound.interceptor, &*ctx, self.limit(bound)).await {
-                Ok(v) if v.validate().is_err() => {
-                    Verdict::host_error(HostError::VerdictInvalid, None)
-                }
-                Ok(v) => v,
-                Err(CallFailure::Timeout) => timeout_verdict(self.timeout_action(bound)),
-                Err(CallFailure::Failed(f)) => *f,
-            };
+            // failure substitutions bypass it (TM-02 is about
+            // interceptor spoofing, not host substitution). Under
+            // `on_error: continue` a covered failure arrives here as
+            // the substituted allow (§6.3).
+            let Settled {
+                verdict: v,
+                substituted_for,
+            } = self.invoke(&*ctx, idx, bound).await;
             per_interceptor.push(v.clone());
+            substituted.push(substituted_for);
             pool.push(v.clone());
             if is_host_synthesized(&v) {
                 // §6.3: malformed verdict fails closed and — in this
@@ -1320,7 +1453,7 @@ impl InterceptionEmitter {
                 return DispatchOutcome {
                     combined: with_unions(v, &pool),
                     decided_by: Some(idx),
-                    verdicts: Self::summaries(&per_interceptor, active),
+                    verdicts: Self::summaries(&per_interceptor, active, &substituted),
                     fold_truncated: truncated(i),
                     resolved_by,
                 };
@@ -1333,7 +1466,7 @@ impl InterceptionEmitter {
                             return DispatchOutcome {
                                 combined: with_unions(v, &pool),
                                 decided_by: Some(idx),
-                                verdicts: Self::summaries(&per_interceptor, active),
+                                verdicts: Self::summaries(&per_interceptor, active, &substituted),
                                 fold_truncated: truncated(i),
                                 resolved_by,
                             }
@@ -1351,7 +1484,11 @@ impl InterceptionEmitter {
                                 return DispatchOutcome {
                                     combined: with_unions(verdict, &pool),
                                     decided_by: if synthesized { None } else { Some(idx) },
-                                    verdicts: Self::summaries(&per_interceptor, active),
+                                    verdicts: Self::summaries(
+                                        &per_interceptor,
+                                        active,
+                                        &substituted,
+                                    ),
                                     fold_truncated: truncated(i),
                                     resolved_by,
                                 };
@@ -1369,7 +1506,11 @@ impl InterceptionEmitter {
                                 return DispatchOutcome {
                                     combined: sub,
                                     decided_by: None,
-                                    verdicts: Self::summaries(&per_interceptor, active),
+                                    verdicts: Self::summaries(
+                                        &per_interceptor,
+                                        active,
+                                        &substituted,
+                                    ),
                                     fold_truncated: truncated(i),
                                     resolved_by,
                                 };
@@ -1384,7 +1525,11 @@ impl InterceptionEmitter {
                                     return DispatchOutcome {
                                         combined: with_unions(sub, &pool),
                                         decided_by: Some(idx),
-                                        verdicts: Self::summaries(&per_interceptor, active),
+                                        verdicts: Self::summaries(
+                                            &per_interceptor,
+                                            active,
+                                            &substituted,
+                                        ),
                                         fold_truncated: truncated(i),
                                         resolved_by,
                                     };
@@ -1406,7 +1551,7 @@ impl InterceptionEmitter {
                         return DispatchOutcome {
                             combined: v,
                             decided_by: None,
-                            verdicts: Self::summaries(&per_interceptor, active),
+                            verdicts: Self::summaries(&per_interceptor, active, &substituted),
                             fold_truncated: truncated(i),
                             resolved_by,
                         };
@@ -1425,7 +1570,7 @@ impl InterceptionEmitter {
         DispatchOutcome {
             combined: with_unions(combined, &pool),
             decided_by,
-            verdicts: Self::summaries(&per_interceptor, active),
+            verdicts: Self::summaries(&per_interceptor, active, &substituted),
             fold_truncated: Some(false),
             resolved_by,
         }
@@ -1436,18 +1581,16 @@ impl InterceptionEmitter {
     /// consulted at most once, only when the winner is liftable.
     async fn dispatch_run_all(&self, ctx: &mut AgentContext, active: &[&Bound]) -> DispatchOutcome {
         let mut all: Vec<Verdict> = Vec::new();
-        for bound in active.iter() {
+        let mut substituted: Vec<Option<String>> = Vec::new();
+        for (i, bound) in active.iter().enumerate() {
             // §6.3 per-interceptor: a malformed verdict becomes that
-            // interceptor's synthesized deny; the rest still run.
-            // Host-synthesized substitutions (Err) bypass the §5 gate.
-            let v = match call_isolated(&bound.interceptor, &*ctx, self.limit(bound)).await {
-                Ok(v) if v.validate().is_err() => {
-                    Verdict::host_error(HostError::VerdictInvalid, None)
-                }
-                Ok(v) => v,
-                Err(CallFailure::Timeout) => timeout_verdict(self.timeout_action(bound)),
-                Err(CallFailure::Failed(f)) => *f,
-            };
+            // interceptor's synthesized deny (or, under `continue`,
+            // the substituted allow); the rest still run.
+            let Settled {
+                verdict: v,
+                substituted_for,
+            } = self.invoke(&*ctx, i as u32, bound).await;
+            substituted.push(substituted_for);
             if v.decision == Decision::Transform {
                 let folded = self.fold_transform(ctx, v);
                 if !folded.decision.permits() {
@@ -1457,7 +1600,7 @@ impl InterceptionEmitter {
                     return DispatchOutcome {
                         combined: folded,
                         decided_by: None,
-                        verdicts: Self::summaries(&all, active),
+                        verdicts: Self::summaries(&all, active, &substituted),
                         fold_truncated: None,
                         resolved_by: None,
                     };
@@ -1467,7 +1610,7 @@ impl InterceptionEmitter {
                 all.push(v);
             }
         }
-        self.aggregate_and_consult(ctx, all, true, None, active)
+        self.aggregate_and_consult(ctx, all, true, None, active, &substituted)
             .await
     }
 
@@ -1480,25 +1623,22 @@ impl InterceptionEmitter {
     ) -> DispatchOutcome {
         let snapshot = ctx.clone();
         let mut all: Vec<Verdict> = Vec::new();
-        for bound in active.iter() {
-            // Host-synthesized substitutions (Err) bypass the §5 gate.
-            let v = match call_isolated(&bound.interceptor, &snapshot.clone(), self.limit(bound))
-                .await
-            {
-                Ok(v) if v.validate().is_err() => {
-                    Verdict::host_error(HostError::VerdictInvalid, None)
-                }
-                Ok(v) => v,
-                Err(CallFailure::Timeout) => timeout_verdict(self.timeout_action(bound)),
-                Err(CallFailure::Failed(f)) => *f,
-            };
+        let mut substituted: Vec<Option<String>> = Vec::new();
+        for (i, bound) in active.iter().enumerate() {
+            let Settled {
+                verdict: v,
+                substituted_for,
+            } = self.invoke(&snapshot, i as u32, bound).await;
+            substituted.push(substituted_for);
             all.push(v);
         }
 
         if self.composition.profile == CompositionProfile::ParallelUnanimous {
-            return self.aggregate_unanimous(ctx, all, active).await;
+            return self
+                .aggregate_unanimous(ctx, all, active, &substituted)
+                .await;
         }
-        self.aggregate_and_consult(ctx, all, false, None, active)
+        self.aggregate_and_consult(ctx, all, false, None, active, &substituted)
             .await
     }
 
@@ -1511,8 +1651,9 @@ impl InterceptionEmitter {
         sequential: bool,
         resolved_by: Option<&'static str>,
         active: &[&Bound],
+        substituted: &[Option<String>],
     ) -> DispatchOutcome {
-        let verdicts = Self::summaries(&all, active);
+        let verdicts = Self::summaries(&all, active, substituted);
         let mut resolved_by = resolved_by;
         match aggregate_strictest(&all, sequential) {
             Aggregate::TransformConflict(idxs) => {
@@ -1642,8 +1783,9 @@ impl InterceptionEmitter {
         ctx: &mut AgentContext,
         all: Vec<Verdict>,
         active: &[&Bound],
+        substituted: &[Option<String>],
     ) -> DispatchOutcome {
-        let verdicts = Self::summaries(&all, active);
+        let verdicts = Self::summaries(&all, active, substituted);
         if is_unanimous_allow(&all) {
             return DispatchOutcome {
                 combined: with_unions(Verdict::allow(), &all),
@@ -1890,7 +2032,7 @@ impl InterceptionEmitter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{ApprovalResolution, Transform};
+    use crate::types::{ApprovalResolution, Transform, Warning};
     use async_trait::async_trait;
     use serde_json::json;
 
@@ -2222,7 +2364,7 @@ mod tests {
 
     #[cfg(feature = "tokio-timeout")]
     #[tokio::test]
-    async fn explicit_timeout_continue_is_observable_and_not_cancellation() {
+    async fn record_only_profile_preserves_notified_failure_continuation() {
         struct Slow;
         #[async_trait::async_trait]
         impl Interceptor for Slow {
@@ -2234,17 +2376,24 @@ mod tests {
         let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
         e.set_timeout(std::time::Duration::from_millis(20));
         e.set_execution_profile(HostExecutionProfile {
-            timeout_action: TimeoutAction::Continue,
             result_label_policy: ResultLabelPolicy::RecordOnly,
         });
-        e.register(Box::new(Slow));
+        e.set_control_failure_notifier(|_| {});
+        e.register_with_options(
+            Box::new(Slow),
+            RegistrationOptions {
+                on_error: OnError::Continue,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         e.register(Box::new(Scripted(Verdict::allow())));
         let r = e.emit_unchecked(&mut ctx()).await;
         assert!(r.proceeds());
         assert_eq!(r.verdict.decision, Decision::Allow);
         assert_eq!(
             r.verdict.warnings[0].reason.as_deref(),
-            Some("host_warning:interceptor_timeout")
+            Some("host_warning:control_failed")
         );
         assert_eq!(r.verdicts.len(), 2, "the profile continues the fold");
         assert_eq!(
@@ -2261,7 +2410,11 @@ mod tests {
         }
         #[async_trait::async_trait]
         impl ManagedInterceptor for Managed {
-            async fn intercept_managed(&self, _c: &AgentContext) -> ManagedInterceptorOutcome {
+            async fn intercept_managed(
+                &self,
+                _c: &AgentContext,
+                _bound: Option<std::time::Duration>,
+            ) -> ManagedInterceptorOutcome {
                 self.cleaned
                     .store(true, std::sync::atomic::Ordering::SeqCst);
                 self.outcome.clone()
@@ -2270,33 +2423,37 @@ mod tests {
 
         let cleaned = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let mut timed_out = InterceptionEmitter::new(EnforcementMode::Enforce, None);
-        timed_out.set_execution_profile(HostExecutionProfile {
-            timeout_action: TimeoutAction::Continue,
-            result_label_policy: ResultLabelPolicy::Flow,
-        });
-        timed_out.register_managed_with_options(
-            Box::new(Managed {
-                outcome: ManagedInterceptorOutcome::Timeout,
-                cleaned: cleaned.clone(),
-            }),
-            RegistrationOptions::default(),
-        );
+        timed_out.set_control_failure_notifier(|_| {});
+        timed_out
+            .register_managed(
+                Box::new(Managed {
+                    outcome: ManagedInterceptorOutcome::Timeout,
+                    cleaned: cleaned.clone(),
+                }),
+                RegistrationOptions {
+                    on_error: OnError::Continue,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         let record = timed_out.emit_unchecked(&mut ctx()).await;
         assert!(cleaned.load(std::sync::atomic::Ordering::SeqCst));
         assert!(record.proceeds());
 
         let mut cancelled = InterceptionEmitter::new(EnforcementMode::Enforce, None);
-        cancelled.set_execution_profile(HostExecutionProfile {
-            timeout_action: TimeoutAction::Continue,
-            result_label_policy: ResultLabelPolicy::Flow,
-        });
-        cancelled.register_managed_with_options(
-            Box::new(Managed {
-                outcome: ManagedInterceptorOutcome::Cancelled,
-                cleaned,
-            }),
-            RegistrationOptions::default(),
-        );
+        cancelled.set_control_failure_notifier(|_| {});
+        cancelled
+            .register_managed(
+                Box::new(Managed {
+                    outcome: ManagedInterceptorOutcome::Cancelled,
+                    cleaned,
+                }),
+                RegistrationOptions {
+                    on_error: OnError::Continue,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
         let record = cancelled.emit_unchecked(&mut ctx()).await;
         assert!(!record.proceeds());
         assert_eq!(
@@ -2320,9 +2477,10 @@ mod tests {
                     .into_iter()
                     .collect(),
                 ),
-                on_timeout: Some(TimeoutAction::Continue),
+                on_error: OnError::Deny,
             },
-        );
+        )
+        .unwrap();
         assert_eq!(
             e.enabled_points(),
             [
@@ -2504,5 +2662,608 @@ mod tests {
         // the redacted context (approve succeeded), and differs from
         // the record's own (unredacted) identities.
         assert_ne!(Some(identity.as_str()), r.input_identity.as_deref());
+    }
+
+    // ---- on_error (§6.3) ---------------------------------------------------
+
+    use std::sync::{Arc, Mutex};
+
+    type Notices = Arc<Mutex<Vec<ControlFailureNotice>>>;
+
+    /// An emitter whose principal channel collects notices.
+    fn with_notifier(mode: EnforcementMode) -> (InterceptionEmitter, Notices) {
+        let notices: Notices = Arc::new(Mutex::new(Vec::new()));
+        let sink = notices.clone();
+        let mut e = InterceptionEmitter::new(mode, None);
+        e.set_control_failure_notifier(move |n| sink.lock().unwrap().push(n.clone()));
+        (e, notices)
+    }
+
+    fn best_effort(name: &str) -> RegistrationOptions {
+        RegistrationOptions {
+            name: Some(name.into()),
+            at: None,
+            on_error: OnError::Continue,
+        }
+    }
+
+    struct Panics;
+    #[async_trait]
+    impl Interceptor for Panics {
+        async fn intercept(&self, _c: &AgentContext) -> Verdict {
+            panic!("SECRET-PAYLOAD must not leak");
+        }
+    }
+
+    fn assert_substituted(r: &InterceptionRecord, index: usize, binding: &str, reason: &str) {
+        let s = &r.verdicts[index];
+        assert_eq!(s.decision, Decision::Allow, "{s:?}");
+        assert_eq!(s.reason, None, "{s:?}");
+        assert_eq!(s.name.as_deref(), Some(binding));
+        assert_eq!(s.substituted_for.as_deref(), Some(reason));
+        let expected = Warning {
+            reason: Some("host_warning:control_failed".into()),
+            message: Some(format!("{binding}: {reason}; host continued")),
+        };
+        assert!(
+            r.verdict.warnings.contains(&expected),
+            "warning missing from the §7.3 union: {:?}",
+            r.verdict.warnings
+        );
+    }
+
+    #[tokio::test]
+    async fn continue_substitutes_allow_for_a_panic() {
+        let (mut e, notices) = with_notifier(EnforcementMode::Enforce);
+        e.register_with_options(Box::new(Panics), best_effort("defender"))
+            .unwrap();
+        e.register_at(
+            Box::new(Scripted(Verdict::allow())),
+            Some("audit".into()),
+            None,
+        );
+        let mut c = ctx();
+        let r = e.emit_unchecked(&mut c).await;
+        assert!(r.proceeds());
+        assert_eq!(r.verdict.decision, Decision::Allow);
+        assert_eq!(r.verdict.reason, None);
+        assert_eq!(r.verdict.warnings.len(), 1);
+        assert_eq!(r.verdicts.len(), 2, "the fold continued past the failure");
+        assert_substituted(&r, 0, "defender", "host_error:interceptor_failed");
+        assert_eq!(r.verdicts[1].substituted_for, None);
+        assert_eq!(r.decided_by, None, "a substituted allow decides nothing");
+        assert_eq!(r.fold_truncated, Some(false));
+        // Target unchanged.
+        assert_eq!(c["target"]["url"], json!("evil"));
+        // The principal was told, with the reason, before the action
+        // continued.
+        let n = notices.lock().unwrap();
+        assert_eq!(n.len(), 1);
+        assert_eq!(n[0].binding, "defender");
+        assert_eq!(n[0].index, 0);
+        assert_eq!(n[0].reason, "host_error:interceptor_failed");
+        assert_eq!(
+            n[0].message,
+            "defender: host_error:interceptor_failed; host continued"
+        );
+        assert_eq!(
+            n[0].interception_point,
+            Some(InterceptionPoint::PreToolCall)
+        );
+        // Host-synthesized text carries nothing from the interceptor or
+        // the target.
+        let all = format!("{:?}{:?}", r.verdict, n[0]);
+        assert!(!all.contains("SECRET") && !all.contains("evil"), "{all}");
+    }
+
+    #[tokio::test]
+    async fn continue_substitutes_allow_for_an_invalid_verdict() {
+        let (mut e, notices) = with_notifier(EnforcementMode::Enforce);
+        e.register_with_options(Box::new(Malformed), best_effort("defender"))
+            .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(r.proceeds());
+        assert_substituted(&r, 0, "defender", "host_error:verdict_invalid");
+        assert_eq!(
+            notices.lock().unwrap()[0].reason,
+            "host_error:verdict_invalid"
+        );
+    }
+
+    #[cfg(feature = "tokio-timeout")]
+    #[tokio::test]
+    async fn continue_substitutes_allow_for_a_timeout() {
+        struct Slow;
+        #[async_trait]
+        impl Interceptor for Slow {
+            async fn intercept(&self, _c: &AgentContext) -> Verdict {
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                Verdict::allow()
+            }
+        }
+        let (mut e, notices) = with_notifier(EnforcementMode::Enforce);
+        e.set_timeout(std::time::Duration::from_millis(20));
+        e.register_with_options(Box::new(Slow), best_effort("defender"))
+            .unwrap();
+        e.register(Box::new(Scripted(Verdict::allow())));
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(r.proceeds());
+        assert_eq!(r.verdicts.len(), 2);
+        assert_substituted(&r, 0, "defender", "host_error:interceptor_timeout");
+        assert_eq!(
+            notices.lock().unwrap()[0].reason,
+            "host_error:interceptor_timeout"
+        );
+    }
+
+    #[tokio::test]
+    async fn deny_stays_the_default_for_every_registration_call() {
+        // The pre-1.1 calls and the options default all mean deny: the
+        // record is unchanged, substituted_for is absent, nobody is
+        // notified.
+        let (mut e, notices) = with_notifier(EnforcementMode::Enforce);
+        e.register(Box::new(Panics));
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(!r.proceeds());
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:interceptor_failed")
+        );
+        assert_eq!(r.verdicts[0].substituted_for, None);
+        assert_eq!(r.decided_by, Some(0));
+        assert!(notices.lock().unwrap().is_empty());
+
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        assert_eq!(RegistrationOptions::default().on_error, OnError::Deny);
+        e.register_with_options(Box::new(Malformed), RegistrationOptions::default())
+            .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(!r.proceeds());
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:verdict_invalid")
+        );
+        assert_eq!(r.verdicts[0].substituted_for, None);
+    }
+
+    #[tokio::test]
+    async fn continue_without_a_notifier_is_refused_at_registration() {
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let err = e
+            .register_with_options(Box::new(Scripted(Verdict::allow())), best_effort("x"))
+            .unwrap_err();
+        assert!(err.detail.contains("control failure notifier"), "{err}");
+        assert_eq!(e.interceptors.len(), 0, "nothing was registered");
+        struct Managed;
+        #[async_trait]
+        impl ManagedInterceptor for Managed {
+            async fn intercept_managed(
+                &self,
+                _c: &AgentContext,
+                _b: Option<std::time::Duration>,
+            ) -> ManagedInterceptorOutcome {
+                ManagedInterceptorOutcome::Timeout
+            }
+        }
+        assert!(e
+            .register_managed(Box::new(Managed), best_effort("m"))
+            .is_err());
+        // Deny needs no channel; after the channel exists, continue is
+        // accepted.
+        e.register_with_options(
+            Box::new(Scripted(Verdict::allow())),
+            RegistrationOptions::default(),
+        )
+        .unwrap();
+        e.set_control_failure_notifier(|_| {});
+        e.register_with_options(Box::new(Scripted(Verdict::allow())), best_effort("x"))
+            .unwrap();
+        e.register_managed(Box::new(Managed), best_effort("m"))
+            .unwrap();
+        assert_eq!(e.interceptors.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn notifier_failure_withdraws_the_continuation() {
+        // A principal that could not be told means the deny stands:
+        // silent continuation is not reachable through a broken channel.
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.set_control_failure_notifier(|_| panic!("channel down"));
+        e.register_with_options(Box::new(Panics), best_effort("defender"))
+            .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(!r.proceeds());
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:interceptor_failed")
+        );
+        assert!(r.verdict.message.as_deref().unwrap().contains("notifier"));
+        assert_eq!(r.verdicts[0].substituted_for, None);
+        assert!(r.verdict.warnings.is_empty());
+    }
+
+    #[tokio::test]
+    async fn continue_never_covers_cancellation() {
+        struct Cancelled;
+        #[async_trait]
+        impl ManagedInterceptor for Cancelled {
+            async fn intercept_managed(
+                &self,
+                _c: &AgentContext,
+                _b: Option<std::time::Duration>,
+            ) -> ManagedInterceptorOutcome {
+                ManagedInterceptorOutcome::Cancelled
+            }
+        }
+        let (mut e, notices) = with_notifier(EnforcementMode::Enforce);
+        e.register_managed(Box::new(Cancelled), best_effort("defender"))
+            .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(!r.proceeds());
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:interceptor_failed")
+        );
+        assert!(r.verdict.message.as_deref().unwrap().contains("cancelled"));
+        assert_eq!(r.verdicts[0].substituted_for, None);
+        assert_eq!(r.decided_by, Some(0));
+        assert!(notices.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn continue_never_covers_approval_failures() {
+        struct Raises;
+        #[async_trait]
+        impl ApprovalResolver for Raises {
+            async fn resolve(&self, _req: ApprovalRequest<'_>) -> ApprovalResolution {
+                panic!("resolver down");
+            }
+        }
+        let notices: Notices = Arc::new(Mutex::new(Vec::new()));
+        let sink = notices.clone();
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, Some(Box::new(Raises)));
+        e.set_control_failure_notifier(move |n| sink.lock().unwrap().push(n.clone()));
+        e.register_with_options(
+            Box::new(Scripted(Verdict::escalate(Some("check".into()), None))),
+            best_effort("gate"),
+        )
+        .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(!r.proceeds());
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:approval_resolver_failed")
+        );
+        assert_eq!(r.resolved_by, Some("rejection"));
+        assert_eq!(r.verdicts[0].substituted_for, None);
+        assert!(notices.lock().unwrap().is_empty());
+
+        // Echo violation: the same.
+        struct BadEcho;
+        #[async_trait]
+        impl ApprovalResolver for BadEcho {
+            async fn resolve(&self, _req: ApprovalRequest<'_>) -> ApprovalResolution {
+                ApprovalResolution {
+                    outcome: ApprovalOutcome::Approve,
+                    context_identity: Some("sha256:forged".into()),
+                    verdict: Some(Verdict::allow()),
+                }
+            }
+        }
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, Some(Box::new(BadEcho)));
+        e.set_control_failure_notifier(|_| {});
+        e.register_with_options(
+            Box::new(Scripted(Verdict::escalate(None, None))),
+            best_effort("gate"),
+        )
+        .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:approval_identity_mismatch")
+        );
+    }
+
+    #[tokio::test]
+    async fn continue_never_covers_context_failure_explicit_deny_or_no_interceptor() {
+        // Context failure: the provider rejects the value domain before
+        // any interceptor runs.
+        let (mut e, notices) = with_notifier(EnforcementMode::Enforce);
+        e.register_with_options(Box::new(Panics), best_effort("defender"))
+            .unwrap();
+        let mut c = ctx();
+        c.insert("target".into(), json!({"id": 9_007_199_254_740_993_i64}));
+        let r = e.emit_unchecked(&mut c).await;
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:context_invalid")
+        );
+        assert!(r.verdicts.is_empty());
+        // Invalid envelope: the same.
+        let mut c = ctx();
+        c.remove("spec");
+        let r = e.emit_unchecked(&mut c).await;
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:context_invalid")
+        );
+        // An explicit deny is a decision, not a failure.
+        let (mut e, _) = with_notifier(EnforcementMode::Enforce);
+        e.register_with_options(
+            Box::new(Scripted(Verdict::deny(Some("policy".into()), None))),
+            best_effort("policy"),
+        )
+        .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(!r.proceeds());
+        assert_eq!(r.verdict.reason.as_deref(), Some("policy"));
+        assert_eq!(r.verdicts[0].substituted_for, None);
+        // No interceptor at the point: the §7 deny, continue or not.
+        let (mut e, _) = with_notifier(EnforcementMode::Enforce);
+        e.register_with_options(
+            Box::new(Scripted(Verdict::allow())),
+            RegistrationOptions {
+                at: Some([InterceptionPoint::Output].into_iter().collect()),
+                ..best_effort("output-only")
+            },
+        )
+        .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:no_interceptor")
+        );
+        assert!(notices.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn continue_never_covers_transform_failure() {
+        let (mut e, notices) = with_notifier(EnforcementMode::Enforce);
+        // A transform rooted outside $target fails §5.2, not §6.3.
+        e.register_with_options(
+            Box::new(Scripted(transform("$other.url", json!("x")))),
+            best_effort("rewrite"),
+        )
+        .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(!r.proceeds());
+        assert!(
+            r.verdict
+                .reason
+                .as_deref()
+                .unwrap()
+                .starts_with("host_error:transform_"),
+            "{:?}",
+            r.verdict.reason
+        );
+        assert_eq!(r.verdicts[0].substituted_for, None);
+        assert!(notices.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn substituted_allow_takes_the_slot_in_every_profile() {
+        for composition in [
+            CompositionConfig::run_all(),
+            CompositionConfig::strictest(SynthesisPolicy::Deny),
+            CompositionConfig::unanimous(SynthesisPolicy::Deny, SynthesisPolicy::Deny),
+        ] {
+            let (mut e, notices) = with_notifier(EnforcementMode::Enforce);
+            e.set_composition(composition);
+            e.register(Box::new(Scripted(Verdict::warn(Some("pii".into()), None))));
+            e.register_with_options(Box::new(Panics), best_effort("defender"))
+                .unwrap();
+            let r = e.emit_unchecked(&mut ctx()).await;
+            assert!(r.proceeds(), "{composition:?}: {:?}", r.verdict);
+            assert_eq!(r.verdict.decision, Decision::Allow);
+            // §7.3: both warnings, first seen first.
+            assert_eq!(r.verdict.warnings.len(), 2, "{composition:?}");
+            assert_eq!(r.verdict.warnings[0].reason.as_deref(), Some("pii"));
+            assert_substituted(&r, 1, "defender", "host_error:interceptor_failed");
+            assert_eq!(r.verdicts[0].substituted_for, None);
+            assert_eq!(r.decided_by, None);
+            assert_eq!(notices.lock().unwrap().len(), 1, "{composition:?}");
+        }
+        // A plain deny elsewhere still wins; the substituted slot keeps
+        // its warning in the union and its substituted_for.
+        let (mut e, _) = with_notifier(EnforcementMode::Enforce);
+        e.set_composition(CompositionConfig::run_all());
+        e.register_with_options(Box::new(Panics), best_effort("defender"))
+            .unwrap();
+        e.register(Box::new(Scripted(deny())));
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(!r.proceeds());
+        assert_eq!(r.decided_by, Some(1));
+        assert_eq!(
+            r.verdicts[0].substituted_for.as_deref(),
+            Some("host_error:interceptor_failed")
+        );
+        assert_eq!(
+            r.verdict.warnings[0].reason.as_deref(),
+            Some("host_warning:control_failed")
+        );
+    }
+
+    #[tokio::test]
+    async fn an_interceptor_cannot_emit_the_reserved_warning() {
+        let spoof = Verdict::warn(
+            Some("host_warning:control_failed".into()),
+            Some("looks substituted".into()),
+        );
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.register(Box::new(Scripted(spoof.clone())));
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(!r.proceeds());
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:verdict_invalid")
+        );
+        assert!(
+            r.verdict.warnings.is_empty(),
+            "the spoofed warning is dropped"
+        );
+        // Under continue the spoof is still an invalid verdict; what the
+        // record shows is the host's own substitution, with the real
+        // reason.
+        let (mut e, _) = with_notifier(EnforcementMode::Enforce);
+        e.register_with_options(Box::new(Scripted(spoof)), best_effort("spoofer"))
+            .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(r.proceeds());
+        assert_substituted(&r, 0, "spoofer", "host_error:verdict_invalid");
+        assert_eq!(
+            r.verdict.warnings[0].message.as_deref(),
+            Some("spoofer: host_error:verdict_invalid; host continued")
+        );
+    }
+
+    #[tokio::test]
+    async fn managed_interceptor_receives_the_bound_and_reports_typed_outcomes() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        struct Managed {
+            outcome: ManagedInterceptorOutcome,
+            cleaned: Arc<AtomicBool>,
+            bound_seen: Arc<Mutex<Option<Option<std::time::Duration>>>>,
+        }
+        #[async_trait]
+        impl ManagedInterceptor for Managed {
+            async fn intercept_managed(
+                &self,
+                _c: &AgentContext,
+                bound: Option<std::time::Duration>,
+            ) -> ManagedInterceptorOutcome {
+                *self.bound_seen.lock().unwrap() = Some(bound);
+                // Cancel and clean up the external work, then report.
+                self.cleaned.store(true, Ordering::SeqCst);
+                self.outcome.clone()
+            }
+        }
+        let build = |outcome: ManagedInterceptorOutcome| {
+            let cleaned = Arc::new(AtomicBool::new(false));
+            let bound_seen = Arc::new(Mutex::new(None));
+            (
+                Managed {
+                    outcome,
+                    cleaned: cleaned.clone(),
+                    bound_seen: bound_seen.clone(),
+                },
+                cleaned,
+                bound_seen,
+            )
+        };
+
+        // Deny: a typed timeout is the §6.3 timeout deny; the
+        // interceptor saw the emitter-wide bound.
+        let (m, cleaned, bound_seen) = build(ManagedInterceptorOutcome::Timeout);
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.set_timeout(std::time::Duration::from_millis(1234));
+        e.register_managed(
+            Box::new(m),
+            RegistrationOptions {
+                name: Some("scanner".into()),
+                ..RegistrationOptions::default()
+            },
+        )
+        .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(
+            cleaned.load(Ordering::SeqCst),
+            "cleanup ran before the outcome"
+        );
+        assert_eq!(
+            *bound_seen.lock().unwrap(),
+            Some(Some(std::time::Duration::from_millis(1234)))
+        );
+        assert!(!r.proceeds());
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:interceptor_timeout")
+        );
+        assert_eq!(r.verdicts[0].name.as_deref(), Some("scanner"));
+
+        // Continue: the typed timeout is substituted like the emitter's.
+        let (m, cleaned, bound_seen) = build(ManagedInterceptorOutcome::Timeout);
+        let (mut e, notices) = with_notifier(EnforcementMode::Enforce);
+        e.register_managed(Box::new(m), best_effort("scanner"))
+            .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(cleaned.load(Ordering::SeqCst));
+        assert_eq!(
+            *bound_seen.lock().unwrap(),
+            Some(None),
+            "unbounded by default"
+        );
+        assert!(r.proceeds());
+        assert_substituted(&r, 0, "scanner", "host_error:interceptor_timeout");
+        assert_eq!(notices.lock().unwrap().len(), 1);
+
+        // Failed carries its payload-free detail; Verdict crosses the
+        // §5 gate.
+        let (m, _, _) = build(ManagedInterceptorOutcome::Failed(Some("IoError".into())));
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.register_managed(Box::new(m), RegistrationOptions::default())
+            .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:interceptor_failed")
+        );
+        assert_eq!(r.verdict.message.as_deref(), Some("IoError"));
+        let (m, _, _) = build(ManagedInterceptorOutcome::Verdict(Box::new(Verdict {
+            reason: Some("host_error:forged".into()),
+            ..Verdict::allow()
+        })));
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.register_managed(Box::new(m), RegistrationOptions::default())
+            .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:verdict_invalid")
+        );
+        let (m, _, _) = build(ManagedInterceptorOutcome::Verdict(Box::new(Verdict::warn(
+            Some("scanned".into()),
+            None,
+        ))));
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.register_managed(Box::new(m), RegistrationOptions::default())
+            .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(r.proceeds());
+        assert_eq!(r.verdict.warnings[0].reason.as_deref(), Some("scanned"));
+    }
+
+    #[tokio::test]
+    async fn managed_panic_is_a_failure_not_a_crash() {
+        struct Boom;
+        #[async_trait]
+        impl ManagedInterceptor for Boom {
+            async fn intercept_managed(
+                &self,
+                _c: &AgentContext,
+                _b: Option<std::time::Duration>,
+            ) -> ManagedInterceptorOutcome {
+                panic!("SECRET");
+            }
+        }
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.register_managed(Box::new(Boom), RegistrationOptions::default())
+            .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert_eq!(
+            r.verdict.reason.as_deref(),
+            Some("host_error:interceptor_failed")
+        );
+        assert!(!r.verdict.message.as_deref().unwrap().contains("SECRET"));
+    }
+
+    #[tokio::test]
+    async fn evaluate_only_records_the_substitution_too() {
+        let (mut e, notices) = with_notifier(EnforcementMode::EvaluateOnly);
+        e.register_with_options(Box::new(Panics), best_effort("defender"))
+            .unwrap();
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(r.proceeds());
+        assert_substituted(&r, 0, "defender", "host_error:interceptor_failed");
+        assert_eq!(notices.lock().unwrap().len(), 1);
     }
 }

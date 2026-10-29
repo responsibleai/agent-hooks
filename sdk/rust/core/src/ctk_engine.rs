@@ -97,6 +97,17 @@ pub fn scripted_intercept(rules: &[Value], ctx: &Value) -> Value {
                 // vector asserts enforcement, identity, and sibling
                 // interceptors are unaffected.
                 Some("mutate") => return serde_json::json!({"__ctk_fault__": "mutate"}),
+                // §6.3: the wrapper's interceptor does not return within
+                // the binding's bound (exercises host_error:interceptor_timeout
+                // and, under on_error: continue, the substituted allow).
+                // The vector sets a small timeout_ms; a wrapper returns
+                // allow after the bound plus a grace period so an
+                // unbounded host fails the vector instead of hanging it.
+                Some("hang") => return serde_json::json!({"__ctk_fault__": "hang"}),
+                // §6.3/§7: the wrapper drives its managed-interceptor
+                // path and reports the typed cancelled outcome, which is
+                // deny host_error:interceptor_failed and never continues.
+                Some("cancel") => return serde_json::json!({"__ctk_fault__": "cancel"}),
                 _ => {}
             }
             return rule
@@ -212,6 +223,14 @@ pub struct RunRecord {
     /// (§7.7.9); absent otherwise.
     #[serde(default)]
     pub load: Option<LoadRecord>,
+    /// §6.3: the host messages the host delivered to the principal
+    /// during the run, verbatim and in order; for a continuation that
+    /// is the `ControlFailureNotice` message. `expect.
+    /// host_messages_must_contain` asserts on them. The Rust runner
+    /// fills this from the CTK registry's notifier; a harness whose
+    /// principal channel is its own reports them itself.
+    #[serde(default)]
+    pub host_messages: Vec<String>,
 }
 
 /// Result of one vector run.
@@ -369,10 +388,13 @@ fn assert_interceptions(expect: &Value, recorded: &[Value], failures: &mut Vec<S
 /// The spec-default value for a declarable host posture (§13.1).
 /// `tool_seam_host_error`: §6.2's continue rule is the default reading;
 /// "terminate" is the explicitly permitted alternative ("unless the
-/// host's own semantics terminate the turn").
+/// host's own semantics terminate the turn"). `on_error`: the §6.3
+/// document default for interceptor failures, `deny` unless the
+/// declaration says `continue`.
 fn posture_default(posture: &str) -> Option<&'static str> {
     match posture {
         "tool_seam_host_error" => Some("continue"),
+        "on_error" => Some("deny"),
         _ => None,
     }
 }
@@ -634,6 +656,25 @@ fn assert_load(
     false
 }
 
+/// `expect.host_messages_must_contain` (§6.3): each needle appears in
+/// at least one host message the host delivered to the principal.
+fn assert_host_messages(expect: &Value, rr: &RunRecord, failures: &mut Vec<String>) {
+    let Some(needles) = expect
+        .get("host_messages_must_contain")
+        .and_then(Value::as_array)
+    else {
+        return;
+    };
+    for n in needles.iter().filter_map(Value::as_str) {
+        if !rr.host_messages.iter().any(|m| m.contains(n)) {
+            failures.push(format!(
+                "no host message to the principal contains {n:?} (messages: {:?})",
+                rr.host_messages
+            ));
+        }
+    }
+}
+
 fn assert_sequence(recorded: &[Value], failures: &mut Vec<String>) {
     let seq: Vec<i64> = recorded
         .iter()
@@ -693,6 +734,7 @@ pub fn assert_vector(vector: &Value, recorded: &[Value], rr: &RunRecord) -> Vect
     assert_interceptions(&vector["expect"], recorded, &mut failures);
     assert_record(&vector["expect"], rr, &mut failures);
     assert_records(&vector["expect"], rr, &mut failures);
+    assert_host_messages(&vector["expect"], rr, &mut failures);
     assert_sequence(recorded, &mut failures);
     assert_identities(&vector["expect"], rr, &mut failures);
 
@@ -758,6 +800,16 @@ mod tests {
         assert_eq!(raised["__ctk_fault__"], "raise");
         let malformed = scripted_intercept(&rules, &json!({"interception_point": "output"}));
         assert_eq!(malformed["decision"], "transform");
+        let hung = scripted_intercept(
+            &[json!({"at": "input", "fault": "hang"})],
+            &json!({"interception_point": "input"}),
+        );
+        assert_eq!(hung["__ctk_fault__"], "hang");
+        let cancelled = scripted_intercept(
+            &[json!({"at": "input", "fault": "cancel"})],
+            &json!({"interception_point": "input"}),
+        );
+        assert_eq!(cancelled["__ctk_fault__"], "cancel");
         assert!(malformed.get("transform").is_none());
     }
 

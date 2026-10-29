@@ -32,6 +32,9 @@ import {
   Interceptor,
   JsonValue,
   KnobSupport,
+  ManagedInterceptor,
+  ManagedInterceptorOutcome,
+  OnError,
   ResolvedDeclaration,
   Verdict,
   canonicalDeclaration,
@@ -62,16 +65,46 @@ export function loadVectors(dir: string): JsonValue[] {
   return vectors;
 }
 
+/** What a scripted rule asks the interceptor to do. */
+type Scripted =
+  | { kind: "verdict"; verdict: Verdict }
+  /** `fault: raise`: throw, which the emitter records as
+   * `host_error:interceptor_failed`. */
+  | { kind: "raise" }
+  /** `fault: hang`: do not return within the binding's bound. Under
+   * kind `ctk.scripted` (standard) the emitter's own timer ends the
+   * call; under kind `ctk.managed` the interceptor waits out the bound
+   * it was handed and reports the typed timeout. */
+  | { kind: "hang" }
+  /** `fault: cancel`: the typed cancelled outcome of a managed
+   * interceptor (§7); defined only for kind `ctk.managed`. */
+  | { kind: "cancel" };
+
+/** `fault: hang` grace past the bound: a hanging interceptor returns
+ * allow once this much time has passed without the host ending the
+ * call, so an unbounded host fails the vector on `tool_not_invoked`
+ * instead of hanging the run. */
+const HANG_GRACE_MS = 10_000;
+
+/** Sleep that does not hold the process open: a standard interceptor
+ * the emitter has already timed out keeps no handle alive. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms).unref());
+}
+
 /** Replays one `interceptor_script` rule list via the Rust core. */
 class ScriptedInterceptor implements Interceptor {
   protected readonly rulesJson: string;
   constructor(rules: JsonValue) {
     this.rulesJson = JSON.stringify(rules);
   }
-  intercept(ctx: AgentContext): Verdict {
+
+  /** Evaluate the script against `ctx`. The mutate fault acts here. */
+  evaluate(ctx: AgentContext): Scripted {
     const w = JSON.parse(native.ctkScriptedIntercept(this.rulesJson, JSON.stringify(ctx)));
     if (w !== null && typeof w === "object" && "__ctk_fault__" in w) {
-      if ((w as Record<string, unknown>).__ctk_fault__ === "mutate") {
+      const fault = (w as Record<string, unknown>).__ctk_fault__;
+      if (fault === "mutate") {
         // §7 isolation fault (TM-05): tamper with the received context
         // in-place; the emitter's copy isolation must keep enforcement,
         // identity, and siblings unaffected.
@@ -80,21 +113,93 @@ class ScriptedInterceptor implements Interceptor {
         if (tc && typeof tc === "object") {
           (tc as Record<string, unknown>).args = { tampered: true };
         }
-        return { decision: "allow", reason: "ctk:mutated" } as Verdict;
+        return { kind: "verdict", verdict: { decision: "allow", reason: "ctk:mutated" } as Verdict };
       }
+      if (fault === "hang") return { kind: "hang" };
+      if (fault === "cancel") return { kind: "cancel" };
       // Fault injection: exercise §6.3 interceptor_failed.
-      throw new Error("ctk scripted fault: raise");
+      return { kind: "raise" };
     }
-    return w;
+    return { kind: "verdict", verdict: w };
+  }
+
+  async intercept(ctx: AgentContext): Promise<Verdict> {
+    const s = this.evaluate(ctx);
+    switch (s.kind) {
+      case "verdict":
+        return s.verdict;
+      case "raise":
+        throw new Error("ctk scripted fault: raise");
+      case "hang":
+        // Standard registration: the emitter-owned timer is under test
+        // (`host_error:interceptor_timeout`). It ends the call first;
+        // the allow after the grace is what an unbounded host would
+        // see, and it fails the vector on `tool_not_invoked`.
+        await sleep(HANG_GRACE_MS);
+        return { decision: "allow" };
+      case "cancel":
+        // `cancel` is defined only for kind `ctk.managed`. A standard
+        // interceptor has no cancelled outcome; the nearest fail-closed
+        // analogue is a value that fails the §5 gate.
+        return { decision: "allow", reason: "host_error:cancelled" } as Verdict;
+    }
   }
 }
 
 /** Wraps the scripted interceptor and records every ctx passed. */
 class RecordingInterceptor extends ScriptedInterceptor {
   readonly recorded: AgentContext[] = [];
-  override intercept(ctx: AgentContext): Verdict {
+  override evaluate(ctx: AgentContext): Scripted {
     this.recorded.push(JSON.parse(JSON.stringify(ctx)));
-    return super.intercept(ctx);
+    return super.evaluate(ctx);
+  }
+}
+
+/** The same script through the managed-interceptor path (§7): the
+ * `ctk.managed` kind of a declaration vector owns its own deadline,
+ * so `hang` waits out the bound it was handed, cancels its work and
+ * reports the typed timeout, and `cancel` reports the typed cancelled
+ * outcome. `raise` throws natively and `malformed_verdict` returns the
+ * script's invalid shape inside a verdict outcome, as under the
+ * standard kind. */
+class ScriptedManagedInterceptor implements ManagedInterceptor {
+  constructor(private readonly inner: ScriptedInterceptor) {}
+
+  async interceptManaged(ctx: AgentContext, boundMs: number | null): Promise<ManagedInterceptorOutcome> {
+    const s = this.inner.evaluate(ctx);
+    switch (s.kind) {
+      case "verdict":
+        return { outcome: "verdict", verdict: s.verdict };
+      case "raise":
+        throw new Error("ctk scripted fault: raise");
+      case "hang": {
+        if (boundMs === null) {
+          // No bound to honour: allow after the grace, as under the
+          // standard kind.
+          await sleep(HANG_GRACE_MS);
+          return { outcome: "verdict", verdict: { decision: "allow" } };
+        }
+        // The work (a timer standing in for a process or a request) is
+        // cancelled at the deadline: cleaned up before the typed
+        // outcome is reported. The emitter does not wrap this call in
+        // a second timer.
+        let work: ReturnType<typeof setTimeout> | undefined;
+        let deadline: ReturnType<typeof setTimeout> | undefined;
+        const finished = await Promise.race([
+          new Promise<boolean>((resolve) => {
+            work = setTimeout(() => resolve(true), HANG_GRACE_MS);
+          }),
+          new Promise<boolean>((resolve) => {
+            deadline = setTimeout(() => resolve(false), boundMs);
+          }),
+        ]);
+        if (work !== undefined) clearTimeout(work);
+        if (deadline !== undefined) clearTimeout(deadline);
+        return finished ? { outcome: "verdict", verdict: { decision: "allow" } } : { outcome: "timeout" };
+      }
+      case "cancel":
+        return { outcome: "cancelled" };
+    }
   }
 }
 
@@ -178,24 +283,37 @@ class Scripts {
     return this.recorder?.recorded ?? [];
   }
 
-  /** The CTK registry for a declaration vector (§7.7.9): kind
-   * `ctk.scripted` (config `{"script": i}`), identity provider
-   * `ctk-fault`, approval resolver `ctk-scripted`, redactor
-   * `ctk-redact`. */
+  /** Resolve `config.script` to scripted interceptor `i` for a binding;
+   * shared by both CTK kinds. */
+  private scriptedFor(config: JsonValue, bindingId: string): ScriptedInterceptor {
+    const script = (config as Record<string, JsonValue> | null)?.["script"];
+    if (typeof script !== "number" || !Number.isInteger(script) || script < 0) {
+      throw new Error("config.script must be an unsigned integer index");
+    }
+    const i = this.interceptor(script);
+    if (i === undefined) {
+      throw new Error(`config.script ${script} is out of range for binding ${bindingId}`);
+    }
+    return i as ScriptedInterceptor;
+  }
+
+  /** The CTK registry for a declaration vector (§7.7.9): two kinds over
+   * the same scripted interceptor (config `{"script": i}`, script 0
+   * records), identity provider `ctk-fault`, approval resolver
+   * `ctk-scripted`, redactor `ctk-redact`. `ctk.scripted` is a standard
+   * registration: the emitter wraps it in its own timer, so `fault:
+   * hang` there pins the emitter-owned timeout (AH-CTK-144, AH-CTK-145).
+   * `ctk.managed` goes through the managed-interceptor path (§7): it
+   * receives the resolved bound and reports typed outcomes, so `fault:
+   * cancel` reports cancelled (AH-CTK-150) and `fault: hang` reports
+   * timeout. The principal channel is the harness's own: it adds its
+   * `controlFailureNotifier` in `setupDeclared` and reports what it
+   * delivered as `RunRecord.host_messages`. */
   registry(surface: HostSurface): HostRegistry {
     const redact = [...this.redact];
     return HostRegistry.forConformance(surface)
-      .kind("ctk.scripted", (config, ctx) => {
-        const script = (config as Record<string, JsonValue> | null)?.["script"];
-        if (typeof script !== "number" || !Number.isInteger(script) || script < 0) {
-          throw new Error("config.script must be an unsigned integer index");
-        }
-        const i = this.interceptor(script);
-        if (i === undefined) {
-          throw new Error(`config.script ${script} is out of range for binding ${ctx.id}`);
-        }
-        return i;
-      })
+      .kind("ctk.scripted", (config, ctx) => this.scriptedFor(config, ctx.id))
+      .managedKind("ctk.managed", (config, ctx) => new ScriptedManagedInterceptor(this.scriptedFor(config, ctx.id)))
       .identityProvider("ctk-fault", () => {
         throw new Error("ctk scripted provider fault");
       })
@@ -216,6 +334,9 @@ function runRecordToWire(rr: RunRecord, postures: Record<string, string>): strin
     // selects expect.run_outcome_by_posture entries by them.
     postures,
     ...(rr.load !== undefined ? { load: rr.load } : {}),
+    // §6.3.1: what the host told the principal, for
+    // expect.host_messages_must_contain.
+    host_messages: rr.host_messages ?? [],
   });
 }
 
@@ -329,6 +450,11 @@ function typedConfiguration(
       const p = v["tool_seam_host_error"];
       if (p !== "continue" && p !== "terminate") return undefined;
       b = b.toolSeamHostError(p);
+    } else if (k === "failure" && isObject(v)) {
+      if (Object.keys(v).length !== 1) return undefined;
+      const p = v["on_error"];
+      if (p !== "deny" && p !== "continue") return undefined;
+      b = b.failureOnError(p);
     } else if (k === "timeouts" && isObject(v)) {
       for (const [tk, tv] of Object.entries(v)) {
         if (tv !== null && !isUint(tv)) return undefined;
@@ -399,7 +525,7 @@ function typedSurface(
 }
 
 function typedBindings(b: DeclarationBuilder, items: JsonValue[]): DeclarationBuilder | undefined {
-  const known = ["id", "kind", "config", "at", "timeout_ms"];
+  const known = ["id", "kind", "config", "at", "timeout_ms", "on_error"];
   if (items.length === 0) {
     // The written-down empty-deny host (§7.7.5): `bind` is never
     // called, so the member is set explicitly.
@@ -425,7 +551,12 @@ function typedBindings(b: DeclarationBuilder, items: JsonValue[]): DeclarationBu
     else if (t === null) timeout = null;
     else if (isUint(t)) timeout = t;
     else return undefined;
-    b = b.bind(id, kind, config, at, timeout);
+    let onError: OnError | undefined;
+    const o = item["on_error"];
+    if (o === undefined) onError = undefined;
+    else if (o === "deny" || o === "continue") onError = o;
+    else return undefined;
+    b = b.bindWith(id, kind, config, { at, timeoutMs: timeout, onError });
   }
   return b;
 }
@@ -535,11 +666,14 @@ function codeSurfaceOf(harness: Harness): HostSurface {
 }
 
 /** What a run assesses the harness against: its capabilities and
- * posture, read from its resolved declaration when it ships one
- * (§7.7.9) and from the Harness fields otherwise. */
+ * postures, read from its resolved declaration when it ships one
+ * (§7.7.9) and from the Harness fields otherwise. `onError` is the
+ * harness document's default failure posture (§6.3.1), what a claim
+ * states; a vector's own document may set its own. */
 export interface AssessedSurface {
   capabilities: string[];
   posture: string;
+  onError: string;
 }
 
 /** Resolve the harness's own declaration against its code surface.
@@ -552,6 +686,7 @@ export function assessHarness(harness: Harness): AssessedSurface {
     return {
       capabilities: [...harness.capabilities],
       posture: harness.toolSeamHostError ?? "continue",
+      onError: "deny",
     };
   }
   const resolved: ResolvedDeclaration = resolveSurfaceOnly(
@@ -561,6 +696,7 @@ export function assessHarness(harness: Harness): AssessedSurface {
   return {
     capabilities: [...resolved.surface.capabilities],
     posture: resolved.configuration.posture.tool_seam_host_error,
+    onError: resolved.configuration.failure.on_error,
   };
 }
 
@@ -577,8 +713,9 @@ export async function runVector(
   const codeSurface = codeSurfaceOf(harness);
   let caps: string[];
   let posture: string;
+  let onError: string;
   try {
-    ({ capabilities: caps, posture } = assessed ?? assessHarness(harness));
+    ({ capabilities: caps, posture, onError } = assessed ?? assessHarness(harness));
   } catch (e) {
     return fail(v, [`harness declaration refused: ${e}`]);
   }
@@ -681,8 +818,8 @@ export async function runVector(
     }
   }
 
-  // §13.1 posture declaration; absent means the spec default.
-  const postures = { tool_seam_host_error: posture };
+  // §13.1 posture declarations; absent means the spec default.
+  const postures = { tool_seam_host_error: posture, on_error: onError };
   return JSON.parse(
     native.ctkAssert(vectorJson, JSON.stringify(scripts.recorded()), runRecordToWire(rr, postures)),
   );

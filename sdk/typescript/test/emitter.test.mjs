@@ -710,3 +710,472 @@ test("recordHostFailure detail is truncated by the §10.3 projection", () => {
   assert.ok(r.verdict.message.endsWith("…"));
   assert.ok(Buffer.byteLength(r.verdict.message, "utf8") <= 256 + Buffer.byteLength("…"));
 });
+
+// ---- failure posture: on_error (§6.3.1) -----------------------------------
+//
+// Mirrors the on_error tests in sdk/rust/core/src/emitter.rs. The
+// default is deny on every registration call; continue is opened per
+// registration, needs the principal channel first, covers exactly the
+// three §6.3 failures, and leaves a substituted allow plus
+// substituted_for in the failing slot.
+
+import {
+  HostWarning,
+  OnError,
+  RegistrationError,
+  isControlFailure,
+} from "../dist/index.js";
+
+/** An emitter with a notifier that collects notices. */
+function withNotifier(mode = EnforcementMode.Enforce, resolver = null, timeoutMs = undefined) {
+  const notices = [];
+  const e =
+    timeoutMs === undefined
+      ? new InterceptionEmitter(mode, resolver)
+      : new InterceptionEmitter(mode, resolver, timeoutMs);
+  e.setControlFailureNotifier((n) => notices.push(n));
+  return { e, notices };
+}
+
+const bestEffort = (name) => ({ name, onError: OnError.Continue });
+
+const panics = {
+  intercept() {
+    throw new Error("SECRET-PAYLOAD must not leak");
+  },
+};
+const malformed = scripted({ decision: "transform" }); // §5: transform without a transform block
+const hangs = { intercept: () => new Promise(() => {}) };
+
+function assertSubstituted(r, index, binding, reason) {
+  const s = r.verdicts[index];
+  assert.equal(s.decision, "allow", JSON.stringify(s));
+  assert.equal("reason" in s, false, JSON.stringify(s));
+  assert.equal(s.name, binding);
+  assert.equal(s.substituted_for, reason);
+  const expected = { reason: HostWarning.ControlFailed, message: `${binding}: ${reason}; host continued` };
+  assert.ok(
+    (r.verdict.warnings ?? []).some((w) => JSON.stringify(w) === JSON.stringify(expected)),
+    `warning missing from the §7.3 union: ${JSON.stringify(r.verdict.warnings)}`,
+  );
+}
+
+test("on_error: exported vocabulary", () => {
+  assert.equal(OnError.Deny, "deny");
+  assert.equal(OnError.Continue, "continue");
+  assert.equal(HostWarning.ControlFailed, "host_warning:control_failed");
+  for (const r of [HostError.InterceptorFailed, HostError.InterceptorTimeout, HostError.VerdictInvalid]) {
+    assert.ok(isControlFailure(r), r);
+  }
+  for (const r of [
+    HostError.ContextInvalid,
+    HostError.ApprovalResolverFailed,
+    HostError.TransformInvalid,
+    HostError.NoInterceptor,
+    "ctk:deny",
+  ]) {
+    assert.ok(!isControlFailure(r), r);
+  }
+});
+
+test("on_error continue substitutes an allow for a raise", async () => {
+  const { e, notices } = withNotifier();
+  e.registerWithOptions(panics, bestEffort("defender"));
+  e.register(scripted(Verdict.allow()), "audit");
+  const c = ctx();
+  const r = await e.emitUnchecked(c);
+  assert.equal(r.verdict.decision, Decision.Allow);
+  assert.equal("reason" in r.verdict, false);
+  assert.equal(r.verdict.warnings.length, 1);
+  assert.equal(r.verdicts.length, 2, "the fold continued past the failure");
+  assertSubstituted(r, 0, "defender", HostError.InterceptorFailed);
+  assert.equal("substituted_for" in r.verdicts[1], false);
+  assert.equal(r.decided_by, null, "a substituted allow decides nothing");
+  assert.equal(r.fold_truncated, false);
+  assert.equal(c.target.url, "evil", "target unchanged");
+  assert.equal(notices.length, 1);
+  assert.deepEqual(notices[0], {
+    interception_point: "pre_tool_call",
+    index: 0,
+    binding: "defender",
+    reason: HostError.InterceptorFailed,
+    message: "defender: host_error:interceptor_failed; host continued",
+  });
+  // §14: the exception text and the target never reach the record or
+  // the notice.
+  const all = JSON.stringify(r) + JSON.stringify(notices);
+  assert.ok(!all.includes("SECRET") && !all.includes("evil"), all);
+});
+
+test("on_error continue substitutes an allow for an invalid verdict", async () => {
+  const { e, notices } = withNotifier();
+  e.registerWithOptions(malformed, bestEffort("defender"));
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Allow);
+  assertSubstituted(r, 0, "defender", HostError.VerdictInvalid);
+  assert.equal(notices[0].reason, HostError.VerdictInvalid);
+  // A non-finite number in the verdict is the same failure.
+  const { e: e2 } = withNotifier();
+  e2.registerWithOptions(scripted(transform("$target.url", Infinity)), bestEffort("nan"));
+  const c = ctx();
+  const r2 = await e2.emitUnchecked(c);
+  assertSubstituted(r2, 0, "nan", HostError.VerdictInvalid);
+  assert.equal(c.target.url, "evil", "corrupted transform never applied");
+});
+
+test("on_error continue substitutes an allow for a timeout", async () => {
+  const { e, notices } = withNotifier(EnforcementMode.Enforce, null, 20);
+  e.registerWithOptions(hangs, bestEffort("defender"));
+  e.register(scripted(Verdict.allow()));
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Allow);
+  assert.equal(r.verdicts.length, 2);
+  assertSubstituted(r, 0, "defender", HostError.InterceptorTimeout);
+  assert.equal(notices[0].reason, HostError.InterceptorTimeout);
+});
+
+test("on_error: deny stays the default for every registration call", async () => {
+  const { e, notices } = withNotifier();
+  e.register(panics);
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.equal(r.verdict.reason, HostError.InterceptorFailed);
+  assert.equal("substituted_for" in r.verdicts[0], false);
+  assert.equal(r.decided_by, 0);
+  assert.equal(notices.length, 0);
+
+  const e2 = new InterceptionEmitter();
+  e2.registerWithOptions(malformed, {});
+  e2.registerWithOptions(malformed);
+  const r2 = await e2.emitUnchecked(ctx());
+  assert.equal(r2.verdict.reason, HostError.VerdictInvalid);
+  assert.equal("substituted_for" in r2.verdicts[0], false);
+
+  const e3 = new InterceptionEmitter();
+  e3.registerWithOptions(panics, { name: "x", onError: OnError.Deny });
+  const r3 = await e3.emitUnchecked(ctx());
+  assert.equal(r3.verdict.reason, HostError.InterceptorFailed);
+  assert.equal(r3.verdicts[0].name, "x");
+});
+
+test("on_error continue without a notifier is refused at registration", async () => {
+  const e = new InterceptionEmitter();
+  assert.throws(
+    () => e.registerWithOptions(scripted(Verdict.allow()), bestEffort("x")),
+    (err) => err instanceof RegistrationError && /control failure notifier/.test(err.message) && /x/.test(err.detail),
+  );
+  const managed = { interceptManaged: () => ({ outcome: "timeout" }) };
+  assert.throws(() => e.registerManaged(managed, bestEffort("m")), RegistrationError);
+  // Nothing was registered.
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.reason, HostError.NoInterceptor);
+  assert.equal(r.interceptors_registered, 0);
+  // Deny needs no channel; after the channel exists, continue is accepted.
+  e.registerWithOptions(scripted(Verdict.allow()), {});
+  e.setControlFailureNotifier(() => {});
+  e.registerWithOptions(scripted(Verdict.allow()), bestEffort("x"));
+  e.registerManaged(managed, bestEffort("m"));
+  const r2 = await e.emitUnchecked(ctx());
+  assert.equal(r2.interceptors_registered, 3);
+});
+
+test("on_error value and at are validated at registration", () => {
+  const { e } = withNotifier();
+  assert.throws(() => e.registerWithOptions(scripted(Verdict.allow()), { onError: "ignore" }), RangeError);
+  assert.throws(() => e.registerWithOptions(scripted(Verdict.allow()), { at: ["pre_tool_cal"] }), RangeError);
+  assert.throws(() => e.registerWithOptions(scripted(Verdict.allow()), { at: [] }), RangeError);
+  assert.throws(() => e.setControlFailureNotifier("not a function"), TypeError);
+  e.registerWithOptions(scripted(Verdict.allow()), { at: ["output"], onError: OnError.Deny });
+});
+
+test("a notifier that throws withdraws the continuation", async () => {
+  // A principal that could not be told means the deny stands: silent
+  // continuation is not reachable through a broken channel.
+  const e = new InterceptionEmitter();
+  e.setControlFailureNotifier(() => {
+    throw new Error("channel down");
+  });
+  e.registerWithOptions(panics, bestEffort("defender"));
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.equal(r.verdict.reason, HostError.InterceptorFailed);
+  assert.match(r.verdict.message, /notifier/);
+  assert.equal("substituted_for" in r.verdicts[0], false);
+  assert.equal(r.verdict.warnings, undefined);
+  assert.equal(r.decided_by, 0);
+});
+
+test("on_error continue never covers cancellation", async () => {
+  const { e, notices } = withNotifier();
+  e.registerManaged({ interceptManaged: () => ({ outcome: "cancelled" }) }, bestEffort("defender"));
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.equal(r.verdict.reason, HostError.InterceptorFailed);
+  assert.match(r.verdict.message, /cancelled/);
+  assert.equal("substituted_for" in r.verdicts[0], false);
+  assert.equal(r.decided_by, 0);
+  assert.equal(notices.length, 0);
+});
+
+test("on_error continue never covers approval failures", async () => {
+  const raises = {
+    resolve() {
+      throw new Error("resolver down");
+    },
+  };
+  const { e, notices } = withNotifier(EnforcementMode.Enforce, raises);
+  e.registerWithOptions(scripted(Verdict.escalate("check")), bestEffort("gate"));
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.equal(r.verdict.reason, HostError.ApprovalResolverFailed);
+  assert.equal(r.resolved_by, "rejection");
+  assert.equal("substituted_for" in r.verdicts[0], false);
+  assert.equal(notices.length, 0);
+  // Echo violation: the same.
+  const badEcho = {
+    resolve: () => ({ outcome: "approve", context_identity: "sha256:forged", verdict: Verdict.allow() }),
+  };
+  const { e: e2 } = withNotifier(EnforcementMode.Enforce, badEcho);
+  e2.registerWithOptions(scripted(Verdict.escalate()), bestEffort("gate"));
+  const r2 = await e2.emitUnchecked(ctx());
+  assert.equal(r2.verdict.reason, HostError.ApprovalIdentityMismatch);
+  // Resolver timeout: the same.
+  const slow = { resolve: () => new Promise(() => {}) };
+  const { e: e3 } = withNotifier(EnforcementMode.Enforce, slow, 20);
+  e3.registerWithOptions(scripted(Verdict.escalate()), bestEffort("gate"));
+  const r3 = await e3.emitUnchecked(ctx());
+  assert.equal(r3.verdict.reason, HostError.ApprovalResolverFailed);
+  assert.equal(r3.verdict.message, "timeout");
+});
+
+test("on_error continue never covers context failure, an explicit deny or no_interceptor", async () => {
+  const { e, notices } = withNotifier();
+  e.registerWithOptions(panics, bestEffort("defender"));
+  // Context failure: the provider rejects the value domain before any
+  // interceptor runs.
+  const big = ctx();
+  big.target = { id: 9007199254740992 };
+  const r = await e.emitUnchecked(big);
+  assert.equal(r.verdict.reason, HostError.ContextInvalid);
+  assert.equal(r.verdicts, undefined);
+  // Invalid envelope: the same.
+  const bare = ctx();
+  delete bare.spec;
+  const r2 = await e.emitUnchecked(bare);
+  assert.equal(r2.verdict.reason, HostError.ContextInvalid);
+  // An explicit deny is a decision, not a failure.
+  const { e: e2 } = withNotifier();
+  e2.registerWithOptions(scripted(Verdict.deny("policy")), bestEffort("policy"));
+  const r3 = await e2.emitUnchecked(ctx());
+  assert.equal(r3.verdict.decision, Decision.Deny);
+  assert.equal(r3.verdict.reason, "policy");
+  assert.equal("substituted_for" in r3.verdicts[0], false);
+  // No interceptor at the point: the §7 deny, continue or not.
+  const { e: e3 } = withNotifier();
+  e3.registerWithOptions(scripted(Verdict.allow()), { ...bestEffort("output-only"), at: ["output"] });
+  const r4 = await e3.emitUnchecked(ctx());
+  assert.equal(r4.verdict.reason, HostError.NoInterceptor);
+  assert.equal(notices.length, 0);
+});
+
+test("on_error continue never covers transform failure", async () => {
+  const { e, notices } = withNotifier();
+  // A well-formed transform whose path does not resolve fails to
+  // apply (§5.2, §7.4), not §6.3: the deny stands.
+  e.registerWithOptions(scripted(transform("$target.missing.deep.path", "x")), bestEffort("rewrite"));
+  const c = ctx();
+  const r = await e.emitUnchecked(c);
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.match(r.verdict.reason, /^host_error:transform_/);
+  assert.equal(r.decided_by, null);
+  assert.equal("substituted_for" in r.verdicts[0], false);
+  assert.equal(c.target.url, "evil");
+  assert.equal(notices.length, 0);
+  // A transform rooted outside $target never passes the §5 gate, so it
+  // is the invalid-verdict failure, which continue does cover.
+  const { e: e2 } = withNotifier();
+  e2.registerWithOptions(scripted(transform("$other.url", "x")), bestEffort("rewrite"));
+  const r2 = await e2.emitUnchecked(ctx());
+  assertSubstituted(r2, 0, "rewrite", HostError.VerdictInvalid);
+});
+
+test("the substituted allow takes the slot in every profile", async () => {
+  for (const composition of [Composition.runAll(), Composition.strictest("deny"), Composition.unanimous("deny", "deny")]) {
+    const { e, notices } = withNotifier();
+    e.setComposition(composition);
+    e.register(scripted(Verdict.warn("pii")));
+    e.registerWithOptions(panics, bestEffort("defender"));
+    const r = await e.emitUnchecked(ctx());
+    assert.equal(r.verdict.decision, Decision.Allow, JSON.stringify([composition, r.verdict]));
+    // §7.3: both warnings, first seen first.
+    assert.equal(r.verdict.warnings.length, 2, composition.profile);
+    assert.equal(r.verdict.warnings[0].reason, "pii");
+    assertSubstituted(r, 1, "defender", HostError.InterceptorFailed);
+    assert.equal("substituted_for" in r.verdicts[0], false);
+    assert.equal(r.decided_by, null);
+    assert.equal(notices.length, 1, composition.profile);
+  }
+  // A plain deny elsewhere still wins; the substituted slot keeps its
+  // warning in the union and its substituted_for, and the principal is
+  // told even though the action does not proceed.
+  const { e, notices } = withNotifier();
+  e.setComposition(Composition.runAll());
+  e.registerWithOptions(panics, bestEffort("defender"));
+  e.register(scripted(deny()));
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.equal(r.decided_by, 1);
+  assert.equal(r.verdicts[0].substituted_for, HostError.InterceptorFailed);
+  assert.equal(r.verdict.warnings[0].reason, HostWarning.ControlFailed);
+  assert.equal(notices.length, 1);
+});
+
+test("first_deny: the substituted slot does not short-circuit", async () => {
+  const { e } = withNotifier();
+  e.registerWithOptions(panics, bestEffort("defender"));
+  e.register(scripted(deny()), "guard");
+  e.register(scripted(Verdict.allow()), "never");
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.equal(r.decided_by, 1);
+  assert.equal(r.fold_truncated, true);
+  assert.equal(r.verdicts.length, 2);
+  assert.equal(r.verdicts[0].substituted_for, HostError.InterceptorFailed);
+  assert.equal(r.verdict.warnings[0].reason, HostWarning.ControlFailed);
+});
+
+test("an unnamed continue registration is labelled by its index", async () => {
+  const { e, notices } = withNotifier();
+  e.register(scripted(Verdict.allow()));
+  e.registerWithOptions(panics, { onError: OnError.Continue });
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdicts[1].substituted_for, HostError.InterceptorFailed);
+  assert.equal("name" in r.verdicts[1], false);
+  assert.equal(notices[0].binding, "interceptor-1");
+  assert.equal(r.verdict.warnings[0].message, "interceptor-1: host_error:interceptor_failed; host continued");
+});
+
+test("an interceptor cannot emit the reserved warning", async () => {
+  const spoof = { decision: "allow", warnings: [{ reason: HostWarning.ControlFailed, message: "looks substituted" }] };
+  assert.throws(() => validateVerdict(spoof), (e) => e instanceof AgentHooksCoreError && e.code === HostError.VerdictInvalid);
+  const e = new InterceptionEmitter();
+  e.register(scripted(spoof));
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.equal(r.verdict.reason, HostError.VerdictInvalid);
+  assert.equal(r.verdict.warnings, undefined, "the spoofed warning is dropped");
+  // Under continue the spoof is still an invalid verdict; what the
+  // record shows is the host's own substitution, with the real reason.
+  const { e: e2 } = withNotifier();
+  e2.registerWithOptions(scripted(spoof), bestEffort("spoofer"));
+  const r2 = await e2.emitUnchecked(ctx());
+  assert.equal(r2.verdict.decision, Decision.Allow);
+  assertSubstituted(r2, 0, "spoofer", HostError.VerdictInvalid);
+  assert.equal(r2.verdict.warnings[0].message, "spoofer: host_error:verdict_invalid; host continued");
+});
+
+test("managed interceptor receives the bound and reports typed outcomes", async () => {
+  const bounds = [];
+  const outcomes = [];
+  const managed = {
+    interceptManaged(c, boundMs) {
+      bounds.push(boundMs);
+      assert.equal(c.target.url, "evil");
+      return outcomes.shift();
+    },
+  };
+  // The emitter-wide bound is handed through; the emitter does not
+  // race the call against a second timer.
+  const e = new InterceptionEmitter(EnforcementMode.Enforce, null, 1234);
+  e.registerManaged(managed, { name: "proc" });
+  outcomes.push({ outcome: "verdict", verdict: Verdict.warn("scanned") });
+  let r = await e.emitUnchecked(ctx());
+  assert.deepEqual(bounds, [1234]);
+  assert.equal(r.verdict.decision, Decision.Allow);
+  assert.equal(r.verdict.warnings[0].reason, "scanned");
+  assert.equal(r.verdicts[0].name, "proc");
+  // The managed verdict crosses the §5 gate like any other.
+  outcomes.push({ outcome: "verdict", verdict: { decision: "allow", reason: "host_error:forged" } });
+  r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.reason, HostError.VerdictInvalid);
+  // Typed failures under the default posture: all deny, attributed.
+  outcomes.push({ outcome: "timeout" });
+  r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.reason, HostError.InterceptorTimeout);
+  assert.equal(r.decided_by, 0);
+  outcomes.push({ outcome: "failed", detail: "ECONNRESET" });
+  r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.reason, HostError.InterceptorFailed);
+  assert.equal(r.verdict.message, "ECONNRESET");
+  outcomes.push({ outcome: "cancelled" });
+  r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.reason, HostError.InterceptorFailed);
+  // A value that is not a typed outcome fails validation.
+  outcomes.push({ decision: "allow" });
+  r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.reason, HostError.VerdictInvalid);
+  // A managed interceptor that throws is a raise.
+  const thrower = new InterceptionEmitter();
+  thrower.registerManaged({ interceptManaged: () => Promise.reject(new TypeError("x")) });
+  r = await thrower.emitUnchecked(ctx());
+  assert.equal(r.verdict.reason, HostError.InterceptorFailed);
+  assert.equal(r.verdict.message, "TypeError");
+  // `null` timeout: unbounded, handed through as null.
+  const unbounded = new InterceptionEmitter(EnforcementMode.Enforce, null, null);
+  unbounded.registerManaged(managed);
+  outcomes.push({ outcome: "verdict", verdict: Verdict.allow() });
+  await unbounded.emitUnchecked(ctx());
+  assert.equal(bounds.at(-1), null);
+});
+
+test("managed interceptor is not wrapped in a second timer", async () => {
+  // A 60 ms managed call under a 20 ms emitter bound still returns its
+  // verdict: the deadline is the interceptor's to keep.
+  const e = new InterceptionEmitter(EnforcementMode.Enforce, null, 20);
+  let seen = null;
+  e.registerManaged({
+    interceptManaged: (c, boundMs) =>
+      new Promise((resolve) => {
+        seen = boundMs;
+        setTimeout(() => resolve({ outcome: "verdict", verdict: Verdict.allow() }), 60);
+      }),
+  });
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(seen, 20);
+  assert.equal(r.verdict.decision, Decision.Allow);
+});
+
+test("managed timeout and failed follow on_error; cancelled does not", async () => {
+  const outcomes = [];
+  const { e, notices } = withNotifier();
+  e.registerManaged({ interceptManaged: () => outcomes.shift() }, bestEffort("proc"));
+  e.register(scripted(Verdict.allow()), "audit");
+  outcomes.push({ outcome: "timeout" });
+  let r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Allow);
+  assertSubstituted(r, 0, "proc", HostError.InterceptorTimeout);
+  assert.equal(r.verdicts.length, 2);
+  outcomes.push({ outcome: "failed", detail: "ECONNRESET" });
+  r = await e.emitUnchecked(ctx());
+  assertSubstituted(r, 0, "proc", HostError.InterceptorFailed);
+  assert.ok(!JSON.stringify(r).includes("ECONNRESET"), "the detail stays out of the substituted shape");
+  outcomes.push({ outcome: "verdict", verdict: { decision: "transform" } });
+  r = await e.emitUnchecked(ctx());
+  assertSubstituted(r, 0, "proc", HostError.VerdictInvalid);
+  assert.equal(notices.length, 3);
+  outcomes.push({ outcome: "cancelled" });
+  r = await e.emitUnchecked(ctx());
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.equal(r.verdict.reason, HostError.InterceptorFailed);
+  assert.equal(r.verdicts.length, 1, "a deny short-circuits first_deny");
+  assert.equal(notices.length, 3, "no notice for a cancellation");
+});
+
+test("evaluate_only: a continuation is recorded the same way", async () => {
+  const { e, notices } = withNotifier(EnforcementMode.EvaluateOnly);
+  e.registerWithOptions(panics, bestEffort("defender"));
+  const r = await e.emitUnchecked(ctx());
+  assert.equal(r.mode, "evaluate_only");
+  assertSubstituted(r, 0, "defender", HostError.InterceptorFailed);
+  assert.equal(notices.length, 1);
+});

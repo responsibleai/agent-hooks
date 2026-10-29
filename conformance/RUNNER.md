@@ -41,8 +41,8 @@ for each vector file in conformance/vectors/*.json:
                     "identity_provider" in vector ? vector.identity_provider : "jcs-sha256")  # §10.1
 
   3b. if "host_declaration" in vector:                                # §7.7.9, see HARNESS.md
-        registry = ctk registry over harness.host_surface()           # ctk.scripted, ctk-fault,
-        paths_equivalent = resolve the document from value, JSON,     #   ctk-scripted, ctk-redact
+        registry = ctk registry over harness.host_surface()           # ctk.scripted, ctk.managed,
+        paths_equivalent = resolve the document from value, JSON,     #   ctk-fault, ctk-scripted, ctk-redact
                            a temp file and the builder; compare
         load = harness.setup_declared(setup, vector.host_declaration, registry)
         if load refused: rr = {outcome:"error", load:{outcome:"refused", class, paths_equivalent}}
@@ -57,6 +57,7 @@ for each vector file in conformance/vectors/*.json:
   5.  yield ctk_assert(vector, recorded,
                        {outcome:rr.outcome, final_output:rr.final_output,
                         tool_invocations:rr.tool_invocations, error:rr.error,
+                        host_messages:rr.host_messages, # messages the host delivered to the principal (§6.3.1)
                         identities:rr.identities,      # (input, enforced) per emission
                         records:rr.records,            # wire-shaped §10.3 records
                         postures:{                     # harness *declarations* (§13.1),

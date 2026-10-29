@@ -89,6 +89,12 @@ type RunRecord struct {
 	// Load is set by the runner for a vector carrying host_declaration
 	// (§7.7.9); nil otherwise.
 	Load *LoadRecord
+	// HostMessages are the messages the host delivered to the principal
+	// during the run, verbatim and in order (§6.3.1): for a
+	// continuation under on_error: continue, the control failure
+	// notice message. expect.host_messages_must_contain asserts on
+	// them. A host that never continues reports none.
+	HostMessages []string
 }
 
 // LoadRecord is what loading a vector's host declaration produced

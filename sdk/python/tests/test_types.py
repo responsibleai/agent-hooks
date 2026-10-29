@@ -130,6 +130,56 @@ class TestVerdict:
         with pytest.raises(ValueError):
             Verdict.from_wire({"decision": "allow", "warnings": [{"reason": "host_error:x"}]})
 
+    @pytest.mark.parametrize("reason", ["host_warning:control_failed", "host_warning:x"])
+    def test_interceptor_cannot_emit_reserved_warning(self, reason: str) -> None:
+        # §11.1: host_warning:* is the host's; an interceptor that
+        # writes it spoofs a substitution.
+        with pytest.raises(ValueError, match="host_warning"):
+            Verdict.from_wire({"decision": "allow", "warnings": [{"reason": reason}]})
+        with pytest.raises(ValueError, match="host_warning"):
+            Verdict.warn(reason=reason)
+        # A reason that merely starts with the letters is not reserved.
+        assert Verdict.warn(reason="host_warnings").warnings[0].reason == "host_warnings"
+
+    def test_control_failure_substitute_shape(self) -> None:
+        from agent_hooks import HostWarning, OnError
+
+        v = Verdict.control_failure_substitute("egress", HostError.INTERCEPTOR_TIMEOUT)
+        assert v.decision is Decision.ALLOW
+        assert v.warnings == (
+            Warning(
+                reason="host_warning:control_failed",
+                message="egress: host_error:interceptor_timeout; host continued",
+            ),
+        )
+        assert v.is_control_failure_substitute
+        assert not Verdict.allow().is_control_failure_substitute
+        assert v.to_wire() == {
+            "decision": "allow",
+            "warnings": [
+                {
+                    "reason": "host_warning:control_failed",
+                    "message": "egress: host_error:interceptor_timeout; host continued",
+                }
+            ],
+        }
+        # Only the three covered failures have a substitute.
+        for covered in (
+            HostError.INTERCEPTOR_FAILED,
+            HostError.INTERCEPTOR_TIMEOUT,
+            HostError.VERDICT_INVALID,
+        ):
+            assert covered.is_control_failure
+        for other in (HostError.CONTEXT_INVALID, HostError.APPROVAL_RESOLVER_FAILED):
+            assert not other.is_control_failure
+            with pytest.raises(ValueError):
+                Verdict.control_failure_substitute("x", other)
+        assert HostWarning.CONTROL_FAILED.value == "host_warning:control_failed"
+        assert OnError.coerce("continue") is OnError.CONTINUE
+        assert OnError.coerce(OnError.DENY) is OnError.DENY
+        with pytest.raises(ValueError):
+            OnError.coerce("allow")
+
     def test_from_wire_rejects_approval_on_permit(self) -> None:
         with pytest.raises(ValueError):
             Verdict.from_wire({"decision": "allow", "approval": {}})

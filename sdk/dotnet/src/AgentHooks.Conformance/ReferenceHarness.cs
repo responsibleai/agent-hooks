@@ -33,6 +33,22 @@ public sealed class ReferenceHarness : IHarness
     private AgentContextBuilder? _builder;
     private readonly List<JsonObject> _toolLog = [];
 
+    /// <summary>§6.3.1: what this host told its principal (the agent)
+    /// during the session, verbatim and in order. The reference agent
+    /// has no user; its host-message channel is this log, reported as
+    /// <see cref="RunRecord.HostMessages"/>.</summary>
+    private readonly List<string> _hostMessages = [];
+    private readonly object _hostMessagesLock = new();
+
+    /// <summary>The principal channel this host registers (§6.3.1):
+    /// every control-failure notice is delivered to the agent as a host
+    /// message and kept for the run record.</summary>
+    private HostRegistry WithPrincipalChannel(HostRegistry registry) =>
+        registry.ControlFailureNotifier(n =>
+        {
+            lock (_hostMessagesLock) _hostMessages.Add(n.Message);
+        });
+
     public HostSurface HostSurface => HostSurface.FromCapabilities(
         Capabilities.Select(c => c.ToWireName()), ToolSeamPosture.Continue);
 
@@ -102,7 +118,7 @@ public sealed class ReferenceHarness : IHarness
         cfg["approval"] = approval;
 
         var slots = interceptors.Select(i => (IInterceptor?)i).ToArray();
-        registry.Kind("ctk.instance", (config, ctx) =>
+        WithPrincipalChannel(registry).Kind("ctk.instance", (config, ctx) =>
         {
             if (config?["index"] is not JsonValue v || !v.TryGetValue(out long index) || index < 0)
                 throw new InvalidOperationException("config.index must be an unsigned integer");
@@ -137,12 +153,13 @@ public sealed class ReferenceHarness : IHarness
     }
 
     public void SetupDeclared(Scenario scenario, JsonObject document, HostRegistry registry) =>
-        StartSession(scenario, InterceptionEmitter.FromDeclarationNode(document, registry));
+        StartSession(scenario, InterceptionEmitter.FromDeclarationNode(document, WithPrincipalChannel(registry)));
 
     private void StartSession(Scenario scenario, InterceptionEmitter emitter)
     {
         _scenario = scenario;
         _toolLog.Clear();
+        lock (_hostMessagesLock) _hostMessages.Clear();
         _emitter = emitter;
         _builder = new AgentContextBuilder(
             agentId: "ref-agent",
@@ -252,7 +269,13 @@ public sealed class ReferenceHarness : IHarness
             Identities: em.Records
                 .Select(r => (r.InputIdentity, r.EnforcedIdentity))
                 .ToList(),
-            Records: em.Records.Select(r => r.ToWire()).ToList());
+            Records: em.Records.Select(r => r.ToWire()).ToList(),
+            HostMessages: HostMessagesSnapshot());
+    }
+
+    private List<string> HostMessagesSnapshot()
+    {
+        lock (_hostMessagesLock) return [.. _hostMessages];
     }
 
     public void Teardown()

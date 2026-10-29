@@ -42,6 +42,19 @@ class InterceptionSuspended(RuntimeError):
         )
 
 
+class RegistrationError(ValueError):
+    """Raised when a code registration asks for ``on_error: continue``
+    on an emitter that has no control failure notifier (§6.3.1). Set
+    the notifier with
+    :meth:`~agent_hooks.InterceptionEmitter.set_control_failure_notifier`
+    before the registration; nothing is registered when this is raised.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"registration refused: {detail}")
+
+
 class EmitterSealed(RuntimeError):
     """Raised when a host reconfigures an emitter built from a host
     declaration (§7.7.7): registration, composition, identity provider,

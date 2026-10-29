@@ -84,12 +84,23 @@ func (s *scripts) resolver() agenthooks.ApprovalResolver {
 	return &scriptedResolver{rulesJSON: s.approval}
 }
 
-// registry is the CTK registry for a declaration vector (§7.7.9): kind
-// ctk.scripted (config {"script": i}), identity provider ctk-fault,
-// approval resolver ctk-scripted and redactor ctk-redact.
+// registry is the CTK registry for a declaration vector (§7.7.9):
+// kinds ctk.scripted and ctk.managed (both config {"script": i}),
+// identity provider ctk-fault, approval resolver ctk-scripted and
+// redactor ctk-redact.
 func (s *scripts) registry(surface agenthooks.HostSurface) (*agenthooks.HostRegistry, error) {
 	reg := agenthooks.NewConformanceHostRegistry(surface)
-	scripted := func(config json.RawMessage, ctx agenthooks.BindingContext) (agenthooks.Interceptor, error) {
+	// Both kinds select the same scripted interceptor by index; they
+	// differ in the registration path. ctk.scripted is a standard
+	// kind: the emitter wraps it in its own timer, so a `hang` there
+	// pins the emitter-owned timeout (AH-CTK-144, AH-CTK-145).
+	// ctk.managed goes through the managed path (§6.3.1 item 8): the
+	// interceptor owns the bound the binding resolved to and reports
+	// typed outcomes, so `cancel` reaches the typed cancelled outcome
+	// (AH-CTK-150). The principal channel is the harness's own: it
+	// adds its notifier in SetupDeclared and reports what it delivered
+	// as RunRecord.HostMessages.
+	pick := func(config json.RawMessage, ctx agenthooks.BindingContext) (*scriptedInterceptor, error) {
 		// config.script must be a JSON integer; a quoted digit is not
 		// one, so the raw token is checked, not a converted value.
 		var cfg map[string]json.RawMessage
@@ -108,7 +119,16 @@ func (s *scripts) registry(surface agenthooks.HostSurface) (*agenthooks.HostRegi
 		}
 		return s.interceptor(int(i)), nil
 	}
-	if err := reg.Kind("ctk.scripted", scripted); err != nil {
+	standard := func(config json.RawMessage, ctx agenthooks.BindingContext) (agenthooks.Interceptor, error) {
+		return pick(config, ctx)
+	}
+	managed := func(config json.RawMessage, ctx agenthooks.BindingContext) (agenthooks.ManagedInterceptor, error) {
+		return pick(config, ctx)
+	}
+	if err := reg.Kind("ctk.scripted", standard); err != nil {
+		return nil, err
+	}
+	if err := reg.ManagedKind("ctk.managed", managed); err != nil {
 		return nil, err
 	}
 	if err := reg.IdentityProvider("ctk-fault", func(agenthooks.AgentContext) (string, error) {
@@ -415,6 +435,16 @@ func typedConfiguration(b *agenthooks.DeclarationBuilder, c map[string]any) bool
 				return false
 			}
 			actions = append(actions, func() { b.ToolSeamHostError(agenthooks.ToolSeamPosture(s)) })
+		case "failure":
+			f, ok := v.(map[string]any)
+			if !ok || len(f) != 1 {
+				return false
+			}
+			s, ok := f["on_error"].(string)
+			if !ok || (s != "deny" && s != "continue") {
+				return false
+			}
+			actions = append(actions, func() { b.FailureOnError(agenthooks.OnError(s)) })
 		case "timeouts":
 			t, ok := v.(map[string]any)
 			if !ok {
@@ -640,6 +670,12 @@ func typedBindings(b *agenthooks.DeclarationBuilder, items []any) bool {
 					return false
 				}
 				bd.opts = append(bd.opts, agenthooks.BindTimeoutMs(ms))
+			case "on_error":
+				s, ok := v.(string)
+				if !ok || (s != "deny" && s != "continue") {
+					return false
+				}
+				bd.opts = append(bd.opts, agenthooks.BindOnError(agenthooks.OnError(s)))
 			default:
 				return false
 			}
@@ -652,20 +688,31 @@ func typedBindings(b *agenthooks.DeclarationBuilder, items []any) bool {
 	return true
 }
 
+// harnessSurface is what a harness's own declaration resolves to
+// (§7.7.9): the capabilities, the tool-seam posture and the default
+// failure posture the run is assessed against.
+type harnessSurface struct {
+	caps    []string
+	posture string
+	onError string
+}
+
 // resolvedSurface resolves a harness's own declaration against its
-// code surface (§7.7.9) and returns the capabilities and posture the
-// run is assessed against.
-func resolvedSurface(doc map[string]any, surface agenthooks.HostSurface) ([]string, string, error) {
+// code surface (§7.7.9).
+func resolvedSurface(doc map[string]any, surface agenthooks.HostSurface) (harnessSurface, error) {
 	decl, err := agenthooks.DeclarationFromValue(doc)
 	if err != nil {
-		return nil, "", err
+		return harnessSurface{}, err
 	}
 	resolved, err := agenthooks.ResolveDeclarationSurface(decl, surface)
 	if err != nil {
-		return nil, "", err
+		return harnessSurface{}, err
 	}
-	return append([]string(nil), resolved.Surface.Capabilities...),
-		string(resolved.Configuration.Posture.ToolSeamHostError), nil
+	return harnessSurface{
+		caps:    append([]string(nil), resolved.Surface.Capabilities...),
+		posture: string(resolved.Configuration.Posture.ToolSeamHostError),
+		onError: string(resolved.Configuration.Failure.OnError),
+	}, nil
 }
 
 // harnessSurfaceCache memoises resolvedSurface by document and code
@@ -675,20 +722,24 @@ func resolvedSurface(doc map[string]any, surface agenthooks.HostSurface) ([]stri
 var harnessSurfaceCache sync.Map // string -> *harnessSurfaceEntry
 
 type harnessSurfaceEntry struct {
-	caps    []string
-	posture string
+	surface harnessSurface
 	err     error
 }
 
-func cachedResolvedSurface(doc map[string]any, surface agenthooks.HostSurface) ([]string, string, error) {
+func cachedResolvedSurface(doc map[string]any, surface agenthooks.HostSurface) (harnessSurface, error) {
 	key := mustJSON(doc) + "\x00" + mustJSON(surface)
 	if v, ok := harnessSurfaceCache.Load(key); ok {
 		e := v.(*harnessSurfaceEntry)
-		return append([]string(nil), e.caps...), e.posture, e.err
+		return e.surface.clone(), e.err
 	}
-	caps, posture, err := resolvedSurface(doc, surface)
-	harnessSurfaceCache.Store(key, &harnessSurfaceEntry{caps: caps, posture: posture, err: err})
-	return append([]string(nil), caps...), posture, err
+	hs, err := resolvedSurface(doc, surface)
+	harnessSurfaceCache.Store(key, &harnessSurfaceEntry{surface: hs, err: err})
+	return hs.clone(), err
+}
+
+func (h harnessSurface) clone() harnessSurface {
+	h.caps = append([]string(nil), h.caps...)
+	return h
 }
 
 // codeSurface is the harness's code surface: its own when it declares

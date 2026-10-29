@@ -19,11 +19,10 @@ Python, TypeScript, .NET, and Go wrappers bind.
 ## Host execution profile
 
 `InterceptionEmitter` defaults to `HostExecutionProfile::strict()`. Hosts that
-continue only timeout failures can select `TimeoutAction::Continue`; the record
-then carries `host_warning:interceptor_timeout`. Use
-`register_managed_with_options` or `HostRegistry::managed_kind` when an adapter
-must own its deadline and finish cancellation/kill/reap before returning
-`ManagedInterceptorOutcome::Timeout`.
+adopt labels only for records can select `ResultLabelPolicy::RecordOnly`.
+Failure handling remains governed by `on_error`, including its required
+principal notification. Managed interceptors use `register_managed` or
+`HostRegistry::managed_kind` and the existing deadline/cleanup contract.
 
 `from_declaration_sources` combines only declarations with identical resolved
 global configuration. It preserves `BindingContext.source_id` and
@@ -55,6 +54,44 @@ Interceptors implement `Interceptor::intercept(&AgentContext) -> Verdict`;
 shortcuts. The CTK runner and reference harness live behind the `ctk`
 feature; timeouts are host-owned (see the `emitter` module docs).
 
+### Failure posture (`on_error`)
+
+Every registration fails closed by default: a raise or panic, a timeout
+or a §5-invalid return value becomes a `host_error:*` deny in that
+registration's slot (spec section 6.3). A registration can instead be
+best effort. `RegistrationOptions { on_error: OnError::Continue, .. }`
+makes the host substitute an allow carrying the warning
+`host_warning:control_failed` (message `<binding>: <host_error reason>;
+host continued`), record the underlying reason on
+`verdicts[].substituted_for`, and tell the principal through the
+emitter's control failure notifier. Nothing else is covered: context
+failures, cancellation, transform failures, approval failures,
+`no_interceptor` and an explicit deny never continue.
+
+```rust
+use agent_hooks::{ControlFailureNotice, OnError, RegistrationOptions};
+
+// The notifier comes first: a continue registration without one is a
+// RegistrationError, so a silent continuation cannot be configured.
+emitter.set_control_failure_notifier(|n: &ControlFailureNotice| {
+    tell_the_user(&n.message); // "<binding>: host_error:...; host continued"
+});
+emitter.register_with_options(Box::new(best_effort_scanner), RegistrationOptions {
+    name: Some("scanner".into()),
+    on_error: OnError::Continue,
+    ..RegistrationOptions::default()
+})?;
+```
+
+An interceptor that runs external work (a process, an HTTP call) can
+own its deadline instead of being wrapped in the emitter's timer:
+implement `ManagedInterceptor`, whose `intercept_managed(ctx, bound)`
+receives the resolved bound and reports a `ManagedInterceptorOutcome`
+(`Verdict`, `Timeout` after cancelling and cleaning up the work,
+`Cancelled`, `Failed`). Register it with `register_managed`, or through
+a declaration with `HostRegistry::managed_kind`. A cancelled outcome is
+never a timeout and never continues.
+
 Golden identity vectors pin byte-identical canonicalization across all
 five SDKs: `cargo test --workspace --all-features`.
 
@@ -63,8 +100,16 @@ five SDKs: `cargo test --workspace --all-features`.
 A host can load its configuration, declared surface and interceptor
 bindings from a host declaration document (spec section 7.7) instead of
 calling the setters. The document is a versioned contract of its own,
-`agent-hooks-declaration/1.0`, separate from the wire version. The crate
+`agent-hooks-declaration/1.1`, separate from the wire version; the
+loader also accepts `1.0`, whose documents keep their meaning. The crate
 exports `DECLARATION_VERSION` and `SUPPORTED_DECLARATION_VERSIONS`.
+Version 1.1 adds two optional members: `configuration.failure.on_error`
+(the document default, `deny` or `continue`) and `bindings[].on_error`
+(one binding's own posture). A document in which any binding resolves
+to `continue` is refused at load (`surface_unsupported`, before any kind
+resolver runs) unless the registry holds a `control_failure_notifier`.
+In code, `DeclarationBuilder::failure_on_error`
+and `bind_with(.., BindingOptions { on_error, .. })` write the members.
 
 The host registers in code what a document may reference: its surface,
 kind resolvers (one closure per binding kind), custom identity
@@ -106,9 +151,10 @@ in-process and .NET and Go call it through the C ABI.
 An emitter built from a declaration is sealed: `register`,
 `register_at` and the setters panic. `declaration()` returns the
 resolved form; its `canonical_json()` is the same string for the path,
-JSON and code paths. Every record such an emitter writes carries
-`declaration: "agent-hooks-declaration/1.0"`; records from an emitter
-configured with `new` and the setters carry no such member. Bindings
+JSON and code paths. Every record such an emitter writes carries the document's own
+version, `declaration: "agent-hooks-declaration/1.1"` (or `1.0`);
+records from an emitter configured with `new` and the setters carry no
+such member. Bindings
 run per point: `register_at` offers the same per-point binding in code,
 and `interceptors_registered`, `verdicts[].index` and `decided_by`
 count the interceptors bound at the emitted point. A numeric
@@ -123,3 +169,21 @@ for the other four SDKs; build it with
 `cargo build --release -p agent-hooks-ffi` when developing against
 Python/TypeScript/.NET/Go locally (their READMEs cover per-OS
 placement).
+
+Windows MSVC builds use the repository's `.cargo/config.toml` to enable
+Control Flow Guard (CFG) instrumentation and linking with
+`-C control-flow-guard=checks`. Run Cargo from this checkout or one of
+its subdirectories so that Cargo discovers the configuration. Do not
+replace it with `nochecks`, which emits metadata without runtime checks.
+The setting does not change non-Windows targets or the GNU cgo build.
+Windows release FFI assets are checked by
+`scripts/check-windows-cfg.ps1` before upload.
+
+The Windows x64 FFI/NuGet release route additionally uses the pinned
+`nightly-2026-10-21` compiler to rebuild `std` and `panic_unwind` with
+`-Z stack-protector=strong`, retaining CFG. Its matching-PDB BinSkim
+gate rejects BA2014 failures, skipped checks and stale binary reports.
+Follow the [.NET Windows build instructions](../dotnet/README.md#windows-x64-source-builds-and-release-checks)
+for this protected artifact. A plain stable Cargo build still uses the
+precompiled standard library and is not equivalent. Direct Rust, Python,
+TypeScript, GNU cgo and non-Windows build toolchains are unchanged.

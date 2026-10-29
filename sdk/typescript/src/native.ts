@@ -23,6 +23,8 @@ const binding = require("../binding.js") as {
   validateTransformCtx(ctxJson: string, path: string, valueJson: string): string;
   finalize(ctxJson: string, verdictJson: string, mode: string, optionsJson: string): string;
   composeAggregate(compositionJson: string, verdictsJson: string): string;
+  controlFailureSubstitute(requestJson: string): string;
+  managedOutcome(outcomeJson: string): string;
   ctkScriptedIntercept(rulesJson: string, ctxJson: string): string;
   ctkScriptedResolve(rulesJson: string, ctxJson: string, identity: string): string;
   ctkShouldSkip(vectorJson: string, capsJson: string): string;
@@ -72,6 +74,8 @@ export const native = {
   validateTransformCtx: wrap(binding.validateTransformCtx),
   finalize: wrap(binding.finalize),
   composeAggregate: wrap(binding.composeAggregate),
+  controlFailureSubstitute: wrap(binding.controlFailureSubstitute),
+  managedOutcome: wrap(binding.managedOutcome),
   ctkScriptedIntercept: wrap(binding.ctkScriptedIntercept),
   ctkScriptedResolve: wrap(binding.ctkScriptedResolve),
   ctkShouldSkip: wrap(binding.ctkShouldSkip),
