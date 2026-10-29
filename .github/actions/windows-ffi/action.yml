@@ -1,0 +1,64 @@
+# Copyright (c) Microsoft. All rights reserved.
+
+name: Protected Windows FFI
+description: Build the Windows x64 FFI with protected Rust runtime code and verify its matching-PDB scan.
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      with:
+        toolchain: nightly-2026-10-21
+        components: rust-src
+        targets: x86_64-pc-windows-msvc
+    - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      with: { dotnet-version: "8.0.x" }
+    - name: Build protected FFI and standard library
+      shell: pwsh
+      working-directory: sdk/rust
+      env:
+        CARGO_BUILD_JOBS: "2"
+        # RUSTFLAGS replaces the root CFG flags, so retain both mitigations.
+        RUSTFLAGS: -C control-flow-guard=checks -Z stack-protector=strong -D partial-stack-protector
+      run: |
+        $env:CARGO_ENCODED_RUSTFLAGS = $null
+        cargo +nightly-2026-10-21 -Z build-std=std,panic_unwind build --locked --release `
+          -p agent-hooks-ffi --target x86_64-pc-windows-msvc
+        if ($LASTEXITCODE -ne 0) { throw 'Protected Windows FFI build failed.' }
+    - name: Scan the DLL with its matching PDB
+      shell: pwsh
+      run: |
+        $archive = Join-Path $env:RUNNER_TEMP 'binskim-4.4.9.nupkg'
+        $tools = Join-Path $env:RUNNER_TEMP 'binskim-4.4.9'
+        Invoke-WebRequest https://www.nuget.org/api/v2/package/Microsoft.CodeAnalysis.BinSkim/4.4.9 `
+          -OutFile $archive -TimeoutSec 120
+        $expected = '0700BAD9B472D86503A74E3E839D2BC8C32B8EDE7302D7167A42E4969C88A300'
+        if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $expected) {
+          throw 'BinSkim package hash does not match the pinned analyzer.'
+        }
+        dotnet nuget verify $archive --all
+        if ($LASTEXITCODE -ne 0) { throw 'BinSkim package signature verification failed.' }
+        [IO.Compression.ZipFile]::ExtractToDirectory($archive, $tools)
+        $scanner = Join-Path $tools 'tools\net9.0\win-x64\BinSkim.exe'
+        $release = Join-Path $env:GITHUB_WORKSPACE 'sdk\rust\target\x86_64-pc-windows-msvc\release'
+        $dll = Join-Path $release 'agent_hooks_ffi.dll'
+        $report = Join-Path $env:RUNNER_TEMP 'windows-ffi-binskim.sarif'
+        $log = Join-Path $env:RUNNER_TEMP 'windows-ffi-binskim.log'
+        & $scanner analyze $dll --output $report --disable-telemetry true `
+          --sympath $release --local-symbol-directories $release --threads 1 `
+          --timeout-in-seconds 120 --max-file-size-in-kb 65536 --hashes true `
+          --kind 'Fail;Pass;Review;NotApplicable;Informational' --level 'Error;Warning;Note' `
+          --trace PdbLoad *> $log
+        if ($LASTEXITCODE -ne 0) { throw "BinSkim execution failed; see $log." }
+        .\scripts\test-windows-stack-protection.ps1 -Dll $dll -Report $report
+    - name: Retain native hardening evidence
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: windows-ffi-hardening
+        path: |
+          ${{ runner.temp }}/windows-ffi-binskim.sarif
+          ${{ runner.temp }}/windows-ffi-binskim.log
+          sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.dll
+          sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.pdb
+        if-no-files-found: error
+        retention-days: 14

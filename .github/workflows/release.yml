@@ -340,6 +340,7 @@ jobs:
               targets.map(t => ["@responsibleai/agent-hooks-" + t, p.version]));
             fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n");
           '
+          channel_packages=()
           for dir in npm/linux-x64-gnu npm/linux-arm64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc .; do
             name=$(node -p "require('./$dir/package.json').name")
             if [ "$dir" != "." ] && ! ls "$dir"/*.node >/dev/null 2>&1; then
@@ -347,8 +348,9 @@ jobs:
             fi
             if npm view "$name@$V" version >/dev/null 2>&1; then
               echo "$name@$V already on npm — skipping"
+              channel_packages+=("$name")
             elif (cd "$dir" && npm publish --access public --tag latest); then
-              :
+              channel_packages+=("$name")
             elif ! npm view "$name" name >/dev/null 2>&1; then
               # npm trusted publishing cannot be configured for a package
               # that has never been published, so a brand-new platform
@@ -361,12 +363,9 @@ jobs:
             fi
           done
           if [ -n "$NPM_CHANNEL" ]; then
-            for dir in npm/linux-x64-gnu npm/linux-arm64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc .; do
-              name=$(node -p "require('./$dir/package.json').name")
-              if ! npm view "$name@$V" version >/dev/null 2>&1; then
-                echo "$name@$V is not on npm (first publish failed soft above), no channel tag"
-                continue
-              fi
+            # A successful publish is eligible even before npm view catches up.
+            # Only explicit first-publication soft failures were left out above.
+            for name in "${channel_packages[@]}"; do
               # is enabled on the trusted publisher of every package; the
               # command must then fail the job.
               npm dist-tag add "$name@$V" "$NPM_CHANNEL"
@@ -375,6 +374,7 @@ jobs:
         working-directory: sdk/typescript
 
   ffi-build:
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -389,10 +389,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master; toolchain pinned via sdk/rust/rust-toolchain.toml
+        if: runner.os != 'Windows'
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
       - name: Install ${{ matrix.target }} for the pinned toolchain
+        if: runner.os != 'Windows'
         # rust-toolchain.toml pins the toolchain inside sdk/rust; the
         # setup action installs targets for `stable` only, so cross
         # targets must be added in the pinned context.
@@ -400,9 +402,14 @@ jobs:
         run: rustup target add ${{ matrix.target }}
         working-directory: sdk/rust
       - name: Build FFI cdylib for ${{ matrix.target }}
+        if: runner.os != 'Windows'
         shell: bash
         run: cargo build --locked --release -p agent-hooks-ffi --target ${{ matrix.target }}
         working-directory: sdk/rust
+      - name: Build and scan protected Windows FFI
+        if: runner.os == 'Windows'
+        timeout-minutes: 15
+        uses: ./.github/actions/windows-ffi
       - name: Check Windows release DLL CFG
         if: runner.os == 'Windows'
         shell: pwsh

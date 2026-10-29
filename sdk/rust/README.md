@@ -165,3 +165,12 @@ replace it with `nochecks`, which emits metadata without runtime checks.
 The setting does not change non-Windows targets or the GNU cgo build.
 Windows release FFI assets are checked by
 `scripts/check-windows-cfg.ps1` before upload.
+
+The Windows x64 FFI/NuGet release route additionally uses the pinned
+`nightly-2026-10-21` compiler to rebuild `std` and `panic_unwind` with
+`-Z stack-protector=strong`, retaining CFG. Its matching-PDB BinSkim
+gate rejects BA2014 failures, skipped checks and stale binary reports.
+Follow the [.NET Windows build instructions](../dotnet/README.md#windows-x64-source-builds-and-release-checks)
+for this protected artifact. A plain stable Cargo build still uses the
+precompiled standard library and is not equivalent. Direct Rust, Python,
+TypeScript, GNU cgo and non-Windows build toolchains are unchanged.
