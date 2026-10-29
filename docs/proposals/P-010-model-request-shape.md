@@ -646,10 +646,11 @@ What old and new producers and consumers keep:
 Package versions: VERSIONING.md bumps the SDK major on a spec MAJOR or a
 breaking API. While the draft is experimental and the builders accept
 both forms, no SDK API breaks, and the spec MAJOR takes effect only when
-the wire version string moves. This proposal reads the rule this way; the reading is not settled. The
-SDK release that ships the draft shape behind the capability can be a
-minor. The release that removes the `messages` form, or that ships the
-revision once the wire version is settled, is a major.
+the wire version string moves. This proposal reads the rule this way;
+the reading is not settled. The SDK release that ships the draft shape
+behind the capability can be a minor. The release that removes the
+`messages` form, or that ships the revision once the wire version is
+settled, is a major.
 
 ## Performance and operational impact
 
