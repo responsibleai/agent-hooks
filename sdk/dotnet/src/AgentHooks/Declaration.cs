@@ -446,6 +446,9 @@ public sealed record BindingContext(
     string DeclarationVersion,
     OnError OnError)
 {
+    /// <summary>The declaration source, or null for a single document.</summary>
+    public string? SourceId { get; init; }
+
     /// <summary>The six-component shape shipped before <c>OnError</c>
     /// existed, kept for binary compatibility; it means <c>deny</c>.</summary>
     public BindingContext(

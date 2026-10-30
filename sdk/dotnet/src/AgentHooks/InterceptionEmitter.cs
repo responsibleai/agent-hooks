@@ -106,6 +106,22 @@ public sealed class IdentityProvider
     }
 }
 
+public enum ResultLabelPolicy
+{
+    Flow,
+    RecordOnly,
+}
+
+public sealed record HostExecutionProfile(
+    ResultLabelPolicy ResultLabelPolicy = ResultLabelPolicy.Flow);
+
+public sealed record DeclarationSource(string Id, HostDeclaration Declaration);
+
+public sealed record DeclarationSourceInfo(
+    string Id,
+    string DeclarationVersion,
+    int BindingCount);
+
 /// <summary>The optional facts of one code registration
 /// (<see cref="InterceptionEmitter.RegisterWithOptions"/>,
 /// <see cref="InterceptionEmitter.RegisterManaged"/>): the payload-free
@@ -196,8 +212,9 @@ public sealed class InterceptionEmitter
     private readonly EnforcementMode _mode;
     private readonly TimeSpan _timeout;
     private readonly TimeSpan _resolverTimeout;
-    private readonly bool _sealed;
-    private readonly ResolvedDeclaration? _declaration;
+    private bool _sealed;
+    private ResolvedDeclaration? _declaration;
+    private readonly List<DeclarationSourceInfo> _declarationSources = [];
     private CompositionConfig _composition = CompositionConfig.Default;
     private IdentityProvider _identity = IdentityProvider.JcsSha256;
     private Func<AgentContext, AgentContext>? _approvalRedactor;
@@ -205,6 +222,7 @@ public sealed class InterceptionEmitter
     private Action<ControlFailureNotice>? _notifier;
     private int? _maxRecords;
     private long _recordsDropped;
+    private HostExecutionProfile _executionProfile = new();
 
     /// <param name="timeout">Bounds each interceptor
     /// <c>InterceptAsync</c> and resolver <c>ResolveAsync</c> call (§7,
@@ -251,16 +269,71 @@ public sealed class InterceptionEmitter
     public static InterceptionEmitter FromDeclarationNode(JsonNode? node, HostRegistry registry) =>
         FromDeclaration(HostDeclaration.FromNode(node), registry);
 
+    public static InterceptionEmitter FromDeclarationSources(
+        IEnumerable<DeclarationSource> sources,
+        HostRegistry registry,
+        HostExecutionProfile? profile = null)
+    {
+        var sourceList = sources.ToList();
+        if (sourceList.Count == 0) throw new ArgumentException("At least one source is required.", nameof(sources));
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var resolved = sourceList.Select(source =>
+        {
+            if (!ValidSourceId(source.Id))
+                throw new ArgumentException($"Invalid source id \"{source.Id}\".", nameof(sources));
+            if (!seen.Add(source.Id)) throw new ArgumentException($"Duplicate source id \"{source.Id}\".", nameof(sources));
+            var item = source.Declaration.Resolve(registry);
+            return (Source: source, Resolved: item);
+        }).ToList();
+        var expected = resolved[0].Resolved.ToWire()["configuration"]!.ToJsonString(Compact);
+        foreach (var item in resolved.Skip(1))
+            if (item.Resolved.ToWire()["configuration"]!.ToJsonString(Compact) != expected)
+                throw new ArgumentException($"Global configuration mismatch for source \"{item.Source.Id}\".", nameof(sources));
+
+        var emitter = new InterceptionEmitter(resolved[0].Resolved, registry, buildBindings: false);
+        foreach (var item in resolved)
+        {
+            var part = new InterceptionEmitter(item.Resolved, registry, item.Source.Id);
+            for (var i = 0; i < part._bound.Count; i++)
+            {
+                var binding = item.Resolved.Bindings[i];
+                emitter._bound.Add(part._bound[i] with
+                {
+                    Name = $"{item.Source.Id}/{binding.Id}",
+                });
+            }
+            emitter._declarationSources.Add(new(
+                item.Source.Id, item.Resolved.Version, item.Resolved.Bindings.Count));
+        }
+        emitter._executionProfile = profile ?? new();
+        emitter._declaration = null;
+        emitter._sealed = true;
+        return emitter;
+    }
+
+    private static bool ValidSourceId(string value) =>
+        value.Length is >= 1 and <= 64
+        && value[0] is >= 'a' and <= 'z'
+        && value.All(c =>
+            c is >= 'a' and <= 'z'
+            || c is >= '0' and <= '9'
+            || c is '_' or '-');
+
     /// <summary>The resolved declaration this emitter runs under, when
     /// it was built from one (§7.7.7). Its canonical JSON is the
     /// equivalence oracle for the construction paths.</summary>
     public ResolvedDeclaration? Declaration => _declaration;
+    public IReadOnlyList<DeclarationSourceInfo> DeclarationSources => _declarationSources.ToList();
 
     /// <summary>Step 11 and construction. Every reference is looked up
     /// again in the registry's own maps, so bookkeeping drift between
     /// the names the core checked and what the registry holds fails
     /// closed.</summary>
-    private InterceptionEmitter(ResolvedDeclaration resolved, HostRegistry registry)
+    private InterceptionEmitter(
+        ResolvedDeclaration resolved,
+        HostRegistry registry,
+        string? sourceId = null,
+        bool buildBindings = true)
     {
         static TimeSpan Limit(long? ms) =>
             ms is { } v ? TimeSpan.FromMilliseconds(v) : Timeout.InfiniteTimeSpan;
@@ -311,7 +384,7 @@ public sealed class InterceptionEmitter
         }
 
         _notifier = registry.ControlFailureNotifierRef;
-        for (var i = 0; i < resolved.Bindings.Count; i++)
+        for (var i = 0; buildBindings && i < resolved.Bindings.Count; i++)
         {
             var b = resolved.Bindings[i];
             var pointer = $"/bindings/{i}";
@@ -344,7 +417,8 @@ public sealed class InterceptionEmitter
             var at = new HashSet<InterceptionPoint>(b.At);
             var context = new BindingContext(
                 b.Id, b.Kind, new HashSet<InterceptionPoint>(b.At), timeout, resolved.Host, resolved.Version,
-                b.OnError);
+                b.OnError)
+            { SourceId = sourceId };
             // §7.7.5: a resolver exception or a non-interceptor return
             // refuses the document; the detail is bounded and the
             // config is never echoed by the loader.
@@ -425,6 +499,21 @@ public sealed class InterceptionEmitter
 
     /// <summary>The composition profile and knobs in effect (§7.1).</summary>
     public CompositionConfig Composition => _composition;
+
+    public HostExecutionProfile ExecutionProfile => _executionProfile;
+
+    public InterceptionEmitter SetExecutionProfile(HostExecutionProfile profile)
+    {
+        Unsealed(nameof(SetExecutionProfile));
+        _executionProfile = profile;
+        return this;
+    }
+
+    public IReadOnlySet<InterceptionPoint> EnabledPoints =>
+        _bound.SelectMany(
+            b => b.At is null
+                ? Enum.GetValues<InterceptionPoint>().AsEnumerable()
+                : b.At).ToHashSet();
 
     /// <summary>All interception records emitted so far in this session, in order.</summary>
     private readonly object _recordsLock = new();

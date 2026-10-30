@@ -13,12 +13,44 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 type scripted struct{ v Verdict }
 
 func (s scripted) Intercept(context.Context, AgentContext) (Verdict, error) {
 	return s.v, nil
+}
+
+type profileSlowInterceptor struct{}
+
+func (profileSlowInterceptor) Intercept(ctx context.Context, _ AgentContext) (Verdict, error) {
+	<-ctx.Done()
+	return Verdict{}, ctx.Err()
+}
+
+func TestRecordOnlyProfilePreservesNotifiedFailureContinuation(t *testing.T) {
+	e := NewInterceptionEmitter(Enforce, nil)
+	e.Timeout = 5 * time.Millisecond
+	e.SetExecutionProfile(HostExecutionProfile{
+		ResultLabelPolicy: ResultLabelsRecordOnly,
+	})
+	var notices []ControlFailureNotice
+	e.SetControlFailureNotifier(func(n ControlFailureNotice) { notices = append(notices, n) })
+	if err := e.RegisterWithOptions(profileSlowInterceptor{}, RegistrationOptions{OnError: OnErrorContinue}); err != nil {
+		t.Fatal(err)
+	}
+	rec := emit(t, e, testCtx())
+	if !rec.Proceeds() {
+		t.Fatal("timeout continuation should proceed")
+	}
+	if len(rec.Verdict.Warnings) != 1 ||
+		rec.Verdict.Warnings[0].Reason != "host_warning:control_failed" {
+		t.Fatalf("warnings = %#v", rec.Verdict.Warnings)
+	}
+	if len(notices) != 1 {
+		t.Fatalf("notices = %#v", notices)
+	}
 }
 
 // approver echoes the request identity (§9 echo rule) and returns a

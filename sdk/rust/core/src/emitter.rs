@@ -59,7 +59,7 @@ use crate::composition::{
     Aggregate, CompositionConfig, CompositionProfile, OnApproval, SynthesisPolicy,
 };
 use crate::declaration::{
-    BindingContext, DeclarationError, DeclarationErrorClass, HostDeclaration, HostRegistry,
+    self, BindingContext, DeclarationError, DeclarationErrorClass, HostDeclaration, HostRegistry,
     ResolvedDeclaration,
 };
 use crate::enforce::{apply_transform_to_ctx, finalize, validate_transform, FinalizeMeta};
@@ -69,6 +69,7 @@ use crate::types::{
     InterceptionPoint, InterceptionRecord, Interceptor, ManagedInterceptor,
     ManagedInterceptorOutcome, OnError, Verdict, VerdictSummary, JCS_SHA256,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::fmt;
@@ -83,6 +84,62 @@ use std::sync::Arc;
 pub struct EmitOutcome {
     pub record: InterceptionRecord,
     pub target: Value,
+}
+
+/// Whether permit-verdict labels participate in host data-label flow.
+///
+/// The SDK always keeps labels in the interception record. `RecordOnly`
+/// makes that record the end of their lifecycle; it creates no host
+/// obligation to persist or resurface them with application data.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResultLabelPolicy {
+    #[default]
+    Flow,
+    RecordOnly,
+}
+
+/// Explicit host adoption profile. Existing hosts get [`Self::strict`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HostExecutionProfile {
+    #[serde(default)]
+    pub result_label_policy: ResultLabelPolicy,
+}
+
+impl HostExecutionProfile {
+    /// Existing Agent Hooks semantics: result labels flow with application data.
+    pub const fn strict() -> Self {
+        Self {
+            result_label_policy: ResultLabelPolicy::Flow,
+        }
+    }
+}
+
+/// One independently supplied declaration used only as a source of
+/// bindings. Configuration and failure posture come from the fully
+/// resolved declaration.
+#[derive(Debug, Clone)]
+pub struct DeclarationSource {
+    pub id: String,
+    pub declaration: HostDeclaration,
+}
+
+impl DeclarationSource {
+    pub fn new(id: impl Into<String>, declaration: HostDeclaration) -> Self {
+        Self {
+            id: id.into(),
+            declaration,
+        }
+    }
+}
+
+/// Payload-free metadata for one imported declaration source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclarationSourceInfo {
+    pub id: String,
+    pub declaration_version: String,
+    pub binding_count: usize,
 }
 
 /// Returned by [`InterceptionEmitter::emit`] when the combined verdict
@@ -457,6 +514,8 @@ pub struct InterceptionEmitter {
     max_records: Option<usize>,
     records_dropped: u64,
     records: Vec<InterceptionRecord>,
+    execution_profile: HostExecutionProfile,
+    declaration_sources: Vec<DeclarationSourceInfo>,
     /// §7.7.7: a declaration-built emitter refuses reconfiguration.
     sealed: bool,
     /// The resolved declaration this emitter was built from, if any.
@@ -493,6 +552,8 @@ impl InterceptionEmitter {
             max_records: None,
             records_dropped: 0,
             records: Vec::new(),
+            execution_profile: HostExecutionProfile::strict(),
+            declaration_sources: Vec::new(),
             sealed: false,
             declaration: None,
         }
@@ -537,6 +598,97 @@ impl InterceptionEmitter {
         Self::from_declaration(HostDeclaration::from_value(value)?, registry)
     }
 
+    /// Build one sealed emitter from independently supplied declaration
+    /// bindings without claiming that any one declaration describes the
+    /// combined host.
+    ///
+    /// Every source is resolved in full. All resolved global
+    /// configuration must match exactly; a mismatch is refused rather
+    /// than flattened away. Each source's surface is independently
+    /// checked against the same [`HostRegistry`]. Registration names
+    /// become `source/binding` for payload-free provenance. Records omit
+    /// the single-declaration stamp and [`Self::declaration`] is `None`.
+    pub fn from_declaration_sources(
+        sources: impl IntoIterator<Item = DeclarationSource>,
+        registry: &HostRegistry,
+        profile: HostExecutionProfile,
+    ) -> Result<Self, DeclarationError> {
+        let sources: Vec<DeclarationSource> = sources.into_iter().collect();
+        if sources.is_empty() {
+            return Err(DeclarationError::new(
+                DeclarationErrorClass::Inconsistent,
+                "/sources",
+                "at least one declaration source is required",
+            ));
+        }
+        let mut ids = BTreeSet::new();
+        let mut resolved_sources = Vec::with_capacity(sources.len());
+        for (index, source) in sources.into_iter().enumerate() {
+            if !declaration::valid_reference(&source.id) {
+                return Err(DeclarationError::new(
+                    DeclarationErrorClass::InvalidField,
+                    format!("/sources/{index}/id"),
+                    format!(
+                        "source id {:?} does not match ^[a-z][a-z0-9_-]{{0,63}}$",
+                        source.id
+                    ),
+                ));
+            }
+            if !ids.insert(source.id.clone()) {
+                return Err(DeclarationError::new(
+                    DeclarationErrorClass::Inconsistent,
+                    format!("/sources/{index}/id"),
+                    format!("source id {:?} appears more than once", source.id),
+                ));
+            }
+            let resolved =
+                declaration::resolve(&source.declaration, registry.surface(), &registry.names())?;
+            resolved_sources.push((source, resolved));
+        }
+
+        let expected = resolved_sources[0].1.configuration.clone();
+        for (index, (source, resolved)) in resolved_sources.iter().enumerate().skip(1) {
+            if resolved.configuration != expected {
+                return Err(DeclarationError::new(
+                    DeclarationErrorClass::Inconsistent,
+                    format!("/sources/{index}/configuration"),
+                    format!(
+                        "source {:?} resolves to global configuration incompatible with source {:?}",
+                        source.id, resolved_sources[0].0.id
+                    ),
+                ));
+            }
+        }
+
+        let mut group = resolved_sources[0].1.clone();
+        group.bindings.clear();
+        let mut emitter = Self::from_resolved_with_source(group, registry, None)?;
+        let mut source_info = Vec::with_capacity(resolved_sources.len());
+        for (source, resolved) in &resolved_sources {
+            source_info.push(DeclarationSourceInfo {
+                id: source.id.clone(),
+                declaration_version: resolved.declaration.clone(),
+                binding_count: resolved.bindings.len(),
+            });
+            let mut source_emitter =
+                Self::from_resolved_with_source(resolved.clone(), registry, Some(&source.id))?;
+            for (bound, binding) in source_emitter
+                .interceptors
+                .iter_mut()
+                .zip(&resolved.bindings)
+            {
+                bound.name = Some(format!("{}/{}", source.id, binding.id));
+            }
+            emitter
+                .interceptors
+                .append(&mut source_emitter.interceptors);
+        }
+        emitter.execution_profile = profile;
+        emitter.declaration = None;
+        emitter.declaration_sources = source_info;
+        Ok(emitter)
+    }
+
     /// The resolved declaration this emitter runs under, when it was
     /// built from one (§7.7.7). Its canonical JSON is the equivalence
     /// oracle for the construction paths.
@@ -550,6 +702,14 @@ impl InterceptionEmitter {
     fn from_resolved(
         resolved: ResolvedDeclaration,
         registry: &HostRegistry,
+    ) -> Result<Self, DeclarationError> {
+        Self::from_resolved_with_source(resolved, registry, None)
+    }
+
+    fn from_resolved_with_source(
+        resolved: ResolvedDeclaration,
+        registry: &HostRegistry,
+        source_id: Option<&str>,
     ) -> Result<Self, DeclarationError> {
         let cfg = &resolved.configuration;
         let resolver: Option<Box<dyn ApprovalResolver>> = match &cfg.approval.resolver {
@@ -618,6 +778,7 @@ impl InterceptionEmitter {
             let bctx = BindingContext {
                 id: &b.id,
                 kind: &b.kind,
+                source_id,
                 at: &b.at,
                 timeout,
                 on_error: b.on_error,
@@ -685,6 +846,8 @@ impl InterceptionEmitter {
             max_records: cfg.records.max_buffered.map(|n| n as usize),
             records_dropped: 0,
             records: Vec::new(),
+            execution_profile: HostExecutionProfile::strict(),
+            declaration_sources: Vec::new(),
             sealed: true,
             declaration: Some(resolved),
         })
@@ -701,6 +864,45 @@ impl InterceptionEmitter {
 
     pub fn mode(&self) -> EnforcementMode {
         self.mode
+    }
+
+    /// The explicit host adoption profile in effect.
+    pub fn execution_profile(&self) -> HostExecutionProfile {
+        self.execution_profile
+    }
+
+    /// Configure result-label adoption for an unsealed emitter.
+    pub fn set_execution_profile(&mut self, profile: HostExecutionProfile) -> &mut Self {
+        self.unsealed("set_execution_profile");
+        self.execution_profile = profile;
+        self
+    }
+
+    /// Source metadata for a combined declaration emitter.
+    pub fn declaration_sources(&self) -> &[DeclarationSourceInfo] {
+        &self.declaration_sources
+    }
+
+    /// Points with at least one enabled registration. This is distinct
+    /// from [`HostSurface::interception_points`], which describes support.
+    pub fn enabled_points(&self) -> BTreeSet<InterceptionPoint> {
+        let all = [
+            InterceptionPoint::AgentStartup,
+            InterceptionPoint::Input,
+            InterceptionPoint::PreModelCall,
+            InterceptionPoint::PostModelCall,
+            InterceptionPoint::PreToolCall,
+            InterceptionPoint::PostToolCall,
+            InterceptionPoint::Output,
+            InterceptionPoint::AgentShutdown,
+        ];
+        self.interceptors
+            .iter()
+            .flat_map(|b| match &b.at {
+                Some(at) => at.iter().copied().collect::<Vec<_>>(),
+                None => all.to_vec(),
+            })
+            .collect()
     }
 
     /// Declare the composition profile for subsequent emissions (§7.1).
@@ -2158,6 +2360,136 @@ mod tests {
             Some("host_error:interceptor_timeout")
         );
         assert_eq!(r.verdict.decision, Decision::Deny);
+    }
+
+    #[cfg(feature = "tokio-timeout")]
+    #[tokio::test]
+    async fn record_only_profile_preserves_notified_failure_continuation() {
+        struct Slow;
+        #[async_trait::async_trait]
+        impl Interceptor for Slow {
+            async fn intercept(&self, _c: &AgentContext) -> Verdict {
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                Verdict::allow()
+            }
+        }
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.set_timeout(std::time::Duration::from_millis(20));
+        e.set_execution_profile(HostExecutionProfile {
+            result_label_policy: ResultLabelPolicy::RecordOnly,
+        });
+        e.set_control_failure_notifier(|_| {});
+        e.register_with_options(
+            Box::new(Slow),
+            RegistrationOptions {
+                on_error: OnError::Continue,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        e.register(Box::new(Scripted(Verdict::allow())));
+        let r = e.emit_unchecked(&mut ctx()).await;
+        assert!(r.proceeds());
+        assert_eq!(r.verdict.decision, Decision::Allow);
+        assert_eq!(
+            r.verdict.warnings[0].reason.as_deref(),
+            Some("host_warning:control_failed")
+        );
+        assert_eq!(r.verdicts.len(), 2, "the profile continues the fold");
+        assert_eq!(
+            e.execution_profile().result_label_policy,
+            ResultLabelPolicy::RecordOnly
+        );
+    }
+
+    #[tokio::test]
+    async fn managed_timeout_returns_after_cleanup_and_cancellation_still_blocks() {
+        struct Managed {
+            outcome: ManagedInterceptorOutcome,
+            cleaned: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        }
+        #[async_trait::async_trait]
+        impl ManagedInterceptor for Managed {
+            async fn intercept_managed(
+                &self,
+                _c: &AgentContext,
+                _bound: Option<std::time::Duration>,
+            ) -> ManagedInterceptorOutcome {
+                self.cleaned
+                    .store(true, std::sync::atomic::Ordering::SeqCst);
+                self.outcome.clone()
+            }
+        }
+
+        let cleaned = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut timed_out = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        timed_out.set_control_failure_notifier(|_| {});
+        timed_out
+            .register_managed(
+                Box::new(Managed {
+                    outcome: ManagedInterceptorOutcome::Timeout,
+                    cleaned: cleaned.clone(),
+                }),
+                RegistrationOptions {
+                    on_error: OnError::Continue,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let record = timed_out.emit_unchecked(&mut ctx()).await;
+        assert!(cleaned.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(record.proceeds());
+
+        let mut cancelled = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        cancelled.set_control_failure_notifier(|_| {});
+        cancelled
+            .register_managed(
+                Box::new(Managed {
+                    outcome: ManagedInterceptorOutcome::Cancelled,
+                    cleaned,
+                }),
+                RegistrationOptions {
+                    on_error: OnError::Continue,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let record = cancelled.emit_unchecked(&mut ctx()).await;
+        assert!(!record.proceeds());
+        assert_eq!(
+            record.verdict.reason.as_deref(),
+            Some("host_error:interceptor_failed")
+        );
+    }
+
+    #[test]
+    fn enabled_points_are_registration_scope_not_host_support() {
+        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        e.register_with_options(
+            Box::new(Scripted(Verdict::allow())),
+            RegistrationOptions {
+                name: Some("tool-only".into()),
+                at: Some(
+                    [
+                        InterceptionPoint::PreToolCall,
+                        InterceptionPoint::PostToolCall,
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+                on_error: OnError::Deny,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            e.enabled_points(),
+            [
+                InterceptionPoint::PreToolCall,
+                InterceptionPoint::PostToolCall
+            ]
+            .into_iter()
+            .collect()
+        );
     }
 
     #[tokio::test]

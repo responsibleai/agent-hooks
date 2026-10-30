@@ -159,6 +159,32 @@ does not accept and names the versions it does. Once built, the emitter
 is sealed, and every record it writes carries the contract version.
 The per-SDK READMEs show the same calls in each language.
 
+### Explicit host execution profiles
+
+Existing hosts keep the strict profile: `result_labels` participate in label
+flow. A host adopting record-only labels must opt in explicitly:
+
+```rust
+emitter.set_execution_profile(HostExecutionProfile {
+    result_label_policy: ResultLabelPolicy::RecordOnly,
+});
+```
+
+Failure handling remains governed by `on_error` (spec §6.3.1), including its
+required principal notification. Managed interceptors use the existing deadline
+and cleanup contract; the result-label profile does not change those behaviors.
+
+`from_declaration_sources` imports bindings from independently supplied
+declarations into one sealed **compatible execution group**. Every source is
+resolved whole, resolved global configurations must match, kind resolvers
+receive `BindingContext.source_id`, and record names retain
+`source_id/binding_id` provenance. The emitter deliberately carries no single
+declaration stamp because no one source describes the combined host. Sources
+with different `mode`, composition, seams, timeouts or record settings run in
+separate groups. `enabled_points` reports actual registration scope separately
+from the points the host supports, so tool-only controls do not force blanket
+model/output buffering.
+
 ## Composition and seams
 
 - Composition profile (§7): `sequential/first_deny` (default),

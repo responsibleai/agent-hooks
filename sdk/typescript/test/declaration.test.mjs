@@ -77,6 +77,31 @@ const minimal = () => ({
   bindings: [{ id: "allow", kind: "com.example.allow" }],
 });
 
+test("declaration sources preserve failure postures and provenance", async () => {
+  const seen = [];
+  const notices = [];
+  const reg = registry().kind("com.example.failing", (_, context) => {
+    seen.push(context.sourceId);
+    return { intercept() { throw new Error("control failed"); } };
+  }).controlFailureNotifier((notice) => notices.push(notice));
+  const sources = [["optional", "continue"], ["required", "deny"]].map(([id, on_error]) => ({
+    id,
+    declaration: HostDeclaration.fromValue({
+      declaration: V11,
+      bindings: [{ id: "guard", kind: "com.example.failing", at: ["pre_tool_call"], on_error }],
+    }),
+  }));
+  const emitter = InterceptionEmitter.fromDeclarationSources(sources, reg);
+  const record = await emitter.emitUnchecked(ctx());
+  assert.equal(record.verdict.decision, "deny");
+  assert.equal(record.declaration, undefined);
+  assert.deepEqual(seen, ["optional", "required"]);
+  assert.deepEqual(record.verdicts.map(v => v.name), ["optional/guard", "required/guard"]);
+  assert.equal(record.verdicts[0].substituted_for, "host_error:interceptor_failed");
+  assert.equal(record.verdicts[1].substituted_for, undefined);
+  assert.equal(notices.length, 1);
+});
+
 function refused(fn, code, pointer) {
   let err;
   try {

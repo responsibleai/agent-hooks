@@ -81,7 +81,15 @@ from agent_hooks.declaration import (
     ResolvedBinding,
     ResolvedDeclaration,
 )
-from agent_hooks.emitter import EmitOutcome, IdentityProvider, InterceptionEmitter
+from agent_hooks.emitter import (
+    DeclarationSource,
+    DeclarationSourceInfo,
+    EmitOutcome,
+    HostExecutionProfile,
+    IdentityProvider,
+    InterceptionEmitter,
+    ResultLabelPolicy,
+)
 from agent_hooks.exceptions import (
     EmitterSealed,
     InterceptionBlocked,
@@ -112,6 +120,8 @@ __all__ = [
     "DeclarationBuilder",
     "DeclarationError",
     "DeclarationErrorClass",
+    "DeclarationSource",
+    "DeclarationSourceInfo",
     "EmitOutcome",
     "EmitterSealed",
     "EnforcementMode",
@@ -119,6 +129,7 @@ __all__ = [
     "Finding",
     "HostDeclaration",
     "HostError",
+    "HostExecutionProfile",
     "HostRegistry",
     "HostSurface",
     "HostWarning",
@@ -140,6 +151,7 @@ __all__ = [
     "RegistrationError",
     "ResolvedBinding",
     "ResolvedDeclaration",
+    "ResultLabelPolicy",
     "SynthesisPolicy",
     "Transform",
     "Verdict",

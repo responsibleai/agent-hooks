@@ -76,6 +76,7 @@ import os
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 from agent_hooks import _core
@@ -116,6 +117,33 @@ from agent_hooks.interceptor import Interceptor, ManagedInterceptor
 
 #: §7 RECOMMENDED interceptor/resolver timeout (seconds).
 DEFAULT_TIMEOUT: float = 5.0
+
+
+class ResultLabelPolicy(str, Enum):
+    """Whether result labels flow with application data or end at records."""
+
+    FLOW = "flow"
+    RECORD_ONLY = "record_only"
+
+
+@dataclass(frozen=True, slots=True)
+class HostExecutionProfile:
+    """Explicit host adoption profile; defaults preserve strict semantics."""
+
+    result_label_policy: ResultLabelPolicy = ResultLabelPolicy.FLOW
+
+
+@dataclass(frozen=True, slots=True)
+class DeclarationSource:
+    id: str
+    declaration: HostDeclaration
+
+
+@dataclass(frozen=True, slots=True)
+class DeclarationSourceInfo:
+    id: str
+    declaration_version: str
+    binding_count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -358,6 +386,8 @@ class InterceptionEmitter:
         "_approval_redactor",
         "_composition",
         "_declaration",
+        "_declaration_sources",
+        "_execution_profile",
         "_identity",
         "_interceptors",
         "_max_records",
@@ -399,6 +429,8 @@ class InterceptionEmitter:
         self._notifier: Callable[[ControlFailureNotice], None] | None = None
         self._max_records: int | None = None
         self._records_dropped = 0
+        self._execution_profile = HostExecutionProfile()
+        self._declaration_sources: tuple[DeclarationSourceInfo, ...] = ()
         #: §7.7.7: a declaration-built emitter refuses reconfiguration.
         self._sealed = False
         self._declaration: ResolvedDeclaration | None = None
@@ -443,7 +475,10 @@ class InterceptionEmitter:
 
     @classmethod
     def _from_resolved(
-        cls, resolved: ResolvedDeclaration, registry: HostRegistry
+        cls,
+        resolved: ResolvedDeclaration,
+        registry: HostRegistry,
+        source_id: str | None = None,
     ) -> InterceptionEmitter:
         """Step 11 and construction. Every reference is looked up again
         in the registry's own maps, so bookkeeping drift between the
@@ -530,6 +565,7 @@ class InterceptionEmitter:
             bctx = BindingContext(
                 id=b.id,
                 kind=b.kind,
+                source_id=source_id,
                 at=b.at,
                 timeout=timeout,
                 host=copy.deepcopy(resolved.host),
@@ -594,6 +630,59 @@ class InterceptionEmitter:
         em._sealed = True
         return em
 
+    @classmethod
+    def from_declaration_sources(
+        cls,
+        sources: Iterable[DeclarationSource],
+        registry: HostRegistry,
+        profile: HostExecutionProfile | None = None,
+    ) -> InterceptionEmitter:
+        """Build a sealed combined emitter from fully resolved sources.
+
+        Global configuration must match exactly. No source is stamped as
+        the declaration for the combined host.
+        """
+        profile = profile or HostExecutionProfile()
+        source_list = list(sources)
+        if not source_list:
+            raise ValueError("from_declaration_sources: at least one source is required")
+        seen: set[str] = set()
+        resolved: list[tuple[DeclarationSource, ResolvedDeclaration]] = []
+        for source in source_list:
+            if not _declaration.valid_reference(source.id):
+                raise ValueError(
+                    f"from_declaration_sources: source id {source.id!r} must match "
+                    "^[a-z][a-z0-9_-]{0,63}$"
+                )
+            if source.id in seen:
+                raise ValueError(f"from_declaration_sources: source id {source.id!r} appears twice")
+            seen.add(source.id)
+            item = registry.resolve(source.declaration)
+            resolved.append((source, item))
+        expected = resolved[0][1].configuration
+        for source, item in resolved[1:]:
+            if item.configuration != expected:
+                raise ValueError(
+                    "from_declaration_sources: global configuration mismatch for "
+                    f"source {source.id!r}"
+                )
+
+        group_wire = resolved[0][1].to_wire()
+        group_wire["bindings"] = []
+        emitter = cls._from_resolved(ResolvedDeclaration(group_wire), registry)
+        infos: list[DeclarationSourceInfo] = []
+        for source, item in resolved:
+            part = cls._from_resolved(item, registry, source.id)
+            for bound, binding in zip(part._interceptors, item.bindings, strict=True):
+                bound.name = f"{source.id}/{binding.id}"
+            emitter._interceptors.extend(part._interceptors)
+            infos.append(DeclarationSourceInfo(source.id, item.version, len(item.bindings)))
+        emitter._execution_profile = profile
+        emitter._declaration = None
+        emitter._declaration_sources = tuple(infos)
+        emitter._sealed = True
+        return emitter
+
     def _unsealed(self, what: str) -> None:
         """§7.7.7: a declaration-built emitter refuses reconfiguration;
         otherwise the declaration would not be what ran."""
@@ -633,6 +722,28 @@ class InterceptionEmitter:
     @property
     def composition(self) -> CompositionConfig:
         return self._composition
+
+    @property
+    def execution_profile(self) -> HostExecutionProfile:
+        return self._execution_profile
+
+    def set_execution_profile(self, profile: HostExecutionProfile) -> InterceptionEmitter:
+        """Set result-label adoption on an unsealed emitter."""
+        self._unsealed("set_execution_profile")
+        self._execution_profile = profile
+        return self
+
+    @property
+    def declaration_sources(self) -> tuple[DeclarationSourceInfo, ...]:
+        return self._declaration_sources
+
+    @property
+    def enabled_points(self) -> frozenset[InterceptionPoint]:
+        all_points = frozenset(InterceptionPoint)
+        out: set[InterceptionPoint] = set()
+        for bound in self._interceptors:
+            out.update(all_points if bound.at is None else bound.at)
+        return frozenset(out)
 
     @property
     def results(self) -> list[InterceptionRecord]:

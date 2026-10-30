@@ -10,10 +10,10 @@ use agent_hooks::declaration::{
 use agent_hooks::{
     AgentContext, AgentContextBuilder, ApprovalOutcome, ApprovalRequest, ApprovalResolution,
     ApprovalResolver, BindingOptions, CompositionConfig, CompositionProfile, ControlFailureNotice,
-    DeclarationError, DeclarationErrorClass, EnforcementMode, HostDeclaration, HostRegistry,
-    InterceptionEmitter, InterceptionPoint, Interceptor, KindResolver, ManagedInterceptor,
-    ManagedInterceptorOutcome, ManagedKindResolver, OnError, SynthesisPolicy, Verdict,
-    DECLARATION_VERSION,
+    DeclarationError, DeclarationErrorClass, DeclarationSource, EnforcementMode, HostDeclaration,
+    HostExecutionProfile, HostRegistry, InterceptionEmitter, InterceptionPoint, Interceptor,
+    KindResolver, ManagedInterceptor, ManagedInterceptorOutcome, ManagedKindResolver, OnError,
+    ResultLabelPolicy, SynthesisPolicy, Verdict, DECLARATION_VERSION,
 };
 use async_trait::async_trait;
 use serde_json::{json, Value};
@@ -108,6 +108,143 @@ fn document() -> Value {
             { "id": "b", "kind": "com.example.scripted", "config": { "decision": "escalate" }, "at": ["pre_tool_call"] }
         ]
     })
+}
+
+#[tokio::test]
+async fn declaration_sources_preserve_provenance_and_reject_global_mismatch() {
+    use std::sync::{Arc, Mutex};
+
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let captured = seen.clone();
+    let kind: KindResolver = Box::new(move |_config, ctx| {
+        captured
+            .lock()
+            .unwrap()
+            .push(ctx.source_id.unwrap_or("<none>").to_owned());
+        Ok(Box::new(Scripted(Verdict::allow())))
+    });
+    let registry = HostRegistry::new(surface())
+        .kind("com.example.source", kind)
+        .unwrap();
+    let source = |id: &str, mode: &str| {
+        DeclarationSource::new(
+            id,
+            HostDeclaration::from_value(json!({
+                "declaration": DECLARATION_VERSION,
+                "configuration": { "mode": mode },
+                "bindings": [{
+                    "id": "guard",
+                    "kind": "com.example.source",
+                    "config": {},
+                    "at": ["pre_tool_call"]
+                }]
+            }))
+            .unwrap(),
+        )
+    };
+    let mut emitter = InterceptionEmitter::from_declaration_sources(
+        [source("admin", "enforce"), source("plugin", "enforce")],
+        &registry,
+        HostExecutionProfile {
+            result_label_policy: ResultLabelPolicy::RecordOnly,
+        },
+    )
+    .unwrap();
+    assert!(emitter.declaration().is_none());
+    assert_eq!(
+        seen.lock().unwrap().as_slice(),
+        ["admin".to_owned(), "plugin".to_owned()]
+    );
+    assert_eq!(
+        emitter.enabled_points(),
+        [InterceptionPoint::PreToolCall].into_iter().collect()
+    );
+    let mut ctx = AgentContextBuilder::new("a", "test", "s").pre_tool_call("tc", "tool", json!({}));
+    let record = emitter.emit_unchecked(&mut ctx).await;
+    assert_eq!(
+        record
+            .verdicts
+            .iter()
+            .filter_map(|v| v.name.as_deref())
+            .collect::<Vec<_>>(),
+        ["admin/guard", "plugin/guard"]
+    );
+
+    let error = InterceptionEmitter::from_declaration_sources(
+        [
+            source("admin", "enforce"),
+            source("observer", "evaluate_only"),
+        ],
+        &registry,
+        HostExecutionProfile::strict(),
+    )
+    .unwrap_err();
+    assert_eq!(error.class, DeclarationErrorClass::Inconsistent);
+}
+
+#[tokio::test]
+async fn declaration_sources_keep_failure_postures_and_managed_bounds() {
+    struct TimedOut(Arc<Mutex<Vec<Option<std::time::Duration>>>>);
+    #[async_trait]
+    impl ManagedInterceptor for TimedOut {
+        async fn intercept_managed(
+            &self,
+            _ctx: &AgentContext,
+            bound: Option<std::time::Duration>,
+        ) -> ManagedInterceptorOutcome {
+            self.0.lock().unwrap().push(bound);
+            ManagedInterceptorOutcome::Timeout
+        }
+    }
+
+    let bounds = Arc::new(Mutex::new(Vec::new()));
+    let notices = Arc::new(Mutex::new(Vec::new()));
+    let captured_bounds = bounds.clone();
+    let captured_notices = notices.clone();
+    let registry = HostRegistry::new(surface())
+        .managed_kind(
+            "com.example.timeout",
+            Box::new(move |_, _| Ok(Box::new(TimedOut(captured_bounds.clone())))),
+        )
+        .unwrap()
+        .control_failure_notifier(move |notice| {
+            captured_notices.lock().unwrap().push(notice.clone())
+        });
+    let source = |id, on_error| {
+        DeclarationSource::new(
+            id,
+            HostDeclaration::from_value(json!({
+                "declaration": DECLARATION_VERSION,
+                "bindings": [{
+                    "id": "guard", "kind": "com.example.timeout",
+                    "at": ["pre_tool_call"], "timeout_ms": 7, "on_error": on_error
+                }]
+            }))
+            .unwrap(),
+        )
+    };
+    let mut emitter = InterceptionEmitter::from_declaration_sources(
+        [source("optional", "continue"), source("required", "deny")],
+        &registry,
+        HostExecutionProfile::strict(),
+    )
+    .unwrap();
+    let mut ctx = AgentContextBuilder::new("a", "test", "s").pre_tool_call("tc", "tool", json!({}));
+    let record = emitter.emit_unchecked(&mut ctx).await;
+    assert!(!record.proceeds());
+    assert!(record.declaration.is_none());
+    assert_eq!(record.verdicts[0].name.as_deref(), Some("optional/guard"));
+    assert_eq!(
+        record.verdicts[0].substituted_for.as_deref(),
+        Some("host_error:interceptor_timeout")
+    );
+    assert_eq!(record.verdicts[1].name.as_deref(), Some("required/guard"));
+    assert!(record.verdicts[1].substituted_for.is_none());
+    assert_eq!(notices.lock().unwrap().len(), 1);
+    assert_eq!(
+        *bounds.lock().unwrap(),
+        vec![Some(std::time::Duration::from_millis(7)); 2]
+    );
 }
 
 async fn run_session(em: &mut InterceptionEmitter) -> Vec<String> {

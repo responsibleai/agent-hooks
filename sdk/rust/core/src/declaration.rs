@@ -753,6 +753,10 @@ impl HostDescription {
 pub struct BindingContext<'a> {
     pub id: &'a str,
     pub kind: &'a str,
+    /// The independently supplied declaration source, when bindings
+    /// are imported through `from_declaration_sources`. `None` for the
+    /// single-document path.
+    pub source_id: Option<&'a str>,
     pub at: &'a BTreeSet<InterceptionPoint>,
     /// The resolved per-binding bound; `None` is unbounded.
     pub timeout: Option<Duration>,

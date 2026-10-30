@@ -5,6 +5,11 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+- Proposed P-007 adds record-only result-label adoption, compatible
+  declaration-source composition with source/binding attribution, and enabled
+  registration points distinct from supported host points. It reuses P-008's
+  failure posture, principal notification, and managed-interceptor APIs.
+
 - Windows x64 FFI/NuGet builds use a pinned nightly Rust compiler and rebuild
   the standard library with strong stack protection. CI and release builds
   require matching-PDB BinSkim BA2014 and CFG passes for the exact DLL.

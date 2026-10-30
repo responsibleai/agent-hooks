@@ -78,6 +78,7 @@ sealed record class BindingContext : IEquatable<BindingContext>
     string DeclarationVersion { get; init; }
     string Id { get; init; }
     string Kind { get; init; }
+    string? SourceId { get; init; }
     void Deconstruct(out string Id, out string Kind, out IReadOnlySet<InterceptionPoint> At, out TimeSpan? Timeout, out HostInfo? Host, out string DeclarationVersion)
     void Deconstruct(out string Id, out string Kind, out IReadOnlySet<InterceptionPoint> At, out TimeSpan? Timeout, out HostInfo? Host, out string DeclarationVersion, out OnError OnError)
 static class Canonical
@@ -213,6 +214,29 @@ sealed record class DeclarationFinding : IEquatable<DeclarationFinding>
     string Detail { get; init; }
     string Pointer { get; init; }
     void Deconstruct(out string Pointer, out string Detail)
+sealed record class DeclarationSource : IEquatable<DeclarationSource>
+    DeclarationSource(string Id, HostDeclaration Declaration)
+    HostDeclaration Declaration { get; init; }
+    bool Equals(DeclarationSource? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(DeclarationSource? left, DeclarationSource? right)
+    static bool operator ==(DeclarationSource? left, DeclarationSource? right)
+    string Id { get; init; }
+    void Deconstruct(out string Id, out HostDeclaration Declaration)
+sealed record class DeclarationSourceInfo : IEquatable<DeclarationSourceInfo>
+    DeclarationSourceInfo(string Id, string DeclarationVersion, int BindingCount)
+    bool Equals(DeclarationSourceInfo? other)
+    int BindingCount { get; init; }
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(DeclarationSourceInfo? left, DeclarationSourceInfo? right)
+    static bool operator ==(DeclarationSourceInfo? left, DeclarationSourceInfo? right)
+    string DeclarationVersion { get; init; }
+    string Id { get; init; }
+    void Deconstruct(out string Id, out string DeclarationVersion, out int BindingCount)
 sealed record class EmitOutcome : IEquatable<EmitOutcome>
     EmitOutcome(InterceptionRecord Record, JsonNode? Target)
     InterceptionRecord Record { get; init; }
@@ -261,6 +285,16 @@ static class HostError
     const string TransformTargetForbidden = "host_error:transform_target_forbidden"
     const string VerdictInvalid = "host_error:verdict_invalid"
     static bool IsControlFailure(string reason)
+sealed record class HostExecutionProfile : IEquatable<HostExecutionProfile>
+    HostExecutionProfile(ResultLabelPolicy ResultLabelPolicy = ResultLabelPolicy.Flow)
+    ResultLabelPolicy ResultLabelPolicy { get; init; }
+    bool Equals(HostExecutionProfile? other)
+    override bool Equals(object? obj)
+    override int GetHashCode()
+    override string ToString()
+    static bool operator !=(HostExecutionProfile? left, HostExecutionProfile? right)
+    static bool operator ==(HostExecutionProfile? left, HostExecutionProfile? right)
+    void Deconstruct(out ResultLabelPolicy ResultLabelPolicy)
 sealed record class HostInfo : IEquatable<HostInfo>
     HostInfo(string Name, string? Version = null)
     bool Equals(HostInfo? other)
@@ -328,7 +362,10 @@ sealed class InterceptionBlockedException : InvalidOperationException
 sealed class InterceptionEmitter
     CompositionConfig Composition { get; }
     EnforcementMode Mode { get; }
+    HostExecutionProfile ExecutionProfile { get; }
+    IReadOnlyList<DeclarationSourceInfo> DeclarationSources { get; }
     IReadOnlyList<InterceptionRecord> Records { get; }
+    IReadOnlySet<InterceptionPoint> EnabledPoints { get; }
     InterceptionEmitter Register(IInterceptor interceptor, string? name = null, IReadOnlySet<InterceptionPoint>? at = null)
     InterceptionEmitter Register(IInterceptor interceptor, string? name)
     InterceptionEmitter RegisterManaged(IManagedInterceptor interceptor, RegistrationOptions? options = null)
@@ -336,6 +373,7 @@ sealed class InterceptionEmitter
     InterceptionEmitter SetApprovalRedactor(Func<AgentContext, AgentContext> redactor)
     InterceptionEmitter SetComposition(CompositionConfig composition)
     InterceptionEmitter SetControlFailureNotifier(Action<ControlFailureNotice> notifier)
+    InterceptionEmitter SetExecutionProfile(HostExecutionProfile profile)
     InterceptionEmitter SetIdentityProvider(IdentityProvider provider)
     InterceptionEmitter SetMaxRecords(int max)
     InterceptionEmitter SetRecordSink(Action<InterceptionRecord> sink)
@@ -350,6 +388,7 @@ sealed class InterceptionEmitter
     static InterceptionEmitter FromDeclarationJson(string text, HostRegistry registry)
     static InterceptionEmitter FromDeclarationNode(JsonNode? node, HostRegistry registry)
     static InterceptionEmitter FromDeclarationPath(string path, HostRegistry registry)
+    static InterceptionEmitter FromDeclarationSources(IEnumerable<DeclarationSource> sources, HostRegistry registry, HostExecutionProfile? profile = null)
     static readonly TimeSpan DefaultTimeout
 enum InterceptionPoint : int
     AgentStartup = 0
@@ -503,6 +542,9 @@ sealed class ResolvedDeclaration
     string? ExposureBound { get; }
     string? Id { get; }
     string? IdentityProvider { get; }
+enum ResultLabelPolicy : int
+    Flow = 0
+    RecordOnly = 1
 static class Spec
     const string JcsSha256 = "jcs-sha256"
     const string Version = "agent-hooks/0.1"

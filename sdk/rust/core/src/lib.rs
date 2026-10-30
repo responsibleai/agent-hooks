@@ -88,8 +88,9 @@ pub use declaration::{
     HostRegistry, HostSurface, KindResolver, ManagedKindResolver, ResolvedDeclaration,
 };
 pub use emitter::{
-    HostFailure, IdentityProvider, InterceptionBlocked, InterceptionEmitter, RegistrationError,
-    RegistrationOptions,
+    DeclarationSource, DeclarationSourceInfo, HostExecutionProfile, HostFailure, IdentityProvider,
+    InterceptionBlocked, InterceptionEmitter, RegistrationError, RegistrationOptions,
+    ResultLabelPolicy,
 };
 pub use enforce::{apply_transform_to_ctx, finalize, validate_transform, FinalizeMeta};
 pub use path::{apply as apply_transform_path, parse as parse_transform_path, resolve, Segment};

@@ -29,6 +29,7 @@ import (
 	"io/fs"
 	"math"
 	"os"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -438,6 +439,9 @@ type HostInfo struct {
 type BindingContext struct {
 	ID   string
 	Kind string
+	// SourceID is set for independently supplied declaration sources
+	// and empty for the existing single-document path.
+	SourceID string
 	// At is the resolved set of points the interceptor runs at, in
 	// lifecycle order.
 	At []InterceptionPoint
@@ -1291,7 +1295,83 @@ func NewInterceptionEmitterFromDeclarationValue(value any, reg *HostRegistry) (*
 	if err != nil {
 		return nil, err
 	}
+
 	return NewInterceptionEmitterFromDeclaration(decl, reg)
+}
+
+// DeclarationSource is one independently supplied declaration.
+type DeclarationSource struct {
+	ID          string
+	Declaration HostDeclaration
+}
+
+// DeclarationSourceInfo is payload-free metadata for one imported source.
+type DeclarationSourceInfo struct {
+	ID                 string
+	DeclarationVersion string
+	BindingCount       int
+}
+
+// NewInterceptionEmitterFromDeclarationSources builds one sealed compatible
+// execution group. Every declaration resolves whole; mixed global
+// configuration is rejected and no single declaration is stamped on records.
+func NewInterceptionEmitterFromDeclarationSources(
+	sources []DeclarationSource,
+	reg *HostRegistry,
+	profile HostExecutionProfile,
+) (*InterceptionEmitter, error) {
+	if len(sources) == 0 {
+		return nil, errors.New("at least one declaration source is required")
+	}
+	seen := map[string]bool{}
+	type item struct {
+		source   DeclarationSource
+		resolved *ResolvedDeclaration
+	}
+	items := make([]item, 0, len(sources))
+	for _, source := range sources {
+		if checkReference(source.ID, "declaration source") != nil {
+			return nil, fmt.Errorf("invalid declaration source id %q", source.ID)
+		}
+		if seen[source.ID] {
+			return nil, fmt.Errorf("duplicate declaration source id %q", source.ID)
+		}
+		seen[source.ID] = true
+		resolved, err := reg.Resolve(source.Declaration)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item{source: source, resolved: resolved})
+	}
+	for _, item := range items[1:] {
+		if !reflect.DeepEqual(item.resolved.Configuration, items[0].resolved.Configuration) {
+			return nil, fmt.Errorf("global declaration configuration mismatch for source %q", item.source.ID)
+		}
+	}
+	group := *items[0].resolved
+	group.Bindings = nil
+	emitter, err := emitterFromResolved(&group, reg)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		part, err := emitterFromResolvedSource(item.resolved, reg, item.source.ID)
+		if err != nil {
+			return nil, err
+		}
+		for index, b := range part.bound {
+			binding := item.resolved.Bindings[index]
+			b.name = item.source.ID + "/" + binding.ID
+			emitter.bound = append(emitter.bound, b)
+		}
+		emitter.declarationSources = append(emitter.declarationSources, DeclarationSourceInfo{
+			ID: item.source.ID, DeclarationVersion: item.resolved.Declaration, BindingCount: len(item.resolved.Bindings),
+		})
+	}
+	emitter.executionProfile = profile
+	emitter.declaration = nil
+	emitter.sealed = true
+	return emitter, nil
 }
 
 // emitterFromResolved is step 11 and construction. Every reference is
@@ -1299,6 +1379,10 @@ func NewInterceptionEmitterFromDeclarationValue(value any, reg *HostRegistry) (*
 // between the names the core checked and what the registry holds
 // fails closed.
 func emitterFromResolved(resolved *ResolvedDeclaration, reg *HostRegistry) (*InterceptionEmitter, error) {
+	return emitterFromResolvedSource(resolved, reg, "")
+}
+
+func emitterFromResolvedSource(resolved *ResolvedDeclaration, reg *HostRegistry, sourceID string) (*InterceptionEmitter, error) {
 	cfg := resolved.Configuration
 
 	var resolver ApprovalResolver
@@ -1376,6 +1460,7 @@ func emitterFromResolved(resolved *ResolvedDeclaration, reg *HostRegistry) (*Int
 		bctx := BindingContext{
 			ID:                 b.ID,
 			Kind:               b.Kind,
+			SourceID:           sourceID,
 			At:                 append([]InterceptionPoint(nil), b.At...),
 			Timeout:            timeout,
 			OnError:            onError,
@@ -1419,6 +1504,7 @@ func emitterFromResolved(resolved *ResolvedDeclaration, reg *HostRegistry) (*Int
 		notifier:         reg.notifier,
 		sealed:           true,
 		declaration:      resolved,
+		executionProfile: StrictExecutionProfile(),
 	}
 	if cfg.Timeouts.InterceptorMs != nil {
 		em.Timeout = time.Duration(*cfg.Timeouts.InterceptorMs) * time.Millisecond

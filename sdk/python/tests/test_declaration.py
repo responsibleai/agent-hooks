@@ -30,6 +30,7 @@ from agent_hooks import (
     CompositionProfile,
     DeclarationError,
     DeclarationErrorClass,
+    DeclarationSource,
     EmitterSealed,
     EnforcementMode,
     HostDeclaration,
@@ -74,6 +75,59 @@ class Approver:
 
 def surface() -> HostSurface:
     return HostSurface.from_capabilities(["model_calls", "tool_calls", "host_declaration"])
+
+
+def test_declaration_sources_preserve_failure_postures_and_provenance() -> None:
+    class Failing:
+        def intercept(self, _ctx: AgentContext) -> Verdict:
+            raise RuntimeError("control failed")
+
+    seen = []
+    notices = []
+
+    def build(_config: Any, ctx: BindingContext) -> Failing:
+        seen.append(ctx.source_id)
+        return Failing()
+
+    reg = (
+        HostRegistry(surface())
+        .kind("com.example.failing", build)
+        .control_failure_notifier(notices.append)
+    )
+    sources = [
+        DeclarationSource(
+            source_id,
+            HostDeclaration.from_value(
+                {
+                    "declaration": DECLARATION_VERSION,
+                    "bindings": [
+                        {
+                            "id": "guard",
+                            "kind": "com.example.failing",
+                            "at": ["pre_tool_call"],
+                            "on_error": posture,
+                        }
+                    ],
+                }
+            ),
+        )
+        for source_id, posture in [("optional", "continue"), ("required", "deny")]
+    ]
+    em = InterceptionEmitter.from_declaration_sources(sources, reg)
+    record = asyncio.run(
+        em.emit_unchecked(
+            AgentContextBuilder(agent_id="a", framework="test", session_id="s").pre_tool_call(
+                call_id="tc", name="tool", args={}
+            )
+        )
+    )
+    assert not record.proceeds
+    assert record.declaration is None
+    assert seen == ["optional", "required"]
+    assert [v.name for v in record.verdicts] == ["optional/guard", "required/guard"]
+    assert record.verdicts[0].substituted_for == "host_error:interceptor_failed"
+    assert record.verdicts[1].substituted_for is None
+    assert len(notices) == 1
 
 
 def verdict_from(config: Any, _ctx: BindingContext) -> Scripted:

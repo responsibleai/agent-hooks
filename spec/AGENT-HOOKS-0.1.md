@@ -535,7 +535,10 @@ host MUST persist `result_labels` alongside the data the interception point's `t
 produced (a tool result, a model output, a final output) and SHOULD resurface
 them as `extensions.<interceptor-namespace>.source_labels` on later hooks whose
 `target` derives from that data. A host MUST NOT persist `result_labels` for an
-action that did not proceed (a `deny` that was not lifted).
+action that did not proceed (a `deny` that was not lifted). The explicit
+`result_label_policy: record_only` host execution posture (§7.8) is the sole
+exception: labels remain in the interception record and do not participate in
+data-label flow.
 
 ### 5.5 Transport response envelope
 
@@ -1436,6 +1439,54 @@ document against the host's code surface before any vector runs and
 assesses the run against the resolved surface, so what the CTK ran
 against is what the claim cites (§13.3).
 
+### 7.8 Host execution profile
+
+The strict host execution profile is the default:
+
+```json
+{
+  "result_label_policy": "flow"
+}
+```
+
+Changing this member is an explicit host-adoption posture and MUST be stated
+in the host's §13.3 claim.
+
+Failure handling and managed deadline ownership remain governed by §6.3.1
+and §7. The result-label profile does not override `on_error` or the requirement
+to notify the principal before continuing after a covered control failure.
+
+**Result-label policy.** `flow` retains §5.4. Under `record_only`, result labels
+remain in the payload-free interception record but the host MUST NOT present
+them as data labels, persist them alongside application data, or resurface them
+on later contexts. This posture is suitable for record-only adoption; it does
+not change verdict enforcement.
+
+**Execution groups.** Enforcement mode, composition, identity and approval
+seams, timeouts and record buffering are group configuration, not
+per-registration verdict rewrites. Registrations with different values run in
+separate execution groups. In particular, an `evaluate_only` group records the
+real combined deny or transform and proceeds under §8; it MUST NOT replace an
+observed deny with a fabricated allow.
+
+**Independently supplied declarations.** A host MAY import bindings from more
+than one host declaration into one sealed execution group only when:
+
+1. every declaration independently passes the complete §7.7 load pipeline;
+2. their resolved `configuration` objects are identical;
+3. source ids are unique and preserved in binding provenance; and
+4. each kind resolver receives the source id out of band from binding config.
+
+The combined emitter MUST NOT expose or stamp any one source document as the
+whole-host declaration. A configuration mismatch refuses the group before any
+emitter exists. Source declarations remain immutable.
+
+`HostSurface.interception_points` states points the host supports. The points
+with at least one enabled registration are the union of binding `at` sets.
+Hosts MUST use the latter when deciding whether a sparse registration requires
+model-response or output buffering. A tool-only registration does not by itself
+activate `post_model_call` or `output`.
+
 ---
 
 ## 8. Enforcement mode
@@ -2006,7 +2057,7 @@ runners are provided under `sdk/<lang>/`.
 ### 13.3 Claims
 
 A conformance claim is the tuple
-`(<framework>, <adapter-version>, agent-hooks/<spec-version>, <capabilities>, <profiles>, <identity-provider>, <sdk-lang>@<sdk-version>)`
+`(<framework>, <adapter-version>, agent-hooks/<spec-version>, <capabilities>, <profiles>, <identity-provider>, <host-execution-profile>, <sdk-lang>@<sdk-version>)`
 plus the CTK report, recorded in `conformance/CLAIMS.md`. A claim with
 a non-default posture (§13.1) MUST state it (e.g.
 `tool_seam_host_error: terminate`) — the report's passing vectors

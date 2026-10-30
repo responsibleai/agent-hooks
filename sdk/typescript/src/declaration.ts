@@ -383,6 +383,8 @@ export const HostSurface = Object.freeze({
 export interface BindingContext {
   id: string;
   kind: string;
+  /** Independently supplied declaration source; null for a single document. */
+  sourceId: string | null;
   /** The resolved `at` set, in lifecycle order. */
   at: readonly InterceptionPoint[];
   /** The resolved per-binding bound in milliseconds; `null` is unbounded.

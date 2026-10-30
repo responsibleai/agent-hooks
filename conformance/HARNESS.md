@@ -185,6 +185,12 @@ A harness has nothing to declare for it; a host's §13.3 claim states
 `on_error: continue` when the declaration or registrations it runs
 under set it.
 
+The §7.8 host execution profile declares `result_label_policy: flow |
+record_only` (default `flow`). Under `record_only`, labels end at the
+interception record and are not persisted or resurfaced as application-data
+labels. Independently supplied declarations share a group only when their
+resolved global configuration matches; each binding retains its failure posture.
+
 ## Faults
 
 An `interceptor_script` rule may carry a `fault` instead of a

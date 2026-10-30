@@ -108,6 +108,35 @@ public sealed class DeclarationTests
          "bindings": [{"id": "allow", "kind": "{{kind}}"}]}
         """;
 
+    [Fact]
+    public async Task DeclarationSourcesPreserveFailurePosturesAndProvenance()
+    {
+        var seen = new List<string?>();
+        var notices = new List<ControlFailureNotice>();
+        var registry = new HostRegistry(FullSurface())
+            .Kind("com.example.invalid", (_, ctx) =>
+            {
+                seen.Add(ctx.SourceId);
+                return new Scripted(new Verdict(Decision.Transform));
+            })
+            .ControlFailureNotifier(notices.Add);
+        DeclarationSource Source(string id, string posture) => new(id, HostDeclaration.FromJson($$"""
+            {"declaration": "agent-hooks-declaration/1.1",
+             "bindings": [{"id": "guard", "kind": "com.example.invalid",
+                           "at": ["pre_tool_call"], "on_error": "{{posture}}"}]}
+            """));
+        var emitter = InterceptionEmitter.FromDeclarationSources(
+            [Source("optional", "continue"), Source("required", "deny")], registry);
+        var record = await emitter.EmitUncheckedAsync(Ctx());
+        Assert.False(record.Proceeds);
+        Assert.Null(record.Declaration);
+        Assert.Equal(["optional", "required"], seen);
+        Assert.Equal(["optional/guard", "required/guard"], record.Verdicts!.Select(v => v.Name));
+        Assert.Equal(HostError.VerdictInvalid, record.Verdicts[0].SubstitutedFor);
+        Assert.Null(record.Verdicts[1].SubstitutedFor);
+        Assert.Single(notices);
+    }
+
     // ---- versions and inventory ---------------------------------------------
 
     [Fact]

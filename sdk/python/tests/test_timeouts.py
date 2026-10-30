@@ -7,7 +7,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from agent_hooks import InterceptionEmitter
+from agent_hooks import (
+    HostExecutionProfile,
+    InterceptionEmitter,
+    OnError,
+    ResultLabelPolicy,
+)
 from agent_hooks.context import AgentContextBuilder
 
 
@@ -54,6 +59,23 @@ def test_fast_interceptor_passes_within_timeout() -> None:
     record = asyncio.run(em.emit_unchecked(_ctx()))
     assert record.proceeds
     assert record.verdict.reason is None
+
+
+def test_record_only_profile_preserves_notified_failure_continuation() -> None:
+    em = InterceptionEmitter(timeout=0.05)
+    em.set_execution_profile(
+        HostExecutionProfile(
+            result_label_policy=ResultLabelPolicy.RECORD_ONLY,
+        )
+    )
+    notices = []
+    em.set_control_failure_notifier(notices.append)
+    em.register(SlowInterceptor(), on_error=OnError.CONTINUE).register(FastInterceptor())
+    record = asyncio.run(em.emit_unchecked(_ctx()))
+    assert record.proceeds
+    assert record.verdict.warnings[0].reason == "host_warning:control_failed"
+    assert len(notices) == 1
+    assert len(record.verdicts) == 2
 
 
 def test_slow_resolver_times_out() -> None:

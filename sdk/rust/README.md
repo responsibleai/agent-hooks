@@ -16,6 +16,19 @@ Python, TypeScript, .NET, and Go wrappers bind.
 > and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
 > before relying on it.
 
+## Host execution profile
+
+`InterceptionEmitter` defaults to `HostExecutionProfile::strict()`. Hosts that
+adopt labels only for records can select `ResultLabelPolicy::RecordOnly`.
+Failure handling remains governed by `on_error`, including its required
+principal notification. Managed interceptors use `register_managed` or
+`HostRegistry::managed_kind` and the existing deadline/cleanup contract.
+
+`from_declaration_sources` combines only declarations with identical resolved
+global configuration. It preserves `BindingContext.source_id` and
+`source/binding` record names, seals the emitter, and intentionally omits a
+single declaration stamp.
+
 ```bash
 cargo add agent-hooks-sdk
 ```

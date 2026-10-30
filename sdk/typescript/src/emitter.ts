@@ -93,11 +93,33 @@ import {
   HostRegistry,
   ResolvedDeclaration,
   resolveDeclaration,
+  validReference,
 } from "./declaration";
 import { AgentHooksCoreError, native } from "./native";
 
 /** §7 RECOMMENDED interceptor/resolver timeout (milliseconds). */
 export const DEFAULT_TIMEOUT_MS = 5000;
+
+export type ResultLabelPolicy = "flow" | "record_only";
+
+export interface HostExecutionProfile {
+  resultLabelPolicy: ResultLabelPolicy;
+}
+
+export const STRICT_EXECUTION_PROFILE: Readonly<HostExecutionProfile> = Object.freeze({
+  resultLabelPolicy: "flow",
+});
+
+export interface DeclarationSource {
+  id: string;
+  declaration: HostDeclaration;
+}
+
+export interface DeclarationSourceInfo {
+  id: string;
+  declarationVersion: string;
+  bindingCount: number;
+}
 
 /** Internal sentinel for a §7 timeout breach. */
 class InterceptTimeout extends Error {
@@ -378,6 +400,8 @@ export class InterceptionEmitter {
   private _declaration: ResolvedDeclaration | null = null;
   /** §6.3.1: the principal channel a continuation is announced on. */
   private notifier: ControlFailureNotifier | null = null;
+  private executionProfile: HostExecutionProfile = { ...STRICT_EXECUTION_PROFILE };
+  private _declarationSources: DeclarationSourceInfo[] = [];
 
   /**
    * `timeoutMs` bounds each interceptor `intercept()` and resolver
@@ -443,6 +467,7 @@ export class InterceptionEmitter {
   private static fromResolved(
     resolved: ResolvedDeclaration,
     registry: HostRegistry,
+    sourceId: string | null = null,
   ): InterceptionEmitter {
     const cfg = resolved.configuration;
     let resolver: ApprovalResolver | null = null;
@@ -527,6 +552,7 @@ export class InterceptionEmitter {
       const context: BindingContext = {
         id: b.id,
         kind: b.kind,
+        sourceId,
         at: Object.freeze([...b.at]),
         timeoutMs: b.timeout_ms,
         onError,
@@ -590,6 +616,50 @@ export class InterceptionEmitter {
     return em;
   }
 
+  static fromDeclarationSources(
+    sources: Iterable<DeclarationSource>,
+    registry: HostRegistry,
+    profile: HostExecutionProfile = STRICT_EXECUTION_PROFILE,
+  ): InterceptionEmitter {
+    const list = [...sources];
+    if (list.length === 0) throw new Error("at least one declaration source is required");
+    const ids = new Set<string>();
+    const resolved = list.map((source) => {
+      if (!validReference(source.id)) throw new Error(`invalid declaration source id ${source.id}`);
+      if (ids.has(source.id)) throw new Error(`duplicate declaration source id ${source.id}`);
+      ids.add(source.id);
+      const item = resolveDeclaration(source.declaration, registry);
+      return { source, item };
+    });
+    const expected = JSON.stringify(resolved[0].item.configuration);
+    for (const { source, item } of resolved.slice(1)) {
+      if (JSON.stringify(item.configuration) !== expected) {
+        throw new Error(`global declaration configuration mismatch for source ${source.id}`);
+      }
+    }
+    const emitter = InterceptionEmitter.fromResolved(
+      { ...resolved[0].item, bindings: [] },
+      registry,
+    );
+    for (const { source, item } of resolved) {
+      const part = InterceptionEmitter.fromResolved(item, registry, source.id);
+      part.interceptors.forEach((bound, index) => {
+        const binding = item.bindings[index];
+        bound.name = `${source.id}/${binding.id}`;
+        emitter.interceptors.push(bound);
+      });
+      emitter._declarationSources.push({
+        id: source.id,
+        declarationVersion: item.declaration,
+        bindingCount: item.bindings.length,
+      });
+    }
+    emitter.executionProfile = { ...profile };
+    emitter._declaration = null;
+    emitter.sealed = true;
+    return emitter;
+  }
+
   /** §7.7.7: a declaration-built emitter refuses reconfiguration;
    * otherwise the declaration would not be what ran. */
   private unsealed(what: string): void {
@@ -624,7 +694,11 @@ export class InterceptionEmitter {
    * order; `interceptors_registered`, `verdicts[].index` and
    * `decided_by` count and index that list (§7.7.8). Throws
    * {@link EmitterSealed} on a declaration-built emitter. */
-  register(interceptor: Interceptor, name?: string, at?: Iterable<InterceptionPoint>): this {
+  register(
+    interceptor: Interceptor,
+    name?: string,
+    at?: Iterable<InterceptionPoint>,
+  ): this {
     this.unsealed("register");
     // `register` always means on_error: deny (§6.3.1); only the options
     // form can open the default, and it needs the notifier first.
@@ -687,6 +761,29 @@ export class InterceptionEmitter {
       timeoutMs: undefined,
       onError,
     });
+  }
+
+  setExecutionProfile(profile: HostExecutionProfile): this {
+    this.unsealed("setExecutionProfile");
+    this.executionProfile = { ...profile };
+    return this;
+  }
+
+  get hostExecutionProfile(): Readonly<HostExecutionProfile> {
+    return Object.freeze({ ...this.executionProfile });
+  }
+
+  get declarationSources(): readonly DeclarationSourceInfo[] {
+    return this._declarationSources.map((source) => Object.freeze({ ...source }));
+  }
+
+  get enabledPoints(): ReadonlySet<InterceptionPoint> {
+    const all = Object.values(InterceptionPoint);
+    const out = new Set<InterceptionPoint>();
+    for (const bound of this.interceptors) {
+      for (const point of bound.at ?? all) out.add(point);
+    }
+    return out;
   }
 
   /**
