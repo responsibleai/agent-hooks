@@ -21,15 +21,16 @@ jobs:
         with: { node-version: "22" }
       - run: npm ci
         working-directory: sdk/typescript
-      - name: Regenerate the schemas from their TypeScript source
+      - name: Regenerate the draft schemas from their TypeScript source
         run: npm run generate:schema
         working-directory: sdk/typescript
       - name: Refresh the vendored copies
         run: |
           rm -rf sdk/python/python/agent_hooks/schema
           mkdir -p sdk/python/python/agent_hooks/schema/agent-context
-          cp spec/schema/*.json sdk/python/python/agent_hooks/schema/
-          cp spec/schema/agent-context/*.json sdk/python/python/agent_hooks/schema/agent-context/
+          # SDK development is pinned to the 0.1.0 release, not the draft.
+          cp spec/0.1.0/schema/generated/*.schema.json sdk/python/python/agent_hooks/schema/
+          cp spec/0.1.0/schema/generated/strict-contexts/*.schema.json sdk/python/python/agent_hooks/schema/agent-context/
           rm -rf sdk/python/python/agent_hooks/ctk/vectors
           mkdir -p sdk/python/python/agent_hooks/ctk/vectors
           cp conformance/vectors/AH-CTK-*.json sdk/python/python/agent_hooks/ctk/vectors/

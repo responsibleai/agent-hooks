@@ -2,7 +2,7 @@
 
 //! §7.7.6 registry consistency: the `declaration_error:*` codes the
 //! loader emits MUST be exactly the set enumerated in
-//! `spec/declaration-errors.json`, in pipeline order. The tripwire
+//! `spec/0.1.0/declaration-errors.json`, in pipeline order. The tripwire
 //! against silent drift in either direction, like
 //! `reserved_reasons.rs` for §11.
 
@@ -10,9 +10,10 @@ use agent_hooks::DeclarationErrorClass;
 
 #[test]
 fn declaration_error_classes_match_registry() {
-    let registry: serde_json::Value =
-        serde_json::from_str(include_str!("../../../../spec/declaration-errors.json"))
-            .expect("spec/declaration-errors.json parses");
+    let registry: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../spec/0.1.0/declaration-errors.json"
+    ))
+    .expect("spec/0.1.0/declaration-errors.json parses");
     let registered: Vec<(String, u64)> = registry["classes"]
         .as_array()
         .expect("classes array")
@@ -31,7 +32,7 @@ fn declaration_error_classes_match_registry() {
         .collect();
     assert_eq!(
         emitted, registered,
-        "core DeclarationErrorClass codes and spec/declaration-errors.json diverged"
+        "core DeclarationErrorClass codes and spec/0.1.0/declaration-errors.json diverged"
     );
     // `conformance/vectors.schema.json` repeats the codes by hand in
     // `expect.load.class`; a class added to one file must reach the

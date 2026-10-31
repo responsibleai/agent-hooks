@@ -18,19 +18,27 @@
   vectors (`conformance/vectors/`) or per-SDK tests — cross-SDK
   semantics belong in vectors so all five implementations are pinned
   at once.
-- **Spec and schema together.** Changes to wire shapes update the spec
-  text and the schema source under `spec/schema/src/`, then regenerate
-  the JSON under `spec/schema/` (see [Schema source](#schema-source));
-  the `drift` check regenerates the schemas and the vendored copies and
-  fails on any difference.
+- **Spec and schema together.** Make normative changes in
+  `spec/draft/`. Changes to wire shapes update the draft spec text and
+  the schema source under `spec/draft/schema/src/`, then regenerate the
+  JSON under `spec/draft/schema/generated/` (see [Schema source](#schema-source));
+  the `drift` check regenerates the draft schemas and the vendored copies
+  and fails on any difference. Released folders such as `spec/0.1.0/`
+  are immutable; see [spec/README.md](spec/README.md).
+- **SDKs are pinned to `spec/0.1.0/` for now.** SDK code, tests,
+  vendored schemas, conformance-vector validation, and version checks
+  read `spec/0.1.0/`. How SDK development should track future
+  specification versions is still to be decided.
 - **All five SDKs.** A contract change is not done until Rust core,
   Python, TypeScript, .NET, and Go agree; the Rust core is the single
   source of truth and the wrappers delegate to it.
 
 ## Schema source
 
-The JSON Schemas under `spec/schema/` are generated from the TypeScript
-in `spec/schema/src/`. The JSON stays the normative artifact: it is
+Each specification folder's JSON Schemas under `spec/<version>/schema/generated/`
+are generated from the TypeScript in `spec/<version>/schema/src/`. Edit
+only `spec/draft/schema/src/`; the generator targets `draft` unless
+`--spec <version>` names another folder. The JSON stays the normative artifact: it is
 what validators, the conformance kit and the SDK mirrors consume. Do not
 edit it by hand; the `lint` and `drift` checks fail on any byte that
 differs from the generated text.
@@ -52,23 +60,28 @@ differs from the generated text.
   on the interface it constrains, copied through by the generator;
   `@propertyNames` passes through the same way.
 - `sdk/typescript/scripts/generate-schemas.mts` lists its post-pass at
-  the top of the file. The per-point `agent-context/*.schema.json`
+  the top of the file. The per-point `generated/strict-contexts/*.schema.json`
   files are derived there from the master's union members.
 
 ```bash
 cd sdk/typescript && npm ci
-npm run generate:schema      # write spec/schema/**/*.schema.json
+npm run generate:schema      # write spec/draft/schema/generated/**/*.schema.json
 npm run check:schema         # type-check the source, then fail on any drift
 npm run check:schema:equivalence -- --old origin/main   # differential validation against another revision
 ```
 
-After a change, regenerate, refresh the Python mirror the way the
-`drift` workflow does (`cp spec/schema/*.json` and the `agent-context/`
-files into `sdk/python/python/agent_hooks/schema/`), and commit the
+After a change, regenerate. The Python mirror stays pinned to the
+released schemas: refresh it the way the `drift` workflow does (copy
+`spec/0.1.0/schema/generated/*.schema.json` into
+`sdk/python/python/agent_hooks/schema/` and `generated/strict-contexts/*.schema.json`
+into its existing `agent-context/` subdirectory), and commit the
 source, the JSON and the mirror together. When a shape changes, also run
 the `schema-lint` steps from `.github/workflows/ci.yml` (ajv compiles
 every schema and validates the vectors) and the equivalence script
 against `origin/main` to see which instances change verdict.
+
+See [`spec/draft/schema/README.md`](spec/draft/schema/README.md) for the layout and
+the mapping to unchanged published URLs.
 
 ## Local test matrix
 

@@ -2,7 +2,7 @@
 
 """agent-hooks: framework-neutral agent lifecycle hook contract.
 
-Implements AGENT-HOOKS-0.1. See ``spec/AGENT-HOOKS-0.1.md`` for the normative
+Implements AGENT-HOOKS-0.1. See ``spec/0.1.0/AGENT-HOOKS-0.1.md`` for the normative
 text. This package provides:
 
 - :class:`InterceptionPoint`, :class:`Decision`, :class:`EnforcementMode` — enums (§3, §5, §8)

@@ -137,7 +137,7 @@ public static class HostError
 }
 
 /// <summary>Reserved <c>host_warning:*</c> reasons a host synthesizes
-/// (§11.1, <c>spec/reserved-warnings.json</c>). Interceptors MUST NOT
+/// (§11.1, <c>spec/0.1.0/reserved-warnings.json</c>). Interceptors MUST NOT
 /// emit them; the §5 gate refuses such a verdict as
 /// <c>host_error:verdict_invalid</c>.</summary>
 public static class HostWarning
@@ -711,7 +711,7 @@ public sealed record InterceptionRecord(
     /// <summary>Whether the guarded action executes (§6, §8).</summary>
     public bool Proceeds => Mode == EnforcementMode.EvaluateOnly || Verdict.Decision.Permits();
 
-    /// <summary>Wire shape per <c>spec/schema/interception-record.schema.json</c>.
+    /// <summary>Wire shape per <c>spec/0.1.0/schema/generated/interception-record.schema.json</c>.
     /// Mirrors the core's serde serialization: <c>verdicts</c> omitted when
     /// empty; <c>declaration</c>, <c>fold_truncated</c> and
     /// <c>resolved_by</c> omitted when null.</summary>

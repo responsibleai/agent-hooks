@@ -82,7 +82,7 @@ export const HostError = Object.freeze({
 export type HostError = (typeof HostError)[keyof typeof HostError];
 
 /** Reserved `host_warning:*` reasons a host synthesizes (§11.1,
- * `spec/reserved-warnings.json`). Interceptors MUST NOT emit them; the
+ * `spec/0.1.0/reserved-warnings.json`). Interceptors MUST NOT emit them; the
  * §5 gate refuses such a verdict as `host_error:verdict_invalid`. */
 export const HostWarning = Object.freeze({
   /** A registration whose `on_error` is `continue` failed and the host

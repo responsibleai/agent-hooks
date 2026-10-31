@@ -17,7 +17,7 @@ from typing import Any, TypeAlias
 from agent_hooks._types import SPEC_VERSION, InterceptionPoint
 
 #: A agent context is wire-shaped JSON: ``dict[str, Any]`` validated against
-#: ``spec/schema/agent-context.schema.json``.
+#: ``spec/0.1.0/schema/generated/agent-context.schema.json``.
 AgentContext: TypeAlias = dict[str, Any]
 
 

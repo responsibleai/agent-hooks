@@ -1,7 +1,7 @@
 # agent-hooks (Python SDK)
 
 Python implementation of
-[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/AGENT-HOOKS-0.1.md):
+[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md):
 interception-point enums, `AgentContext` builder, `Verdict` types, host-side
 `InterceptionEmitter` with the four composition profiles, the pluggable
 identity-provider seam, and the Conformance Test Kit.
@@ -10,7 +10,7 @@ identity-provider seam, and the Conformance Test Kit.
 > boundary: the host framework is fully trusted, interceptors run in-process
 > with full data access, and no complete-mediation claim is made. Read
 > [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
-> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
+> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
 > before relying on it.
 
 ```bash

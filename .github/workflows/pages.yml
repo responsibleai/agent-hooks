@@ -3,8 +3,9 @@
 # Builds on every PR so site breakage is caught pre-merge; deploys on
 # push to main only when GitHub Pages is enabled for the repository
 # (Settings -> Pages -> Source: GitHub Actions), so the job stays green
-# while Pages is disabled. The spec page is copied from
-# spec/AGENT-HOOKS-0.1.md at build time; the file is not committed.
+# while Pages is disabled. The released and draft spec pages are copied
+# from spec/<version>/ and spec/draft/ at build time; they are not
+# committed. Update SPEC_VERSION and SCHEMA_PATH when publishing a release.
 name: pages
 
 on:
@@ -20,19 +21,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       - name: Build site (strict)
+        env:
+          SPEC_VERSION: 0.1.0
+          SPEC_FILE: AGENT-HOOKS-0.1.md
+          SCHEMA_PATH: v0.1
         run: |
           uv venv .mkdocs-venv
           uv pip install --python .mkdocs-venv/bin/python "mkdocs-material==9.6.23"
-          cp spec/AGENT-HOOKS-0.1.md docs-site/docs/spec.md
-          # Publish the machine-readable schemas so every $id dereferences.
-          mkdir -p docs-site/docs/schema/v0.1/agent-context docs-site/docs/schema/v0.1/conformance
-          cp spec/schema/*.json docs-site/docs/schema/v0.1/
-          cp spec/schema/agent-context/*.json docs-site/docs/schema/v0.1/agent-context/
-          cp spec/reserved-reasons.json docs-site/docs/schema/v0.1/
-          cp spec/declaration-errors.json docs-site/docs/schema/v0.1/
-          cp conformance/vectors.schema.json docs-site/docs/schema/v0.1/conformance/
+          spec_dir="spec/${SPEC_VERSION}"
+          schema_dir="docs-site/docs/schema/${SCHEMA_PATH}"
+          cp "${spec_dir}/${SPEC_FILE}" docs-site/docs/spec.md
+          sed -E 's#\]\(\.\./[0-9]+\.[0-9]+\.[0-9]+/AGENT-HOOKS-[0-9]+\.[0-9]+\.md\)#](spec.md)#g' "spec/draft/${SPEC_FILE}" > docs-site/docs/spec-draft.md
+          # Publish released schemas so every $id dereferences; draft schemas are not published.
+          mkdir -p "${schema_dir}/agent-context" "${schema_dir}/conformance"
+          # Keep the published agent-context/ URLs even though the source
+          # checkout calls these generated files strict-contexts/.
+          cp "${spec_dir}"/schema/generated/*.schema.json "${schema_dir}/"
+          cp "${spec_dir}"/schema/generated/strict-contexts/*.schema.json "${schema_dir}/agent-context/"
+          cp "${spec_dir}/reserved-reasons.json" "${schema_dir}/"
+          cp "${spec_dir}/declaration-errors.json" "${schema_dir}/"
+          cp conformance/vectors.schema.json "${schema_dir}/conformance/"
           .mkdocs-venv/bin/mkdocs build --strict -f docs-site/mkdocs.yml -d "$PWD/site"
       - name: Upload Pages artifact
         if: github.event_name == 'push'

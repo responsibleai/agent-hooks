@@ -14,8 +14,8 @@ appears here.
 
 | Version | Status | Schema | Defined by spec revision | Notes |
 | --- | --- | --- | --- | --- |
-| `agent-hooks-declaration/1.0` | accepted | `spec/schema/host-declaration-1.0.schema.json` | 0.1.0-beta | First version. |
-| `agent-hooks-declaration/1.1` | current | `spec/schema/host-declaration-1.1.schema.json` | 0.1.0-beta | Adds the OPTIONAL binding member `on_error` and the OPTIONAL document default `configuration.failure.on_error` (spec §6.3.1, §7.7.3, §7.7.5). Absent members keep the 1.0 meaning. |
+| `agent-hooks-declaration/1.0` | accepted | `spec/draft/schema/generated/host-declaration-1.0.schema.json` | 0.1.0-beta | First version. |
+| `agent-hooks-declaration/1.1` | current | `spec/draft/schema/generated/host-declaration-1.1.schema.json` | 0.1.0-beta | Adds the OPTIONAL binding member `on_error` and the OPTIONAL document default `configuration.failure.on_error` (spec §6.3.1, §7.7.3, §7.7.5). Absent members keep the 1.0 meaning. |
 
 Major 0 is reserved for the conformance kit and is never accepted.
 

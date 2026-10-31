@@ -1,9 +1,9 @@
 # agent-hooks
 
-> Status: Beta. Spec: [AGENT-HOOKS-0.1](spec/AGENT-HOOKS-0.1.md), wire
+> Status: Beta. Spec: [AGENT-HOOKS-0.1](spec/0.1.0/AGENT-HOOKS-0.1.md), wire
 > version `agent-hooks/0.1`. Host declaration contract:
 > `agent-hooks-declaration/1.1` (1.0 still accepted)
-> ([version table](spec/DECLARATION-VERSIONS.md)).
+> ([version table](spec/0.1.0/DECLARATION-VERSIONS.md)).
 
 Agent Hooks is the interception contract between an agent host and the
 controls that govern it. It fixes eight points in the agent loop, the
@@ -17,7 +17,7 @@ is trusted, interceptors run in-process with full data access, and the
 eight points do not promise complete mediation. It is a control plane,
 not a telemetry plane: every verdict binds the host, and passive
 observation is out of scope. See [SECURITY.md](SECURITY.md) and
-[spec §1.4](spec/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
+[spec §1.4](spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
 
 ## Points and verdicts
 
@@ -153,7 +153,7 @@ emitter = InterceptionEmitter.from_declaration_path("agent-hooks.declaration.jso
 A document that names a point, profile, capability, provider or kind
 the code cannot honour is refused at load, before any emission, with
 one of eleven `declaration_error:*` classes
-([`spec/declaration-errors.json`](spec/declaration-errors.json)).
+([`spec/0.1.0/declaration-errors.json`](spec/0.1.0/declaration-errors.json)).
 Nothing is narrowed or applied in part. A loader refuses a version it
 does not accept and names the versions it does. Once built, the emitter
 is sealed, and every record it writes carries the contract version.
@@ -228,12 +228,15 @@ accepted set: `SPEC_VERSION`, `DECLARATION_VERSION` and
 in Go; `Spec.Version`, `Declaration.Version` and
 `Declaration.SupportedVersions` in .NET. See
 [VERSIONING.md](VERSIONING.md) and
-[spec/DECLARATION-VERSIONS.md](spec/DECLARATION-VERSIONS.md).
+[spec/0.1.0/DECLARATION-VERSIONS.md](spec/0.1.0/DECLARATION-VERSIONS.md).
 
 ## Read next
 
-- [`spec/AGENT-HOOKS-0.1.md`](spec/AGENT-HOOKS-0.1.md): the normative
-  text; [`spec/schema/`](spec/schema/) holds the JSON Schemas.
+- [`spec/README.md`](spec/README.md): released specification versions
+  and the draft. The latest release is
+  [`spec/0.1.0/AGENT-HOOKS-0.1.md`](spec/0.1.0/AGENT-HOOKS-0.1.md);
+  [`spec/0.1.0/schema/`](spec/0.1.0/schema/) separates editable source from
+  the normative JSON Schemas in [`generated/`](spec/0.1.0/schema/generated/).
 - [`docs/IMPLEMENTING.md`](docs/IMPLEMENTING.md): what it means to
   implement Agent Hooks in a harness or gateway.
 - [`conformance/HARNESS.md`](conformance/HARNESS.md): how to write a

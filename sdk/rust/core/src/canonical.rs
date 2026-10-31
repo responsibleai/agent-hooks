@@ -148,7 +148,7 @@ const REQUIRED: &[Keep] = &[
 ];
 
 /// Closed conditional (per-point) preimage (§4.2, §10.2). Mirrors the
-/// per-point closed schemas in `spec/schema/agent-context/`.
+/// per-point closed schemas in `spec/0.1.0/schema/generated/strict-contexts/`.
 fn conditional_for(ip: &str) -> &'static [Keep] {
     match ip {
         "agent_startup" => &[("agent_init", Some(&["tools_registered"]))],

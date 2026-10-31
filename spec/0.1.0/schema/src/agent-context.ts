@@ -3,7 +3,7 @@
 // agent-context.schema.json and its per-point variants (§4). The master is
 // the union of one variant per interception point; each variant requires that
 // point's conditional members. scripts/generate-schemas.ts derives the closed
-// per-point files under agent-context/ from the same variants.
+// per-point files under generated/strict-contexts/ from the same variants.
 
 import { Extensions } from "./common";
 import { InterceptionPoint } from "./interception-point";
