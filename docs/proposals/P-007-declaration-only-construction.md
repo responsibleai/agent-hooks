@@ -144,7 +144,7 @@ Trust assumptions do not move; Security and privacy says why.
 
 ### Recommended normative semantics
 
-The edits below are the whole change to `spec/AGENT-HOOKS-0.1.md`.
+The edits below are the whole change to `spec/draft/AGENT-HOOKS-0.1.md`.
 Quoted text is proposed text; the rest says where it goes. The
 contract version does not move; Backward compatibility gives the
 §7.7.2 reasoning.
@@ -499,20 +499,20 @@ Editorial edits that keep the meaning and unify the vocabulary:
 ### Schema and wire impact
 
 The schemas keep their shape. The edits are description text,
-generated from the TypeScript sources under `spec/schema/src/`:
+generated from the TypeScript sources under `spec/draft/schema/src/`:
 
-- `spec/schema/interception-record.schema.json`: the `declaration` and
+- `spec/draft/schema/generated/interception-record.schema.json`: the `declaration` and
   `verdicts[].name` descriptions follow the §10.3 rows above.
-- `spec/schema/host-declaration-1.0.schema.json` and
-  `spec/schema/host-declaration-1.1.schema.json`:
+- `spec/draft/schema/generated/host-declaration-1.0.schema.json` and
+  `spec/draft/schema/generated/host-declaration-1.1.schema.json`:
   `surface.interception_points` reads "Points the host emits, or, for
   a document the SDK writes from code, the points the emitter admits
   (§7.7.4)"; the `bindings[].kind` description names the one defined
   kind.
-- `spec/declaration-errors.json`: unchanged; no new class.
+- `spec/draft/declaration-errors.json`: unchanged; no new class.
   `kind_unknown` still means a kind with no resolver, and
   `binding_rejected` still means a resolver refused.
-- `spec/DECLARATION-VERSIONS.md`: the contract rows gain a note that
+- `spec/draft/DECLARATION-VERSIONS.md`: the contract rows gain a note that
   this revision defines `agent_hooks.inline` under 1.0 and 1.1, and
   that a loader from an earlier release refuses a document naming it
   with `kind_unknown`. No new SDK-release row: the file requires one
