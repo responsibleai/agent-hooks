@@ -639,9 +639,9 @@ P-004 made the identity provider a pluggable seam with `jcs-sha256` as
 the default and fixed the closed required-plus-conditional preimage,
 from which it follows that optional data never changes the identity.
 `VERSIONING.md` classes a change to the required or conditional context
-fields as spec MAJOR. PR #169 proposes a versioned layout for the
-specification text; this proposal follows whatever it settles (see
-Backward compatibility).
+fields as spec MAJOR. #169 put the specification into versioned bundles
+with a draft folder; this proposal writes its changes into the draft
+(see Backward compatibility).
 
 ## Security and privacy
 
