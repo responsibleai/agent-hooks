@@ -316,7 +316,7 @@ a version it does not implement, and never converts.
 
 ### Schema and wire impact
 
-The JSON Schemas under `spec/schema/` are generated from the TypeScript
+The JSON Schemas under `spec/draft/schema/generated/` are generated from the TypeScript
 source under `spec/draft/schema/src/` by
 `sdk/typescript/scripts/generate-schemas.mts` (`npm run
 generate:schema`); the `schema-drift` workflow regenerates them and the
@@ -328,7 +328,7 @@ vendored copies under `sdk/python/python/agent_hooks/schema/`.
   `AgentInit.tools_registered` becomes optional. The eight per-point
   variants keep their payloads. The generated
   `spec/draft/schema/generated/agent-context.schema.json` (an `anyOf` over the eight
-  variants) and the eight files under `spec/schema/agent-context/`
+  variants) and the eight files under `spec/draft/schema/generated/strict-contexts/`
   follow.
 - `sdk/typescript/scripts/generate-schemas.mts`: step 5, which derives
   the per-point files, stops setting `additionalProperties: false` on
@@ -715,17 +715,16 @@ rules applied, and the `spec` string is the only signal it has.
 
 ### Where the 0.2 text lives
 
-That depends on the layout decision pending in PR #169. Under the layout
-in `main` today, the deciding PR edits `spec/draft/AGENT-HOOKS-0.1.md` in
-place, bumps its header to 0.2 and adds the `CHANGELOG.md` entry, under
-`spec:breaking`; that meets the change-class workflow
-(`.github/workflows/change-class.yml`), which requires a `spec:breaking`
-PR to change a version surface in the same PR: a path under
-`spec/AGENT-HOOKS`, an SDK manifest, or `CHANGELOG.md`. Under the layout
-#169 proposes, a versioned bundle per published specification plus a
-draft bundle, the deciding PR writes the 0.2 text into the draft bundle
-and the version bump happens when that draft is published. The content,
-the label and the version number are the same under both.
+The specification now lives in versioned bundles (#169): `spec/0.1.0/`
+is the released copy and stays unchanged, and `spec/draft/` is where
+normative work happens. The deciding PR therefore writes the 0.2 text
+into `spec/draft/AGENT-HOOKS-0.1.md` and its schemas, bumps the header
+to 0.2 and adds the `CHANGELOG.md` entry, under `spec:breaking`. That
+meets the change-class workflow (`.github/workflows/change-class.yml`),
+which requires a `spec:breaking` PR to change a version surface in the
+same PR: a path matching `spec/<folder>/AGENT-HOOKS`, an SDK manifest,
+or `CHANGELOG.md`. The 0.2 bundle is cut from the draft when it is
+published; the released 0.1.0 folder is not edited.
 
 ### Hosts
 
