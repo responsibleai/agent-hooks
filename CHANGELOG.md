@@ -33,7 +33,7 @@ User-visible changes to the spec and SDKs. Versioning rules:
   before it reports `timeout`, and a `cancelled` outcome is never a
   timeout and never continues.
 - Host declaration contract `agent-hooks-declaration/1.1`
-  (`spec/schema/host-declaration-1.1.schema.json`): the binding
+  (`spec/schema/generated/host-declaration-1.1.schema.json`): the binding
   envelope gains the OPTIONAL member `on_error` and `configuration`
   gains `failure.on_error`, the document default bindings inherit.
   1.0 stays accepted and loads unchanged; `on_error` under a 1.0
@@ -43,7 +43,7 @@ User-visible changes to the spec and SDKs. Versioning rules:
   step is written in `spec/DECLARATION-VERSIONS.md`, with the next
   tag `v0.1.0-beta.4` accepting {1.0, 1.1} and current 1.1. Sealing
   covers the failure posture.
-- Interception record (§10.3, `spec/schema/interception-record.schema.json`):
+- Interception record (§10.3, `spec/schema/generated/interception-record.schema.json`):
   the per-verdict summary gains `substituted_for`, present iff the
   slot is the substituted allow, carrying the `host_error:*` reason
   the deny would have had; `verdicts` is required on any record where
@@ -52,7 +52,7 @@ User-visible changes to the spec and SDKs. Versioning rules:
 - New closed file `spec/reserved-warnings.json` (§11.1), first entry
   `host_warning:control_failed`. Interceptors MUST NOT emit
   `host_warning:*` warning reasons; the §5 gate and
-  `spec/schema/verdict.schema.json` reject them as
+  `spec/schema/generated/verdict.schema.json` reject them as
   `host_error:verdict_invalid`.
 - .NET SDK: additive public API for the posture: `OnError`,
   `BindOptions.OnError`, `BindingContext.OnError` with the previous
@@ -98,7 +98,7 @@ User-visible changes to the spec and SDKs. Versioning rules:
   rejection, I-JSON integers and exact metadata bounds. SDK tests expand the shared
   boundary descriptors into extensions at and above 64 KiB. Empty receipts and safe
   receipt numbers round-trip; omitted transform values are treated as null.
-- New schema `spec/schema/interceptor-response.schema.json`; Python's vendored schema
+- New schema `spec/schema/generated/interceptor-response.schema.json`; Python's vendored schema
   copy is kept in sync. The .NET public API snapshot includes the additive response
   type and parser overloads.
 - The strict Verdict gate now rejects unknown root/nested members and duplicate JSON
@@ -179,7 +179,7 @@ User-visible changes to the spec and SDKs. Versioning rules:
   resolved by code the host registers. Records gain an optional
   `declaration` member and per-point binding semantics for
   `interceptors_registered`, `verdicts[]` and `decided_by`. New schema
-  `spec/schema/host-declaration-1.0.schema.json`, new capability
+  `spec/schema/generated/host-declaration-1.0.schema.json`, new capability
   `host_declaration`, vectors AH-CTK-120 to AH-CTK-139 and the golden
   file `conformance/golden/declaration.json`. The Rust core implements
   the loader (`HostDeclaration`, `HostRegistry`, `HostSurface`,

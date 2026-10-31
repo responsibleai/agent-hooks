@@ -1,8 +1,10 @@
 #!/usr/bin/env tsx
 // Copyright (c) Microsoft. All rights reserved.
 
-// Write the JSON Schemas under spec/schema/ from the TypeScript source in
-// spec/schema/src/, or check that the committed files match.
+// Write the JSON Schemas under spec/<version>/schema/generated/ from the
+// TypeScript source in spec/<version>/schema/src/, or check that the committed
+// files match. <version> is draft unless --spec <version> names another folder;
+// released folders are immutable, so only the draft is normally regenerated.
 //
 //   npm run generate:schema        write every schema file
 //   npm run check:schema           type-check the source, then compare the
@@ -23,7 +25,7 @@
 //      it; under 2020-12 those siblings would apply to the member itself.
 //   4. $id is set from ROOTS. approval.schema.json has no root type (it is a
 //      set of definitions), so its title and description come from ROOTS too.
-//   5. The per-point files under agent-context/ are derived from the master:
+//   5. The per-point files under strict-contexts/ are derived from the master:
 //      the variant for one interception point becomes the root, and the
 //      payload objects that point requires are closed.
 //   6. Keys are ordered $id, $schema, title, description, the rest as the
@@ -38,8 +40,11 @@ type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Schema = { [key: string]: Json };
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const SRC = join(ROOT, "spec", "schema", "src");
-const OUT = join(ROOT, "spec", "schema");
+const specArg = process.argv.indexOf("--spec");
+const SPEC = specArg >= 0 && specArg + 1 < process.argv.length ? process.argv[specArg + 1] : "draft";
+const SCHEMA_DIR = `spec/${SPEC}/schema`;
+const SRC = join(ROOT, "spec", SPEC, "schema", "src");
+const OUT = join(ROOT, "spec", SPEC, "schema", "generated");
 const ID_BASE = "https://responsibleai.github.io/agent-hooks/schema/v0.1/";
 const DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
 
@@ -105,8 +110,10 @@ function ordered(schema: Schema): Schema {
 }
 
 function generateRoot(root: Root): Schema {
-  const only = root.type === "*" ? [join(SRC, root.source)] : undefined;
-  const raw = TJS.generateSchema(programFor(root.source), root.type, SETTINGS, only);
+  const program = programFor(root.source);
+  // TJS compares this allowlist to TypeScript's normalized filenames exactly.
+  const only = root.type === "*" ? program.getRootFileNames().map((f) => f.replaceAll("\\", "/")) : undefined;
+  const raw = TJS.generateSchema(program, root.type, SETTINGS, only);
   if (!raw) {
     throw new Error(`${root.source}: no schema for ${root.type}`);
   }
@@ -183,7 +190,7 @@ function perPointSchemas(master: Schema): Map<string, Schema> {
       if (target.type === "object") target.additionalProperties = false;
     }
     files.set(
-      `agent-context/${point}.schema.json`,
+      `strict-contexts/${point}.schema.json`,
       ordered({
         $id: `${ID_BASE}agent-context/${point}.schema.json`,
         $schema: DRAFT_2020_12,
@@ -201,7 +208,7 @@ function perPointSchemas(master: Schema): Map<string, Schema> {
   return files;
 }
 
-/** Every output file's text, keyed by its path under spec/schema/. */
+/** Every output file's text, keyed by its path under spec/<version>/schema/generated/. */
 function render(): Map<string, string> {
   const files = new Map<string, Schema>();
   for (const root of ROOTS) files.set(root.file, generateRoot(root));
@@ -210,9 +217,11 @@ function render(): Map<string, string> {
 }
 
 function committed(): string[] {
-  const top = readdirSync(OUT).filter((f) => f.endsWith(".schema.json"));
-  const points = readdirSync(join(OUT, "agent-context")).map((f) => `agent-context/${f}`);
-  return [...top, ...points];
+  if (!existsSync(OUT)) return [];
+  return readdirSync(OUT, { recursive: true })
+    .map(String)
+    .filter((f) => f.endsWith(".schema.json"))
+    .map((f) => f.replaceAll("\\", "/"));
 }
 
 function firstDifference(actual: string, expected: string): string {
@@ -226,11 +235,16 @@ function firstDifference(actual: string, expected: string): string {
   return "";
 }
 
+export function escapeWorkflowCommandData(value: string): string {
+  return value.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+}
+
 function main(): number {
   const check = process.argv.includes("--check");
   const files = render();
   let failing = 0;
   for (const [file, text] of files) {
+    const annotationFile = escapeWorkflowCommandData(file);
     const path = join(OUT, file);
     if (!check) {
       mkdirSync(dirname(path), { recursive: true });
@@ -240,24 +254,27 @@ function main(): number {
     }
     if (!existsSync(path)) {
       failing++;
-      console.log(`::error::spec/schema/${file} is missing; run npm run generate:schema in sdk/typescript`);
+      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} is missing; run npm run generate:schema in sdk/typescript`);
       continue;
     }
     const actual = readFileSync(path, "utf8");
     if (actual !== text) {
       failing++;
-      console.log(`::error::spec/schema/${file} differs from the TypeScript source; run npm run generate:schema in sdk/typescript`);
+      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} differs from the TypeScript source; run npm run generate:schema in sdk/typescript`);
       console.log(`  ${firstDifference(actual, text)}`);
     }
   }
   if (check) {
     for (const file of committed().filter((f) => !files.has(f))) {
       failing++;
-      console.log(`::error::spec/schema/${file} has no source under spec/schema/src/`);
+      const annotationFile = escapeWorkflowCommandData(file);
+      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} has no source under ${escapeWorkflowCommandData(SCHEMA_DIR)}/src/`);
     }
     console.log(`generate-schemas --check: ${files.size} files generated, ${failing} failing`);
   }
   return failing ? 1 : 0;
 }
 
-process.exit(main());
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exit(main());
+}

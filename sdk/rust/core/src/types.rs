@@ -208,7 +208,7 @@ impl HostError {
 }
 
 /// Reserved `host_warning:*` reasons a host synthesizes (§6.3,
-/// `spec/reserved-warnings.json`). Interceptors MUST NOT emit them;
+/// `spec/0.1.0/reserved-warnings.json`). Interceptors MUST NOT emit them;
 /// the §5 gate refuses such a verdict as `verdict_invalid`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum HostWarning {

@@ -5,6 +5,8 @@
 # - PRs that touch the normative surface (spec/, conformance vectors/
 #   schema) must carry one of the change-class labels so reviewers and
 #   the CHANGELOG see the classification.
+# - PRs must not modify a spec/<MAJOR.MINOR.PATCH>/ folder that exists on
+#   the base branch; edit spec/draft/ or add a new version folder.
 #
 # Required-check rule: this workflow has NO paths filter and reports on
 # every PR (a path-filtered required check deadlocks the queue — see
@@ -45,10 +47,14 @@ jobs:
 
           if echo "$LABELS" | grep -q 'spec:breaking'; then
             bump=$(echo "$changed" | grep -E \
-              '^(spec/AGENT-HOOKS|sdk/rust/core/Cargo\.toml|sdk/python/pyproject\.toml|sdk/typescript/package\.json|sdk/dotnet/src/AgentHooks/.*\.csproj|CHANGELOG\.md)' || true)
+              '^(spec/[^/]+/AGENT-HOOKS|sdk/rust/core/Cargo\.toml|sdk/python/pyproject\.toml|sdk/typescript/package\.json|sdk/dotnet/src/AgentHooks/.*\.csproj|CHANGELOG\.md)' || true)
             if [ -z "$bump" ]; then
               echo "::error::spec:breaking PR must change a version surface (spec header, an SDK manifest, or CHANGELOG.md)"
               exit 1
             fi
           fi
           echo "change-class ok"
+      - name: Released specification folders are immutable
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: python3 scripts/check-released-specs-immutable.py "$BASE" HEAD

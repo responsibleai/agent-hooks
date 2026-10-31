@@ -1,5 +1,9 @@
 # Agent Hooks Specification — Version 0.1
 
+> **Draft:** This is the working draft for the next specification release.
+> It is not a released specification. The latest released specification is
+> [0.1.0](../0.1.0/AGENT-HOOKS-0.1.md).
+
 > **Status:** Beta · **Version:** `0.1.0-beta` · **Date:** 2026-10-02
 > **Editors:** Responsible AI / Agent Governance Toolkit
 >
@@ -219,8 +223,8 @@ A `AgentContext` is a JSON object. Its schema has four field tiers:
 - **optional** fields are well-known and OPTIONAL.
 - **namespaced** fields are extensions under `extensions.<namespace>`.
 
-The machine-readable schema is `spec/schema/agent-context.schema.json` with
-per-point closed schemas at `spec/schema/agent-context/<interception_point>.schema.json`.
+The machine-readable schema is `spec/draft/schema/generated/agent-context.schema.json` with
+per-point closed schemas at `spec/draft/schema/generated/strict-contexts/<interception_point>.schema.json`.
 
 ### 4.1 Required core
 
@@ -423,7 +427,7 @@ own.
 [Pure Specification]
 
 An interceptor MUST return a JSON object conforming to
-`spec/schema/verdict.schema.json`. Section 5.5 describes an optional
+`spec/draft/schema/generated/verdict.schema.json`. Section 5.5 describes an optional
 transport wrapper; it does not change this in-process return contract.
 
 ```jsonc
@@ -501,7 +505,7 @@ unconditionally denies, consulting an approver is pointless.
   v0.3.x, a host MUST also accept the deprecated alias `$policy_target` and
   treat it as `$target`. The alias is removed in agent-hooks v0.3.
 - `path` segments follow the subset of JSONPath defined in
-  `spec/schema/path-grammar.abnf`: dot-member (`.foo`), bracket-index (`[0]`),
+  `spec/draft/schema/path-grammar.abnf`: dot-member (`.foo`), bracket-index (`[0]`),
   and bracket-member (`["foo"]`) only.
 - `value` is any JSON value, including `null`. An absent `value`
   member is equivalent to `null` (the §10.3 record projection and SDK
@@ -558,7 +562,7 @@ alongside the control decision:
 ```
 
 The machine-readable schema is
-`spec/schema/interceptor-response.schema.json`. The envelope root is
+`spec/draft/schema/generated/interceptor-response.schema.json`. The envelope root is
 closed: only `verdict` and `extensions` are permitted.
 `verdict` is REQUIRED and MUST pass every §5 rule. `extensions`, when
 present, MUST be a JSON object and uses the
@@ -1042,7 +1046,7 @@ recorded by `substituted_for` on the slot's `verdicts` entry;
 A host MAY load its configuration (§7.1, §8, §10.1, §13.1), its
 declared surface (§13.1) and its interceptor bindings from one JSON
 document, the **host declaration**. The document is validated by
-`spec/schema/host-declaration-1.0.schema.json` and by the rules of this
+`spec/draft/schema/generated/host-declaration-1.0.schema.json` and by the rules of this
 section, which the schema cannot express. It selects behaviour the
 host already implements. It MUST NOT add behaviour, load code, or
 widen the surface beyond what the host's code reports. A declaration
@@ -1109,7 +1113,7 @@ A loader:
 Across a major, the specification revision that introduces the new
 major ships a migration step for each supported older major, in every
 SDK that implements the loader and as written steps in
-`spec/DECLARATION-VERSIONS.md`. A loader
+`spec/draft/DECLARATION-VERSIONS.md`. A loader
 MAY accept more than one major during a deprecation window of at least
 two SDK minor releases; its accepted set says which. A host MUST re-run
 the CTK after migrating a document.
@@ -1117,7 +1121,7 @@ the CTK after migrating a document.
 An SDK that implements the loader exports the current version and the
 accepted set next to its `SPEC_VERSION` (`DECLARATION_VERSION` and
 `SUPPORTED_DECLARATION_VERSIONS` in the Rust core).
-`spec/DECLARATION-VERSIONS.md` maps each contract version to its schema
+`spec/draft/DECLARATION-VERSIONS.md` maps each contract version to its schema
 file and each SDK release to the versions it accepts.
 
 #### 7.7.3 Members and defaults
@@ -1363,7 +1367,7 @@ validator in a settings pipeline and the loader cannot disagree on
 which value loaded. The value path cannot see them; the host's parser
 already collapsed them.
 
-The machine-readable inventory is `spec/declaration-errors.json`.
+The machine-readable inventory is `spec/draft/declaration-errors.json`.
 
 #### 7.7.7 Equivalence and sealing
 
@@ -1598,7 +1602,7 @@ where:
   vectors in `conformance/golden/identity.json` pin the exact bytes.
 - `ctx_rc` is the **closed** required+conditional projection of `ctx`
   for its interception point: exactly the fields marked required in
-  the per-point schemas under `spec/schema/agent-context/`, including
+  the per-point schemas under `spec/draft/schema/generated/strict-contexts/`, including
   the nested subfield whitelists (`agent.{id,framework}`,
   `session.{id}`, `model.{id}`, `tool_call.{id,name,args}`,
   `tool_result.{value,is_error}`,
@@ -1778,7 +1782,7 @@ Removed relative to earlier drafts: `host_error:approval_resolver_missing`
 `host_error:approval_action_mismatch` (renamed to
 `approval_identity_mismatch`).
 
-The machine-readable inventory is `spec/reserved-reasons.json`.
+The machine-readable inventory is `spec/draft/reserved-reasons.json`.
 
 ### 11.1 Reserved warnings
 
@@ -1792,7 +1796,7 @@ interceptor MUST NOT emit a warning `reason` beginning with
 | --- | --- |
 | `host_warning:control_failed` | A registration whose `on_error` is `continue` failed (raised, timed out or returned an invalid verdict); the host substituted an allow in its slot and continued (§6.3.1). The message names the binding and the `host_error:*` reason. |
 
-The machine-readable inventory is `spec/reserved-warnings.json`.
+The machine-readable inventory is `spec/draft/reserved-warnings.json`.
 
 ---
 

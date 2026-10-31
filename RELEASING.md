@@ -21,9 +21,12 @@ environment.
      `sdk/dotnet/test/AgentHooks.Tests/packages.lock.json`
    - install pins in `README.md` and the per-SDK READMEs
 
-   The `Version` line in `spec/AGENT-HOOKS-0.1.md` carries the stage
+   The `Version` line in `spec/draft/AGENT-HOOKS-0.1.md` carries the stage
    (`0.1.0-alpha`, `0.1.0-beta`), not the tag, and changes only when
    the stage changes.
+
+   When the release publishes a new specification version, snapshot
+   `spec/draft/` into `spec/<MAJOR.MINOR.PATCH>/` before tagging.
 
    Regenerate `sdk/typescript/binding.js` after the bump (`npm run
    build:native` in `sdk/typescript`); the napi version strings it
@@ -32,9 +35,11 @@ environment.
    Run `python3 scripts/check-version-consistency.py`; the CI `lint`
    job runs the same check.
    Add a row for the tag to the SDK-release table in
-   `spec/DECLARATION-VERSIONS.md` when the accepted host declaration
+   `spec/0.1.0/DECLARATION-VERSIONS.md` when the accepted host declaration
    versions or the current one change (spec §7.7.2); the same script
-   checks that the current version has a row.
+   checks that the current version has a row. SDK development is pinned
+   to `spec/0.1.0/` until the project decides how SDKs track
+   specification versions.
 2. Run the bench suite and compare against the latency budget in
    [ARCHITECTURE.md](ARCHITECTURE.md#latency-budget). CI does not gate
    on it; this step is the regression check.

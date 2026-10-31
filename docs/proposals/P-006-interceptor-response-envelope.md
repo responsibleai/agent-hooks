@@ -258,7 +258,7 @@ same envelope.
 ## Adopted schema
 
 The adopted schema is
-[`spec/schema/interceptor-response.schema.json`](../../spec/schema/interceptor-response.schema.json).
+[`spec/0.1.0/schema/generated/interceptor-response.schema.json`](../../spec/0.1.0/schema/generated/interceptor-response.schema.json).
 That file is the single schema definition; the proposal does not maintain a second copy.
 
 The 64 KiB extensions bound is enforced by SDK parsers because JSON Schema

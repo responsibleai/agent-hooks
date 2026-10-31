@@ -127,7 +127,7 @@ class HostError(str, Enum):
 
 class HostWarning(str, Enum):
     """Reserved ``host_warning:*`` reasons a host synthesizes (§11.1,
-    ``spec/reserved-warnings.json``). Interceptors MUST NOT emit them;
+    ``spec/0.1.0/reserved-warnings.json``). Interceptors MUST NOT emit them;
     the §5 gate refuses such a verdict as ``verdict_invalid``."""
 
     #: A registration whose ``on_error`` is ``continue`` failed and the
@@ -690,7 +690,7 @@ class InterceptionRecord:
         return self.verdict.decision.permits
 
     def to_wire(self) -> dict[str, Any]:
-        """Wire shape per ``spec/schema/interception-record.schema.json``.
+        """Wire shape per ``spec/0.1.0/schema/generated/interception-record.schema.json``.
 
         Mirrors the core's serde serialization: ``verdicts`` omitted when
         empty; ``fold_truncated``/``resolved_by`` omitted when ``None``.

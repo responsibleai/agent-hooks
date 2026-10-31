@@ -125,7 +125,7 @@ public sealed class DeclarationTests
     public void ErrorClassesMatchTheInventory()
     {
         var inventory = JsonNode.Parse(File.ReadAllText(
-            Path.Combine(RepoRoot(), "spec", "declaration-errors.json")))!;
+            Path.Combine(RepoRoot(), "spec", "0.1.0", "declaration-errors.json")))!;
         var ids = ((JsonArray)inventory["classes"]!).Select(c => (string)c!["id"]!).ToList();
         var codes = Enum.GetValues<DeclarationErrorClass>().Select(c => c.ToCode()).ToList();
         Assert.Equal(ids, codes);

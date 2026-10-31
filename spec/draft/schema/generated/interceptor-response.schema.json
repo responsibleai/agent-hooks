@@ -1,0 +1,319 @@
+{
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interceptor-response.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Hooks — interceptor response",
+  "description": "Response envelope adopted under P-006 (Decided 2026-10-15) as part of the 0.1\ncontract (§5.5). Bare Verdict remains valid; transport metadata never changes\nenforcement.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/AllowVerdict"
+    },
+    {
+      "$ref": "#/$defs/DenyVerdict"
+    },
+    {
+      "$ref": "#/$defs/TransformVerdict"
+    },
+    {
+      "$ref": "#/$defs/ResponseEnvelope"
+    }
+  ],
+  "$defs": {
+    "AllowVerdict": {
+      "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "const": "allow"
+        },
+        "reason": {
+          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11).",
+          "pattern": "^(?!host_error:).*",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "message": {
+          "description": "Human-readable text for the caller.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "warnings": {
+          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Warning"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "description": "Offline-verifiable evidence attached to a verdict (§14).",
+          "$ref": "#/$defs/Evidence"
+        },
+        "result_labels": {
+          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "decision"
+      ]
+    },
+    "Warning": {
+      "description": "A recorded concern that does not affect control flow (§5.1).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "reason": {
+          "description": "Interceptor-supplied warning identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11) and host_warning: for host-synthesized\nwarnings (§11.1); an interceptor warning with either prefix fails §5\nvalidation.",
+          "pattern": "^(?!host_error:|host_warning:).*",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "message": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      }
+    },
+    "Evidence": {
+      "description": "Offline-verifiable evidence attached to a verdict (§14).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "artefact": {
+          "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "verification_pointers": {
+          "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14).",
+          "$ref": "#/$defs/VerificationPointers"
+        }
+      }
+    },
+    "VerificationPointers": {
+      "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "DenyVerdict": {
+      "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "const": "deny"
+        },
+        "approval": {
+          "description": "Present only on deny: marks the deny as liftable by the approval seam (§9).\nMAY be empty; reserved for approver-facing parameters.",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        },
+        "reason": {
+          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11).",
+          "pattern": "^(?!host_error:).*",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "message": {
+          "description": "Human-readable text for the caller.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "warnings": {
+          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Warning"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "description": "Offline-verifiable evidence attached to a verdict (§14).",
+          "$ref": "#/$defs/Evidence"
+        },
+        "result_labels": {
+          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "decision"
+      ]
+    },
+    "TransformVerdict": {
+      "description": "transform: proceed with the target rewritten. The transform body is REQUIRED\n(§5).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "const": "transform"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "reason": {
+          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11).",
+          "pattern": "^(?!host_error:).*",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "message": {
+          "description": "Human-readable text for the caller.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "warnings": {
+          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Warning"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "description": "Offline-verifiable evidence attached to a verdict (§14).",
+          "$ref": "#/$defs/Evidence"
+        },
+        "result_labels": {
+          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "decision",
+        "transform"
+      ]
+    },
+    "Transform": {
+      "description": "The transform body (§5.2).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "JSONPath rooted at $target (§5.2). $policy_target is a deprecated alias\naccepted through agent-hooks v0.2.",
+          "pattern": "^\\$(target|policy_target)(\\.|\\[|$)",
+          "type": "string"
+        },
+        "value": {
+          "description": "Any JSON value, including null. An absent member is equivalent to null (§5.2)."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "ResponseEnvelope": {
+      "description": "The envelope form: a verdict plus transport metadata.",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "verdict": {
+          "$ref": "#/$defs/Verdict"
+        },
+        "extensions": {
+          "description": "Opaque namespaced transport metadata (§4.6), including provider receipts\nunder extensions.<provider>.receipt. Canonical extensions are bounded at\n65536 bytes (§5.5).",
+          "$ref": "#/$defs/Extensions"
+        }
+      },
+      "required": [
+        "verdict"
+      ]
+    },
+    "Verdict": {
+      "description": "Interceptor return value (AGENT-HOOKS-0.1 §5). Three decisions: allow (absorbs\nwarn via warnings[]), deny (absorbs escalate via the approval block), transform.\nA verdict carries decision content only; composition is host configuration\n(§7.1).",
+      "title": "Agent Hooks — verdict",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AllowVerdict"
+        },
+        {
+          "$ref": "#/$defs/DenyVerdict"
+        },
+        {
+          "$ref": "#/$defs/TransformVerdict"
+        }
+      ]
+    },
+    "Extensions": {
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "type": "object",
+      "additionalProperties": {}
+    }
+  }
+}

@@ -31,7 +31,7 @@
 //! Refusals are construction errors ([`DeclarationError`]), never
 //! verdicts: no emitter exists yet, so there is no record to carry a
 //! §11 reason. The eleven classes are inventoried in
-//! `spec/declaration-errors.json`.
+//! `spec/0.1.0/declaration-errors.json`.
 //!
 //! Nothing in the pipeline drops, clears or defaults a member the
 //! document stated. Defaults fill absent members only, and a document
@@ -2881,7 +2881,7 @@ pub fn resolve(
 }
 
 /// Bring a document from an older accepted minor to `to` (§7.7.2),
-/// one explicit step per version (`spec/DECLARATION-VERSIONS.md`).
+/// one explicit step per version (`spec/0.1.0/DECLARATION-VERSIONS.md`).
 ///
 /// - 1.0 to 1.1: the `declaration` member changes; nothing else. The
 ///   members 1.1 adds (`configuration.failure.on_error`,
@@ -4288,7 +4288,7 @@ mod tests {
 
     /// The string values a schema node admits: its `enum`, or its one
     /// `const`, following a local `$ref` first. The generated schemas
-    /// (spec/schema/src/) name shared enums as definitions and may list
+    /// (spec/0.1.0/schema/src/) name shared enums as definitions and may list
     /// an inlined enum in alphabetical order, so callers compare sets.
     fn schema_values<'a>(root: &'a Value, node: &'a Value) -> Vec<&'a str> {
         let node = match node["$ref"].as_str() {
@@ -4312,7 +4312,7 @@ mod tests {
     #[test]
     fn mirrored_enums_match_record_schema() {
         let schema: Value = serde_json::from_str(include_str!(
-            "../../../../spec/schema/interception-record.schema.json"
+            "../../../../spec/0.1.0/schema/generated/interception-record.schema.json"
         ))
         .unwrap();
         let composition = &schema["properties"]["composition"]["properties"];
@@ -4330,8 +4330,8 @@ mod tests {
         // One schema file per contract version. The 1.0 file names
         // 1.0 alone; the file for the current version names it and
         // every version the loader accepts is covered by some file.
-        let schema_dir =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../spec/schema");
+        let schema_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../spec/0.1.0/schema/generated");
         let mut covered: Vec<String> = Vec::new();
         for v in SUPPORTED_DECLARATION_VERSIONS {
             let (maj, min) = parse_declaration_version(v).unwrap();

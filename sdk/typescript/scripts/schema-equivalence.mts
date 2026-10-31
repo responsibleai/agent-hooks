@@ -9,7 +9,11 @@
 //       [--random <mutants per seed>] [--seed <n>] [--structural-diff]
 //
 // --old takes a git ref (the schemas are read with git show) or a directory
-// laid out like spec/schema. --new defaults to the checkout's spec/schema.
+// containing either layout's generated files (or a schema/ folder with generated/).
+// --new defaults to the checkout's spec/draft/schema/generated. Git refs may
+// predate the source/output split or the versioned spec/<version>/ folders; a
+// versioned ref is read from spec/draft/. Sets are keyed by published identity,
+// not disk path.
 //
 // The corpus for every validation target is the seeds of every shape (the
 // conformance vectors, the golden files and hand-written instances), plus
@@ -51,7 +55,7 @@ function arg(name: string, fallback?: string): string | undefined {
   return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
 }
 const OLD = arg("--old");
-const NEW = arg("--new", join(ROOT, "spec", "schema"))!;
+const NEW = arg("--new", join(ROOT, "spec", "draft", "schema", "generated"))!;
 const RANDOM = Number(arg("--random", "150"));
 const SEED = Number(arg("--seed", "1"));
 const STRUCTURAL = process.argv.includes("--structural-diff");
@@ -62,25 +66,38 @@ if (!OLD) {
 
 // ---- schema sets ------------------------------------------------------------
 
-type SchemaSet = Map<string, Obj>; // path under spec/schema -> document
+type SchemaSet = Map<string, Obj>; // path relative to ID_BASE -> document
+
+function addDocument(set: SchemaSet, text: string): void {
+  const doc = JSON.parse(text) as Obj;
+  if (typeof doc.$id !== "string" || !doc.$id.startsWith(ID_BASE)) {
+    throw new Error(`unexpected schema identity ${JSON.stringify(doc.$id)}`);
+  }
+  const key = doc.$id.slice(ID_BASE.length);
+  if (set.has(key)) throw new Error(`duplicate schema identity ${doc.$id}`);
+  set.set(key, doc);
+}
 
 function loadSet(source: string): SchemaSet {
   const set: SchemaSet = new Map();
   if (existsSync(source)) {
-    const files = [
-      ...readdirSync(source).filter((f) => f.endsWith(".schema.json")),
-      ...readdirSync(join(source, "agent-context")).map((f) => `agent-context/${f}`),
-    ];
-    for (const f of files) set.set(f, JSON.parse(readFileSync(join(source, f), "utf8")));
+    const dir = existsSync(join(source, "generated")) ? join(source, "generated") : source;
+    const files = readdirSync(dir, { recursive: true }).map(String)
+      .filter((f) => f.endsWith(".schema.json"));
+    for (const f of files) addDocument(set, readFileSync(join(dir, f), "utf8"));
     return set;
   }
-  const listing = execFileSync("git", ["ls-tree", "-r", "--name-only", source, "--", "spec/schema"], {
+  const listing = execFileSync("git", ["ls-tree", "-r", "--name-only", source, "--", "spec/schema", "spec/draft/schema"], {
     cwd: ROOT,
     encoding: "utf8",
   });
-  for (const path of listing.split("\n").filter((p) => p.endsWith(".schema.json"))) {
+  const all = listing.split("\n").filter((p) => p.endsWith(".schema.json"));
+  const draft = all.filter((p) => p.startsWith("spec/draft/schema/"));
+  const paths = draft.length ? draft : all;
+  const generated = paths.filter((p) => /^spec\/(draft\/)?schema\/generated\//.test(p));
+  for (const path of generated.length ? generated : paths) {
     const text = execFileSync("git", ["show", `${source}:${path}`], { cwd: ROOT, encoding: "utf8" });
-    set.set(path.slice("spec/schema/".length), JSON.parse(text));
+    addDocument(set, text);
   }
   return set;
 }

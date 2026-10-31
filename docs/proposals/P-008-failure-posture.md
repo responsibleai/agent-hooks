@@ -174,7 +174,7 @@ slot:
 substituted allow is an allow for every profile's purposes and never
 wins on its own, so `decided_by` follows the pure-allow rule.
 `host_warning:control_failed` is the first entry of the new closed file
-`spec/reserved-warnings.json`; interceptors MUST NOT emit
+`spec/0.1.0/reserved-warnings.json`; interceptors MUST NOT emit
 `host_warning:*` reasons, and the §5 gate rejects them as
 `host_error:verdict_invalid`.
 
@@ -211,16 +211,16 @@ conformant.
 
 ## Adopted schema
 
-- `spec/schema/host-declaration-1.1.schema.json`: a copy of 1.0 with the
+- `spec/0.1.0/schema/generated/host-declaration-1.1.schema.json`: a copy of 1.0 with the
   `declaration` enum set to `agent-hooks-declaration/1.1`,
   `configuration.failure.on_error` and `bindings[].on_error`. The 1.0
   file is unchanged.
-- `spec/schema/interception-record.schema.json`:
+- `spec/0.1.0/schema/generated/interception-record.schema.json`:
   `verdicts[].substituted_for`, an enum over the three §6.3 reasons.
-- `spec/schema/verdict.schema.json`: `warnings[].reason` rejects the
+- `spec/0.1.0/schema/generated/verdict.schema.json`: `warnings[].reason` rejects the
   `host_warning:` prefix.
-- `spec/reserved-warnings.json`: the closed warning inventory.
-- `spec/DECLARATION-VERSIONS.md`: the 1.1 row, the release row and the
+- `spec/0.1.0/reserved-warnings.json`: the closed warning inventory.
+- `spec/0.1.0/DECLARATION-VERSIONS.md`: the 1.1 row, the release row and the
   1.0 to 1.1 migration step.
 
 ## SDK surface

@@ -1,7 +1,7 @@
 # agent-hooks (Rust)
 
 Canonical implementation of
-[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/AGENT-HOOKS-0.1.md).
+[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md).
 The `core/` crate (`agent-hooks-sdk` on crates.io, lib name
 `agent_hooks`) implements every contract primitive — canonical JSON,
 context identity, verdict validation, transform application,
@@ -13,7 +13,7 @@ Python, TypeScript, .NET, and Go wrappers bind.
 > boundary: the host framework is fully trusted, interceptors run in-process
 > with full data access, and no complete-mediation claim is made. Read
 > [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
-> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
+> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
 > before relying on it.
 
 ```bash

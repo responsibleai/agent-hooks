@@ -2,7 +2,7 @@
 
 //! `$target` JSONPath subset: parse, resolve, apply transforms (§5.2).
 //!
-//! Grammar per `spec/schema/path-grammar.abnf`: root + dot-member +
+//! Grammar per `spec/0.1.0/schema/path-grammar.abnf`: root + dot-member +
 //! bracket-index + bracket-member only.
 
 use crate::types::HostError;

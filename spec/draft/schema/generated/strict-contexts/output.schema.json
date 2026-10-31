@@ -1,0 +1,437 @@
+{
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/agent-context/output.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Hooks — agent context (output)",
+  "description": "Closed required+conditional schema for interception_point=output (AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
+  "type": "object",
+  "properties": {
+    "interception_point": {
+      "type": "string",
+      "const": "output"
+    },
+    "output": {
+      "$ref": "#/$defs/Output"
+    },
+    "spec": {
+      "pattern": "^agent-hooks/\\d+\\.\\d+$",
+      "type": "string"
+    },
+    "timestamp": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "sequence": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "agent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "framework": {
+          "pattern": "^[a-z0-9_-]+$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "framework",
+        "id"
+      ]
+    },
+    "session": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "target": {},
+    "agent_init": {
+      "description": "Conditional payload of agent_startup (§4.2).",
+      "$ref": "#/$defs/AgentInit"
+    },
+    "input": {
+      "description": "Conditional payload of input (§4.2).",
+      "$ref": "#/$defs/Input"
+    },
+    "model": {
+      "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
+      "$ref": "#/$defs/Model"
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Message"
+      }
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "response": {
+      "description": "Conditional payload of post_model_call (§4.2).",
+      "$ref": "#/$defs/Response"
+    },
+    "usage": {
+      "description": "Token usage of a model call (§4.3).",
+      "$ref": "#/$defs/Usage"
+    },
+    "tool_call": {
+      "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
+      "$ref": "#/$defs/ToolCall"
+    },
+    "tool_result": {
+      "description": "Conditional payload of post_tool_call (§4.2).",
+      "$ref": "#/$defs/ToolResult"
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ToolDecl"
+      }
+    },
+    "summary": {
+      "description": "Conditional payload of agent_shutdown (§4.2).",
+      "$ref": "#/$defs/Summary"
+    },
+    "trace": {
+      "type": "object",
+      "properties": {
+        "trace_id": {
+          "type": "string"
+        },
+        "span_id": {
+          "type": "string"
+        }
+      }
+    },
+    "tenant": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "Who acts (§4.5).",
+          "enum": [
+            "agent",
+            "human",
+            "service"
+          ],
+          "type": "string"
+        }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "properties": {
+        "tool_call_count": {
+          "type": "number"
+        },
+        "token_count": {
+          "type": "number"
+        },
+        "elapsed_seconds": {
+          "type": "number"
+        },
+        "cost_usd": {
+          "type": "number"
+        }
+      }
+    },
+    "extensions": {
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "$ref": "#/$defs/Extensions"
+    }
+  },
+  "required": [
+    "agent",
+    "interception_point",
+    "output",
+    "sequence",
+    "session",
+    "spec",
+    "target",
+    "timestamp"
+  ],
+  "$defs": {
+    "AgentInit": {
+      "description": "Conditional payload of agent_startup (§4.2).",
+      "type": "object",
+      "properties": {
+        "tools_registered": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "tools_registered"
+      ]
+    },
+    "Extensions": {
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "type": "object",
+      "additionalProperties": {}
+    },
+    "Input": {
+      "description": "Conditional payload of input (§4.2).",
+      "type": "object",
+      "properties": {
+        "content": {},
+        "role": {
+          "$ref": "#/$defs/InputRole"
+        }
+      },
+      "required": [
+        "content",
+        "role"
+      ]
+    },
+    "InputRole": {
+      "description": "Who produced an input (§4.2).",
+      "type": "string",
+      "enum": [
+        "user",
+        "system",
+        "external"
+      ]
+    },
+    "Message": {
+      "description": "One message of the model request (§4.2).",
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string"
+        },
+        "content": {}
+      },
+      "required": [
+        "content",
+        "role"
+      ]
+    },
+    "Model": {
+      "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "vendor": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "Output": {
+      "description": "Conditional payload of output (§4.2).",
+      "type": "object",
+      "properties": {
+        "content": {}
+      },
+      "required": [
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "Response": {
+      "description": "Conditional payload of post_model_call (§4.2).",
+      "type": "object",
+      "properties": {
+        "content": {},
+        "tool_calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ToolCallRequest"
+          }
+        },
+        "finish_reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content",
+        "finish_reason",
+        "tool_calls"
+      ]
+    },
+    "Summary": {
+      "description": "Conditional payload of agent_shutdown (§4.2).",
+      "type": "object",
+      "properties": {
+        "reason": {
+          "$ref": "#/$defs/SummaryReason"
+        },
+        "tool_calls": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "errors": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "reason"
+      ]
+    },
+    "SummaryReason": {
+      "description": "Why the agent stopped (§4.2).",
+      "type": "string",
+      "enum": [
+        "completed",
+        "error",
+        "cancelled"
+      ]
+    },
+    "ToolCall": {
+      "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "args": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        },
+        "content_hash": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "id",
+        "name"
+      ]
+    },
+    "ToolCallRequest": {
+      "description": "One tool call the model asked for (§4.2).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "args": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "args",
+        "name"
+      ]
+    },
+    "ToolDecl": {
+      "description": "One declared tool (§4.3).",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "ToolResult": {
+      "description": "Conditional payload of post_tool_call (§4.2).",
+      "type": "object",
+      "properties": {
+        "value": {},
+        "is_error": {
+          "type": "boolean"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "is_error",
+        "value"
+      ]
+    },
+    "Usage": {
+      "description": "Token usage of a model call (§4.3).",
+      "type": "object",
+      "properties": {
+        "prompt_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "completion_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

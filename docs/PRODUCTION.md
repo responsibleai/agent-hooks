@@ -47,4 +47,4 @@ composition (§14).
 
 - [OPERATIONS.md](OPERATIONS.md): the runbook (failure reasons, rollout, alerting)
 - [THREAT-MODEL.md](THREAT-MODEL.md): what the contract does and does not defend against
-- [spec §14](../spec/AGENT-HOOKS-0.1.md#14-security-considerations): normative security considerations
+- [spec §14](../spec/0.1.0/AGENT-HOOKS-0.1.md#14-security-considerations): normative security considerations
