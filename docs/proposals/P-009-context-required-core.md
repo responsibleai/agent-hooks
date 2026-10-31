@@ -132,7 +132,7 @@ Non-goals:
 ### Recommended normative semantics
 
 The sections below are the proposed text, condensed. Section numbers
-refer to `spec/AGENT-HOOKS-0.1.md` as it stands. Quoted text is proposed
+refer to `spec/draft/AGENT-HOOKS-0.1.md` as it stands. Quoted text is proposed
 normative text; everything else is explanation.
 
 #### 1. The required core (§4.1)
@@ -317,17 +317,17 @@ a version it does not implement, and never converts.
 ### Schema and wire impact
 
 The JSON Schemas under `spec/schema/` are generated from the TypeScript
-source under `spec/schema/src/` by
+source under `spec/draft/schema/src/` by
 `sdk/typescript/scripts/generate-schemas.mts` (`npm run
 generate:schema`); the `schema-drift` workflow regenerates them and the
 vendored copies under `sdk/python/python/agent_hooks/schema/`.
 
-- `spec/schema/src/agent-context.ts`: `ContextBase` loses `sequence` and
+- `spec/draft/schema/src/agent-context.ts`: `ContextBase` loses `sequence` and
   `target`, its `agent` and `session` members become optional with
   optional `id`, and it gains `host` with `name` and `version`;
   `AgentInit.tools_registered` becomes optional. The eight per-point
   variants keep their payloads. The generated
-  `spec/schema/agent-context.schema.json` (an `anyOf` over the eight
+  `spec/draft/schema/generated/agent-context.schema.json` (an `anyOf` over the eight
   variants) and the eight files under `spec/schema/agent-context/`
   follow.
 - `sdk/typescript/scripts/generate-schemas.mts`: step 5, which derives
@@ -336,14 +336,14 @@ vendored copies under `sdk/python/python/agent_hooks/schema/`.
   description stops claiming strict validation (line 193). The preimage
   allowlist in the Rust core, the list of members the identity hash
   covers, is the only closed inventory, and §10.2 says so.
-- `spec/schema/src/interception-record.ts`: `sequence` removed,
+- `spec/draft/schema/src/interception-record.ts`: `sequence` removed,
   `session_id` optional, `spec` added as an optional string matching
   `^agent-hooks/\d+\.\d+$`; the generated
-  `spec/schema/interception-record.schema.json` follows and its
+  `spec/draft/schema/generated/interception-record.schema.json` follows and its
   description drops "ordering".
-- `spec/reserved-reasons.json`: the text of the `context_invalid` entry
+- `spec/draft/reserved-reasons.json`: the text of the `context_invalid` entry
   only.
-- `spec/schema/path-grammar.abnf`: unchanged.
+- `spec/draft/schema/path-grammar.abnf`: unchanged.
 - `conformance/golden/identity.json` and
   `conformance/vectors.schema.json`: see Conformance and tests.
 - `docs/THREAT-MODEL.md` (the "Interception records" row),
@@ -428,13 +428,13 @@ mirrors the required core and the per-point payloads
 (`sdk/rust/core/src/canonical.rs:140-148` and `conditional_for`). The
 record copies `session.id` and `sequence`, with `""` and `-1` as the
 unknown values, and requires both
-(`spec/schema/src/interception-record.ts:106-108`, generated into
-`spec/schema/interception-record.schema.json` with
+(`spec/draft/schema/src/interception-record.ts:106-108`, generated into
+`spec/draft/schema/generated/interception-record.schema.json` with
 `additionalProperties: false` at the root).
 
 On unknown members the files and the code disagree. The generator
 derives the eight per-point schemas from the variants in
-`spec/schema/src/agent-context.ts` and sets `additionalProperties:
+`spec/draft/schema/src/agent-context.ts` and sets `additionalProperties:
 false` on the payload objects each point requires: `tool_call`,
 `tool_result`, `model`, `response`, `input`, `output`, `agent_init` and
 `summary` (`generate-schemas.mts:163-193`). The files describe
@@ -716,7 +716,7 @@ rules applied, and the `spec` string is the only signal it has.
 ### Where the 0.2 text lives
 
 That depends on the layout decision pending in PR #169. Under the layout
-in `main` today, the deciding PR edits `spec/AGENT-HOOKS-0.1.md` in
+in `main` today, the deciding PR edits `spec/draft/AGENT-HOOKS-0.1.md` in
 place, bumps its header to 0.2 and adds the `CHANGELOG.md` entry, under
 `spec:breaking`; that meets the change-class workflow
 (`.github/workflows/change-class.yml`), which requires a `spec:breaking`
