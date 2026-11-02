@@ -124,6 +124,7 @@
     },
     "DenyVerdict": {
       "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -186,8 +187,7 @@
       },
       "required": [
         "decision"
-      ],
-      "additionalProperties": false
+      ]
     },
     "Transform": {
       "description": "The transform body (§5.2).",

@@ -92,6 +92,7 @@ export interface AllowVerdict extends VerdictBase {
 
 /**
  * deny: stop the action. Absorbs escalate through the approval block (§5.1).
+ * @additionalProperties false
  * @example [deny.json](../examples/Verdict/deny.json)
  * @example [deny-with-approval.json](../examples/Verdict/deny-with-approval.json)
  */
