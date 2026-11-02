@@ -32,9 +32,7 @@ export interface SessionMetadata {
   turn?: number;
 }
 
-/**
- * Conditional payload of agent_startup (§4.2).
- */
+/** Conditional payload of agent_startup (§4.2). */
 export interface AgentInit {
   tools_registered: string[];
 }
@@ -46,52 +44,40 @@ export enum InputRole {
   External = "external",
 }
 
-/**
- * Conditional payload of input (§4.2).
- */
+/** Conditional payload of input (§4.2). */
 export interface Input {
   content: unknown;
   role: InputRole;
 }
 
-/**
- * Conditional payload of pre_model_call and post_model_call (§4.2).
- */
+/** Conditional payload of pre_model_call and post_model_call (§4.2). */
 export interface Model {
   id: string;
   vendor?: string;
   params?: object;
 }
 
-/**
- * One message of the model request (§4.2).
- */
+/** One message of the model request (§4.2). */
 export interface Message {
   role: string;
   content: unknown;
 }
 
-/**
- * One tool call the model asked for (§4.2).
- */
+/** One tool call the model asked for (§4.2). */
 export interface ToolCallRequest {
   id?: string;
   name: string;
   args: object;
 }
 
-/**
- * Conditional payload of post_model_call (§4.2).
- */
+/** Conditional payload of post_model_call (§4.2). */
 export interface Response {
   content: unknown;
   tool_calls: ToolCallRequest[];
   finish_reason: string;
 }
 
-/**
- * Conditional payload of pre_tool_call and post_tool_call (§4.2).
- */
+/** Conditional payload of pre_tool_call and post_tool_call (§4.2). */
 export interface ToolCall {
   /** @minLength 1 */
   id: string;
@@ -102,9 +88,7 @@ export interface ToolCall {
   content_hash?: string;
 }
 
-/**
- * Conditional payload of post_tool_call (§4.2).
- */
+/** Conditional payload of post_tool_call (§4.2). */
 export interface ToolResult {
   value: unknown;
   is_error: boolean;
@@ -130,9 +114,7 @@ export interface ToolDecl {
   schema?: object;
 }
 
-/**
- * Conditional payload of output (§4.2).
- */
+/** Conditional payload of output (§4.2). */
 export interface Output {
   content: unknown;
 }
