@@ -79,6 +79,11 @@ export interface VerdictBase {
   result_labels?: string[] | null;
 }
 
+/** Shared decision shape for allow responses. */
+export interface AllowVerdictBase extends VerdictBase {
+  decision: Decision.Allow;
+}
+
 /**
  * allow: proceed. Absorbs warn through warnings[] (§5.1).
  * @additionalProperties false
@@ -86,8 +91,16 @@ export interface VerdictBase {
  * @example [allow-with-warning.json](../examples/Verdict/allow-with-warning.json)
  * @example [allow-with-evidence.json](../examples/Verdict/allow-with-evidence.json)
  */
-export interface AllowVerdict extends VerdictBase {
-  decision: Decision.Allow;
+export interface AllowVerdict extends AllowVerdictBase {}
+
+/** Shared decision shape for deny responses. */
+export interface DenyVerdictBase extends VerdictBase {
+  decision: Decision.Deny;
+  /**
+   * Present only on deny: marks the deny as liftable by the approval seam (§9).
+   * MAY be empty; reserved for approver-facing parameters.
+   */
+  approval?: object;
 }
 
 /**
@@ -96,13 +109,12 @@ export interface AllowVerdict extends VerdictBase {
  * @example [deny.json](../examples/Verdict/deny.json)
  * @example [deny-with-approval.json](../examples/Verdict/deny-with-approval.json)
  */
-export interface DenyVerdict extends VerdictBase {
-  decision: Decision.Deny;
-  /**
-   * Present only on deny: marks the deny as liftable by the approval seam (§9).
-   * MAY be empty; reserved for approver-facing parameters.
-   */
-  approval?: object;
+export interface DenyVerdict extends DenyVerdictBase {}
+
+/** Shared metadata and decision for a transform with a caller-specific payload. */
+export interface TransformVerdictBase<TTransform> extends VerdictBase {
+  decision: Decision.Transform;
+  transform: TTransform;
 }
 
 /**
@@ -116,10 +128,7 @@ export interface DenyVerdict extends VerdictBase {
  * @example [transform-tool-result.json](../examples/Verdict/transform-tool-result.json)
  * @example [transform-output.json](../examples/Verdict/transform-output.json)
  */
-export interface TransformVerdict extends VerdictBase {
-  decision: Decision.Transform;
-  transform: Transform;
-}
+export interface TransformVerdict extends TransformVerdictBase<Transform> {}
 
 /**
  * Interceptor return value (AGENT-HOOKS-0.1 §5). Three decisions: allow (absorbs

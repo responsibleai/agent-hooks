@@ -11,22 +11,17 @@ import {
   PreModelCallRequest,
   PreToolCallRequest,
 } from "./agent-context";
-import { Decision, VerdictBase } from "./verdict";
+import {
+  AllowVerdictBase,
+  DenyVerdictBase,
+  TransformVerdictBase,
+} from "./verdict";
 
-/**
- * Common allow response for every hook.
- */
-export interface HookAllowVerdict extends VerdictBase {
-  decision: Decision.Allow;
-}
+/** Common allow response for every hook. */
+export interface HookAllowVerdict extends AllowVerdictBase {}
 
-/**
- * Common deny response for every hook.
- */
-export interface HookDenyVerdict extends VerdictBase {
-  decision: Decision.Deny;
-  approval?: object;
-}
+/** Common deny response for every hook. */
+export interface HookDenyVerdict extends DenyVerdictBase {}
 
 /**
  * Replaces the complete input payload.
@@ -73,50 +68,32 @@ export interface OutputHookTransform {
 /**
  * Typed input transform verdict.
  */
-export interface InputTransformVerdict extends VerdictBase {
-  decision: Decision.Transform;
-  transform: InputHookTransform;
-}
+export interface InputTransformVerdict extends TransformVerdictBase<InputHookTransform> {}
 
 /**
  * Typed pre-model transform verdict.
  */
-export interface PreModelTransformVerdict extends VerdictBase {
-  decision: Decision.Transform;
-  transform: PreModelHookTransform;
-}
+export interface PreModelTransformVerdict extends TransformVerdictBase<PreModelHookTransform> {}
 
 /**
  * Typed post-model transform verdict.
  */
-export interface PostModelTransformVerdict extends VerdictBase {
-  decision: Decision.Transform;
-  transform: PostModelHookTransform;
-}
+export interface PostModelTransformVerdict extends TransformVerdictBase<PostModelHookTransform> {}
 
 /**
  * Typed pre-tool transform verdict.
  */
-export interface PreToolTransformVerdict extends VerdictBase {
-  decision: Decision.Transform;
-  transform: PreToolHookTransform;
-}
+export interface PreToolTransformVerdict extends TransformVerdictBase<PreToolHookTransform> {}
 
 /**
  * Typed post-tool transform verdict.
  */
-export interface PostToolTransformVerdict extends VerdictBase {
-  decision: Decision.Transform;
-  transform: PostToolHookTransform;
-}
+export interface PostToolTransformVerdict extends TransformVerdictBase<PostToolHookTransform> {}
 
 /**
  * Typed output transform verdict.
  */
-export interface OutputTransformVerdict extends VerdictBase {
-  decision: Decision.Transform;
-  transform: OutputHookTransform;
-}
+export interface OutputTransformVerdict extends TransformVerdictBase<OutputHookTransform> {}
 
 /**
  * Bare agent_startup response: transforms are forbidden.

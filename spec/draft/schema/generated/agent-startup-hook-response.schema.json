@@ -127,6 +127,7 @@
           "const": "deny"
         },
         "approval": {
+          "description": "Present only on deny: marks the deny as liftable by the approval seam (§9).\nMAY be empty; reserved for approver-facing parameters.",
           "type": "object",
           "properties": {},
           "additionalProperties": true
