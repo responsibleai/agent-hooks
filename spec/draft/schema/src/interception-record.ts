@@ -83,6 +83,8 @@ export enum ResolvedBy {
  * Schema in the allOf tag below and copied through by the generator: verdicts
  * is REQUIRED under the multi-verdict profiles (§7.4), and the identities are
  * null when identity_provider is null (§10.3).
+ * @example [allow.json](../examples/InterceptionRecord/allow.json)
+ * @example [approved-transform.json](../examples/InterceptionRecord/approved-transform.json)
  * @title Agent Hooks — interception record
  * @additionalProperties false
  * @allOf [{"if": {"properties": {"composition": {"type": "object", "properties": {"profile": {"enum": ["sequential/run_all", "parallel/strictest", "parallel/unanimous"]}}}}}, "then": {"required": ["verdicts"]}}, {"description": "§10.3: identities are null when identity_provider is null.", "if": {"properties": {"identity_provider": {"const": null}}}, "then": {"properties": {"input_identity": {"const": null}, "enforced_identity": {"const": null}}}}]

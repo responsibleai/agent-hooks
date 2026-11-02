@@ -190,52 +190,76 @@ interface ContextBase {
   extensions?: Extensions;
 }
 
-/** The context at agent_startup: agent_init is required (§4.2). */
+/**
+ * The context at agent_startup: agent_init is required (§4.2).
+ * @example [agent-startup.json](../examples/AgentContext/agent-startup.json)
+ */
 export interface AgentStartupContext extends ContextBase {
   interception_point: InterceptionPoint.AgentStartup;
   agent_init: AgentInit;
 }
 
-/** The context at input: input is required (§4.2). */
+/**
+ * The context at input: input is required (§4.2).
+ * @example [input.json](../examples/AgentContext/input.json)
+ */
 export interface InputContext extends ContextBase {
   interception_point: InterceptionPoint.Input;
   input: Input;
 }
 
-/** The context at pre_model_call: model and messages are required (§4.2). */
+/**
+ * The context at pre_model_call: model and messages are required (§4.2).
+ * @example [pre-model-call.json](../examples/AgentContext/pre-model-call.json)
+ */
 export interface PreModelCallContext extends ContextBase {
   interception_point: InterceptionPoint.PreModelCall;
   model: Model;
   messages: Message[];
 }
 
-/** The context at post_model_call: model and response are required (§4.2). */
+/**
+ * The context at post_model_call: model and response are required (§4.2).
+ * @example [post-model-call.json](../examples/AgentContext/post-model-call.json)
+ */
 export interface PostModelCallContext extends ContextBase {
   interception_point: InterceptionPoint.PostModelCall;
   model: Model;
   response: Response;
 }
 
-/** The context at pre_tool_call: tool_call is required (§4.2). */
+/**
+ * The context at pre_tool_call: tool_call is required (§4.2).
+ * @example [pre-tool-call.json](../examples/AgentContext/pre-tool-call.json)
+ */
 export interface PreToolCallContext extends ContextBase {
   interception_point: InterceptionPoint.PreToolCall;
   tool_call: ToolCall;
 }
 
-/** The context at post_tool_call: tool_call and tool_result are required (§4.2). */
+/**
+ * The context at post_tool_call: tool_call and tool_result are required (§4.2).
+ * @example [post-tool-call.json](../examples/AgentContext/post-tool-call.json)
+ */
 export interface PostToolCallContext extends ContextBase {
   interception_point: InterceptionPoint.PostToolCall;
   tool_call: ToolCall;
   tool_result: ToolResult;
 }
 
-/** The context at output: output is required (§4.2). */
+/**
+ * The context at output: output is required (§4.2).
+ * @example [output.json](../examples/AgentContext/output.json)
+ */
 export interface OutputContext extends ContextBase {
   interception_point: InterceptionPoint.Output;
   output: Output;
 }
 
-/** The context at agent_shutdown: summary is required (§4.2). */
+/**
+ * The context at agent_shutdown: summary is required (§4.2).
+ * @example [agent-shutdown.json](../examples/AgentContext/agent-shutdown.json)
+ */
 export interface AgentShutdownContext extends ContextBase {
   interception_point: InterceptionPoint.AgentShutdown;
   summary: Summary;

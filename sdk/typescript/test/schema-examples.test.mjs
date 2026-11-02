@@ -26,6 +26,35 @@ test("all draft examples validate", async () => {
   assert.ok(await validateExamples() > 0);
 });
 
+test("every standalone example is referenced by its TypeScript schema source", async () => {
+  const examples = path.join(schemaRoot, "examples");
+  const sources = path.join(schemaRoot, "src");
+  const files = [];
+  async function collect(directory) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const filename = path.join(directory, entry.name);
+      if (entry.isDirectory()) await collect(filename);
+      else if (entry.isFile() && entry.name.endsWith(".json")) files.push(filename);
+    }
+  }
+  await collect(examples);
+  const sourceFiles = await readdir(sources);
+  const source = (
+    await Promise.all(
+      sourceFiles
+        .filter((filename) => filename.endsWith(".ts"))
+        .map((filename) => readFile(path.join(sources, filename), "utf8")),
+    )
+  ).join("\n");
+  for (const filename of files) {
+    const relative = path.relative(examples, filename).split(path.sep).join("/");
+    assert.ok(
+      source.includes(`../examples/${relative})`),
+      `No TypeScript schema @example reference for ${relative}`,
+    );
+  }
+});
+
 test("new mapped examples are included, including invalid ones", async (t) => {
   const root = await fixture(t);
   const count = await validateExamples(root);

@@ -3,6 +3,10 @@
 Each JSON file is a standalone instance of the named type, following MCP's
 [type-directory layout](https://github.com/modelcontextprotocol/modelcontextprotocol/tree/main/schema/2026-07-28/examples).
 These examples illustrate the current draft definitions only.
+The TypeScript definitions in `src/` link to every example with JSDoc
+`@example` references; each link is relative to that source file. The schema
+generator ignores these documentation-only tags, so examples do not change the
+generated schema or its wire contract.
 
 The scenario is a document-policy assistant searching for a retention policy.
 The eight contexts form one session: a requested internal-collection search is
@@ -85,8 +89,9 @@ The check recursively enumerates all example JSON files and requires the
 `TypeName/file.json` layout. New files in a mapped type directory are checked
 automatically; a new type requires an explicit mapping in
 [`check-schema-examples.mjs`](../../../../sdk/typescript/scripts/check-schema-examples.mjs)
-and a row in the table above. Unknown types or nested/unmapped files fail rather
-than being skipped. Invalid JSON, schema errors, unresolved references, and
+and a row in the table above. Add its source-level `@example` reference too.
+Unknown types or nested/unmapped files fail rather than being skipped. Invalid
+JSON, schema errors, unresolved references, and
 instance validation errors also fail the check. Contexts are checked against
 both the union and the closed hook variant; bare verdicts are also checked as
 InterceptorResponses, while envelope examples must satisfy ResponseEnvelope.

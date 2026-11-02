@@ -360,6 +360,7 @@ interface HostDeclarationBase {
  * is self-contained so a settings validator can use it alone. Rules it cannot
  * express (knob consistency, the §3.2 floor, surface against the host's code,
  * registered names) live in the loader (§7.7.6).
+ * @example [document-policy.json](../examples/HostDeclaration10/document-policy.json)
  * @title Agent Hooks — host declaration document (agent-hooks-declaration/1.0)
  * @additionalProperties false
  */
@@ -394,6 +395,7 @@ export interface HostDeclaration10 extends HostDeclarationBase {
  * schema is self-contained so a settings validator can use it alone. Rules it
  * cannot express (knob consistency, the §3.2 floor, surface against the host's
  * code, registered names) live in the loader (§7.7.6).
+ * @example [document-policy.json](../examples/HostDeclaration11/document-policy.json)
  * @title Agent Hooks — host declaration document (agent-hooks-declaration/1.1)
  * @additionalProperties false
  */
