@@ -8,30 +8,6 @@
 import { Extensions } from "./common";
 import { InterceptionPoint } from "./interception-point";
 
-/**
- * Shared metadata present at every interception point.
- */
-export interface AgentMetadata {
-  /** @minLength 1 */
-  id: string;
-  /** @pattern ^[a-z0-9_-]+$ */
-  framework: string;
-  name?: string;
-  version?: string;
-}
-
-/**
- * Shared session identity present at every interception point.
- */
-export interface SessionMetadata {
-  /** @minLength 1 */
-  id: string;
-  /** @format date-time */
-  started_at?: string;
-  /** @minimum 0 */
-  turn?: number;
-}
-
 /** Conditional payload of agent_startup (§4.2). */
 export interface AgentInit {
   tools_registered: string[];
@@ -160,8 +136,22 @@ interface ContextBase {
   timestamp: string;
   /** @minimum 0 */
   sequence: number;
-  agent: AgentMetadata;
-  session: SessionMetadata;
+  agent: {
+    /** @minLength 1 */
+    id: string;
+    /** @pattern ^[a-z0-9_-]+$ */
+    framework: string;
+    name?: string;
+    version?: string;
+  };
+  session: {
+    /** @minLength 1 */
+    id: string;
+    /** @format date-time */
+    started_at?: string;
+    /** @minimum 0 */
+    turn?: number;
+  };
   agent_init?: AgentInit;
   input?: Input;
   model?: Model;

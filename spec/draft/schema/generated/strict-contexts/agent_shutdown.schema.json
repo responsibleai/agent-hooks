@@ -25,10 +25,47 @@
       "type": "integer"
     },
     "agent": {
-      "$ref": "#/$defs/AgentMetadata"
+      "type": "object",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "framework": {
+          "pattern": "^[a-z0-9_-]+$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "framework",
+        "id"
+      ]
     },
     "session": {
-      "$ref": "#/$defs/SessionMetadata"
+      "type": "object",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ]
     },
     "agent_init": {
       "description": "Conditional payload of agent_startup (§4.2).",
@@ -163,30 +200,6 @@
         "tools_registered"
       ]
     },
-    "AgentMetadata": {
-      "description": "Shared metadata present at every interception point.",
-      "type": "object",
-      "properties": {
-        "id": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "framework": {
-          "pattern": "^[a-z0-9_-]+$",
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "version": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "framework",
-        "id"
-      ]
-    },
     "Extensions": {
       "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
       "propertyNames": {
@@ -281,27 +294,6 @@
         "content",
         "finish_reason",
         "tool_calls"
-      ]
-    },
-    "SessionMetadata": {
-      "description": "Shared session identity present at every interception point.",
-      "type": "object",
-      "properties": {
-        "id": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "started_at": {
-          "format": "date-time",
-          "type": "string"
-        },
-        "turn": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id"
       ]
     },
     "Summary": {
