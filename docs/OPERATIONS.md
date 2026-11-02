@@ -4,8 +4,8 @@ Day-2 guidance for hosts running agent-hooks in production: what each
 fail-closed reason means, how to roll out, and what to alert on.
 Companion to the [production checklist](PRODUCTION.md). This document
 is informative; the reason inventory is normative in
-[spec §11](../spec/AGENT-HOOKS-0.1.md#11-reserved-reasons)
-(machine-readable: `spec/reserved-reasons.json`).
+[spec §11](../spec/0.1.0/AGENT-HOOKS-0.1.md#11-reserved-reasons)
+(machine-readable: `spec/0.1.0/reserved-reasons.json`).
 
 ## 1. Failure reasons: cause → remediation
 

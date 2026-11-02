@@ -9,9 +9,11 @@
 //       [--random <mutants per seed>] [--seed <n>] [--structural-diff]
 //
 // --old takes a git ref (the schemas are read with git show) or a directory
-// containing either layout's generated files (or spec/schema with generated/).
-// --new defaults to the checkout's spec/schema/generated. Git refs may predate
-// the source/output split; sets are keyed by published identity, not disk path.
+// containing either layout's generated files (or a schema/ folder with generated/).
+// --new defaults to the checkout's spec/draft/schema/generated. Git refs may
+// predate the source/output split or the versioned spec/<version>/ folders; a
+// versioned ref is read from spec/draft/. Sets are keyed by published identity,
+// not disk path.
 //
 // The corpus for every validation target is the seeds of every shape (the
 // conformance vectors, the golden files and hand-written instances), plus
@@ -53,7 +55,7 @@ function arg(name: string, fallback?: string): string | undefined {
   return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
 }
 const OLD = arg("--old");
-const NEW = arg("--new", join(ROOT, "spec", "schema", "generated"))!;
+const NEW = arg("--new", join(ROOT, "spec", "draft", "schema", "generated"))!;
 const RANDOM = Number(arg("--random", "150"));
 const SEED = Number(arg("--seed", "1"));
 const STRUCTURAL = process.argv.includes("--structural-diff");
@@ -85,12 +87,14 @@ function loadSet(source: string): SchemaSet {
     for (const f of files) addDocument(set, readFileSync(join(dir, f), "utf8"));
     return set;
   }
-  const listing = execFileSync("git", ["ls-tree", "-r", "--name-only", source, "--", "spec/schema"], {
+  const listing = execFileSync("git", ["ls-tree", "-r", "--name-only", source, "--", "spec/schema", "spec/draft/schema"], {
     cwd: ROOT,
     encoding: "utf8",
   });
-  const paths = listing.split("\n").filter((p) => p.endsWith(".schema.json"));
-  const generated = paths.filter((p) => p.startsWith("spec/schema/generated/"));
+  const all = listing.split("\n").filter((p) => p.endsWith(".schema.json"));
+  const draft = all.filter((p) => p.startsWith("spec/draft/schema/"));
+  const paths = draft.length ? draft : all;
+  const generated = paths.filter((p) => /^spec\/(draft\/)?schema\/generated\//.test(p));
   for (const path of generated.length ? generated : paths) {
     const text = execFileSync("git", ["show", `${source}:${path}`], { cwd: ROOT, encoding: "utf8" });
     addDocument(set, text);

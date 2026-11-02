@@ -1,0 +1,8 @@
+{
+  "decision": "transform",
+  "reason": "public_sources_only",
+  "transform": {
+    "path": "$target.tool_calls[0].args.collection",
+    "value": "public"
+  }
+}

@@ -1,8 +1,10 @@
 #!/usr/bin/env tsx
 // Copyright (c) Microsoft. All rights reserved.
 
-// Write the JSON Schemas under spec/schema/generated/ from the TypeScript source in
-// spec/schema/src/, or check that the committed files match.
+// Write the JSON Schemas under spec/<version>/schema/generated/ from the
+// TypeScript source in spec/<version>/schema/src/, or check that the committed
+// files match. <version> is draft unless --spec <version> names another folder;
+// released folders are immutable, so only the draft is normally regenerated.
 //
 //   npm run generate:schema        write every schema file
 //   npm run check:schema           type-check the source, then compare the
@@ -38,8 +40,11 @@ type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Schema = { [key: string]: Json };
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const SRC = join(ROOT, "spec", "schema", "src");
-const OUT = join(ROOT, "spec", "schema", "generated");
+const specArg = process.argv.indexOf("--spec");
+const SPEC = specArg >= 0 && specArg + 1 < process.argv.length ? process.argv[specArg + 1] : "draft";
+const SCHEMA_DIR = `spec/${SPEC}/schema`;
+const SRC = join(ROOT, "spec", SPEC, "schema", "src");
+const OUT = join(ROOT, "spec", SPEC, "schema", "generated");
 const ID_BASE = "https://responsibleai.github.io/agent-hooks/schema/v0.1/";
 const DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
 
@@ -203,7 +208,7 @@ function perPointSchemas(master: Schema): Map<string, Schema> {
   return files;
 }
 
-/** Every output file's text, keyed by its path under spec/schema/generated/. */
+/** Every output file's text, keyed by its path under spec/<version>/schema/generated/. */
 function render(): Map<string, string> {
   const files = new Map<string, Schema>();
   for (const root of ROOTS) files.set(root.file, generateRoot(root));
@@ -249,13 +254,13 @@ function main(): number {
     }
     if (!existsSync(path)) {
       failing++;
-      console.log(`::error::spec/schema/generated/${annotationFile} is missing; run npm run generate:schema in sdk/typescript`);
+      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} is missing; run npm run generate:schema in sdk/typescript`);
       continue;
     }
     const actual = readFileSync(path, "utf8");
     if (actual !== text) {
       failing++;
-      console.log(`::error::spec/schema/generated/${annotationFile} differs from the TypeScript source; run npm run generate:schema in sdk/typescript`);
+      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} differs from the TypeScript source; run npm run generate:schema in sdk/typescript`);
       console.log(`  ${firstDifference(actual, text)}`);
     }
   }
@@ -263,7 +268,7 @@ function main(): number {
     for (const file of committed().filter((f) => !files.has(f))) {
       failing++;
       const annotationFile = escapeWorkflowCommandData(file);
-      console.log(`::error::spec/schema/generated/${annotationFile} has no source under spec/schema/src/`);
+      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} has no source under ${escapeWorkflowCommandData(SCHEMA_DIR)}/src/`);
     }
     console.log(`generate-schemas --check: ${files.size} files generated, ${failing} failing`);
   }

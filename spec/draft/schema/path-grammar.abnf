@@ -1,0 +1,10 @@
+; Agent Hooks — transform path grammar (AGENT-HOOKS-0.1 §5.2)
+; A strict subset of RFC 9535 JSONPath: root + dot-member + bracket-index + bracket-member only.
+
+path            = root *( segment )
+root            = "$target" / "$policy_target"   ; $policy_target is a deprecated alias
+segment         = dot-member / bracket-index / bracket-member
+dot-member      = "." member-name
+bracket-index   = "[" 1*DIGIT "]"
+bracket-member  = "[" DQUOTE member-name DQUOTE "]"
+member-name     = 1*( ALPHA / DIGIT / "_" / "-" )

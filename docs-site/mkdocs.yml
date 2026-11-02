@@ -62,5 +62,7 @@ nav:
       - Human approval: examples/approval-flow.md
       - Redaction transform: examples/redaction.md
   - Conformance: conformance.md
-  - Specification: spec.md
+  - Specification:
+      - "0.1.0": spec.md
+      - Draft: spec-draft.md
   - FAQ: faq.md

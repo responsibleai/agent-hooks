@@ -33,7 +33,7 @@ dev = ["agent-hooks-sdk[ctk]", "mypy>=2.2.0", "ruff>=0.15.21", "maturin>=1.14.1,
 
 [project.urls]
 Homepage = "https://github.com/responsibleai/agent-hooks"
-Specification = "https://github.com/responsibleai/agent-hooks/blob/main/spec/AGENT-HOOKS-0.1.md"
+Specification = "https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md"
 
 [project.entry-points.pytest11]
 agent_hooks_ctk = "agent_hooks.ctk.plugin"

@@ -6,7 +6,7 @@
 > not test adversarial bypass, does not assure that the production
 > code path matches the harness, and says nothing about the
 > interceptors registered in production. See [`SECURITY.md`](../SECURITY.md)
-> and [spec §1.4](../spec/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
+> and [spec §1.4](../spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
 
 A host is **conformant** when it passes 100% of the CTK vectors
 applicable to its **declared surface** (spec §13.1): its capability

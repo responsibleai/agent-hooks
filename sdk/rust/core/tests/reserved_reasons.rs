@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 //! §11 registry consistency: the `host_error:*` strings the core emits
-//! MUST be exactly the set enumerated in `spec/reserved-reasons.json`.
+//! MUST be exactly the set enumerated in `spec/0.1.0/reserved-reasons.json`.
 //! Guards the machine-readable registry against silent drift in either
 //! direction (a variant added without registering it, or a registry
 //! entry with no emitting code).
@@ -12,7 +12,7 @@ use std::collections::BTreeSet;
 #[test]
 fn host_error_variants_match_reserved_reasons_registry() {
     // Every variant, in declaration order. A new variant must be added
-    // here AND to spec/reserved-reasons.json — this test is the tripwire.
+    // here AND to spec/0.1.0/reserved-reasons.json — this test is the tripwire.
     let variants = [
         HostError::ContextInvalid,
         HostError::InterceptorFailed,
@@ -33,8 +33,8 @@ fn host_error_variants_match_reserved_reasons_registry() {
     assert_eq!(emitted.len(), variants.len(), "duplicate reason strings");
 
     let registry: serde_json::Value =
-        serde_json::from_str(include_str!("../../../../spec/reserved-reasons.json"))
-            .expect("spec/reserved-reasons.json parses");
+        serde_json::from_str(include_str!("../../../../spec/0.1.0/reserved-reasons.json"))
+            .expect("spec/0.1.0/reserved-reasons.json parses");
     let registered: BTreeSet<String> = registry["reasons"]
         .as_array()
         .expect("reasons array")
@@ -44,19 +44,20 @@ fn host_error_variants_match_reserved_reasons_registry() {
 
     assert_eq!(
         emitted, registered,
-        "core HostError strings and spec/reserved-reasons.json diverged"
+        "core HostError strings and spec/0.1.0/reserved-reasons.json diverged"
     );
 }
 
 /// §6.3 registry consistency: the `host_warning:*` strings the core
-/// emits MUST be exactly the set in `spec/reserved-warnings.json`.
+/// emits MUST be exactly the set in `spec/0.1.0/reserved-warnings.json`.
 #[test]
 fn host_warning_variants_match_reserved_warnings_registry() {
     let variants = [agent_hooks::HostWarning::ControlFailed];
     let emitted: BTreeSet<String> = variants.iter().map(|v| v.to_string()).collect();
-    let registry: serde_json::Value =
-        serde_json::from_str(include_str!("../../../../spec/reserved-warnings.json"))
-            .expect("spec/reserved-warnings.json parses");
+    let registry: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../spec/0.1.0/reserved-warnings.json"
+    ))
+    .expect("spec/0.1.0/reserved-warnings.json parses");
     let registered: BTreeSet<String> = registry["warnings"]
         .as_array()
         .expect("warnings array")
@@ -65,7 +66,7 @@ fn host_warning_variants_match_reserved_warnings_registry() {
         .collect();
     assert_eq!(
         emitted, registered,
-        "core HostWarning strings and spec/reserved-warnings.json diverged"
+        "core HostWarning strings and spec/0.1.0/reserved-warnings.json diverged"
     );
     // The substituted allow carries exactly one registered warning.
     let v = agent_hooks::Verdict::control_failure_substitute(

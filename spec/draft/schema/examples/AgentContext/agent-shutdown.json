@@ -1,0 +1,25 @@
+{
+  "spec": "agent-hooks/0.1",
+  "interception_point": "agent_shutdown",
+  "timestamp": "2026-10-30T16:00:07Z",
+  "sequence": 7,
+  "agent": {
+    "id": "policy-assistant",
+    "framework": "example_host"
+  },
+  "session": {
+    "id": "policy-search-001"
+  },
+  "target": {
+    "reason": "completed",
+    "tool_calls": 1,
+    "errors": 0,
+    "duration_seconds": 7
+  },
+  "summary": {
+    "reason": "completed",
+    "tool_calls": 1,
+    "errors": 0,
+    "duration_seconds": 7
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/reserved-warnings.json",
+  "title": "Agent Hooks — reserved host_warning:* reasons",
+  "description": "Host-synthesized warning reasons (AGENT-HOOKS-0.1 §11.1), placed on the allow a host substitutes under on_error: continue (§6.3.1). Interceptors MUST NOT emit warning reasons with the host_warning: prefix; a host treats such a verdict as host_error:verdict_invalid (§5).",
+  "warnings": [
+    {
+      "id": "host_warning:control_failed",
+      "cause": "A registration whose on_error is continue failed (raised, timed out or returned an invalid verdict); the host substituted an allow in its slot and continued (§6.3.1). The message names the binding and the host_error:* reason."
+    }
+  ]
+}

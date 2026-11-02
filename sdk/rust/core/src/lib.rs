@@ -3,7 +3,7 @@
 //! agent-hooks: framework-neutral agent control contract.
 //!
 //! This crate is the **canonical implementation** of
-//! [AGENT-HOOKS-0.1](../../../spec/AGENT-HOOKS-0.1.md). The Python,
+//! [AGENT-HOOKS-0.1](../../../spec/0.1.0/AGENT-HOOKS-0.1.md). The Python,
 //! TypeScript, .NET, and Go SDKs bind to it via FFI so that
 //! `canonical_json`, `context_identity`, transform application, verdict
 //! validation, and verdict combination have exactly one implementation.
@@ -35,7 +35,7 @@
 //! complete-mediation claim is made. Conformance is not a security
 //! certification. See
 //! [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
-//! and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
+//! and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
 //!
 //! # Decision runtimes behind an interceptor
 //!

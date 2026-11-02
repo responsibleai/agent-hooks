@@ -113,7 +113,7 @@ func (e HostError) IsControlFailure() bool {
 
 // HostWarningControlFailed is the reserved host_warning:* reason of the
 // allow the host substitutes for a failing registration whose on_error
-// is continue (§6.3.1, spec/reserved-warnings.json). Interceptors MUST
+// is continue (§6.3.1, spec/0.1.0/reserved-warnings.json). Interceptors MUST
 // NOT emit host_warning:* reasons; the §5 gate refuses such a verdict
 // as host_error:verdict_invalid.
 const HostWarningControlFailed = "host_warning:control_failed"

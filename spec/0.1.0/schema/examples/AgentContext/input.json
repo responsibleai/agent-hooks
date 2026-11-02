@@ -1,0 +1,21 @@
+{
+  "spec": "agent-hooks/0.1",
+  "interception_point": "input",
+  "timestamp": "2026-10-30T16:00:01Z",
+  "sequence": 1,
+  "agent": {
+    "id": "policy-assistant",
+    "framework": "example_host"
+  },
+  "session": {
+    "id": "policy-search-001"
+  },
+  "target": {
+    "content": "Find the document retention policy.",
+    "role": "user"
+  },
+  "input": {
+    "content": "Find the document retention policy.",
+    "role": "user"
+  }
+}

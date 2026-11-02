@@ -1,7 +1,7 @@
 # agent-hooks (Go SDK)
 
 Go implementation of
-[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/AGENT-HOOKS-0.1.md)
+[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md)
 over the canonical Rust core (`libagent_hooks_ffi` via cgo):
 interception points, `AgentContextBuilder`, `Verdict` types,
 host-side `InterceptionEmitter` with the four composition profiles,
@@ -11,7 +11,7 @@ the identity-provider seam, and the CTK runner.
 > boundary: the host framework is fully trusted, interceptors run in-process
 > with full data access, and no complete-mediation claim is made. Read
 > [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
-> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
+> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
 > before relying on it.
 
 ```bash

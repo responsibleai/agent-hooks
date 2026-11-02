@@ -1,0 +1,15 @@
+{
+  "verdict": {
+    "decision": "transform",
+    "reason": "public_sources_only",
+    "transform": {
+      "path": "$target.collection",
+      "value": "public"
+    }
+  },
+  "extensions": {
+    "example_policy": {
+      "receipt": "policy-check-003"
+    }
+  }
+}

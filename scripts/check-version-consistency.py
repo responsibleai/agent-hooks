@@ -61,7 +61,7 @@ def read_versions() -> dict[str, str]:
 def check_declaration_versions() -> int:
     """The host declaration contract version (spec section 7.7.2): the
     Rust constant must have a row in both tables of
-    spec/DECLARATION-VERSIONS.md, and the supported set must list it."""
+    spec/0.1.0/DECLARATION-VERSIONS.md, and the supported set must list it."""
     types_rs = (ROOT / "sdk/rust/core/src/types.rs").read_text(encoding="utf-8")
     m = re.search(r'pub const DECLARATION_VERSION: &str = "([^"]+)"', types_rs)
     assert m, "no DECLARATION_VERSION in sdk/rust/core/src/types.rs"
@@ -73,26 +73,28 @@ def check_declaration_versions() -> int:
     if "DECLARATION_VERSION" not in m.group(1) and f'"{current}"' not in m.group(1):
         print(f"::error::SUPPORTED_DECLARATION_VERSIONS does not list {current}")
         return 1
-    table = (ROOT / "spec/DECLARATION-VERSIONS.md").read_text(encoding="utf-8")
+    table = (ROOT / "spec/0.1.0/DECLARATION-VERSIONS.md").read_text(encoding="utf-8")
     rows = [
         line
         for line in table.splitlines()
         if line.startswith("|") and f"`{current}`" in line
     ]
     if not any("current" in r for r in rows):
-        print(f"::error::spec/DECLARATION-VERSIONS.md has no current row for {current}")
+        print(
+            f"::error::spec/0.1.0/DECLARATION-VERSIONS.md has no current row for {current}"
+        )
         return 1
     # An SDK release row starts with a backticked tag such as
     # `v0.1.0-beta.2`; the contract-version table never does.
     release_row = re.compile(r"^\|\s*`v\d+\.\d+\.\d+[^`]*`")
     if not any(release_row.match(r) for r in rows):
         print(
-            f"::error::spec/DECLARATION-VERSIONS.md has no SDK release row accepting {current}"
+            f"::error::spec/0.1.0/DECLARATION-VERSIONS.md has no SDK release row accepting {current}"
         )
         return 1
     schema = (
         ROOT
-        / "spec/schema/generated"
+        / "spec/0.1.0/schema/generated"
         / f"host-declaration-{current.split('/')[1]}.schema.json"
     )
     if not schema.exists():
@@ -102,7 +104,25 @@ def check_declaration_versions() -> int:
     return 0
 
 
+def check_no_committed_platform_pins(
+    package_path: Path = ROOT / "sdk/typescript/package.json",
+) -> int:
+    """The loader manifest must not pin platform packages; the release
+    workflow injects optionalDependencies at publish time."""
+    pkg = json.loads(package_path.read_text(encoding="utf-8"))
+    if "optionalDependencies" in pkg:
+        print(
+            "sdk/typescript/package.json commits optionalDependencies; "
+            "platform pins are injected at publish time (see release.yml)",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
 def main() -> int:
+    if check_no_committed_platform_pins() != 0:
+        return 1
     if check_declaration_versions() != 0:
         return 1
     versions = read_versions()
@@ -118,21 +138,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-def check_no_committed_platform_pins():
-    """The loader manifest must not pin platform packages; the release
-    workflow injects optionalDependencies at publish time."""
-    import json as _json
-
-    with open("sdk/typescript/package.json", encoding="utf-8") as f:
-        pkg = _json.load(f)
-    if "optionalDependencies" in pkg:
-        raise SystemExit(
-            "sdk/typescript/package.json commits optionalDependencies; "
-            "platform pins are injected at publish time (see release.yml)"
-        )
-
-
-if __name__ == "__main__":
-    check_no_committed_platform_pins()

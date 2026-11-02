@@ -27,7 +27,7 @@ fn canonical_len(v: &Verdict) -> usize {
 
 #[test]
 fn root_export_is_the_spec_value() {
-    // spec/AGENT-HOOKS-0.1.md §5.3: "MUST NOT exceed 10240 bytes".
+    // spec/0.1.0/AGENT-HOOKS-0.1.md §5.3: "MUST NOT exceed 10240 bytes".
     assert_eq!(EVIDENCE_MAX_BYTES, 10240);
 }
 
