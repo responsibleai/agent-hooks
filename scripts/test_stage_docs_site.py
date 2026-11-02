@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+# Copyright (c) Microsoft. All rights reserved.
+
+"""Regression tests for scripts/stage-docs-site.py.
+
+Each case stages a small repository tree with three released bundles
+and a draft, built in a temporary directory.
+"""
+
+import importlib.util
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+MODULE_SPEC = importlib.util.spec_from_file_location(
+    "stage_docs_site", Path(__file__).with_name("stage-docs-site.py")
+)
+assert MODULE_SPEC and MODULE_SPEC.loader
+stage = importlib.util.module_from_spec(MODULE_SPEC)
+MODULE_SPEC.loader.exec_module(stage)
+
+ID_BASE = "https://responsibleai.github.io/agent-hooks/schema/"
+MKDOCS = """site_name: test
+nav:
+  - Home: index.md
+  # The Specification entries are regenerated at build time.
+  - Specification:
+      - "0.0.1": spec/0.0.1.md
+      - Draft: spec-draft.md
+  - FAQ: faq.md
+"""
+
+
+def schema(identity: str, marker: str) -> str:
+    return json.dumps({"$id": ID_BASE + identity, "title": marker}) + "\n"
+
+
+def bundle(root: Path, version: str, wire: str, marker: str) -> None:
+    folder = root / "spec" / version
+    (folder / "schema/generated/strict-contexts").mkdir(parents=True)
+    (folder / "AGENT-HOOKS-0.1.md").write_text(f"# spec {version}\n", encoding="utf-8")
+    for name in stage.INVENTORIES:
+        (folder / name).write_text(json.dumps({"from": version}), encoding="utf-8")
+    (folder / "schema/generated/agent-context.schema.json").write_text(
+        schema(f"{wire}/agent-context.schema.json", marker), encoding="utf-8"
+    )
+    (folder / "schema/generated/strict-contexts/input.schema.json").write_text(
+        schema(f"{wire}/agent-context/input.schema.json", marker), encoding="utf-8"
+    )
+
+
+class StageTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        bundle(self.root, "0.1.0", "v0.1", "first")
+        bundle(self.root, "0.2.0", "v0.2", "second")
+        # 0.10.0 sorts after 0.2.0 numerically and shares the v0.2 path.
+        bundle(self.root, "0.10.0", "v0.2", "tenth")
+        draft = self.root / "spec/draft"
+        draft.mkdir()
+        (draft / "AGENT-HOOKS-0.1.md").write_text(
+            "> The current one is [0.10.0](../0.10.0/AGENT-HOOKS-0.1.md).\n# draft\n",
+            encoding="utf-8",
+        )
+        (self.root / "conformance").mkdir()
+        (self.root / "conformance/vectors.schema.json").write_text(
+            schema("v0.1/conformance/vectors.schema.json", "vectors"), encoding="utf-8"
+        )
+        (self.root / "docs-site/docs").mkdir(parents=True)
+        (self.root / "docs-site/mkdocs.yml").write_text(MKDOCS, encoding="utf-8")
+        self.versions = stage.stage(self.root)
+        self.docs = self.root / "docs-site/docs"
+
+    def read(self, relative: str) -> str:
+        return (self.docs / relative).read_text(encoding="utf-8")
+
+    def test_versions_are_ordered_numerically_newest_first(self) -> None:
+        self.assertEqual(self.versions, ["0.10.0", "0.2.0", "0.1.0"])
+
+    def test_one_page_per_version_and_the_latest_alias(self) -> None:
+        for version in self.versions:
+            self.assertEqual(self.read(f"spec/{version}.md"), f"# spec {version}\n")
+        self.assertEqual(self.read("spec.md"), "# spec 0.10.0\n")
+
+    def test_draft_back_link_points_at_the_version_page(self) -> None:
+        self.assertEqual(
+            self.read("spec-draft.md"),
+            "> The current one is [0.10.0](spec/0.10.0.md).\n# draft\n",
+        )
+
+    def test_schemas_land_at_their_id_paths_and_the_newest_wins(self) -> None:
+        first = json.loads(self.read("schema/v0.1/agent-context.schema.json"))
+        self.assertEqual(first["title"], "first")
+        self.assertEqual(
+            json.loads(self.read("schema/v0.1/agent-context/input.schema.json"))[
+                "title"
+            ],
+            "first",
+        )
+        shared = json.loads(self.read("schema/v0.2/agent-context.schema.json"))
+        self.assertEqual(shared["title"], "tenth")
+        self.assertEqual(
+            json.loads(self.read("schema/v0.2/reserved-reasons.json")),
+            {"from": "0.10.0"},
+        )
+        self.assertEqual(
+            json.loads(self.read("schema/v0.1/declaration-errors.json")),
+            {"from": "0.1.0"},
+        )
+        self.assertEqual(
+            json.loads(self.read("schema/v0.1/conformance/vectors.schema.json"))[
+                "title"
+            ],
+            "vectors",
+        )
+        self.assertFalse((self.docs / "schema/strict-contexts").exists())
+
+    def test_navigation_lists_versions_newest_first_then_the_draft(self) -> None:
+        staged = (self.root / "docs-site/mkdocs.staged.yml").read_text(encoding="utf-8")
+        self.assertEqual(
+            staged,
+            """site_name: test
+nav:
+  - Home: index.md
+  # The Specification entries are regenerated at build time.
+  - Specification:
+      - "0.10.0": spec/0.10.0.md
+      - "0.2.0": spec/0.2.0.md
+      - "0.1.0": spec/0.1.0.md
+      - Draft: spec-draft.md
+  - FAQ: faq.md
+""",
+        )
+
+    def test_restaging_replaces_stale_output(self) -> None:
+        (self.docs / "spec/9.9.9.md").write_text("stale\n", encoding="utf-8")
+        (self.docs / "schema/v9.9").mkdir()
+        stage.stage(self.root)
+        self.assertFalse((self.docs / "spec/9.9.9.md").exists())
+        self.assertFalse((self.docs / "schema/v9.9").exists())
+
+
+class PublishedPathTest(unittest.TestCase):
+    def test_id_without_schema_segment_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            file = Path(temporary) / "x.schema.json"
+            file.write_text(json.dumps({"$id": "https://example.invalid/other/x.json"}))
+            with self.assertRaises(SystemExit):
+                stage.published_path(file)
+            file.write_text(json.dumps({"$id": ID_BASE + "v0.1/../x.json"}))
+            with self.assertRaises(SystemExit):
+                stage.published_path(file)
+            file.write_text(json.dumps({"title": "no id"}))
+            with self.assertRaises(SystemExit):
+                stage.published_path(file)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
