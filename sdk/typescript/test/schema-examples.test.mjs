@@ -5,7 +5,12 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/pr
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { schemaMapping, schemaRoot, validateExamples } from "../scripts/check-schema-examples.mjs";
+import {
+  releaseSchemaRoot,
+  schemaMapping,
+  schemaRoot,
+  validateExamples,
+} from "../scripts/check-schema-examples.mjs";
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), "schema-examples-"));
@@ -24,6 +29,37 @@ async function write(root, relative, instance) {
 
 test("all draft examples validate", async () => {
   assert.ok(await validateExamples() > 0);
+});
+
+test("the released bundle has matching, byte-identical copies and validates independently", async () => {
+  const draftExamples = path.join(schemaRoot, "examples");
+  const releaseExamples = path.join(releaseSchemaRoot, "examples");
+  async function files(directory) {
+    const result = [];
+    async function collect(current) {
+      for (const entry of await readdir(current, { withFileTypes: true })) {
+        const filename = path.join(current, entry.name);
+        if (entry.isDirectory()) await collect(filename);
+        else if (entry.isFile() && entry.name.endsWith(".json")) result.push(filename);
+      }
+    }
+    await collect(directory);
+    return result.sort();
+  }
+  const draftFiles = await files(draftExamples);
+  const releaseFiles = await files(releaseExamples);
+  assert.equal(draftFiles.length, 38);
+  assert.equal(releaseFiles.length, draftFiles.length);
+  for (let index = 0; index < draftFiles.length; index += 1) {
+    const relative = path.relative(draftExamples, draftFiles[index]);
+    assert.equal(path.relative(releaseExamples, releaseFiles[index]), relative);
+    assert.deepEqual(
+      await readFile(draftFiles[index]),
+      await readFile(releaseFiles[index]),
+      relative,
+    );
+  }
+  assert.equal(await validateExamples(releaseSchemaRoot), draftFiles.length);
 });
 
 test("context targets equal their hook payloads, including optional-feature variants", async () => {

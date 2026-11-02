@@ -76,6 +76,7 @@ jobs:
       - name: Draft examples match their JSON Schemas
         run: |
           node scripts/check-schema-examples.mjs
+          node scripts/check-schema-examples.mjs 0.1.0
           node --test test/schema-examples.test.mjs
         working-directory: sdk/typescript
       - name: Schema equivalence handles the generated output directory

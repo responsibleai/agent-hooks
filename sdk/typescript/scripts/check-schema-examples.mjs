@@ -9,6 +9,9 @@ import addFormats from "ajv-formats";
 export const schemaRoot = fileURLToPath(
   new URL("../../../spec/draft/schema/", import.meta.url),
 );
+export const releaseSchemaRoot = fileURLToPath(
+  new URL("../../../spec/0.1.0/schema/", import.meta.url),
+);
 export const schemaMapping = {
   AgentContext: "agent-context.schema.json",
   Verdict: "verdict.schema.json",
@@ -89,6 +92,11 @@ export async function validateExamples(root = schemaRoot) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const count = await validateExamples();
-  console.log(`check-schema-examples: validated ${count} JSON examples`);
+  const spec = process.argv[2];
+  if (process.argv.length > 3 || (spec && spec !== "draft" && spec !== "0.1.0")) {
+    throw new Error("Usage: node check-schema-examples.mjs [draft|0.1.0]");
+  }
+  const root = spec === "0.1.0" ? releaseSchemaRoot : schemaRoot;
+  const count = await validateExamples(root);
+  console.log(`check-schema-examples: validated ${count} JSON examples for ${spec || "draft"}`);
 }

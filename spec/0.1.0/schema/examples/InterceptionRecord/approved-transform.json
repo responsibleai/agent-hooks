@@ -1,0 +1,34 @@
+{
+  "interception_point": "pre_tool_call",
+  "mode": "enforce",
+  "verdict": {
+    "decision": "transform",
+    "reason": "operator_limited_scope",
+    "transform": {
+      "path": "$target.collection"
+    }
+  },
+  "input_identity": null,
+  "enforced_identity": null,
+  "identity_provider": null,
+  "session_id": "policy-search-001",
+  "sequence": 4,
+  "timestamp": "2026-10-30T16:00:04Z",
+  "decided_by": 0,
+  "composition": {
+    "profile": "sequential/first_deny",
+    "on_approval": "resume"
+  },
+  "declaration": "agent-hooks-declaration/1.1",
+  "verdicts": [
+    {
+      "index": 0,
+      "decision": "deny",
+      "reason": "collection_requires_approval",
+      "name": "document-policy"
+    }
+  ],
+  "fold_truncated": false,
+  "resolved_by": "approval",
+  "interceptors_registered": 1
+}

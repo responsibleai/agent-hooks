@@ -1,0 +1,12 @@
+{
+  "context_identity": null,
+  "outcome": "approve",
+  "verdict": {
+    "decision": "transform",
+    "reason": "operator_limited_scope",
+    "transform": {
+      "path": "$target.collection",
+      "value": "public"
+    }
+  }
+}
