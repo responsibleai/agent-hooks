@@ -27,6 +27,35 @@ async function write(root, relative, instance) {
   await writeFile(filename, JSON.stringify(instance));
 }
 
+async function assertExampleSourceLinks(bundleRoot) {
+  const examples = path.join(bundleRoot, "examples");
+  const sources = path.join(bundleRoot, "src");
+  const files = [];
+  async function collect(directory) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const filename = path.join(directory, entry.name);
+      if (entry.isDirectory()) await collect(filename);
+      else if (entry.isFile() && entry.name.endsWith(".json")) files.push(filename);
+    }
+  }
+  await collect(examples);
+  const sourceFiles = await readdir(sources);
+  const source = (
+    await Promise.all(
+      sourceFiles
+        .filter((filename) => filename.endsWith(".ts"))
+        .map((filename) => readFile(path.join(sources, filename), "utf8")),
+    )
+  ).join("\n");
+  for (const filename of files) {
+    const relative = path.relative(examples, filename).split(path.sep).join("/");
+    assert.ok(
+      source.includes(`../examples/${relative})`),
+      `No TypeScript schema @example reference in ${bundleRoot} for ${relative}`,
+    );
+  }
+}
+
 test("all draft examples validate", async () => {
   assert.ok(await validateExamples() > 0);
 });
@@ -141,33 +170,9 @@ test("optional declarations, evidence and timeout record preserve runtime semant
   }]);
 });
 
-test("every standalone example is referenced by its TypeScript schema source", async () => {
-  const examples = path.join(schemaRoot, "examples");
-  const sources = path.join(schemaRoot, "src");
-  const files = [];
-  async function collect(directory) {
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
-      const filename = path.join(directory, entry.name);
-      if (entry.isDirectory()) await collect(filename);
-      else if (entry.isFile() && entry.name.endsWith(".json")) files.push(filename);
-    }
-  }
-  await collect(examples);
-  const sourceFiles = await readdir(sources);
-  const source = (
-    await Promise.all(
-      sourceFiles
-        .filter((filename) => filename.endsWith(".ts"))
-        .map((filename) => readFile(path.join(sources, filename), "utf8")),
-    )
-  ).join("\n");
-  for (const filename of files) {
-    const relative = path.relative(examples, filename).split(path.sep).join("/");
-    assert.ok(
-      source.includes(`../examples/${relative})`),
-      `No TypeScript schema @example reference for ${relative}`,
-    );
-  }
+test("every standalone example is referenced by its bundle's TypeScript schema source", async () => {
+  await assertExampleSourceLinks(schemaRoot);
+  await assertExampleSourceLinks(releaseSchemaRoot);
 });
 
 test("new mapped examples are included, including invalid ones", async (t) => {
