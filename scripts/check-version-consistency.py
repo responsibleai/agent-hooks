@@ -19,11 +19,15 @@ PEP 440 spells SemVer pre-releases differently (0.1.0-alpha.2 ->
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+# The specification bundle SDK development tracks (VERSIONING.md). The
+# CI workflows export the same name.
+SPEC_DEV_DIR = os.environ.get("SPEC_DEV_DIR", "spec/draft")
 
 
 def normalize(version: str) -> str:
@@ -61,8 +65,9 @@ def read_versions() -> dict[str, str]:
 def check_declaration_versions() -> int:
     """The host declaration contract version (spec section 7.7.2): the
     Rust constant must be the current row of the contract table in the
-    draft bundle's DECLARATION-VERSIONS.md, some SDK release row in
-    VERSIONING.md must accept it, and the supported set must list it."""
+    development bundle's DECLARATION-VERSIONS.md, some SDK release row
+    in VERSIONING.md must accept it, the supported set must list it,
+    and the development bundle must carry its schema."""
     types_rs = (ROOT / "sdk/rust/core/src/types.rs").read_text(encoding="utf-8")
     m = re.search(r'pub const DECLARATION_VERSION: &str = "([^"]+)"', types_rs)
     assert m, "no DECLARATION_VERSION in sdk/rust/core/src/types.rs"
@@ -74,7 +79,7 @@ def check_declaration_versions() -> int:
     if "DECLARATION_VERSION" not in m.group(1) and f'"{current}"' not in m.group(1):
         print(f"::error::SUPPORTED_DECLARATION_VERSIONS does not list {current}")
         return 1
-    contract_table = "spec/draft/DECLARATION-VERSIONS.md"
+    contract_table = f"{SPEC_DEV_DIR}/DECLARATION-VERSIONS.md"
     release_table = "VERSIONING.md"
 
     def rows(path: str) -> list[str]:
@@ -95,7 +100,8 @@ def check_declaration_versions() -> int:
         return 1
     schema = (
         ROOT
-        / "spec/0.1.0/schema/generated"
+        / SPEC_DEV_DIR
+        / "schema/generated"
         / f"host-declaration-{current.split('/')[1]}.schema.json"
     )
     if not schema.exists():

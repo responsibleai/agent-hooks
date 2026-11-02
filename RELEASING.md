@@ -38,9 +38,9 @@ environment.
    Add a row for the tag to the SDK-release table in
    `VERSIONING.md` when the accepted host declaration versions or the
    current one change (spec §7.7.2); the same script checks that a row
-   there accepts the current version. SDK development is pinned
-   to `spec/0.1.0/` until the project decides how SDKs track
-   specification versions.
+   there accepts the current version. SDK development tracks
+   `spec/draft/`; the tag names the specification version it ships
+   against ([VERSIONING.md](VERSIONING.md#specification-folders)).
 2. Run the bench suite and compare against the latency budget in
    [ARCHITECTURE.md](ARCHITECTURE.md#latency-budget). CI does not gate
    on it; this step is the regression check.

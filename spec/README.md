@@ -33,8 +33,11 @@ bundle is checked against its own local schemas, and a symbolic link under
 Make normative changes in `draft/`. Edit schema shapes in
 `draft/schema/src/` and regenerate `draft/schema/generated/` with
 `npm run generate:schema` in `sdk/typescript`; the generator and its
-drift check target `draft/` by default. SDK development is pinned to
-`0.1.0/` until the project decides how SDKs track specification versions.
+drift check target `draft/` by default. SDK development tracks `draft/`
+as well: the Python schema mirror, the Rust tests and the version
+script read it, the CI schema and vector checks cover every bundle, and
+a release tag names the version it ships against. Prose links cite the
+latest release.
 
 Released folders are immutable records of a release. The `change-class`
 CI check fails a pull request that changes any `MAJOR.MINOR.PATCH`

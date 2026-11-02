@@ -4363,8 +4363,9 @@ mod tests {
 
     /// The string values a schema node admits: its `enum`, or its one
     /// `const`, following a local `$ref` first. The generated schemas
-    /// (spec/0.1.0/schema/src/) name shared enums as definitions and may list
-    /// an inlined enum in alphabetical order, so callers compare sets.
+    /// (from the bundle's schema/src/) name shared enums as definitions
+    /// and may list an inlined enum in alphabetical order, so callers
+    /// compare sets.
     fn schema_values<'a>(root: &'a Value, node: &'a Value) -> Vec<&'a str> {
         let node = match node["$ref"].as_str() {
             Some(r) => &root["$defs"][r.trim_start_matches("#/$defs/")],
@@ -4386,9 +4387,16 @@ mod tests {
 
     #[test]
     fn mirrored_enums_match_record_schema() {
-        let schema: Value = serde_json::from_str(include_str!(
-            "../../../../spec/0.1.0/schema/generated/interception-record.schema.json"
-        ))
+        // Read from the bundle SDK development tracks (`SPEC_DEV_DIR`).
+        let spec_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../..")
+            .join(crate::SPEC_DEV_DIR);
+        let schema: Value = serde_json::from_str(
+            &std::fs::read_to_string(
+                spec_dir.join("schema/generated/interception-record.schema.json"),
+            )
+            .unwrap(),
+        )
         .unwrap();
         let composition = &schema["properties"]["composition"]["properties"];
         assert_eq!(
@@ -4405,8 +4413,7 @@ mod tests {
         // One schema file per contract version. The 1.0 file names
         // 1.0 alone; the file for the current version names it and
         // every version the loader accepts is covered by some file.
-        let schema_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../spec/0.1.0/schema/generated");
+        let schema_dir = spec_dir.join("schema/generated");
         let mut covered: Vec<String> = Vec::new();
         for v in SUPPORTED_DECLARATION_VERSIONS {
             let (maj, min) = parse_declaration_version(v).unwrap();

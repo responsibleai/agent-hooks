@@ -103,3 +103,10 @@ pub use types::{
     SUPPORTED_DECLARATION_VERSIONS,
 };
 pub use verdict::from_wire as verdict_from_wire;
+
+/// Repository-relative path of the specification bundle this crate
+/// develops against. The tests read their inventories and schemas
+/// there; a release tag names the specification version it ships
+/// against (VERSIONING.md). Not part of the stable API.
+#[doc(hidden)]
+pub const SPEC_DEV_DIR: &str = "spec/draft";

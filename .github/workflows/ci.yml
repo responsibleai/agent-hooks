@@ -9,6 +9,12 @@ on:
 permissions:
   contents: read
 
+# The specification bundle SDK development tracks (VERSIONING.md).
+# scripts/check-version-consistency.py reads it; steps that cover every
+# bundle loop over spec/*/ instead.
+env:
+  SPEC_DEV_DIR: spec/draft
+
 jobs:
   schema-lint:
     runs-on: ubuntu-latest

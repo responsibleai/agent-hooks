@@ -5,8 +5,8 @@ one to follow for editing, generating and checking schemas. Edit `src/`
 here; `npm run generate:schema` and `npm run check:schema` target this
 folder by default. A released bundle carries the copy of this file that
 stood at its release; those copies are historical and describe a frozen
-folder that is never edited. SDKs and the Python mirror are pinned to
-[`spec/0.1.0/schema/`](../../0.1.0/schema/) for now.
+folder that is never edited. SDK development and the Python mirror
+read this folder; a release tag names the version it ships against.
 
 The TypeScript files in `src/` are the editable schema source.
 `generated/` contains the committed, normative JSON Schemas consumed by
@@ -41,8 +41,8 @@ Refresh the Python mirror as in
 [`schema-drift.yml`](../../../.github/workflows/schema-drift.yml):
 
 ```bash
-cp spec/0.1.0/schema/generated/*.schema.json sdk/python/python/agent_hooks/schema/
-cp spec/0.1.0/schema/generated/strict-contexts/*.schema.json sdk/python/python/agent_hooks/schema/agent-context/
+cp spec/draft/schema/generated/*.schema.json sdk/python/python/agent_hooks/schema/
+cp spec/draft/schema/generated/strict-contexts/*.schema.json sdk/python/python/agent_hooks/schema/agent-context/
 ```
 
 Run these copy commands from the repository root after generation.

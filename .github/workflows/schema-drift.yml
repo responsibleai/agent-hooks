@@ -12,6 +12,11 @@ on:
 permissions:
   contents: read
 
+# The specification bundle SDK development tracks (VERSIONING.md); the
+# Python mirror is copied from it.
+env:
+  SPEC_DEV_DIR: spec/draft
+
 jobs:
   drift:
     runs-on: ubuntu-latest
@@ -28,9 +33,8 @@ jobs:
         run: |
           rm -rf sdk/python/python/agent_hooks/schema
           mkdir -p sdk/python/python/agent_hooks/schema/agent-context
-          # SDK development is pinned to the 0.1.0 release, not the draft.
-          cp spec/0.1.0/schema/generated/*.schema.json sdk/python/python/agent_hooks/schema/
-          cp spec/0.1.0/schema/generated/strict-contexts/*.schema.json sdk/python/python/agent_hooks/schema/agent-context/
+          cp "$SPEC_DEV_DIR"/schema/generated/*.schema.json sdk/python/python/agent_hooks/schema/
+          cp "$SPEC_DEV_DIR"/schema/generated/strict-contexts/*.schema.json sdk/python/python/agent_hooks/schema/agent-context/
           rm -rf sdk/python/python/agent_hooks/ctk/vectors
           mkdir -p sdk/python/python/agent_hooks/ctk/vectors
           cp conformance/vectors/AH-CTK-*.json sdk/python/python/agent_hooks/ctk/vectors/

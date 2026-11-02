@@ -25,10 +25,14 @@
   the `drift` check regenerates the draft schemas and the vendored copies
   and fails on any difference. Released folders such as `spec/0.1.0/`
   are immutable; see [spec/README.md](spec/README.md).
-- **SDKs are pinned to `spec/0.1.0/` for now.** SDK code, tests,
-  vendored schemas, conformance-vector validation, and version checks
-  read `spec/0.1.0/`. How SDK development should track future
-  specification versions is still to be decided.
+- **SDK development tracks `spec/draft/`.** The machine consumers (the
+  `drift` mirror copy, the Rust tests and
+  `scripts/check-version-consistency.py`) read the draft, named once as
+  `SPEC_DEV_DIR` in the workflows and in the Rust crate, so a breaking
+  draft change has somewhere to be implemented; CI steps that check
+  schemas and vectors loop over every bundle. A release tag names the
+  specification version it ships against. Prose links cite the latest
+  release, `spec/0.1.0/`.
 - **All five SDKs.** A contract change is not done until Rust core,
   Python, TypeScript, .NET, and Go agree; the Rust core is the single
   source of truth and the wrappers delegate to it.
@@ -72,9 +76,9 @@ npm run check:schema         # type-check the source, then fail on any drift
 npm run check:schema:equivalence -- --old origin/main   # differential validation against another revision
 ```
 
-After a change, regenerate. The Python mirror stays pinned to the
-released schemas: refresh it the way the `drift` workflow does (copy
-`spec/0.1.0/schema/generated/*.schema.json` into
+After a change, regenerate. The Python mirror follows the draft
+schemas: refresh it the way the `drift` workflow does (copy
+`spec/draft/schema/generated/*.schema.json` into
 `sdk/python/python/agent_hooks/schema/` and `generated/strict-contexts/*.schema.json`
 into its existing `agent-context/` subdirectory), and commit the
 source, the JSON and the mirror together. When a shape changes, also run

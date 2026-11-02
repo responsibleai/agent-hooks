@@ -75,8 +75,12 @@ yet a required status check, so a red result does not block a merge on
 its own. [spec/README.md](spec/README.md) lists every version, and
 [RELEASING.md](RELEASING.md#cut-a-specification-version) has the
 procedure for cutting one.
-SDK development is currently pinned to `spec/0.1.0/`; the policy for how
-SDKs track later specification versions is not yet decided.
+SDK development tracks `spec/draft/`: the `drift` mirror copy, the
+Rust tests and the version script read the draft (named once as
+`SPEC_DEV_DIR` in the workflows and in the Rust crate), and the CI
+schema and vector checks cover every bundle, so a breaking draft change
+has somewhere to be implemented. A release tag names the specification
+version it ships against. Prose links cite the latest release.
 
 ## Three independent axes
 
