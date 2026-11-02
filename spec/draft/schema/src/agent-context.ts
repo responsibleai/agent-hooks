@@ -126,10 +126,9 @@ export enum ActorKind {
 }
 
 /**
- * Members present at every point and optional context metadata/payloads. Each
- * hook variant fixes its discriminator and requires its own hook payload.
+ * Shared metadata present at every point, plus namespaced extensions.
  */
-interface ContextBase {
+interface ContextMetadata {
   /** @pattern ^agent-hooks/\d+\.\d+$ */
   spec: string;
   /** @format date-time */
@@ -152,40 +151,6 @@ interface ContextBase {
     /** @minimum 0 */
     turn?: number;
   };
-  agent_init?: AgentInit;
-  input?: Input;
-  model?: Model;
-  messages?: Message[];
-  request_id?: string;
-  response?: Response;
-  usage?: Usage;
-  tool_call?: ToolCall;
-  tool_result?: ToolResult;
-  tools?: ToolDecl[];
-  output?: Output;
-  summary?: Summary;
-  trace?: {
-    trace_id?: string;
-    span_id?: string;
-  };
-  tenant?: {
-    id?: string;
-    name?: string;
-  };
-  actor?: {
-    id?: string;
-    kind?: ActorKind;
-  };
-  budgets?: {
-    /** @TJS-type number */
-    tool_call_count?: number;
-    /** @TJS-type number */
-    token_count?: number;
-    /** @TJS-type number */
-    elapsed_seconds?: number;
-    /** @TJS-type number */
-    cost_usd?: number;
-  };
   extensions?: Extensions;
 }
 
@@ -193,7 +158,7 @@ interface ContextBase {
  * The context at agent_startup: agent_init is required (§4.2).
  * @example [agent-startup.json](../examples/AgentContext/agent-startup.json)
  */
-export interface AgentStartupContext extends ContextBase {
+export interface AgentStartupContext extends ContextMetadata {
   interception_point: InterceptionPoint.AgentStartup;
   agent_init: AgentInit;
 }
@@ -202,7 +167,7 @@ export interface AgentStartupContext extends ContextBase {
  * The context at input: input is required (§4.2).
  * @example [input.json](../examples/AgentContext/input.json)
  */
-export interface InputContext extends ContextBase {
+export interface InputContext extends ContextMetadata {
   interception_point: InterceptionPoint.Input;
   input: Input;
 }
@@ -210,9 +175,9 @@ export interface InputContext extends ContextBase {
 /**
  * The context at pre_model_call: model and messages are required (§4.2).
  * @example [pre-model-call.json](../examples/AgentContext/pre-model-call.json)
- * @example [pre-model-call-with-tools.json](../examples/AgentContext/pre-model-call-with-tools.json)
+ * @example [pre-model-call-with-model-metadata.json](../examples/AgentContext/pre-model-call-with-model-metadata.json)
  */
-export interface PreModelCallContext extends ContextBase {
+export interface PreModelCallContext extends ContextMetadata {
   interception_point: InterceptionPoint.PreModelCall;
   model: Model;
   messages: Message[];
@@ -221,9 +186,9 @@ export interface PreModelCallContext extends ContextBase {
 /**
  * The context at post_model_call: model and response are required (§4.2).
  * @example [post-model-call.json](../examples/AgentContext/post-model-call.json)
- * @example [post-model-call-with-usage.json](../examples/AgentContext/post-model-call-with-usage.json)
+ * @example [post-model-call-with-optional-tool-call-id.json](../examples/AgentContext/post-model-call-with-optional-tool-call-id.json)
  */
-export interface PostModelCallContext extends ContextBase {
+export interface PostModelCallContext extends ContextMetadata {
   interception_point: InterceptionPoint.PostModelCall;
   model: Model;
   response: Response;
@@ -233,7 +198,7 @@ export interface PostModelCallContext extends ContextBase {
  * The context at pre_tool_call: tool_call is required (§4.2).
  * @example [pre-tool-call.json](../examples/AgentContext/pre-tool-call.json)
  */
-export interface PreToolCallContext extends ContextBase {
+export interface PreToolCallContext extends ContextMetadata {
   interception_point: InterceptionPoint.PreToolCall;
   tool_call: ToolCall;
 }
@@ -242,7 +207,7 @@ export interface PreToolCallContext extends ContextBase {
  * The context at post_tool_call: tool_call and tool_result are required (§4.2).
  * @example [post-tool-call.json](../examples/AgentContext/post-tool-call.json)
  */
-export interface PostToolCallContext extends ContextBase {
+export interface PostToolCallContext extends ContextMetadata {
   interception_point: InterceptionPoint.PostToolCall;
   tool_call: ToolCall;
   tool_result: ToolResult;
@@ -251,9 +216,9 @@ export interface PostToolCallContext extends ContextBase {
 /**
  * The context at output: output is required (§4.2).
  * @example [output.json](../examples/AgentContext/output.json)
- * @example [output-with-metadata.json](../examples/AgentContext/output-with-metadata.json)
+ * @example [output-with-extensions.json](../examples/AgentContext/output-with-extensions.json)
  */
-export interface OutputContext extends ContextBase {
+export interface OutputContext extends ContextMetadata {
   interception_point: InterceptionPoint.Output;
   output: Output;
 }
@@ -262,15 +227,15 @@ export interface OutputContext extends ContextBase {
  * The context at agent_shutdown: summary is required (§4.2).
  * @example [agent-shutdown.json](../examples/AgentContext/agent-shutdown.json)
  */
-export interface AgentShutdownContext extends ContextBase {
+export interface AgentShutdownContext extends ContextMetadata {
   interception_point: InterceptionPoint.AgentShutdown;
   summary: Summary;
 }
 
 /**
  * Payload a host constructs at each interception point (AGENT-HOOKS-0.1 §4).
- * Each variant requires its discriminator and hook payload, while preserving
- * the existing shared metadata, optional known members, and extensions.
+ * Each variant requires its discriminator and own hook payload, with shared
+ * metadata and optional namespaced extensions.
  * @title Agent Hooks — agent context
  */
 export type AgentContext =

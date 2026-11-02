@@ -30,10 +30,5 @@
       }
     ],
     "finish_reason": "tool_calls"
-  },
-  "request_id": "model-request-001",
-  "usage": {
-    "prompt_tokens": 24,
-    "completion_tokens": 18
   }
 }
