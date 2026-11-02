@@ -19,11 +19,11 @@ Each folder is a complete specification bundle:
 
 Standalone JSON examples are organized by type under
 `<version>/schema/examples/<Type>/<example>.json`; draft source definitions link
-to their examples. From `sdk/typescript` (after `npm ci`), run
-`node scripts/check-schema-examples.mjs` for draft,
-`node scripts/check-schema-examples.mjs 0.1.0` for the release bundle, and
-`node --test test/schema-examples.test.mjs` for regression coverage. Each
-bundle is checked against its own local schemas.
+to their examples. Install the standalone validator's locked dependencies with
+`npm ci` at the repository root, then run `npm run validate` to validate both
+bundles or `npm run validate:draft` / `npm run validate:0.1.0` individually.
+Each bundle is checked against its own local schemas; this tooling is
+independent of the TypeScript SDK.
 
 ## Working on the specification
 

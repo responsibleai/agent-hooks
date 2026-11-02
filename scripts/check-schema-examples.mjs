@@ -7,10 +7,10 @@ import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 
 export const schemaRoot = fileURLToPath(
-  new URL("../../../spec/draft/schema/", import.meta.url),
+  new URL("../spec/draft/schema/", import.meta.url),
 );
 export const releaseSchemaRoot = fileURLToPath(
-  new URL("../../../spec/0.1.0/schema/", import.meta.url),
+  new URL("../spec/0.1.0/schema/", import.meta.url),
 );
 export const schemaMapping = {
   AgentContext: "agent-context.schema.json",
@@ -92,11 +92,15 @@ export async function validateExamples(root = schemaRoot) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const spec = process.argv[2];
-  if (process.argv.length > 3 || (spec && spec !== "draft" && spec !== "0.1.0")) {
-    throw new Error("Usage: node check-schema-examples.mjs [draft|0.1.0]");
+  const selection = process.argv[2] || "draft";
+  if (process.argv.length > 3 || !["draft", "0.1.0", "all"].includes(selection)) {
+    throw new Error("Usage: node check-schema-examples.mjs [draft|0.1.0|all]");
   }
-  const root = spec === "0.1.0" ? releaseSchemaRoot : schemaRoot;
-  const count = await validateExamples(root);
-  console.log(`check-schema-examples: validated ${count} JSON examples for ${spec || "draft"}`);
+  const bundles = selection === "all"
+    ? [["draft", schemaRoot], ["0.1.0", releaseSchemaRoot]]
+    : [[selection, selection === "0.1.0" ? releaseSchemaRoot : schemaRoot]];
+  for (const [name, root] of bundles) {
+    const count = await validateExamples(root);
+    console.log(`check-schema-examples: validated ${count} JSON examples for ${name}`);
+  }
 }
