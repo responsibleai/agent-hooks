@@ -21,6 +21,10 @@
     "request_id": {
       "type": "string"
     },
+    "extensions": {
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "$ref": "#/$defs/Extensions"
+    },
     "spec": {
       "pattern": "^agent-hooks/\\d+\\.\\d+$",
       "type": "string"
@@ -169,10 +173,6 @@
           "type": "number"
         }
       }
-    },
-    "extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "$ref": "#/$defs/Extensions"
     }
   },
   "required": [

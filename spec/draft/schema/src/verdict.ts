@@ -2,6 +2,8 @@
 
 // verdict.schema.json: the interceptor return value (§5).
 
+import { Extensions } from "./common";
+
 /** The three decisions (§5). */
 export enum Decision {
   Allow = "allow",
@@ -72,6 +74,8 @@ export interface VerdictBase {
    */
   warnings?: Warning[] | null;
   evidence?: Evidence;
+  /** Opaque namespaced transport metadata; it never changes enforcement (§5.5). */
+  extensions?: Extensions;
   /**
    * Interceptor-supplied labels the host MUST persist with the produced data and
    * resurface on later interception points (§5.4).

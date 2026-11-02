@@ -56,26 +56,28 @@ export interface OutputHookTransform {
   output: OutputRequest["output"];
 }
 
-/** Response choices shared by hooks that support transforms. */
+/** Hook-specific verdict choices with optional transport metadata. */
 export type HooksResponse<TTransform> = Verdict<TTransform>;
 
 /**
- * Bare agent_startup response: transforms are forbidden.
+ * agent_startup response: transforms are forbidden.
  * @example [allow.json](../examples/AgentStartupHookResponse/allow.json)
  * @example [deny.json](../examples/AgentStartupHookResponse/deny.json)
+ * @example [allow-with-extensions.json](../examples/AgentStartupHookResponse/allow-with-extensions.json)
  */
 export type AgentStartupHookResponse = NonTransformVerdict;
 
 /**
- * Bare input response.
+ * input response.
  * @example [allow.json](../examples/InputHookResponse/allow.json)
  * @example [deny.json](../examples/InputHookResponse/deny.json)
  * @example [transform.json](../examples/InputHookResponse/transform.json)
+ * @example [deny-with-extensions.json](../examples/InputHookResponse/deny-with-extensions.json)
  */
 export type InputHookResponse = HooksResponse<InputHookTransform>;
 
 /**
- * Bare pre_model_call response.
+ * pre_model_call response.
  * @example [allow.json](../examples/PreModelHookResponse/allow.json)
  * @example [deny.json](../examples/PreModelHookResponse/deny.json)
  * @example [transform.json](../examples/PreModelHookResponse/transform.json)
@@ -83,7 +85,7 @@ export type InputHookResponse = HooksResponse<InputHookTransform>;
 export type PreModelHookResponse = HooksResponse<PreModelHookTransform>;
 
 /**
- * Bare post_model_call response.
+ * post_model_call response.
  * @example [allow.json](../examples/PostModelHookResponse/allow.json)
  * @example [deny.json](../examples/PostModelHookResponse/deny.json)
  * @example [transform.json](../examples/PostModelHookResponse/transform.json)
@@ -91,15 +93,16 @@ export type PreModelHookResponse = HooksResponse<PreModelHookTransform>;
 export type PostModelHookResponse = HooksResponse<PostModelHookTransform>;
 
 /**
- * Bare pre_tool_call response.
+ * pre_tool_call response.
  * @example [allow.json](../examples/PreToolHookResponse/allow.json)
  * @example [deny.json](../examples/PreToolHookResponse/deny.json)
  * @example [transform.json](../examples/PreToolHookResponse/transform.json)
+ * @example [transform-with-extensions.json](../examples/PreToolHookResponse/transform-with-extensions.json)
  */
 export type PreToolHookResponse = HooksResponse<PreToolHookTransform>;
 
 /**
- * Bare post_tool_call response.
+ * post_tool_call response.
  * @example [allow.json](../examples/PostToolHookResponse/allow.json)
  * @example [deny.json](../examples/PostToolHookResponse/deny.json)
  * @example [transform.json](../examples/PostToolHookResponse/transform.json)
@@ -107,7 +110,7 @@ export type PreToolHookResponse = HooksResponse<PreToolHookTransform>;
 export type PostToolHookResponse = HooksResponse<PostToolHookTransform>;
 
 /**
- * Bare output response.
+ * output response.
  * @example [allow.json](../examples/OutputHookResponse/allow.json)
  * @example [deny.json](../examples/OutputHookResponse/deny.json)
  * @example [transform.json](../examples/OutputHookResponse/transform.json)
@@ -115,7 +118,7 @@ export type PostToolHookResponse = HooksResponse<PostToolHookTransform>;
 export type OutputHookResponse = HooksResponse<OutputHookTransform>;
 
 /**
- * Bare agent_shutdown response: transforms are forbidden.
+ * agent_shutdown response: transforms are forbidden.
  * @example [allow.json](../examples/AgentShutdownHookResponse/allow.json)
  * @example [deny.json](../examples/AgentShutdownHookResponse/deny.json)
  */

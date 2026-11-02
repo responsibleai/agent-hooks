@@ -126,7 +126,7 @@ export enum ActorKind {
 }
 
 /**
- * Shared metadata present at every point, plus namespaced extensions.
+ * Shared metadata present at every point.
  */
 interface ContextMetadata {
   /** @pattern ^agent-hooks/\d+\.\d+$ */
@@ -185,12 +185,11 @@ interface ContextMetadata {
     /** @TJS-type number */
     cost_usd?: number;
   };
-  extensions?: Extensions;
 }
 
 export interface HooksRequest extends ContextMetadata {
   interception_point: InterceptionPoint;
-  [extension: string]: unknown;
+  extensions?: Extensions;
 }
 
 /**

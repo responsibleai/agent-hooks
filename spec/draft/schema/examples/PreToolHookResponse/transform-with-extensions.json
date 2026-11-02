@@ -1,0 +1,14 @@
+{
+  "decision": "transform",
+  "reason": "bounded_tool_args",
+  "transform": {
+    "args": {
+      "limit": 20
+    }
+  },
+  "extensions": {
+    "example_policy": {
+      "receipt": "policy-check-003"
+    }
+  }
+}

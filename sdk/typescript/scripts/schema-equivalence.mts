@@ -262,28 +262,17 @@ function handWritten(): void {
     { decision: "deny", reason: "host_error:x" },
     { decision: "allow", warnings: [{ reason: "host_warning:x" }] },
     { decision: "allow", evidence: { artefact: null } },
+    { decision: "allow", extensions: { policy: { receipt: "r" } } },
+    { decision: "deny", extensions: { policy: {} }, approval: {} },
+    { decision: "transform", transform: { path: "$target" }, extensions: { policy: {} } },
+    { decision: "allow", extensions: { "Bad-Key": true } },
   );
   seed(
     "response",
+    { decision: "allow", extensions: { policy: {} } },
+    { decision: "transform", transform: { args: { limit: 20 } }, extensions: { policy: {} } },
     { verdict: { decision: "allow" } },
-    { verdict: { decision: "allow" }, extensions: { prov: { receipt: "r" } } },
-    { verdict: { decision: "allow" }, extensions: { "Bad-Key": 1 } },
-    { verdict: { decision: "allow" }, extra: 1 },
     { decision: "allow", verdict: { decision: "allow" } },
-    { verdict: { decision: "transform" } },
-    { verdict: { decision: "transform", transform: { input: { content: "x", role: "user" } } } },
-    { verdict: { decision: "transform", transform: { messages: [{ role: "user", content: "x" }] } } },
-    {
-      verdict: {
-        decision: "transform",
-        transform: { response: { content: "x", tool_calls: [], finish_reason: "stop" } },
-      },
-    },
-    { verdict: { decision: "transform", transform: { args: { limit: 20 } } } },
-    { verdict: { decision: "transform", transform: { value: "x" } } },
-    { verdict: { decision: "transform", transform: { output: { content: "x" } } } },
-    { verdict: { decision: "transform", transform: { path: "$target" } } },
-    { verdict: { decision: "transform", transform: { args: { limit: 20 } } }, extensions: { policy: {} } },
   );
   seed(
     "resolution",
@@ -632,21 +621,28 @@ const RESPONSE_SCHEMA_NAMES: Record<string, string> = {
   agent_shutdown: "agent-shutdown",
 };
 const HOOK_RESPONSE_TARGETS: Target[] = POINTS.map((point) => ({
-  name: `${point} interceptor-response`,
-  file: `${RESPONSE_SCHEMA_NAMES[point]}-interceptor-response.schema.json`,
+  name: `${point} hook-response`,
+  file: `${RESPONSE_SCHEMA_NAMES[point]}-hook-response.schema.json`,
   shape: "response",
   pointer: "",
 }));
 
 function targetsFor(oldSet: SchemaSet, newSet: SchemaSet): Target[] {
-  const hookTypedFile = HOOK_RESPONSE_TARGETS[0].file;
-  const oldHookTyped = oldSet.has(hookTypedFile);
-  const newHookTyped = newSet.has(hookTypedFile);
-  if (oldHookTyped !== newHookTyped) {
-    throw new Error("cannot compare legacy and hook-typed interceptor-response schema layouts");
+  const hookResponseTargets = HOOK_RESPONSE_TARGETS.filter((target) => {
+    const oldHas = oldSet.has(target.file);
+    const newHas = newSet.has(target.file);
+    if (oldHas !== newHas) {
+      throw new Error(`cannot compare schema sets with different hook-response layouts (${target.file})`);
+    }
+    return oldHas;
+  });
+  const oldHasLegacy = oldSet.has(LEGACY_RESPONSE_TARGET.file);
+  const newHasLegacy = newSet.has(LEGACY_RESPONSE_TARGET.file);
+  if (oldHasLegacy !== newHasLegacy) {
+    throw new Error("cannot compare legacy interceptor-response schema against the flat hook-response layout");
   }
-  const responseTargets = oldHookTyped ? HOOK_RESPONSE_TARGETS : [LEGACY_RESPONSE_TARGET];
-  return [...BASE_TARGETS, ...responseTargets];
+  const responseTargets = oldHasLegacy ? [LEGACY_RESPONSE_TARGET] : [];
+  return [...BASE_TARGETS, ...responseTargets, ...hookResponseTargets];
 }
 
 function pointerSchema(set: SchemaSet, file: string, pointer: string): Obj {

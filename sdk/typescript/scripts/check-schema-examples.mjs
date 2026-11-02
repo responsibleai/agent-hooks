@@ -15,6 +15,7 @@ export const releaseSchemaRoot = fileURLToPath(
 export const schemaMapping = {
   AgentContext: "agent-context.schema.json",
   Verdict: "verdict.schema.json",
+  InterceptorResponse: "interceptor-response.schema.json#/$defs/ResponseEnvelope",
   ApprovalRequest: "approval.schema.json#/$defs/request",
   ApprovalResolution: "approval.schema.json#/$defs/resolution",
   HostDeclaration10: "host-declaration-1.0.schema.json",
@@ -29,20 +30,15 @@ export const schemaMapping = {
   OutputHookResponse: "output-hook-response.schema.json",
   AgentShutdownHookResponse: "agent-shutdown-hook-response.schema.json",
 };
-const interceptorResponseExamples = {
-  "agent-startup-allow-envelope.json": "agent-startup-interceptor-response.schema.json",
-  "input-deny-envelope.json": "input-interceptor-response.schema.json",
-  "pre-tool-transform-envelope.json": "pre-tool-interceptor-response.schema.json",
-};
-const interceptorResponseSchemas = [
-  "agent-startup-interceptor-response.schema.json",
-  "input-interceptor-response.schema.json",
-  "pre-model-interceptor-response.schema.json",
-  "post-model-interceptor-response.schema.json",
-  "pre-tool-interceptor-response.schema.json",
-  "post-tool-interceptor-response.schema.json",
-  "output-interceptor-response.schema.json",
-  "agent-shutdown-interceptor-response.schema.json",
+const hookResponseSchemas = [
+  "agent-startup-hook-response.schema.json",
+  "input-hook-response.schema.json",
+  "pre-model-hook-response.schema.json",
+  "post-model-hook-response.schema.json",
+  "pre-tool-hook-response.schema.json",
+  "post-tool-hook-response.schema.json",
+  "output-hook-response.schema.json",
+  "agent-shutdown-hook-response.schema.json",
 ];
 
 async function jsonFiles(directory) {
@@ -101,9 +97,7 @@ export async function validateExamples(root = schemaRoot) {
     if (parts.length !== 2) {
       throw new Error(`${filename}: no schema mapping for example`);
     }
-    const reference = parts[0] === "InterceptorResponse"
-      ? interceptorResponseExamples[parts[1]]
-      : schemaMapping[parts[0]];
+    const reference = schemaMapping[parts[0]];
     if (!reference) throw new Error(`${filename}: no schema mapping for example`);
     const instance = await readJson(filename);
     validate(instance, filename, reference);
@@ -111,7 +105,7 @@ export async function validateExamples(root = schemaRoot) {
       validate(instance, filename, `strict-contexts/${instance.interception_point}.schema.json`);
     }
   }
-  function assertResponseProbe(schemaFile, instance, expected, label) {
+  function assertSchemaProbe(schemaFile, instance, expected, label) {
     const schema = schemas.get(schemaFile);
     if (!schema) throw new Error(`missing local schema ${schemaFile}`);
     const validator = ajv.getSchema(schema.$id);
@@ -123,43 +117,84 @@ export async function validateExamples(root = schemaRoot) {
       );
     }
   }
-  for (const schemaFile of interceptorResponseSchemas) {
-    assertResponseProbe(schemaFile, { decision: "allow" }, true, "bare allow");
-    assertResponseProbe(schemaFile, { verdict: { decision: "allow" } }, true, "enveloped allow");
-    assertResponseProbe(
-      schemaFile,
-      { verdict: { decision: "allow" }, extra: true },
-      false,
-      "closed envelope",
+  const hasHookResponseSchemas = hookResponseSchemas.every((schemaFile) => schemas.has(schemaFile));
+  if (hasHookResponseSchemas) {
+    for (const schemaFile of hookResponseSchemas) {
+      assertSchemaProbe(schemaFile, { decision: "allow" }, true, "bare allow");
+      assertSchemaProbe(
+        schemaFile,
+        { decision: "allow", extensions: { policy: { receipt: "r" } } },
+        true,
+        "flat allow with extensions",
+      );
+      assertSchemaProbe(
+        schemaFile,
+        { verdict: { decision: "allow" }, extra: true },
+        false,
+        "obsolete envelope",
+      );
+      assertSchemaProbe(
+        schemaFile,
+        { decision: "allow", extensions: { "Bad-Key": true } },
+        false,
+        "invalid extensions namespace",
+      );
+      assertSchemaProbe(
+        schemaFile,
+        { decision: "allow", unrecognized: true },
+        false,
+        "closed verdict",
+      );
+    }
+    assertSchemaProbe(
+      "pre-tool-hook-response.schema.json",
+      { decision: "transform", transform: { args: { limit: 20 } }, extensions: { policy: {} } },
+      true,
+      "pre-tool transform",
     );
-    assertResponseProbe(
-      schemaFile,
-      { verdict: { decision: "allow" }, extensions: { "Bad-Key": true } },
+    assertSchemaProbe(
+      "input-hook-response.schema.json",
+      { decision: "transform", transform: { args: { limit: 20 } } },
       false,
-      "invalid extensions namespace",
+      "wrong-hook pre-tool transform",
     );
-  }
-  assertResponseProbe(
-    "pre-tool-interceptor-response.schema.json",
-    { verdict: { decision: "transform", transform: { args: { limit: 20 } } } },
-    true,
-    "pre-tool transform",
-  );
-  assertResponseProbe(
-    "input-interceptor-response.schema.json",
-    { verdict: { decision: "transform", transform: { args: { limit: 20 } } } },
-    false,
-    "wrong-hook pre-tool transform",
-  );
-  for (const schemaFile of [
-    "agent-startup-interceptor-response.schema.json",
-    "agent-shutdown-interceptor-response.schema.json",
-  ]) {
-    assertResponseProbe(
-      schemaFile,
-      { verdict: { decision: "transform", transform: { args: { limit: 20 } } } },
+    for (const schemaFile of [
+      "agent-startup-hook-response.schema.json",
+      "agent-shutdown-hook-response.schema.json",
+    ]) {
+      assertSchemaProbe(
+        schemaFile,
+        { decision: "transform", transform: { args: { limit: 20 } } },
+        false,
+        "lifecycle transform",
+      );
+    }
+    const request = {
+      spec: "agent-hooks/0.1",
+      timestamp: "2026-01-01T00:00:00Z",
+      sequence: 0,
+      agent: { id: "a", framework: "test" },
+      session: { id: "s" },
+      interception_point: "pre_tool_call",
+      tool_call: { id: "c", name: "tool", args: {} },
+    };
+    assertSchemaProbe(
+      "agent-context.schema.json",
+      { ...request, extensions: { policy: { receipt: "r" } } },
+      true,
+      "request extensions",
+    );
+    assertSchemaProbe(
+      "agent-context.schema.json",
+      { ...request, extensions: { "Bad-Key": true } },
       false,
-      "lifecycle transform",
+      "invalid request extensions namespace",
+    );
+    assertSchemaProbe(
+      "agent-context.schema.json",
+      { ...request, harness_metadata: { private: true } },
+      true,
+      "open request root",
     );
   }
   return files.length;

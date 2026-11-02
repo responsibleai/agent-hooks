@@ -217,6 +217,10 @@
         "agent_init": {
           "$ref": "#/$defs/AgentInit"
         },
+        "extensions": {
+          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+          "$ref": "#/$defs/Extensions"
+        },
         "spec": {
           "pattern": "^agent-hooks/\\d+\\.\\d+$",
           "type": "string"
@@ -374,10 +378,6 @@
               "type": "number"
             }
           }
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
         }
       },
       "required": [
@@ -404,6 +404,14 @@
       "required": [
         "tools_registered"
       ]
+    },
+    "Extensions": {
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "type": "object",
+      "additionalProperties": {}
     },
     "Input": {
       "description": "Conditional payload of input (§4.2).",
@@ -627,14 +635,6 @@
         "cancelled"
       ]
     },
-    "Extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "propertyNames": {
-        "pattern": "^[a-z][a-z0-9_]*$"
-      },
-      "type": "object",
-      "additionalProperties": {}
-    },
     "InputRequest": {
       "description": "The request at input: input is required (§4.2).",
       "type": "object",
@@ -645,6 +645,10 @@
         },
         "input": {
           "$ref": "#/$defs/Input"
+        },
+        "extensions": {
+          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+          "$ref": "#/$defs/Extensions"
         },
         "spec": {
           "pattern": "^agent-hooks/\\d+\\.\\d+$",
@@ -803,10 +807,6 @@
               "type": "number"
             }
           }
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
         }
       },
       "required": [
@@ -838,6 +838,10 @@
         },
         "request_id": {
           "type": "string"
+        },
+        "extensions": {
+          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+          "$ref": "#/$defs/Extensions"
         },
         "spec": {
           "pattern": "^agent-hooks/\\d+\\.\\d+$",
@@ -987,10 +991,6 @@
               "type": "number"
             }
           }
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
         }
       },
       "required": [
@@ -1025,6 +1025,10 @@
           "description": "Token usage of a model call (§4.3).",
           "$ref": "#/$defs/Usage"
         },
+        "extensions": {
+          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+          "$ref": "#/$defs/Extensions"
+        },
         "spec": {
           "pattern": "^agent-hooks/\\d+\\.\\d+$",
           "type": "string"
@@ -1171,10 +1175,6 @@
               "type": "number"
             }
           }
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
         }
       },
       "required": [
@@ -1198,6 +1198,10 @@
         },
         "tool_call": {
           "$ref": "#/$defs/ToolCall"
+        },
+        "extensions": {
+          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+          "$ref": "#/$defs/Extensions"
         },
         "spec": {
           "pattern": "^agent-hooks/\\d+\\.\\d+$",
@@ -1356,10 +1360,6 @@
               "type": "number"
             }
           }
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
         }
       },
       "required": [
@@ -1386,6 +1386,10 @@
         "tool_result": {
           "$ref": "#/$defs/ToolResult"
         },
+        "extensions": {
+          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+          "$ref": "#/$defs/Extensions"
+        },
         "spec": {
           "pattern": "^agent-hooks/\\d+\\.\\d+$",
           "type": "string"
@@ -1539,10 +1543,6 @@
               "type": "number"
             }
           }
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
         }
       },
       "required": [
@@ -1567,6 +1567,10 @@
         "output": {
           "$ref": "#/$defs/Output"
         },
+        "extensions": {
+          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+          "$ref": "#/$defs/Extensions"
+        },
         "spec": {
           "pattern": "^agent-hooks/\\d+\\.\\d+$",
           "type": "string"
@@ -1724,10 +1728,6 @@
               "type": "number"
             }
           }
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
         }
       },
       "required": [
@@ -1750,6 +1750,10 @@
         },
         "summary": {
           "$ref": "#/$defs/Summary"
+        },
+        "extensions": {
+          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+          "$ref": "#/$defs/Extensions"
         },
         "spec": {
           "pattern": "^agent-hooks/\\d+\\.\\d+$",
@@ -1908,10 +1912,6 @@
               "type": "number"
             }
           }
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
         }
       },
       "required": [
@@ -1965,6 +1965,10 @@
         "evidence": {
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
+        },
+        "extensions": {
+          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
+          "$ref": "#/$defs/Extensions"
         },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
@@ -2097,6 +2101,10 @@
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
         },
+        "extensions": {
+          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
+          "$ref": "#/$defs/Extensions"
+        },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
           "anyOf": [
@@ -2160,6 +2168,10 @@
         "evidence": {
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
+        },
+        "extensions": {
+          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
+          "$ref": "#/$defs/Extensions"
         },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",

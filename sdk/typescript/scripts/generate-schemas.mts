@@ -89,54 +89,6 @@ function allowFractionalJsonNumbers(schema: Schema): void {
 const ROOTS: Root[] = [
   { file: "interception-point.schema.json", source: "interception-point.ts", type: "InterceptionPoint" },
   { file: "verdict.schema.json", source: "verdict.ts", type: "Verdict" },
-  {
-    file: "agent-startup-interceptor-response.schema.json",
-    source: "interceptor-response.ts",
-    type: "AgentStartupInterceptorResponse",
-    title: "Agent Hooks — agent_startup interceptor response",
-  },
-  {
-    file: "input-interceptor-response.schema.json",
-    source: "interceptor-response.ts",
-    type: "InputInterceptorResponse",
-    title: "Agent Hooks — input interceptor response",
-  },
-  {
-    file: "pre-model-interceptor-response.schema.json",
-    source: "interceptor-response.ts",
-    type: "PreModelInterceptorResponse",
-    title: "Agent Hooks — pre_model_call interceptor response",
-  },
-  {
-    file: "post-model-interceptor-response.schema.json",
-    source: "interceptor-response.ts",
-    type: "PostModelInterceptorResponse",
-    title: "Agent Hooks — post_model_call interceptor response",
-  },
-  {
-    file: "pre-tool-interceptor-response.schema.json",
-    source: "interceptor-response.ts",
-    type: "PreToolInterceptorResponse",
-    title: "Agent Hooks — pre_tool_call interceptor response",
-  },
-  {
-    file: "post-tool-interceptor-response.schema.json",
-    source: "interceptor-response.ts",
-    type: "PostToolInterceptorResponse",
-    title: "Agent Hooks — post_tool_call interceptor response",
-  },
-  {
-    file: "output-interceptor-response.schema.json",
-    source: "interceptor-response.ts",
-    type: "OutputInterceptorResponse",
-    title: "Agent Hooks — output interceptor response",
-  },
-  {
-    file: "agent-shutdown-interceptor-response.schema.json",
-    source: "interceptor-response.ts",
-    type: "AgentShutdownInterceptorResponse",
-    title: "Agent Hooks — agent_shutdown interceptor response",
-  },
   { file: "agent-context.schema.json", source: "agent-context.ts", type: "AgentContext" },
   {
     file: "agent-startup-hook-response.schema.json",
@@ -249,7 +201,6 @@ function generateRoot(root: Root): Schema {
   // allow/deny shapes while leaving their roots open.
   if (
     (root.type === "Verdict" ||
-      root.source === "interceptor-response.ts" ||
       root.file === "approval.schema.json") &&
     schema.$defs &&
     typeof schema.$defs === "object"
