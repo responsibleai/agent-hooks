@@ -60,35 +60,29 @@ test("all draft examples validate", async () => {
   assert.ok(await validateExamples() > 0);
 });
 
-test("the released bundle has matching, byte-identical copies and validates independently", async () => {
-  const draftExamples = path.join(schemaRoot, "examples");
-  const releaseExamples = path.join(releaseSchemaRoot, "examples");
-  async function files(directory) {
-    const result = [];
-    async function collect(current) {
-      for (const entry of await readdir(current, { withFileTypes: true })) {
-        const filename = path.join(current, entry.name);
-        if (entry.isDirectory()) await collect(filename);
-        else if (entry.isFile() && entry.name.endsWith(".json")) result.push(filename);
-      }
-    }
-    await collect(directory);
-    return result.sort();
-  }
-  const draftFiles = await files(draftExamples);
-  const releaseFiles = await files(releaseExamples);
-  assert.equal(draftFiles.length, 38);
-  assert.equal(releaseFiles.length, draftFiles.length);
-  for (let index = 0; index < draftFiles.length; index += 1) {
-    const relative = path.relative(draftExamples, draftFiles[index]);
-    assert.equal(path.relative(releaseExamples, releaseFiles[index]), relative);
-    assert.deepEqual(
-      await readFile(draftFiles[index]),
-      await readFile(releaseFiles[index]),
-      relative,
-    );
-  }
-  assert.equal(await validateExamples(releaseSchemaRoot), draftFiles.length);
+test("released examples validate independently", async () => {
+  assert.ok(await validateExamples(releaseSchemaRoot) > 0);
+});
+
+test("draft-only example additions and edits do not affect release validation", async (t) => {
+  const root = await fixture(t);
+  const draftExample = path.join(root, "examples/Verdict/allow.json");
+  const releaseExample = path.join(releaseSchemaRoot, "examples/Verdict/allow.json");
+  const releaseContents = await readFile(releaseExample);
+  const draft = JSON.parse(await readFile(draftExample, "utf8"));
+  draft.message = "Updated draft-only example";
+  await writeFile(draftExample, JSON.stringify(draft));
+  await write(root, "examples/Verdict/draft-only.json", { decision: "allow" });
+
+  assert.ok(await validateExamples(root) > 0);
+  assert.ok(await validateExamples(releaseSchemaRoot) > 0);
+  assert.deepEqual(await readFile(releaseExample), releaseContents);
+});
+
+test("invalid draft-only examples still fail validation", async (t) => {
+  const root = await fixture(t);
+  await write(root, "examples/Verdict/draft-only.json", { decision: "invalid" });
+  await assert.rejects(validateExamples(root), /draft-only.json.*verdict.schema.json/);
 });
 
 test("context targets equal their hook payloads, including optional-feature variants", async () => {
