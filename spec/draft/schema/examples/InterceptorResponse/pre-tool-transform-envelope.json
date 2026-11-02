@@ -1,10 +1,11 @@
 {
   "verdict": {
     "decision": "transform",
-    "reason": "public_sources_only",
+    "reason": "bounded_tool_args",
     "transform": {
-      "path": "$target.collection",
-      "value": "public"
+      "args": {
+        "limit": 20
+      }
     }
   },
   "extensions": {

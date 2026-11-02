@@ -271,6 +271,19 @@ function handWritten(): void {
     { verdict: { decision: "allow" }, extra: 1 },
     { decision: "allow", verdict: { decision: "allow" } },
     { verdict: { decision: "transform" } },
+    { verdict: { decision: "transform", transform: { input: { content: "x", role: "user" } } } },
+    { verdict: { decision: "transform", transform: { messages: [{ role: "user", content: "x" }] } } },
+    {
+      verdict: {
+        decision: "transform",
+        transform: { response: { content: "x", tool_calls: [], finish_reason: "stop" } },
+      },
+    },
+    { verdict: { decision: "transform", transform: { args: { limit: 20 } } } },
+    { verdict: { decision: "transform", transform: { value: "x" } } },
+    { verdict: { decision: "transform", transform: { output: { content: "x" } } } },
+    { verdict: { decision: "transform", transform: { path: "$target" } } },
+    { verdict: { decision: "transform", transform: { args: { limit: 20 } } }, extensions: { policy: {} } },
   );
   seed(
     "resolution",
@@ -590,10 +603,9 @@ interface Target {
   pointer: string;
 }
 
-const TARGETS: Target[] = [
+const BASE_TARGETS: Target[] = [
   { name: "interception-point", file: "interception-point.schema.json", shape: "point", pointer: "" },
   { name: "verdict", file: "verdict.schema.json", shape: "verdict", pointer: "" },
-  { name: "interceptor-response", file: "interceptor-response.schema.json", shape: "response", pointer: "" },
   { name: "approval request", file: "approval.schema.json", shape: "request", pointer: "#/$defs/request" },
   { name: "approval resolution", file: "approval.schema.json", shape: "resolution", pointer: "#/$defs/resolution" },
   { name: "agent-context", file: "agent-context.schema.json", shape: "context", pointer: "" },
@@ -602,6 +614,40 @@ const TARGETS: Target[] = [
   { name: "host-declaration-1.0", file: "host-declaration-1.0.schema.json", shape: "declaration", pointer: "" },
   { name: "host-declaration-1.1", file: "host-declaration-1.1.schema.json", shape: "declaration", pointer: "" },
 ];
+
+const LEGACY_RESPONSE_TARGET: Target = {
+  name: "interceptor-response",
+  file: "interceptor-response.schema.json",
+  shape: "response",
+  pointer: "",
+};
+const RESPONSE_SCHEMA_NAMES: Record<string, string> = {
+  agent_startup: "agent-startup",
+  input: "input",
+  pre_model_call: "pre-model",
+  post_model_call: "post-model",
+  pre_tool_call: "pre-tool",
+  post_tool_call: "post-tool",
+  output: "output",
+  agent_shutdown: "agent-shutdown",
+};
+const HOOK_RESPONSE_TARGETS: Target[] = POINTS.map((point) => ({
+  name: `${point} interceptor-response`,
+  file: `${RESPONSE_SCHEMA_NAMES[point]}-interceptor-response.schema.json`,
+  shape: "response",
+  pointer: "",
+}));
+
+function targetsFor(oldSet: SchemaSet, newSet: SchemaSet): Target[] {
+  const hookTypedFile = HOOK_RESPONSE_TARGETS[0].file;
+  const oldHookTyped = oldSet.has(hookTypedFile);
+  const newHookTyped = newSet.has(hookTypedFile);
+  if (oldHookTyped !== newHookTyped) {
+    throw new Error("cannot compare legacy and hook-typed interceptor-response schema layouts");
+  }
+  const responseTargets = oldHookTyped ? HOOK_RESPONSE_TARGETS : [LEGACY_RESPONSE_TARGET];
+  return [...BASE_TARGETS, ...responseTargets];
+}
 
 function pointerSchema(set: SchemaSet, file: string, pointer: string): Obj {
   let node: Json = set.get(file)!;
@@ -690,9 +736,10 @@ function diff(a: Json, b: Json, path: string, out: string[]): void {
 function main(): number {
   const oldSet = loadSet(OLD!);
   const newSet = loadSet(NEW);
+  const targets = targetsFor(oldSet, newSet);
   if (STRUCTURAL) {
     let total = 0;
-    for (const t of TARGETS) {
+    for (const t of targets) {
       const a = normalize(oldSet, t.file, pointerSchema(oldSet, t.file, t.pointer));
       const b = normalize(newSet, t.file, pointerSchema(newSet, t.file, t.pointer));
       const lines: string[] = [];
@@ -715,7 +762,7 @@ function main(): number {
   let totalDisagreements = 0;
   const examples: string[] = [];
   console.log("target                        instances  valid(old)  valid(new)  disagree");
-  for (const t of TARGETS) {
+  for (const t of targets) {
     const validateOld = oldAjv.getSchema(ID_BASE + t.file + t.pointer);
     const validateNew = newAjv.getSchema(ID_BASE + t.file + t.pointer);
     if (!validateOld || !validateNew) throw new Error(`${t.name}: validator missing at ${t.pointer || "the root"}`);
@@ -752,7 +799,7 @@ function main(): number {
       `${t.name.padEnd(29)} ${String(corpus.size).padStart(9)}  ${String(validOld).padStart(10)}  ${String(validNew).padStart(10)}  ${String(disagree).padStart(8)}`,
     );
   }
-  console.log(`total: ${totalInstances} instances across ${TARGETS.length} targets, ${totalDisagreements} disagreements (seed ${SEED}, ${RANDOM} random mutants per seed)`);
+  console.log(`total: ${totalInstances} instances across ${targets.length} targets, ${totalDisagreements} disagreements (seed ${SEED}, ${RANDOM} random mutants per seed)`);
   for (const e of examples) console.log(`  ${e}`);
   return totalDisagreements ? 1 : 0;
 }
