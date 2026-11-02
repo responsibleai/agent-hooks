@@ -85,8 +85,28 @@ above), the host declaration contract version
 `SUPPORTED_DECLARATION_VERSIONS` next to `SPEC_VERSION`; each other
 SDK exports the same two constants once it gains the loader.
 [spec/0.1.0/DECLARATION-VERSIONS.md](spec/0.1.0/DECLARATION-VERSIONS.md) maps
-contract versions to schema files and SDK releases to the contract
-versions they accept.
+contract versions to schema files; the table below maps SDK releases
+to the contract versions they accept.
+
+## SDK releases and the declaration versions they accept
+
+| SDK release | Accepts | Current |
+| --- | --- | --- |
+| `v0.1.0-beta.2` (2026-10-13) | `agent-hooks-declaration/1.0` | `agent-hooks-declaration/1.0` |
+| `v0.1.0-beta.4` | `agent-hooks-declaration/1.0`, `agent-hooks-declaration/1.1` | `agent-hooks-declaration/1.1` |
+
+`v0.1.0-beta.2` is the first tag that accepts a host declaration;
+`v0.1.0-beta.1` and earlier accept none. Add a row for every tag that
+changes the accepted set or the current version
+([RELEASING.md](RELEASING.md), step 1).
+`scripts/check-version-consistency.py` fails when no row here accepts
+the current `DECLARATION_VERSION`.
+
+This table lives outside the specification bundles: a release row is
+written when a tag is cut, which is after the bundle it ships against
+was frozen, and released bundles are immutable. The 0.1.0 bundle still
+carries the rows up to `v0.1.0-beta.4` as a historical record; the
+draft bundle points here.
 
 A conformance claim is the tuple
 `(<framework>, <adapter-version>, agent-hooks/<spec-version>, <capabilities>, <profiles>, <identity-provider>, <sdk-lang>@<sdk-version>)`

@@ -60,8 +60,9 @@ def read_versions() -> dict[str, str]:
 
 def check_declaration_versions() -> int:
     """The host declaration contract version (spec section 7.7.2): the
-    Rust constant must have a row in both tables of
-    spec/0.1.0/DECLARATION-VERSIONS.md, and the supported set must list it."""
+    Rust constant must be the current row of the contract table in the
+    draft bundle's DECLARATION-VERSIONS.md, some SDK release row in
+    VERSIONING.md must accept it, and the supported set must list it."""
     types_rs = (ROOT / "sdk/rust/core/src/types.rs").read_text(encoding="utf-8")
     m = re.search(r'pub const DECLARATION_VERSION: &str = "([^"]+)"', types_rs)
     assert m, "no DECLARATION_VERSION in sdk/rust/core/src/types.rs"
@@ -73,24 +74,24 @@ def check_declaration_versions() -> int:
     if "DECLARATION_VERSION" not in m.group(1) and f'"{current}"' not in m.group(1):
         print(f"::error::SUPPORTED_DECLARATION_VERSIONS does not list {current}")
         return 1
-    table = (ROOT / "spec/0.1.0/DECLARATION-VERSIONS.md").read_text(encoding="utf-8")
-    rows = [
-        line
-        for line in table.splitlines()
-        if line.startswith("|") and f"`{current}`" in line
-    ]
-    if not any("current" in r for r in rows):
-        print(
-            f"::error::spec/0.1.0/DECLARATION-VERSIONS.md has no current row for {current}"
-        )
+    contract_table = "spec/draft/DECLARATION-VERSIONS.md"
+    release_table = "VERSIONING.md"
+
+    def rows(path: str) -> list[str]:
+        return [
+            line
+            for line in (ROOT / path).read_text(encoding="utf-8").splitlines()
+            if line.startswith("|") and f"`{current}`" in line
+        ]
+
+    if not any("current" in r for r in rows(contract_table)):
+        print(f"::error::{contract_table} has no current row for {current}")
         return 1
     # An SDK release row starts with a backticked tag such as
     # `v0.1.0-beta.2`; the contract-version table never does.
     release_row = re.compile(r"^\|\s*`v\d+\.\d+\.\d+[^`]*`")
-    if not any(release_row.match(r) for r in rows):
-        print(
-            f"::error::spec/0.1.0/DECLARATION-VERSIONS.md has no SDK release row accepting {current}"
-        )
+    if not any(release_row.match(r) for r in rows(release_table)):
+        print(f"::error::{release_table} has no SDK release row accepting {current}")
         return 1
     schema = (
         ROOT
