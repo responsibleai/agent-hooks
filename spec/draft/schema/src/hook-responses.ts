@@ -3,6 +3,8 @@
 // Hook response aliases specialize the shared verdict's transform payload.
 
 import {
+  AgentShutdownRequest,
+  AgentStartupRequest,
   InputRequest,
   OutputRequest,
   PostModelCallRequest,
@@ -118,3 +120,15 @@ export type OutputHookResponse = HooksResponse<OutputHookTransform>;
  * @example [deny.json](../examples/AgentShutdownHookResponse/deny.json)
  */
 export type AgentShutdownHookResponse = NonTransformVerdict;
+
+/** Synchronous handler for one hook request and its response contract. */
+export type HookHandler<TRequest, TResponse> = (request: TRequest) => TResponse;
+
+export type AgentStartupHookHandler = HookHandler<AgentStartupRequest, AgentStartupHookResponse>;
+export type InputHookHandler = HookHandler<InputRequest, InputHookResponse>;
+export type PreModelHookHandler = HookHandler<PreModelCallRequest, PreModelHookResponse>;
+export type PostModelHookHandler = HookHandler<PostModelCallRequest, PostModelHookResponse>;
+export type PreToolHookHandler = HookHandler<PreToolCallRequest, PreToolHookResponse>;
+export type PostToolHookHandler = HookHandler<PostToolCallRequest, PostToolHookResponse>;
+export type OutputHookHandler = HookHandler<OutputRequest, OutputHookResponse>;
+export type AgentShutdownHookHandler = HookHandler<AgentShutdownRequest, AgentShutdownHookResponse>;
