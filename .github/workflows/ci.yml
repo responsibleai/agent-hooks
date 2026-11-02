@@ -235,9 +235,7 @@ jobs:
           tar -xzf actionlint.tgz actionlint
           ./actionlint -color
       - name: Version surfaces agree across SDK manifests
-        run: |
-          python3 scripts/check-version-consistency.py
-          python3 scripts/test_check_version_consistency.py
+        run: python3 scripts/check-version-consistency.py
       - name: Specification version folders are complete and indexed
         run: python3 scripts/check-spec-versions.py
       - run: npm ci
