@@ -239,7 +239,7 @@ function collectRefs(node: Json, into: Set<string>): void {
   }
 }
 
-/** 5: the closed per-point variants, derived from the master's union members. */
+/** 5: per-point variants, derived from the master's union members. */
 function perPointSchemas(master: Schema): Map<string, Schema> {
   const defs = master.$defs as Record<string, Schema>;
   const variants = (master.anyOf as { $ref: string }[]).map((m) => defs[refName(m.$ref)]);
@@ -268,12 +268,11 @@ function perPointSchemas(master: Schema): Map<string, Schema> {
         $schema: DRAFT_2020_12,
         title: `Agent Hooks — agent context (${point})`,
         description:
-          `Closed required+conditional schema for interception_point=${point} ` +
+          `Required+conditional schema for interception_point=${point} ` +
           "(AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
         type: variant.type,
         properties: variant.properties,
         required: variant.required,
-        additionalProperties: false,
         $defs: copy,
       }),
     );

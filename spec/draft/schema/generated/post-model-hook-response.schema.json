@@ -17,7 +17,6 @@
   "$defs": {
     "HookAllowVerdict": {
       "description": "Common allow response for every hook.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -124,7 +123,6 @@
     },
     "HookDenyVerdict": {
       "description": "Common deny response for every hook.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -190,7 +188,6 @@
     },
     "PostModelTransformVerdict": {
       "description": "Typed post-model transform verdict.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -255,7 +252,6 @@
     },
     "PostModelHookTransform": {
       "description": "Replaces the complete model response payload.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "response": {
@@ -268,12 +264,9 @@
     },
     "Response": {
       "description": "Conditional payload of post_model_call (§4.2).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
-        "content": {
-          "$ref": "#/$defs/JsonValue"
-        },
+        "content": {},
         "tool_calls": {
           "type": "array",
           "items": {
@@ -290,45 +283,20 @@
         "tool_calls"
       ]
     },
-    "JsonValue": {
-      "description": "JSON data carried by hook payloads.",
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/JsonValue"
-          }
-        },
-        {
-          "$ref": "#/$defs/JsonObject"
-        },
-        {
-          "type": [
-            "null",
-            "string",
-            "number",
-            "boolean"
-          ]
-        }
-      ]
-    },
-    "JsonObject": {
-      "description": "A JSON object with arbitrary JSON-valued members.",
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "#/$defs/JsonValue"
-      }
-    },
     "ToolCallRequest": {
       "description": "One tool call the model asked for (§4.2).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
+        "id": {
+          "type": "string"
+        },
         "name": {
           "type": "string"
         },
         "args": {
-          "$ref": "#/$defs/JsonObject"
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
         }
       },
       "required": [

@@ -5,17 +5,16 @@
 
 import {
   Input,
-  JsonObject,
-  JsonValue,
   Message,
   Output,
   Response,
+  ToolCall,
+  ToolResult,
 } from "./agent-context";
 import { Decision, VerdictBase } from "./verdict";
 
 /**
  * Common allow response for every hook.
- * @additionalProperties false
  */
 export interface HookAllowVerdict extends VerdictBase {
   decision: Decision.Allow;
@@ -23,7 +22,6 @@ export interface HookAllowVerdict extends VerdictBase {
 
 /**
  * Common deny response for every hook.
- * @additionalProperties false
  */
 export interface HookDenyVerdict extends VerdictBase {
   decision: Decision.Deny;
@@ -32,7 +30,6 @@ export interface HookDenyVerdict extends VerdictBase {
 
 /**
  * Replaces the complete input payload.
- * @additionalProperties false
  */
 export interface InputHookTransform {
   input: Input;
@@ -40,7 +37,6 @@ export interface InputHookTransform {
 
 /**
  * Replaces the complete model-message array.
- * @additionalProperties false
  */
 export interface PreModelHookTransform {
   messages: Message[];
@@ -48,7 +44,6 @@ export interface PreModelHookTransform {
 
 /**
  * Replaces the complete model response payload.
- * @additionalProperties false
  */
 export interface PostModelHookTransform {
   response: Response;
@@ -56,23 +51,20 @@ export interface PostModelHookTransform {
 
 /**
  * Replaces the complete tool args for the pre-tool hook.
- * @additionalProperties false
  */
 export interface PreToolHookTransform {
-  args: JsonObject;
+  args: ToolCall["args"];
 }
 
 /**
  * Replaces only the value of the tool result.
- * @additionalProperties false
  */
 export interface PostToolHookTransform {
-  value: JsonValue;
+  value: ToolResult["value"];
 }
 
 /**
  * Replaces the complete output payload.
- * @additionalProperties false
  */
 export interface OutputHookTransform {
   output: Output;
@@ -80,7 +72,6 @@ export interface OutputHookTransform {
 
 /**
  * Typed input transform verdict.
- * @additionalProperties false
  */
 export interface InputTransformVerdict extends VerdictBase {
   decision: Decision.Transform;
@@ -89,7 +80,6 @@ export interface InputTransformVerdict extends VerdictBase {
 
 /**
  * Typed pre-model transform verdict.
- * @additionalProperties false
  */
 export interface PreModelTransformVerdict extends VerdictBase {
   decision: Decision.Transform;
@@ -98,7 +88,6 @@ export interface PreModelTransformVerdict extends VerdictBase {
 
 /**
  * Typed post-model transform verdict.
- * @additionalProperties false
  */
 export interface PostModelTransformVerdict extends VerdictBase {
   decision: Decision.Transform;
@@ -107,7 +96,6 @@ export interface PostModelTransformVerdict extends VerdictBase {
 
 /**
  * Typed pre-tool transform verdict.
- * @additionalProperties false
  */
 export interface PreToolTransformVerdict extends VerdictBase {
   decision: Decision.Transform;
@@ -116,7 +104,6 @@ export interface PreToolTransformVerdict extends VerdictBase {
 
 /**
  * Typed post-tool transform verdict.
- * @additionalProperties false
  */
 export interface PostToolTransformVerdict extends VerdictBase {
   decision: Decision.Transform;
@@ -125,7 +112,6 @@ export interface PostToolTransformVerdict extends VerdictBase {
 
 /**
  * Typed output transform verdict.
- * @additionalProperties false
  */
 export interface OutputTransformVerdict extends VerdictBase {
   decision: Decision.Transform;

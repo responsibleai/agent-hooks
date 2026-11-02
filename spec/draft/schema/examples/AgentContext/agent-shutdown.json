@@ -11,6 +11,9 @@
     "id": "policy-search-001"
   },
   "summary": {
-    "reason": "completed"
+    "reason": "completed",
+    "tool_calls": 1,
+    "errors": 0,
+    "duration_seconds": 7
   }
 }

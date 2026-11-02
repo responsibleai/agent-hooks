@@ -14,7 +14,6 @@
   "$defs": {
     "HookAllowVerdict": {
       "description": "Common allow response for every hook.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -121,7 +120,6 @@
     },
     "HookDenyVerdict": {
       "description": "Common deny response for every hook.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {

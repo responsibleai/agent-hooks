@@ -17,7 +17,6 @@
   "$defs": {
     "HookAllowVerdict": {
       "description": "Common allow response for every hook.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -124,7 +123,6 @@
     },
     "HookDenyVerdict": {
       "description": "Common deny response for every hook.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -190,7 +188,6 @@
     },
     "InputTransformVerdict": {
       "description": "Typed input transform verdict.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -255,7 +252,6 @@
     },
     "InputHookTransform": {
       "description": "Replaces the complete input payload.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "input": {
@@ -268,12 +264,9 @@
     },
     "Input": {
       "description": "Conditional payload of input (§4.2).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
-        "content": {
-          "$ref": "#/$defs/JsonValue"
-        },
+        "content": {},
         "role": {
           "$ref": "#/$defs/InputRole"
         }
@@ -282,35 +275,6 @@
         "content",
         "role"
       ]
-    },
-    "JsonValue": {
-      "description": "JSON data carried by hook payloads.",
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/JsonValue"
-          }
-        },
-        {
-          "$ref": "#/$defs/JsonObject"
-        },
-        {
-          "type": [
-            "null",
-            "string",
-            "number",
-            "boolean"
-          ]
-        }
-      ]
-    },
-    "JsonObject": {
-      "description": "A JSON object with arbitrary JSON-valued members.",
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "#/$defs/JsonValue"
-      }
     },
     "InputRole": {
       "description": "Who produced an input (§4.2).",

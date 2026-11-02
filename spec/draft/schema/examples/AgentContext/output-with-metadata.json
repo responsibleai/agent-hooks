@@ -13,6 +13,24 @@
   "output": {
     "content": "Public documents are retained for 30 days."
   },
+  "trace": {
+    "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "span_id": "00f067aa0ba902b7"
+  },
+  "tenant": {
+    "id": "contoso-research",
+    "name": "Contoso Research"
+  },
+  "actor": {
+    "id": "user-42",
+    "kind": "human"
+  },
+  "budgets": {
+    "tool_call_count": 1,
+    "token_count": 42,
+    "elapsed_seconds": 6.8,
+    "cost_usd": 0.002
+  },
   "extensions": {
     "example_policy": {
       "classification": "public"

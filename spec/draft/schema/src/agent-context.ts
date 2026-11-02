@@ -24,27 +24,30 @@ export interface JsonObject {
 
 /**
  * Shared metadata present at every interception point.
- * @additionalProperties false
  */
 export interface AgentMetadata {
   /** @minLength 1 */
   id: string;
   /** @pattern ^[a-z0-9_-]+$ */
   framework: string;
+  name?: string;
+  version?: string;
 }
 
 /**
  * Shared session identity present at every interception point.
- * @additionalProperties false
  */
 export interface SessionMetadata {
   /** @minLength 1 */
   id: string;
+  /** @format date-time */
+  started_at?: string;
+  /** @minimum 0 */
+  turn?: number;
 }
 
 /**
  * Conditional payload of agent_startup (§4.2).
- * @additionalProperties false
  */
 export interface AgentInit {
   tools_registered: string[];
@@ -59,76 +62,93 @@ export enum InputRole {
 
 /**
  * Conditional payload of input (§4.2).
- * @additionalProperties false
  */
 export interface Input {
-  content: JsonValue;
+  content: unknown;
   role: InputRole;
 }
 
 /**
  * Conditional payload of pre_model_call and post_model_call (§4.2).
- * @additionalProperties false
  */
 export interface Model {
   id: string;
+  vendor?: string;
+  params?: object;
 }
 
 /**
  * One message of the model request (§4.2).
- * @additionalProperties false
  */
 export interface Message {
   role: string;
-  content: JsonValue;
+  content: unknown;
 }
 
 /**
  * One tool call the model asked for (§4.2).
- * @additionalProperties false
  */
 export interface ToolCallRequest {
+  id?: string;
   name: string;
-  args: JsonObject;
+  args: object;
 }
 
 /**
  * Conditional payload of post_model_call (§4.2).
- * @additionalProperties false
  */
 export interface Response {
-  content: JsonValue;
+  content: unknown;
   tool_calls: ToolCallRequest[];
   finish_reason: string;
 }
 
 /**
  * Conditional payload of pre_tool_call and post_tool_call (§4.2).
- * @additionalProperties false
  */
 export interface ToolCall {
   /** @minLength 1 */
   id: string;
   /** @minLength 1 */
   name: string;
-  args: JsonObject;
+  args: object;
+  /** @pattern ^sha256:[0-9a-f]{64}$ */
+  content_hash?: string;
 }
 
 /**
  * Conditional payload of post_tool_call (§4.2).
- * @additionalProperties false
  */
 export interface ToolResult {
-  value: JsonValue;
+  value: unknown;
   is_error: boolean;
+  /**
+   * @TJS-type number
+   * @minimum 0
+   */
+  duration_ms?: number;
+}
+
+/** Token usage of a model call (§4.3). */
+export interface Usage {
+  /** @minimum 0 */
+  prompt_tokens?: number;
+  /** @minimum 0 */
+  completion_tokens?: number;
+}
+
+/** One declared tool (§4.3). */
+export interface ToolDecl {
+  name: string;
+  description?: string;
+  schema?: object;
 }
 
 /**
  * Conditional payload of output (§4.2).
- * @additionalProperties false
  */
 export interface Output {
-  content: JsonValue;
+  content: unknown;
 }
 
 /** Why the agent stopped (§4.2). */
@@ -140,15 +160,30 @@ export enum SummaryReason {
 
 /**
  * Conditional payload of agent_shutdown (§4.2).
- * @additionalProperties false
  */
 export interface Summary {
   reason: SummaryReason;
+  /** @minimum 0 */
+  tool_calls?: number;
+  /** @minimum 0 */
+  errors?: number;
+  /**
+   * @TJS-type number
+   * @minimum 0
+   */
+  duration_seconds?: number;
+}
+
+/** Who acts (§4.5). */
+export enum ActorKind {
+  Human = "human",
+  Service = "service",
+  Agent = "agent",
 }
 
 /**
- * Members common to every hook-specific context. Optional provider data
- * remains namespaced under extensions; all other omitted members are absent.
+ * Members present at every point and optional context metadata/payloads. Each
+ * hook variant fixes its discriminator and requires its own hook payload.
  */
 interface ContextBase {
   /** @pattern ^agent-hooks/\d+\.\d+$ */
@@ -159,12 +194,45 @@ interface ContextBase {
   sequence: number;
   agent: AgentMetadata;
   session: SessionMetadata;
+  agent_init?: AgentInit;
+  input?: Input;
+  model?: Model;
+  messages?: Message[];
+  request_id?: string;
+  response?: Response;
+  usage?: Usage;
+  tool_call?: ToolCall;
+  tool_result?: ToolResult;
+  tools?: ToolDecl[];
+  output?: Output;
+  summary?: Summary;
+  trace?: {
+    trace_id?: string;
+    span_id?: string;
+  };
+  tenant?: {
+    id?: string;
+    name?: string;
+  };
+  actor?: {
+    id?: string;
+    kind?: ActorKind;
+  };
+  budgets?: {
+    /** @TJS-type number */
+    tool_call_count?: number;
+    /** @TJS-type number */
+    token_count?: number;
+    /** @TJS-type number */
+    elapsed_seconds?: number;
+    /** @TJS-type number */
+    cost_usd?: number;
+  };
   extensions?: Extensions;
 }
 
 /**
  * The context at agent_startup: agent_init is required (§4.2).
- * @additionalProperties false
  * @example [agent-startup.json](../examples/AgentContext/agent-startup.json)
  */
 export interface AgentStartupContext extends ContextBase {
@@ -174,7 +242,6 @@ export interface AgentStartupContext extends ContextBase {
 
 /**
  * The context at input: input is required (§4.2).
- * @additionalProperties false
  * @example [input.json](../examples/AgentContext/input.json)
  */
 export interface InputContext extends ContextBase {
@@ -184,9 +251,8 @@ export interface InputContext extends ContextBase {
 
 /**
  * The context at pre_model_call: model and messages are required (§4.2).
- * @additionalProperties false
  * @example [pre-model-call.json](../examples/AgentContext/pre-model-call.json)
- * @example [pre-model-call-with-extensions.json](../examples/AgentContext/pre-model-call-with-extensions.json)
+ * @example [pre-model-call-with-tools.json](../examples/AgentContext/pre-model-call-with-tools.json)
  */
 export interface PreModelCallContext extends ContextBase {
   interception_point: InterceptionPoint.PreModelCall;
@@ -196,9 +262,8 @@ export interface PreModelCallContext extends ContextBase {
 
 /**
  * The context at post_model_call: model and response are required (§4.2).
- * @additionalProperties false
  * @example [post-model-call.json](../examples/AgentContext/post-model-call.json)
- * @example [post-model-call-with-extensions.json](../examples/AgentContext/post-model-call-with-extensions.json)
+ * @example [post-model-call-with-usage.json](../examples/AgentContext/post-model-call-with-usage.json)
  */
 export interface PostModelCallContext extends ContextBase {
   interception_point: InterceptionPoint.PostModelCall;
@@ -208,7 +273,6 @@ export interface PostModelCallContext extends ContextBase {
 
 /**
  * The context at pre_tool_call: tool_call is required (§4.2).
- * @additionalProperties false
  * @example [pre-tool-call.json](../examples/AgentContext/pre-tool-call.json)
  */
 export interface PreToolCallContext extends ContextBase {
@@ -218,7 +282,6 @@ export interface PreToolCallContext extends ContextBase {
 
 /**
  * The context at post_tool_call: tool_call and tool_result are required (§4.2).
- * @additionalProperties false
  * @example [post-tool-call.json](../examples/AgentContext/post-tool-call.json)
  */
 export interface PostToolCallContext extends ContextBase {
@@ -229,9 +292,8 @@ export interface PostToolCallContext extends ContextBase {
 
 /**
  * The context at output: output is required (§4.2).
- * @additionalProperties false
  * @example [output.json](../examples/AgentContext/output.json)
- * @example [output-with-extensions.json](../examples/AgentContext/output-with-extensions.json)
+ * @example [output-with-metadata.json](../examples/AgentContext/output-with-metadata.json)
  */
 export interface OutputContext extends ContextBase {
   interception_point: InterceptionPoint.Output;
@@ -240,7 +302,6 @@ export interface OutputContext extends ContextBase {
 
 /**
  * The context at agent_shutdown: summary is required (§4.2).
- * @additionalProperties false
  * @example [agent-shutdown.json](../examples/AgentContext/agent-shutdown.json)
  */
 export interface AgentShutdownContext extends ContextBase {
@@ -250,8 +311,8 @@ export interface AgentShutdownContext extends ContextBase {
 
 /**
  * Payload a host constructs at each interception point (AGENT-HOOKS-0.1 §4).
- * Each variant has only shared required metadata, its discriminator, its
- * required hook payload, and the optional namespaced extensions object.
+ * Each variant requires its discriminator and hook payload, while preserving
+ * the existing shared metadata, optional known members, and extensions.
  * @title Agent Hooks — agent context
  */
 export type AgentContext =

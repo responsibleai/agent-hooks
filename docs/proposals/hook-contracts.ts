@@ -2,8 +2,8 @@
 
 // Initial design sketch, not a normative schema or production SDK API.
 // Sources: spec/schema/generated/strict-contexts/*.schema.json.
-// Required-only hook payloads: no optional payload members, interception_point,
-// or target. Verdict metadata preserves the existing optional response fields.
+// Required hook payloads plus the existing optional context members; target is
+// omitted intentionally. Verdict metadata preserves optional response fields.
 // Self-contained so this file can move without changing imports.
 
 export type JsonValue =
@@ -17,12 +17,13 @@ export type JsonValue =
 export type JsonObject = { [key: string]: JsonValue };
 
 /**
- * Required metadata only; optional schema members are omitted recursively.
+ * Shared metadata envelope. Existing optional agent/session metadata remains
+ * optional and retains its draft-schema types.
  * TypeScript does not enforce the scalar constraints below, exact object keys,
  * or JSON serializability. Validate data at the wire boundary.
  * Hook interfaces are erased at runtime: hook-bound dispatch retains identity.
- * The typed request keeps shared metadata flat and separate from hook payload
- * fields; a wire adapter supplies interception_point and target.
+ * The request declares interception_point and keeps shared metadata and hook
+ * payloads flat; it does not declare a target member.
  */
 export interface AgentContext {
   /** @pattern ^agent-hooks/\d+\.\d+$ */
@@ -39,20 +40,133 @@ export interface AgentContext {
     id: string;
     /** @pattern ^[a-z0-9_-]+$ */
     framework: string;
+    name?: string;
+    version?: string;
   };
   session: {
     /** @minLength 1 */
     id: string;
+    /** @format date-time */
+    started_at?: string;
+    /** @minimum 0 */
+    turn?: number;
   };
 }
 
 /**
- * Generic extension-friendly request envelope. Shared AgentContext metadata
- * and each hook's required payload properties are all top-level.
+ * Generic request envelope. Existing known optional context members remain
+ * optional at every hook, matching the existing draft schema.
  */
 export interface HooksRequest extends AgentContext {
   interception_point: HookInterceptionPoint;
+  agent_init?: AgentInit;
+  input?: Input;
+  model?: Model;
+  messages?: Message[];
+  request_id?: string;
+  response?: ModelResponse;
+  usage?: Usage;
+  tool_call?: ToolCall;
+  tool_result?: ToolResult;
+  tools?: ToolDecl[];
+  output?: Output;
+  summary?: Summary;
+  trace?: {
+    trace_id?: string;
+    span_id?: string;
+  };
+  tenant?: {
+    id?: string;
+    name?: string;
+  };
+  actor?: {
+    id?: string;
+    kind?: "human" | "service" | "agent";
+  };
+  budgets?: {
+    tool_call_count?: number;
+    token_count?: number;
+    elapsed_seconds?: number;
+    cost_usd?: number;
+  };
+  extensions?: JsonObject;
   [extension: string]: unknown;
+}
+
+export interface AgentInit {
+  tools_registered: string[];
+}
+
+export interface Input {
+  content: unknown;
+  role: "user" | "system" | "external";
+}
+
+export interface Model {
+  id: string;
+  vendor?: string;
+  params?: object;
+}
+
+export interface Message {
+  role: string;
+  content: unknown;
+}
+
+export interface ToolCallRequest {
+  id?: string;
+  name: string;
+  args: object;
+}
+
+export interface ModelResponse {
+  content: unknown;
+  tool_calls: ToolCallRequest[];
+  finish_reason: string;
+}
+
+export interface ToolCall {
+  /** @minLength 1 */
+  id: string;
+  /** @minLength 1 */
+  name: string;
+  args: object;
+  /** @pattern ^sha256:[0-9a-f]{64}$ */
+  content_hash?: string;
+}
+
+export interface ToolResult {
+  value: unknown;
+  is_error: boolean;
+  /** @minimum 0 */
+  duration_ms?: number;
+}
+
+export interface Usage {
+  /** @minimum 0 */
+  prompt_tokens?: number;
+  /** @minimum 0 */
+  completion_tokens?: number;
+}
+
+export interface ToolDecl {
+  name: string;
+  description?: string;
+  schema?: object;
+}
+
+export interface Output {
+  content: unknown;
+}
+
+export interface Summary {
+  reason: "completed" | "error" | "cancelled";
+  /** @minimum 0 */
+  tool_calls?: number;
+  /** @minimum 0 */
+  errors?: number;
+  /** @minimum 0 */
+  duration_seconds?: number;
 }
 
 export type HookInterceptionPoint =
@@ -106,9 +220,7 @@ export type HooksResponse<TTransform> = Verdict<TTransform>;
 // ---------------------------------------------------------------------------
 export interface AgentStartupHookRequest extends HooksRequest {
   interception_point: "agent_startup";
-  agent_init: {
-    tools_registered: string[];
-  };
+  agent_init: AgentInit;
 }
 
 export type AgentStartupHookResponse = NonTransformVerdict;
@@ -118,10 +230,7 @@ export type AgentStartupHookResponse = NonTransformVerdict;
 // ---------------------------------------------------------------------------
 export interface InputHookRequest extends HooksRequest {
   interception_point: "input";
-  input: {
-    content: JsonValue;
-    role: "user" | "system" | "external";
-  };
+  input: Input;
 }
 
 /** Replaces the complete input payload. */
@@ -136,13 +245,8 @@ export type InputHookResponse = HooksResponse<InputHookTransform>;
 // ---------------------------------------------------------------------------
 export interface PreModelHookRequest extends HooksRequest {
   interception_point: "pre_model_call";
-  model: {
-    id: string;
-  };
-  messages: {
-    role: string;
-    content: JsonValue;
-  }[];
+  model: Model;
+  messages: Message[];
 }
 
 /** Replaces the complete model-message array. */
@@ -157,18 +261,8 @@ export type PreModelHookResponse = HooksResponse<PreModelHookTransform>;
 // ---------------------------------------------------------------------------
 export interface PostModelHookRequest extends HooksRequest {
   interception_point: "post_model_call";
-  model: {
-    id: string;
-  };
-  response: {
-    content: JsonValue;
-    // Required even when empty; the schema's optional tool-call id is omitted.
-    tool_calls: {
-      name: string;
-      args: JsonObject;
-    }[];
-    finish_reason: string;
-  };
+  model: Model;
+  response: ModelResponse;
 }
 
 /** Replaces the complete model response payload. */
@@ -183,13 +277,7 @@ export type PostModelHookResponse = HooksResponse<PostModelHookTransform>;
 // ---------------------------------------------------------------------------
 export interface PreToolHookRequest extends HooksRequest {
   interception_point: "pre_tool_call";
-  tool_call: {
-    /** @minLength 1 */
-    id: string;
-    /** @minLength 1 */
-    name: string;
-    args: JsonObject;
-  };
+  tool_call: ToolCall;
 }
 
 /** Replaces the complete tool args for the pre-tool hook. */
@@ -204,17 +292,8 @@ export type PreToolHookResponse = HooksResponse<PreToolHookTransform>;
 // ---------------------------------------------------------------------------
 export interface PostToolHookRequest extends HooksRequest {
   interception_point: "post_tool_call";
-  tool_call: {
-    /** @minLength 1 */
-    id: string;
-    /** @minLength 1 */
-    name: string;
-    args: JsonObject;
-  };
-  tool_result: {
-    value: JsonValue;
-    is_error: boolean;
-  };
+  tool_call: ToolCall;
+  tool_result: ToolResult;
 }
 
 /** Replaces only the value of the tool result. */
@@ -229,9 +308,7 @@ export type PostToolHookResponse = HooksResponse<PostToolHookTransform>;
 // ---------------------------------------------------------------------------
 export interface OutputHookRequest extends HooksRequest {
   interception_point: "output";
-  output: {
-    content: JsonValue;
-  };
+  output: Output;
 }
 
 /** Replaces the complete output payload. */
@@ -246,9 +323,7 @@ export type OutputHookResponse = HooksResponse<OutputHookTransform>;
 // ---------------------------------------------------------------------------
 export interface AgentShutdownHookRequest extends HooksRequest {
   interception_point: "agent_shutdown";
-  summary: {
-    reason: "completed" | "error" | "cancelled";
-  };
+  summary: Summary;
 }
 
 export type AgentShutdownHookResponse = NonTransformVerdict;

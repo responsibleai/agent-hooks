@@ -17,7 +17,6 @@
   "$defs": {
     "HookAllowVerdict": {
       "description": "Common allow response for every hook.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -124,7 +123,6 @@
     },
     "HookDenyVerdict": {
       "description": "Common deny response for every hook.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -190,7 +188,6 @@
     },
     "OutputTransformVerdict": {
       "description": "Typed output transform verdict.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -255,7 +252,6 @@
     },
     "OutputHookTransform": {
       "description": "Replaces the complete output payload.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "output": {
@@ -268,45 +264,13 @@
     },
     "Output": {
       "description": "Conditional payload of output (§4.2).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
-        "content": {
-          "$ref": "#/$defs/JsonValue"
-        }
+        "content": {}
       },
       "required": [
         "content"
       ]
-    },
-    "JsonValue": {
-      "description": "JSON data carried by hook payloads.",
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/JsonValue"
-          }
-        },
-        {
-          "$ref": "#/$defs/JsonObject"
-        },
-        {
-          "type": [
-            "null",
-            "string",
-            "number",
-            "boolean"
-          ]
-        }
-      ]
-    },
-    "JsonObject": {
-      "description": "A JSON object with arbitrary JSON-valued members.",
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "#/$defs/JsonValue"
-      }
     }
   }
 }

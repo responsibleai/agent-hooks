@@ -137,18 +137,22 @@ constraint comments do not claim runtime validation.
 | Request interface | Required hook payload fields |
 | --- | --- | --- |
 | `AgentStartupHookRequest` | `agent_init: { tools_registered: string[] }` |
-| `InputHookRequest` | `input: { content: JsonValue, role: "user" \| "system" \| "external" }` |
-| `PreModelHookRequest` | `model: { id: string }`, `messages: { role: string, content: JsonValue }[]` |
-| `PostModelHookRequest` | `model: { id: string }`, `response: { content: JsonValue, tool_calls: { name: string, args: JsonObject }[], finish_reason: string }` |
-| `PreToolHookRequest` | `tool_call: { id: string, name: string, args: JsonObject }` |
-| `PostToolHookRequest` | `tool_call: { id: string, name: string, args: JsonObject }`, `tool_result: { value: JsonValue, is_error: boolean }` |
-| `OutputHookRequest` | `output: { content: JsonValue }` |
-| `AgentShutdownHookRequest` | `summary: { reason: "completed" \| "error" \| "cancelled" }` |
+| `InputHookRequest` | `input: { content: unknown, role: "user" \| "system" \| "external" }` |
+| `PreModelHookRequest` | `model: { id: string, vendor?: string, params?: object }`, `messages: { role: string, content: unknown }[]` |
+| `PostModelHookRequest` | `model: { id: string, vendor?: string, params?: object }`, `response: { content: unknown, tool_calls: { id?: string, name: string, args: object }[], finish_reason: string }` |
+| `PreToolHookRequest` | `tool_call: { id: string, name: string, args: object, content_hash?: string }` |
+| `PostToolHookRequest` | `tool_call: { id: string, name: string, args: object, content_hash?: string }`, `tool_result: { value: unknown, is_error: boolean, duration_ms?: number }` |
+| `OutputHookRequest` | `output: { content: unknown }` |
+| `AgentShutdownHookRequest` | `summary: { reason: "completed" \| "error" \| "cancelled", tool_calls?: number, errors?: number, duration_seconds?: number }` |
 
-`JsonValue` includes `null`: required content/value fields may be null,
-but may not be omitted. `response.tool_calls` remains required even when
-empty; its nested optional `id` is omitted, unlike the required nonempty
-`tool_call.id` at the two tool hooks. No new defaults are introduced.
+The schema source deliberately retains `unknown` content/result values and
+`object`-typed arguments/parameters where it already used those types; this
+draft does not tighten them to `JsonValue` or `JsonObject`. Required members
+remain required even when empty (for example `response.tool_calls`), while
+nested optional members such as `response.tool_calls[].id` remain optional.
+All known optional metadata and payload members from `ContextBase` are also
+retained at every hook; only the hook's own required payload is guaranteed by
+its request interface.
 
 These are type/interface-only API composition experiments, not runtime
 classes. The proposed request is flat like today's wire representation and
@@ -261,32 +265,24 @@ import type {
   Summary,
 } from "../../spec/schema/src/agent-context";
 
-type Json = null | boolean | number | string | Json[] | JsonObject;
-type JsonObject = { [key: string]: Json };
-
 type Envelope = Pick<
   SchemaContext,
   "spec" | "timestamp" | "sequence" | "agent" | "session"
 >;
 type CommonMetadata = Pick<
   SchemaContext,
-  "trace" | "tenant" | "actor" | "budgets"
-> & { extensions?: Record<string, Json> };
+  "trace" | "tenant" | "actor" | "budgets" | "extensions"
+>;
 
-type InputPayload = Omit<SchemaInput, "content"> & { content: Json };
-type Message = Omit<SchemaMessage, "content"> & { content: Json };
-type Model = Omit<SchemaModel, "params"> & { params?: JsonObject };
-type RequestedToolCall = Omit<SchemaToolCallRequest, "args"> & {
-  args: JsonObject;
-};
-type ModelResponse = Omit<SchemaResponse, "content" | "tool_calls"> & {
-  content: Json;
-  tool_calls: RequestedToolCall[];
-};
-type ToolCall = Omit<SchemaToolCall, "args"> & { args: JsonObject };
-type ToolResult = Omit<SchemaToolResult, "value"> & { value: Json };
-type ToolDecl = Omit<SchemaToolDecl, "schema"> & { schema?: JsonObject };
-type OutputPayload = Omit<SchemaOutput, "content"> & { content: Json };
+type InputPayload = SchemaInput;
+type Message = SchemaMessage;
+type Model = SchemaModel;
+type RequestedToolCall = SchemaToolCallRequest;
+type ModelResponse = SchemaResponse;
+type ToolCall = SchemaToolCall;
+type ToolResult = SchemaToolResult;
+type ToolDecl = SchemaToolDecl;
+type OutputPayload = SchemaOutput;
 
 type KnownPayloads = {
   agent_init: AgentInit;
@@ -356,7 +352,7 @@ type AgentShutdownContext = ContextByHook["agent_shutdown"];
 function inspect(context: HookContext): void {
   if (context.interception_point === "pre_tool_call") {
     const name: string = context.tool_call.name;
-    const args: JsonObject = context.target;
+    const args: object = context.target;
     void name;
     void args;
   }
@@ -433,11 +429,13 @@ behavior should be weakened by a typed facade.
 
 ### Schema and wire impact (when applicable)
 
-This draft changes **no schema files, wire members, inventories, or
-published schema URLs**. The common envelope and hook payloads remain
-flat in the proposed data contract; the type maps above do not introduce a
-nested `agentContext` or `payload` wrapper. The required-only artifact
-retains an explicit per-hook `interception_point` but omits duplicate
+The current schema-only implementation changes draft schema sources,
+generated draft schemas, and examples, but **no normative spec prose, SDK
+behavior, wire inventories, or published schema URLs**. The common envelope
+and hook payloads remain flat in the proposed data contract; the type maps
+above do not introduce a nested `agentContext` or `payload` wrapper. The
+type artifact retains existing optional known members and an explicit
+per-hook `interception_point`, but omits duplicate
 `target`; at the existing wire boundary an explicit adapter derives `target`
 from the hook's associated payload. Retaining or removing the discriminator
 can be decided based on transport needs.
@@ -508,9 +506,10 @@ Open decisions for reviewers:
    a validated target refinement? Which boundary establishes the latter?
 2. How should typed callbacks after a transform represent potentially
    shape-changing root replacements: revalidation or a distinct view?
-3. Keep all existing known optional fields at all hooks initially, or
-   deliberately restrict placement to spec section 4.5? What compatibility
-   evidence is needed before restriction?
+3. **Decision for this schema pass:** preserve all existing known optional
+   fields at every hook, including shared metadata and nested payload fields.
+   Any later restriction to section 4.5 placement requires a separate
+   compatibility decision.
 4. Should builders and wire parsers reject unequal target/payload pairs
    using deep JSON equality, or should only builders derive targets while
    parsers expose an unrefined wire type? No silent repair is proposed.
@@ -624,7 +623,7 @@ unchanged; static typing is not a new conformance tier.
 | Model response has no tool calls | Required `tool_calls: []` remains valid; omitted `tool_calls` is invalid. |
 | Model-requested tool call lacks optional `id` | Remains schema-valid; no new wire requirement inherited from the current builder signature. |
 | Default input role and default tool-result error flag | Existing named builder defaults (`user`, `false`) remain unless explicitly redesigned. |
-| Known optional fields and namespaced extensions | Preserved; restrictions require an explicit compatibility decision. |
+| Known optional fields and namespaced extensions | Preserved as in the existing schema; any later restriction is a separate compatibility decision. |
 | Same-shaped but unequal target/payload values | Not proven equal by types or existing schemas; selected validated refinement must reject, not repair. |
 | Root transform changes payload shape before another callback | Exercise both design candidates; do not expose the original refined type without validation. |
 | Sequential target transform | Next callback/action sees the effective target and corresponding write-back; post-tool arguments reflect execution. |

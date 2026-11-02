@@ -17,7 +17,6 @@
   "$defs": {
     "HookAllowVerdict": {
       "description": "Common allow response for every hook.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -124,7 +123,6 @@
     },
     "HookDenyVerdict": {
       "description": "Common deny response for every hook.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -190,7 +188,6 @@
     },
     "PreModelTransformVerdict": {
       "description": "Typed pre-model transform verdict.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -255,7 +252,6 @@
     },
     "PreModelHookTransform": {
       "description": "Replaces the complete model-message array.",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "messages": {
@@ -271,49 +267,17 @@
     },
     "Message": {
       "description": "One message of the model request (§4.2).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "role": {
           "type": "string"
         },
-        "content": {
-          "$ref": "#/$defs/JsonValue"
-        }
+        "content": {}
       },
       "required": [
         "content",
         "role"
       ]
-    },
-    "JsonValue": {
-      "description": "JSON data carried by hook payloads.",
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/JsonValue"
-          }
-        },
-        {
-          "$ref": "#/$defs/JsonObject"
-        },
-        {
-          "type": [
-            "null",
-            "string",
-            "number",
-            "boolean"
-          ]
-        }
-      ]
-    },
-    "JsonObject": {
-      "description": "A JSON object with arbitrary JSON-valued members.",
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "#/$defs/JsonValue"
-      }
     }
   }
 }
