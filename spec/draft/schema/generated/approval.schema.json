@@ -40,28 +40,28 @@
           "title": "Agent Hooks — agent context",
           "anyOf": [
             {
-              "$ref": "#/$defs/AgentStartupContext"
+              "$ref": "#/$defs/AgentStartupRequest"
             },
             {
-              "$ref": "#/$defs/InputContext"
+              "$ref": "#/$defs/InputRequest"
             },
             {
-              "$ref": "#/$defs/PreModelCallContext"
+              "$ref": "#/$defs/PreModelCallRequest"
             },
             {
-              "$ref": "#/$defs/PostModelCallContext"
+              "$ref": "#/$defs/PostModelCallRequest"
             },
             {
-              "$ref": "#/$defs/PreToolCallContext"
+              "$ref": "#/$defs/PreToolCallRequest"
             },
             {
-              "$ref": "#/$defs/PostToolCallContext"
+              "$ref": "#/$defs/PostToolCallRequest"
             },
             {
-              "$ref": "#/$defs/OutputContext"
+              "$ref": "#/$defs/OutputRequest"
             },
             {
-              "$ref": "#/$defs/AgentShutdownContext"
+              "$ref": "#/$defs/AgentShutdownRequest"
             }
           ]
         }
@@ -206,8 +206,8 @@
         "agent_shutdown"
       ]
     },
-    "AgentStartupContext": {
-      "description": "The context at agent_startup: agent_init is required (§4.2).",
+    "AgentStartupRequest": {
+      "description": "The request at agent_startup: agent_init is required (§4.2).",
       "type": "object",
       "properties": {
         "interception_point": {
@@ -310,8 +310,8 @@
       "type": "object",
       "additionalProperties": {}
     },
-    "InputContext": {
-      "description": "The context at input: input is required (§4.2).",
+    "InputRequest": {
+      "description": "The request at input: input is required (§4.2).",
       "type": "object",
       "properties": {
         "interception_point": {
@@ -414,8 +414,8 @@
         "external"
       ]
     },
-    "PreModelCallContext": {
-      "description": "The context at pre_model_call: model and messages are required (§4.2).",
+    "PreModelCallRequest": {
+      "description": "The request at pre_model_call: model and messages are required (§4.2).",
       "type": "object",
       "properties": {
         "interception_point": {
@@ -536,8 +536,8 @@
         "role"
       ]
     },
-    "PostModelCallContext": {
-      "description": "The context at post_model_call: model and response are required (§4.2).",
+    "PostModelCallRequest": {
+      "description": "The request at post_model_call: model and response are required (§4.2).",
       "type": "object",
       "properties": {
         "interception_point": {
@@ -663,8 +663,8 @@
         "name"
       ]
     },
-    "PreToolCallContext": {
-      "description": "The context at pre_tool_call: tool_call is required (§4.2).",
+    "PreToolCallRequest": {
+      "description": "The request at pre_tool_call: tool_call is required (§4.2).",
       "type": "object",
       "properties": {
         "interception_point": {
@@ -772,8 +772,8 @@
         "name"
       ]
     },
-    "PostToolCallContext": {
-      "description": "The context at post_tool_call: tool_call and tool_result are required (§4.2).",
+    "PostToolCallRequest": {
+      "description": "The request at post_tool_call: tool_call and tool_result are required (§4.2).",
       "type": "object",
       "properties": {
         "interception_point": {
@@ -875,8 +875,8 @@
         "value"
       ]
     },
-    "OutputContext": {
-      "description": "The context at output: output is required (§4.2).",
+    "OutputRequest": {
+      "description": "The request at output: output is required (§4.2).",
       "type": "object",
       "properties": {
         "interception_point": {
@@ -966,8 +966,8 @@
         "content"
       ]
     },
-    "AgentShutdownContext": {
-      "description": "The context at agent_shutdown: summary is required (§4.2).",
+    "AgentShutdownRequest": {
+      "description": "The request at agent_shutdown: summary is required (§4.2).",
       "type": "object",
       "properties": {
         "interception_point": {

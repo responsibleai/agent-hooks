@@ -4,12 +4,12 @@
 // generic path/value Verdict and the hosted InterceptorResponse envelope.
 
 import {
-  Input,
-  Message,
-  Output,
-  Response,
-  ToolCall,
-  ToolResult,
+  InputRequest,
+  OutputRequest,
+  PostModelCallRequest,
+  PostToolCallRequest,
+  PreModelCallRequest,
+  PreToolCallRequest,
 } from "./agent-context";
 import { Decision, VerdictBase } from "./verdict";
 
@@ -32,42 +32,42 @@ export interface HookDenyVerdict extends VerdictBase {
  * Replaces the complete input payload.
  */
 export interface InputHookTransform {
-  input: Input;
+  input: InputRequest["input"];
 }
 
 /**
  * Replaces the complete model-message array.
  */
 export interface PreModelHookTransform {
-  messages: Message[];
+  messages: PreModelCallRequest["messages"];
 }
 
 /**
  * Replaces the complete model response payload.
  */
 export interface PostModelHookTransform {
-  response: Response;
+  response: PostModelCallRequest["response"];
 }
 
 /**
  * Replaces the complete tool args for the pre-tool hook.
  */
 export interface PreToolHookTransform {
-  args: ToolCall["args"];
+  args: PreToolCallRequest["tool_call"]["args"];
 }
 
 /**
  * Replaces only the value of the tool result.
  */
 export interface PostToolHookTransform {
-  value: ToolResult["value"];
+  value: PostToolCallRequest["tool_result"]["value"];
 }
 
 /**
  * Replaces the complete output payload.
  */
 export interface OutputHookTransform {
-  output: Output;
+  output: OutputRequest["output"];
 }
 
 /**
