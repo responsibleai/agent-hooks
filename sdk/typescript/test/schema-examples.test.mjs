@@ -167,6 +167,36 @@ test("optional declarations, evidence and timeout record preserve runtime semant
   }]);
 });
 
+test("the draft streaming declaration lists both model points and binds at every point", async () => {
+  // Incremental mediation happens at post_model_call (spec §12.1), so a
+  // surface naming incremental_output needs the model points and
+  // model_calls; and a binding without `at` covers every surface point,
+  // so no point is left to deny as host_error:no_interceptor.
+  const streaming = JSON.parse(
+    await readFile(path.join(schemaRoot, "examples/HostDeclaration11/streaming-document-policy.json"), "utf8"),
+  );
+  const points = streaming.surface.interception_points;
+  assert.ok(points.includes("pre_model_call") && points.includes("post_model_call"));
+  assert.ok(streaming.surface.capabilities.includes("model_calls"));
+  assert.ok(streaming.surface.capabilities.includes("incremental_output"));
+  assert.equal(streaming.surface.buffered_output, false);
+  for (const binding of streaming.bindings) assert.equal(binding.at, undefined, binding.id);
+});
+
+test("draft interception records each hold their own position in a session", async () => {
+  // `sequence` is strictly increasing within a session (spec §4.1), so
+  // two records cannot share a (session_id, sequence) pair.
+  const directory = path.join(schemaRoot, "examples/InterceptionRecord");
+  const seen = new Map();
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) continue;
+    const record = JSON.parse(await readFile(path.join(directory, entry.name), "utf8"));
+    const key = `${record.session_id}#${record.sequence}`;
+    assert.equal(seen.get(key), undefined, `${entry.name} repeats ${key} of ${seen.get(key)}`);
+    seen.set(key, entry.name);
+  }
+});
+
 test("every draft example is referenced by the draft TypeScript schema source", async () => {
   // Draft only: a released bundle's source is frozen at the release and
   // carries no links to examples added after it.

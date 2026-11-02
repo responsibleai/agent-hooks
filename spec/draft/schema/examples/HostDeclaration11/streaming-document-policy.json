@@ -6,10 +6,12 @@
     "interception_points": [
       "agent_startup",
       "input",
+      "pre_model_call",
+      "post_model_call",
       "output",
       "agent_shutdown"
     ],
-    "capabilities": ["incremental_output", "host_declaration"],
+    "capabilities": ["model_calls", "incremental_output", "host_declaration"],
     "declaration_versions": ["agent-hooks-declaration/1.1"],
     "profiles": {
       "sequential/first_deny": {
@@ -22,8 +24,7 @@
   "bindings": [
     {
       "id": "document-policy",
-      "kind": "example.document_policy",
-      "at": ["output"]
+      "kind": "example.document_policy"
     }
   ]
 }

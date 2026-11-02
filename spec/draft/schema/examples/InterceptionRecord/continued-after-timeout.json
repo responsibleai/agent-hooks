@@ -13,9 +13,9 @@
   "input_identity": null,
   "enforced_identity": null,
   "identity_provider": null,
-  "session_id": "policy-search-001",
+  "session_id": "policy-search-002",
   "sequence": 4,
-  "timestamp": "2026-10-30T16:00:04Z",
+  "timestamp": "2026-10-30T16:05:04Z",
   "decided_by": null,
   "composition": {
     "profile": "sequential/first_deny",
