@@ -78,7 +78,7 @@ its own. [spec/README.md](spec/README.md) lists every version, and
 procedure for cutting one.
 SDK development tracks `spec/draft/`: the `drift` mirror copy, the
 Rust tests and the version script read the draft (named once as
-`SPEC_DEV_DIR` in the workflows and in the Rust crate), and the CI
+`SPEC_DEV_DIR` in the workflows and in the Rust tests), and the CI
 schema and vector checks cover every bundle, so a breaking draft change
 has somewhere to be implemented. A release tag names the specification
 version it ships against. Prose links cite the latest release.

@@ -3,20 +3,14 @@
 //! §7.7.6 registry consistency: the `declaration_error:*` codes the
 //! loader emits MUST be exactly the set enumerated in
 //! `declaration-errors.json` of the specification bundle the SDKs
-//! develop against (`agent_hooks::SPEC_DEV_DIR`), in pipeline order.
+//! develop against (`common::SPEC_DEV_DIR`), in pipeline order.
 //! The tripwire against silent drift in either direction, like
 //! `reserved_reasons.rs` for §11.
 
 use agent_hooks::DeclarationErrorClass;
 
-/// A file of the development specification bundle, read at test time.
-fn spec_file(name: &str) -> String {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../..")
-        .join(agent_hooks::SPEC_DEV_DIR)
-        .join(name);
-    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
-}
+mod common;
+use common::spec_file;
 
 #[test]
 fn declaration_error_classes_match_registry() {

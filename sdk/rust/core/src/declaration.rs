@@ -3269,6 +3269,11 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// Repository-relative path of the specification bundle SDK
+    /// development tracks (VERSIONING.md). `tests/common/mod.rs` and
+    /// the CI workflows (`SPEC_DEV_DIR`) carry the same value.
+    const SPEC_DEV_DIR: &str = "spec/draft";
+
     fn surface() -> HostSurface {
         let mut s = HostSurface::sdk_default()
             .with_points(ALL_POINTS)
@@ -4390,7 +4395,7 @@ mod tests {
         // Read from the bundle SDK development tracks (`SPEC_DEV_DIR`).
         let spec_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../..")
-            .join(crate::SPEC_DEV_DIR);
+            .join(SPEC_DEV_DIR);
         let schema: Value = serde_json::from_str(
             &std::fs::read_to_string(
                 spec_dir.join("schema/generated/interception-record.schema.json"),

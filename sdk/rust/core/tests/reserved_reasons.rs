@@ -3,21 +3,15 @@
 //! §11 registry consistency: the `host_error:*` strings the core emits
 //! MUST be exactly the set enumerated in `reserved-reasons.json` of the
 //! specification bundle the SDKs develop against
-//! (`agent_hooks::SPEC_DEV_DIR`). Guards the machine-readable registry
+//! (`common::SPEC_DEV_DIR`). Guards the machine-readable registry
 //! against silent drift in either direction (a variant added without
 //! registering it, or a registry entry with no emitting code).
 
 use agent_hooks::HostError;
 use std::collections::BTreeSet;
 
-/// A file of the development specification bundle, read at test time.
-fn spec_file(name: &str) -> String {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../..")
-        .join(agent_hooks::SPEC_DEV_DIR)
-        .join(name);
-    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
-}
+mod common;
+use common::spec_file;
 
 #[test]
 fn host_error_variants_match_reserved_reasons_registry() {

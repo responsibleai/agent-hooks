@@ -28,7 +28,7 @@
 - **SDK development tracks `spec/draft/`.** The machine consumers (the
   `drift` mirror copy, the Rust tests and
   `scripts/check-version-consistency.py`) read the draft, named once as
-  `SPEC_DEV_DIR` in the workflows and in the Rust crate, so a breaking
+  `SPEC_DEV_DIR` in the workflows and in the Rust tests, so a breaking
   draft change has somewhere to be implemented; CI steps that check
   schemas and vectors loop over every bundle. A release tag names the
   specification version it ships against. Prose links cite the latest
