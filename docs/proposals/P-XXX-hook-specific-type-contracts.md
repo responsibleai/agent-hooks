@@ -10,64 +10,40 @@ authority, and review window.
 
 ## Abstract
 
-**Initial draft for contract design, not an adopted specification.** Start
-with the eight existing per-interception-point generated schemas and make
-their implied contracts usable as hook-specific SDK types. Separate the
-common context envelope, the fields required at each hook, and the value
-that `target` represents. Use TypeScript sketches to review those
-relationships before deciding whether any specification wording, generated
-schema, or SDK behavior should change.
-
-The schema source already describes a discriminated union. The public
-TypeScript SDK instead exposes a broad `AgentContext` with indexed
-conditional fields, and its builder returns that broad type. Generated
-schemas require the right payload members but leave `target` unconstrained;
-the runtime emitter gate is not a full schema validator. These are distinct
-contracts, not interchangeable descriptions of current enforcement.
-
-This draft recommends discussing an additive typed facade over the
-existing wire shape first. It sketches all eight hooks, hook-aware
-interceptors and builders, and explicit validation boundaries. It does not
-change verdicts, enforcement, composition, approval, identity, declarations,
-or records. Target/payload consistency, post-transform typing, optional
-field placement, and migration policy remain open decisions.
+The Spec's broad `AgentContext` and interceptor contracts do not clearly
+express which fields are available at each hook, leaving developers to
+check and interpret payloads themselves. This proposal explores
+hook-specific types, grounded in the existing schemas, so builders and
+interceptors can expose the fields each hook requires and catch mistakes
+at compile time. The goal is clearer, safer contracts with minimal changes
+the wire format.
 
 ## The gap (Motivation)
 
-A host adapter knows which hook it is constructing, but a TypeScript
-interceptor cannot currently narrow the SDK's `AgentContext` into a
-statically guaranteed `tool_call`, `messages`, or `response` by inspecting
-`interception_point`. Conditional fields are indexed JSON values. Builder
-methods know the hook but erase that information in their return type.
+### Specification knowledge instead of explicit contracts
 
-There are three sources of evidence at the main-branch baseline
-`d0c6321`:
+The broad context contract leaves hook implementors to read the
+specification to determine which fields are required at each interception
+point, what `target` represents, and which assumptions are safe. Correctness
+depends on translating that prose into checks and conventions rather than
+implementing a well-defined hook contract. Hook-specific types would make
+those requirements explicit and let tooling catch missing fields and
+incorrect assumptions earlier.
 
-| Surface | Current contract |
-| --- | --- |
-| [Schema source](../../spec/schema/src/agent-context.ts) | Eight named context interfaces form a discriminated union. `ContextBase` retains other known payloads as optional members. Payload content is often `unknown`; object-valued members use `object`. |
-| [Generated master schema](../../spec/schema/generated/agent-context.schema.json) and [per-hook schemas](../../spec/schema/generated/strict-contexts/) | Hook discriminator and required payloads are explicit. `target: {}` accepts any JSON value and does not encode equality with the associated payload. |
-| [Public TypeScript types](../../sdk/typescript/src/index.ts), [builder](../../sdk/typescript/src/builder.ts), and [emitter](../../sdk/typescript/src/emitter.ts) | Broad indexed `AgentContext`; hook methods return that type. Builders populate target/payload pairs. Emission checks an envelope through Rust before dispatch, rather than validating against the entire per-hook JSON Schema. |
+### Keeping harness internals private
 
-The generator's [per-point post-pass](../../sdk/typescript/scripts/generate-schemas.mts)
-closes the directly required object payloads. Despite the description
-"closed required+conditional schema", the emitted per-point roots have no
-`additionalProperties: false`; unrelated known fields remain optional,
-and nested objects are not recursively closed. This draft does not
-reinterpret those schemas as exact, recursively closed context types.
-
-The [Rust runtime gate](../../sdk/rust/core/src/canonical.rs)
-checks core fields and conditional presence/required subfield presence;
-it does not establish full nested schema validity or target/payload
-equality. Rust's public context is a JSON map. These observations explain
-the gap; they are not a request to tighten production validation in this PR.
+Harnesses should be able to expose only the data needed by a hook without
+revealing their internal state or representation. A broad context with many
+optional fields blurs that boundary and leaves interceptor authors unsure
+which additional data they can rely on. A well-defined per-hook contract
+would give harnesses a clear minimum to supply, without requiring them to
+populate or pass unrelated optional data to every interceptor.
 
 ## Goals and non-goals (optional)
+Goals are to make the current eight-hook interceptors defined as explicit types.
 
-Goals are to make the current eight-hook inventory reviewable as types,
-preserve the existing flat wire envelope, expose required payloads through
-discriminator narrowing, and identify the runtime evidence needed before
-an SDK can safely promise a refined target type.
+Non-goals are redesigning specific hooks
+
 
 Non-goals are normative spec edits, schema regeneration or relocation,
 production SDK API changes, new hooks, framework-specific payload models,
