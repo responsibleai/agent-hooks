@@ -431,6 +431,9 @@
             "$ref": "#/$defs/Message"
           }
         },
+        "request_id": {
+          "type": "string"
+        },
         "spec": {
           "pattern": "^agent-hooks/\\d+\\.\\d+$",
           "type": "string"
@@ -550,6 +553,13 @@
         "response": {
           "$ref": "#/$defs/Response"
         },
+        "request_id": {
+          "type": "string"
+        },
+        "usage": {
+          "description": "Token usage of a model call (§4.3).",
+          "$ref": "#/$defs/Usage"
+        },
         "spec": {
           "pattern": "^agent-hooks/\\d+\\.\\d+$",
           "type": "string"
@@ -662,6 +672,20 @@
         "args",
         "name"
       ]
+    },
+    "Usage": {
+      "description": "Token usage of a model call (§4.3).",
+      "type": "object",
+      "properties": {
+        "prompt_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "completion_tokens": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      }
     },
     "PreToolCallRequest": {
       "description": "The request at pre_tool_call: tool_call is required (§4.2).",

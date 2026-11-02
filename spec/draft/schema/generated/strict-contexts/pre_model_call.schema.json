@@ -18,6 +18,9 @@
         "$ref": "#/$defs/Message"
       }
     },
+    "request_id": {
+      "type": "string"
+    },
     "spec": {
       "pattern": "^agent-hooks/\\d+\\.\\d+$",
       "type": "string"

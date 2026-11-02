@@ -186,17 +186,21 @@ export interface PreModelCallRequest extends HooksRequest {
   interception_point: InterceptionPoint.PreModelCall;
   model: Model;
   messages: Message[];
+  request_id?: string;
 }
 
 /**
  * The request at post_model_call: model and response are required (§4.2).
  * @example [post-model-call.json](../examples/AgentContext/post-model-call.json)
  * @example [post-model-call-with-optional-tool-call-id.json](../examples/AgentContext/post-model-call-with-optional-tool-call-id.json)
+ * @example [post-model-call-with-usage.json](../examples/AgentContext/post-model-call-with-usage.json)
  */
 export interface PostModelCallRequest extends HooksRequest {
   interception_point: InterceptionPoint.PostModelCall;
   model: Model;
   response: Response;
+  request_id?: string;
+  usage?: Usage;
 }
 
 /**
