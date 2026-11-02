@@ -18,6 +18,7 @@
     "content": "",
     "tool_calls": [
       {
+        "id": "search-001",
         "name": "search_documents",
         "args": {
           "query": "document retention policy",
