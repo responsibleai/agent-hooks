@@ -650,6 +650,12 @@ impl HostSurface {
                     detail: "host surface names incremental_output but cannot declare buffered_output: false".into(),
                 });
             }
+            if !model_points {
+                findings.push(Finding {
+                    pointer: "/surface/capabilities".into(),
+                    detail: "host surface names incremental_output without both model points; it is mediated at post_model_call (see spec §7.7.4, §12.1)".into(),
+                });
+            }
             match &self.exposure_bound {
                 None => findings.push(Finding {
                     pointer: "/surface/exposure_bound".into(),
@@ -2387,6 +2393,15 @@ fn check_consistency(
                 "incremental_output requires buffered_output: false (see spec §12.1)".into(),
             );
         }
+        // Incremental mediation happens at post_model_call, so the
+        // capability needs the model points; with the pair rule above
+        // that is the same as needing model_calls.
+        if caps.contains("incremental_output") && !caps.contains("model_calls") {
+            bad(
+                "/surface/capabilities",
+                "incremental_output requires model_calls: it is mediated at post_model_call (see spec §7.7.4, §12.1)".into(),
+            );
+        }
     }
 
     // Knobs only under the profile that consults them; the configured
@@ -3733,6 +3748,44 @@ mod tests {
     }
 
     #[test]
+    fn incremental_output_requires_model_calls() {
+        // §7.7.4: incremental mediation happens at post_model_call, so a
+        // surface naming incremental_output also lists model_calls, and
+        // with it both model points.
+        let mut v = minimal();
+        v["surface"] = json!({
+            "interception_points": ["agent_startup", "input", "output", "agent_shutdown"],
+            "capabilities": ["incremental_output", "host_declaration"],
+            "buffered_output": false,
+            "exposure_bound": "one chunk"
+        });
+        let e = HostDeclaration::from_value(v).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::Inconsistent);
+        assert_eq!(e.findings.len(), 1, "{e}");
+        assert_eq!(e.findings[0].pointer, "/surface/capabilities");
+        assert!(
+            e.findings[0].detail.contains("requires model_calls"),
+            "{}",
+            e.findings[0].detail
+        );
+        // With the model points and model_calls the same document loads
+        // on a host that mediates incrementally.
+        let mut v = minimal();
+        v["surface"] = json!({
+            "interception_points": [
+                "agent_startup", "input", "pre_model_call", "post_model_call",
+                "output", "agent_shutdown"
+            ],
+            "capabilities": ["model_calls", "incremental_output", "host_declaration"],
+            "buffered_output": false,
+            "exposure_bound": "one chunk"
+        });
+        let d = HostDeclaration::from_value(v).unwrap();
+        let r = resolve(&d, &incremental_surface(), &names()).unwrap();
+        assert!(!r.surface.buffered_output);
+    }
+
+    #[test]
     fn surface_profiles_default_means_default_value_only() {
         let mut v = minimal();
         v["surface"] = json!({"profiles": {"sequential/first_deny": {}}});
@@ -4212,6 +4265,28 @@ mod tests {
         .with_exposure_bound("one chunk");
         s.interceptor_timeout = TimeoutSupport::Bounded;
         s
+    }
+
+    #[test]
+    fn incremental_host_surface_requires_the_model_points() {
+        let s = HostSurface::from_capabilities(
+            [
+                "incremental_output".to_owned(),
+                "host_declaration".to_owned(),
+            ],
+            ToolSeamPosture::Continue,
+        )
+        .with_exposure_bound("one chunk");
+        let e = s.validate().unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+        assert_eq!(e.findings.len(), 1, "{e}");
+        assert_eq!(e.findings[0].pointer, "/surface/capabilities");
+        assert!(
+            e.findings[0].detail.contains("both model points"),
+            "{}",
+            e.findings[0].detail
+        );
+        assert!(incremental_surface().validate().is_ok());
     }
 
     #[test]

@@ -1227,10 +1227,12 @@ The surface MUST satisfy the §3.2 floor (`agent_startup`, `input`,
 `output`, `agent_shutdown` present; model and tool points omitted only
 in pairs), and `model_calls` is listed iff both model points are,
 `tool_calls` iff both tool points are. `incremental_output` requires
-`buffered_output: false`. The configured composition MUST sit inside
-the declared surface: the profile present, each resolved knob value in
-the supported set. `declaration_versions` MUST include the document's
-own `declaration`.
+`buffered_output: false` and both model points (it is mediated at
+`post_model_call`, §12.1), so a surface naming it MUST also list
+`model_calls`. The configured composition MUST sit inside the declared
+surface: the profile present, each resolved knob value in the
+supported set. `declaration_versions` MUST include the document's own
+`declaration`.
 
 Every stated member MUST be a subset of what the host's code reports,
 and the configured posture MUST equal the one the code implements.
@@ -1319,7 +1321,7 @@ so a given document yields one refusal class on every SDK:
 | 4 | `spec`, when present, has the loader's major and a minor no greater than the loader's | `spec_unsupported` |
 | 5 | No unknown member at any closed level | `unknown_field` |
 | 6 | Types, enums, patterns, ranges, required-iff rules | `invalid_field` |
-| 7 | Internal consistency (§7.7.3, §7.7.4, §7.7.5): the floor and pairs, knobs under the consulting profile, the composition inside a stated `surface.profiles`, `incremental_output` with `buffered_output: false`, the own version in `declaration_versions`, `at` within the surface, unique binding ids | `inconsistent` |
+| 7 | Internal consistency (§7.7.3, §7.7.4, §7.7.5): the floor and pairs, knobs under the consulting profile, the composition inside a stated `surface.profiles`, `incremental_output` with `buffered_output: false` and with `model_calls`, the own version in `declaration_versions`, `at` within the surface, unique binding ids | `inconsistent` |
 | 8 | Everything the surface and configuration name is honoured by the host's code, including the filled defaults and the configured profile and knob values against the host's profiles; a numeric timeout on a build that cannot bound execution | `surface_unsupported` |
 | 9 | The custom identity provider, approval resolver and approval redactor named are registered | `reference_unresolved` |
 | 10 | Every binding kind has a registered resolver (all checked before any runs) | `kind_unknown` |

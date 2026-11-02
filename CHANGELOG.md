@@ -5,6 +5,14 @@ User-visible changes to the spec and SDKs. Versioning rules:
 
 ## Unreleased
 
+- Spec §7.7.4 (draft) states that `incremental_output` requires both
+  model points and `model_calls`, not only `buffered_output: false`:
+  incremental mediation happens at `post_model_call` (§12.1). The §7.7.6
+  consistency step lists the rule. The Rust loader refuses a document
+  that names `incremental_output` without `model_calls` as
+  `declaration_error:inconsistent`, and a host surface that names it
+  without both model points as `declaration_error:surface_unsupported`.
+  The other SDKs load through the Rust core and inherit both findings.
 - Windows x64 FFI/NuGet builds use a pinned nightly Rust compiler and rebuild
   the standard library with strong stack protection. CI and release builds
   require matching-PDB BinSkim BA2014 and CFG passes for the exact DLL.
