@@ -79,10 +79,8 @@ jobs:
         with: { node-version: "22" }
       - run: npm ci
         working-directory: sdk/typescript
-      - name: Schema examples match their JSON Schemas
-        run: |
-          node scripts/check-schema-examples.mjs
-          node scripts/check-schema-examples.mjs 0.1.0
+      - name: Schema examples match their JSON Schemas (every bundle)
+        run: node scripts/check-schema-examples.mjs
         working-directory: sdk/typescript
       - name: Report schema drift between the latest release and the draft (advisory)
         # Differential validation and a structural diff of the newest

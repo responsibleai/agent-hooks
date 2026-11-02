@@ -1,17 +1,26 @@
 // Copyright (c) Microsoft. All rights reserved.
 
+// Validate the standalone JSON examples of every specification bundle
+// against that bundle's own generated schemas.
+//
+//   node scripts/check-schema-examples.mjs [<bundle> ...]
+//
+// A bundle is spec/draft or spec/<MAJOR.MINOR.PATCH>; with no argument
+// every bundle is checked. Each example sits at
+// <bundle>/schema/examples/<Type>/<name>.json and is validated against the
+// schema `schemaMapping` names for <Type>, using only the schemas under
+// <bundle>/schema/generated (no fetching). Anything under examples/ that
+// is not a regular file or a directory, such as a symbolic link, fails.
+
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 
-export const schemaRoot = fileURLToPath(
-  new URL("../../../spec/draft/schema/", import.meta.url),
-);
-export const releaseSchemaRoot = fileURLToPath(
-  new URL("../../../spec/0.1.0/schema/", import.meta.url),
-);
+export const specRoot = fileURLToPath(new URL("../../../spec/", import.meta.url));
+const VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
+
 export const schemaMapping = {
   AgentContext: "agent-context.schema.json",
   Verdict: "verdict.schema.json",
@@ -23,12 +32,39 @@ export const schemaMapping = {
   InterceptionRecord: "interception-record.schema.json",
 };
 
+/** The schema folder of one bundle, "draft" or a MAJOR.MINOR.PATCH version. */
+export function bundleSchemaRoot(name) {
+  return path.join(specRoot, name, "schema") + path.sep;
+}
+
+/** The draft bundle's schema folder, where new examples are written first. */
+export const schemaRoot = bundleSchemaRoot("draft");
+
+/** Every bundle name under spec/, sorted. Anything else under spec/ that is
+ *  a directory or a symbolic link is an error: the folder holds bundles only. */
+export async function bundles(root = specRoot) {
+  const names = [];
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    const filename = path.join(root, entry.name);
+    if (entry.isSymbolicLink()) {
+      throw new Error(`${filename}: symbolic links are not allowed under spec/`);
+    }
+    if (!entry.isDirectory()) continue;
+    if (entry.name !== "draft" && !VERSION.test(entry.name)) {
+      throw new Error(`${filename}: not draft or a MAJOR.MINOR.PATCH version`);
+    }
+    names.push(entry.name);
+  }
+  return names.sort();
+}
+
 async function jsonFiles(directory) {
   const files = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const filename = path.join(directory, entry.name);
     if (entry.isDirectory()) files.push(...await jsonFiles(filename));
-    else if (entry.isFile() && entry.name.endsWith(".json")) files.push(filename);
+    else if (!entry.isFile()) throw new Error(`${filename}: not a regular file or directory`);
+    else if (entry.name.endsWith(".json")) files.push(filename);
   }
   return files.sort();
 }
@@ -92,15 +128,15 @@ export async function validateExamples(root = schemaRoot) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const selection = process.argv[2] || "draft";
-  if (process.argv.length > 3 || !["draft", "0.1.0", "all"].includes(selection)) {
-    throw new Error("Usage: node check-schema-examples.mjs [draft|0.1.0|all]");
+  const known = await bundles();
+  const selected = process.argv.length > 2 ? process.argv.slice(2) : known;
+  for (const name of selected) {
+    if (!known.includes(name)) {
+      throw new Error(`Usage: node check-schema-examples.mjs [${known.join("|")}]...`);
+    }
   }
-  const bundles = selection === "all"
-    ? [["draft", schemaRoot], ["0.1.0", releaseSchemaRoot]]
-    : [[selection, selection === "0.1.0" ? releaseSchemaRoot : schemaRoot]];
-  for (const [name, root] of bundles) {
-    const count = await validateExamples(root);
+  for (const name of selected) {
+    const count = await validateExamples(bundleSchemaRoot(name));
     console.log(`check-schema-examples: validated ${count} JSON examples for ${name}`);
   }
 }
