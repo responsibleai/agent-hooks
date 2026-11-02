@@ -154,11 +154,18 @@ interface ContextMetadata {
   extensions?: Extensions;
 }
 
+export type HookInterceptionPoint = InterceptionPoint;
+
+export interface HooksRequest extends ContextMetadata {
+  interception_point: HookInterceptionPoint;
+  [extension: string]: unknown;
+}
+
 /**
  * The context at agent_startup: agent_init is required (§4.2).
  * @example [agent-startup.json](../examples/AgentContext/agent-startup.json)
  */
-export interface AgentStartupContext extends ContextMetadata {
+export interface AgentStartupContext extends HooksRequest {
   interception_point: InterceptionPoint.AgentStartup;
   agent_init: AgentInit;
 }
@@ -167,7 +174,7 @@ export interface AgentStartupContext extends ContextMetadata {
  * The context at input: input is required (§4.2).
  * @example [input.json](../examples/AgentContext/input.json)
  */
-export interface InputContext extends ContextMetadata {
+export interface InputContext extends HooksRequest {
   interception_point: InterceptionPoint.Input;
   input: Input;
 }
@@ -177,7 +184,7 @@ export interface InputContext extends ContextMetadata {
  * @example [pre-model-call.json](../examples/AgentContext/pre-model-call.json)
  * @example [pre-model-call-with-model-metadata.json](../examples/AgentContext/pre-model-call-with-model-metadata.json)
  */
-export interface PreModelCallContext extends ContextMetadata {
+export interface PreModelCallContext extends HooksRequest {
   interception_point: InterceptionPoint.PreModelCall;
   model: Model;
   messages: Message[];
@@ -188,7 +195,7 @@ export interface PreModelCallContext extends ContextMetadata {
  * @example [post-model-call.json](../examples/AgentContext/post-model-call.json)
  * @example [post-model-call-with-optional-tool-call-id.json](../examples/AgentContext/post-model-call-with-optional-tool-call-id.json)
  */
-export interface PostModelCallContext extends ContextMetadata {
+export interface PostModelCallContext extends HooksRequest {
   interception_point: InterceptionPoint.PostModelCall;
   model: Model;
   response: Response;
@@ -198,7 +205,7 @@ export interface PostModelCallContext extends ContextMetadata {
  * The context at pre_tool_call: tool_call is required (§4.2).
  * @example [pre-tool-call.json](../examples/AgentContext/pre-tool-call.json)
  */
-export interface PreToolCallContext extends ContextMetadata {
+export interface PreToolCallContext extends HooksRequest {
   interception_point: InterceptionPoint.PreToolCall;
   tool_call: ToolCall;
 }
@@ -207,7 +214,7 @@ export interface PreToolCallContext extends ContextMetadata {
  * The context at post_tool_call: tool_call and tool_result are required (§4.2).
  * @example [post-tool-call.json](../examples/AgentContext/post-tool-call.json)
  */
-export interface PostToolCallContext extends ContextMetadata {
+export interface PostToolCallContext extends HooksRequest {
   interception_point: InterceptionPoint.PostToolCall;
   tool_call: ToolCall;
   tool_result: ToolResult;
@@ -218,7 +225,7 @@ export interface PostToolCallContext extends ContextMetadata {
  * @example [output.json](../examples/AgentContext/output.json)
  * @example [output-with-extensions.json](../examples/AgentContext/output-with-extensions.json)
  */
-export interface OutputContext extends ContextMetadata {
+export interface OutputContext extends HooksRequest {
   interception_point: InterceptionPoint.Output;
   output: Output;
 }
@@ -227,7 +234,7 @@ export interface OutputContext extends ContextMetadata {
  * The context at agent_shutdown: summary is required (§4.2).
  * @example [agent-shutdown.json](../examples/AgentContext/agent-shutdown.json)
  */
-export interface AgentShutdownContext extends ContextMetadata {
+export interface AgentShutdownContext extends HooksRequest {
   interception_point: InterceptionPoint.AgentShutdown;
   summary: Summary;
 }
