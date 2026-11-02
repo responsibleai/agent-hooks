@@ -196,6 +196,7 @@ function generateRoot(root: Root): Schema {
   }
   // 3: the draft-07 meaning of $ref, which ignores its siblings.
   stripRefSiblings(schema);
+  materializeTransformVerdict(schema, root);
   // Generic and hosted verdicts keep their decision objects closed. Approval
   // definitions embed those verdicts; hook response schemas reuse the same
   // allow/deny shapes while leaving their roots open.
@@ -235,6 +236,58 @@ function stripRefSiblings(node: Json): void {
     }
     for (const value of Object.values(node)) stripRefSiblings(value);
   }
+}
+
+function replaceRefs(node: Json, from: string, to: string): void {
+  if (Array.isArray(node)) {
+    for (const item of node) replaceRefs(item, from, to);
+  } else if (node !== null && typeof node === "object") {
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "$ref" && value === from) node[key] = to;
+      else replaceRefs(value, from, to);
+    }
+  }
+}
+
+function materializeTransformVerdict(schema: Schema, root: Root): void {
+  const defs = schema.$defs as Record<string, Schema> | undefined;
+  if (!defs) return;
+
+  if (root.type === "Verdict") {
+    const genericName = "TransformVerdictBase<TTransform>";
+    const verdict = defs[genericName];
+    if (!verdict) throw new Error(`${root.source}: missing generic transform verdict`);
+    const transform = verdict.properties?.transform;
+    if (!transform || typeof transform !== "object" || Array.isArray(transform)) {
+      throw new Error(`${root.source}: generic transform verdict has no transform member`);
+    }
+    const rawTransform = TJS.generateSchema(programFor(root.source), "Transform", SETTINGS);
+    if (!rawTransform) throw new Error(`${root.source}: no schema for Transform`);
+    const transformSchema = JSON.parse(JSON.stringify(rawTransform)) as Schema;
+    delete transformSchema.$schema;
+    delete transformSchema.definitions;
+    delete transformSchema.$defs;
+    defs.Transform = transformSchema;
+    transform.$ref = "#/$defs/Transform";
+    replaceRefs(schema, "#/$defs/TransformVerdictBase%3CTTransform%3E", "#/$defs/TransformVerdict");
+    delete defs[genericName];
+    delete defs.TTransform;
+    verdict.description =
+      "transform: proceed with the target rewritten. The transform body is REQUIRED (§5).";
+    verdict.additionalProperties = false;
+    defs.TransformVerdict = verdict;
+    return;
+  }
+
+  const genericName = "TransformVerdictBase<Transform>";
+  if (!defs[genericName]) return;
+  replaceRefs(schema, "#/$defs/TransformVerdictBase%3CTransform%3E", "#/$defs/TransformVerdict");
+  const verdict = defs[genericName];
+  delete defs[genericName];
+  verdict.description =
+    "transform: proceed with the target rewritten. The transform body is REQUIRED (§5).";
+  verdict.additionalProperties = false;
+  defs.TransformVerdict = verdict;
 }
 
 function refName(ref: string): string {

@@ -120,7 +120,10 @@ export interface TransformVerdictBase<TTransform> extends VerdictBase {
  * @example [transform-tool-result.json](../examples/Verdict/transform-tool-result.json)
  * @example [transform-output.json](../examples/Verdict/transform-output.json)
  */
-export interface TransformVerdict extends TransformVerdictBase<Transform> {}
+export type TransformVerdict = TransformVerdictBase<Transform>;
+
+/** Verdict choices for hooks that do not support transforms. */
+export type NonTransformVerdict = AllowVerdict | DenyVerdict;
 
 /**
  * Interceptor return value (AGENT-HOOKS-0.1 §5). Three decisions: allow (absorbs
@@ -129,4 +132,6 @@ export interface TransformVerdict extends TransformVerdictBase<Transform> {}
  * (§7.1).
  * @title Agent Hooks — verdict
  */
-export type Verdict = AllowVerdict | DenyVerdict | TransformVerdict;
+export type Verdict<TTransform = Transform> =
+  | NonTransformVerdict
+  | TransformVerdictBase<TTransform>;

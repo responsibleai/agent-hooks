@@ -11,7 +11,7 @@
       "$ref": "#/$defs/DenyVerdict"
     },
     {
-      "$ref": "#/$defs/OutputTransformVerdict"
+      "$ref": "#/$defs/TransformVerdictBase%3COutputHookTransform%3E"
     }
   ],
   "$defs": {
@@ -187,8 +187,8 @@
         "decision"
       ]
     },
-    "OutputTransformVerdict": {
-      "description": "Typed output transform verdict.",
+    "TransformVerdictBase<OutputHookTransform>": {
+      "description": "Shared metadata and decision for a transform with a caller-specific payload.",
       "type": "object",
       "properties": {
         "decision": {

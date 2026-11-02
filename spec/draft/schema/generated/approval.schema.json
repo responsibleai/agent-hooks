@@ -111,7 +111,8 @@
               "$ref": "#/$defs/AllowVerdict"
             },
             {
-              "$ref": "#/$defs/TransformVerdict"
+              "$ref": "#/$defs/TransformVerdict",
+              "description": "transform: proceed with the target rewritten. The transform body is REQUIRED\n(§5)."
             }
           ]
         },

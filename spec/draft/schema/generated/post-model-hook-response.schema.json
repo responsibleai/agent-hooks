@@ -11,7 +11,7 @@
       "$ref": "#/$defs/DenyVerdict"
     },
     {
-      "$ref": "#/$defs/PostModelTransformVerdict"
+      "$ref": "#/$defs/TransformVerdictBase%3CPostModelHookTransform%3E"
     }
   ],
   "$defs": {
@@ -187,8 +187,8 @@
         "decision"
       ]
     },
-    "PostModelTransformVerdict": {
-      "description": "Typed post-model transform verdict.",
+    "TransformVerdictBase<PostModelHookTransform>": {
+      "description": "Shared metadata and decision for a transform with a caller-specific payload.",
       "type": "object",
       "properties": {
         "decision": {

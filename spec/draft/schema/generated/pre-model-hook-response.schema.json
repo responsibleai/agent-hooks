@@ -11,7 +11,7 @@
       "$ref": "#/$defs/DenyVerdict"
     },
     {
-      "$ref": "#/$defs/PreModelTransformVerdict"
+      "$ref": "#/$defs/TransformVerdictBase%3CPreModelHookTransform%3E"
     }
   ],
   "$defs": {
@@ -187,8 +187,8 @@
         "decision"
       ]
     },
-    "PreModelTransformVerdict": {
-      "description": "Typed pre-model transform verdict.",
+    "TransformVerdictBase<PreModelHookTransform>": {
+      "description": "Shared metadata and decision for a transform with a caller-specific payload.",
       "type": "object",
       "properties": {
         "decision": {

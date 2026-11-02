@@ -11,10 +11,10 @@
       "$ref": "#/$defs/DenyVerdict"
     },
     {
-      "$ref": "#/$defs/TransformVerdict"
+      "$ref": "#/$defs/ResponseEnvelope"
     },
     {
-      "$ref": "#/$defs/ResponseEnvelope"
+      "$ref": "#/$defs/TransformVerdict"
     }
   ],
   "$defs": {
@@ -192,9 +192,66 @@
       ],
       "additionalProperties": false
     },
-    "TransformVerdict": {
-      "description": "transform: proceed with the target rewritten. The transform body is REQUIRED\n(§5).",
+    "ResponseEnvelope": {
+      "description": "The envelope form: a verdict plus transport metadata.",
       "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "verdict": {
+          "$ref": "#/$defs/Verdict"
+        },
+        "extensions": {
+          "description": "Opaque namespaced transport metadata (§4.6), including provider receipts\nunder extensions.<provider>.receipt. Canonical extensions are bounded at\n65536 bytes (§5.5).",
+          "$ref": "#/$defs/Extensions"
+        }
+      },
+      "required": [
+        "verdict"
+      ]
+    },
+    "Verdict": {
+      "description": "Interceptor return value (AGENT-HOOKS-0.1 §5). Three decisions: allow (absorbs\nwarn via warnings[]), deny (absorbs escalate via the approval block), transform.\nA verdict carries decision content only; composition is host configuration\n(§7.1).",
+      "title": "Agent Hooks — verdict",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AllowVerdict"
+        },
+        {
+          "$ref": "#/$defs/DenyVerdict"
+        },
+        {
+          "$ref": "#/$defs/TransformVerdict"
+        }
+      ]
+    },
+    "Transform": {
+      "description": "The transform body (§5.2).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "JSONPath rooted at $target (§5.2). $policy_target is a deprecated alias\naccepted through agent-hooks v0.2.",
+          "pattern": "^\\$(target|policy_target)(\\.|\\[|$)",
+          "type": "string"
+        },
+        "value": {
+          "description": "Any JSON value, including null. An absent member is equivalent to null (§5.2)."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "Extensions": {
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "type": "object",
+      "additionalProperties": {}
+    },
+    "TransformVerdict": {
+      "description": "transform: proceed with the target rewritten. The transform body is REQUIRED (§5).",
       "type": "object",
       "properties": {
         "decision": {
@@ -255,65 +312,8 @@
       "required": [
         "decision",
         "transform"
-      ]
-    },
-    "Transform": {
-      "description": "The transform body (§5.2).",
-      "additionalProperties": false,
-      "type": "object",
-      "properties": {
-        "path": {
-          "description": "JSONPath rooted at $target (§5.2). $policy_target is a deprecated alias\naccepted through agent-hooks v0.2.",
-          "pattern": "^\\$(target|policy_target)(\\.|\\[|$)",
-          "type": "string"
-        },
-        "value": {
-          "description": "Any JSON value, including null. An absent member is equivalent to null (§5.2)."
-        }
-      },
-      "required": [
-        "path"
-      ]
-    },
-    "ResponseEnvelope": {
-      "description": "The envelope form: a verdict plus transport metadata.",
-      "additionalProperties": false,
-      "type": "object",
-      "properties": {
-        "verdict": {
-          "$ref": "#/$defs/Verdict"
-        },
-        "extensions": {
-          "description": "Opaque namespaced transport metadata (§4.6), including provider receipts\nunder extensions.<provider>.receipt. Canonical extensions are bounded at\n65536 bytes (§5.5).",
-          "$ref": "#/$defs/Extensions"
-        }
-      },
-      "required": [
-        "verdict"
-      ]
-    },
-    "Verdict": {
-      "description": "Interceptor return value (AGENT-HOOKS-0.1 §5). Three decisions: allow (absorbs\nwarn via warnings[]), deny (absorbs escalate via the approval block), transform.\nA verdict carries decision content only; composition is host configuration\n(§7.1).",
-      "title": "Agent Hooks — verdict",
-      "anyOf": [
-        {
-          "$ref": "#/$defs/AllowVerdict"
-        },
-        {
-          "$ref": "#/$defs/DenyVerdict"
-        },
-        {
-          "$ref": "#/$defs/TransformVerdict"
-        }
-      ]
-    },
-    "Extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "propertyNames": {
-        "pattern": "^[a-z][a-z0-9_]*$"
-      },
-      "type": "object",
-      "additionalProperties": {}
+      ],
+      "additionalProperties": false
     }
   }
 }

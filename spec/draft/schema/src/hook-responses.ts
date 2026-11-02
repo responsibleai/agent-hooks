@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-// Hook-specific core responses. These bare verdicts are distinct from the
-// generic path/value Verdict and the hosted InterceptorResponse envelope.
+// Hook response aliases specialize the shared verdict's transform payload.
 
 import {
   InputRequest,
@@ -11,11 +10,7 @@ import {
   PreModelCallRequest,
   PreToolCallRequest,
 } from "./agent-context";
-import {
-  AllowVerdict,
-  DenyVerdict,
-  TransformVerdictBase,
-} from "./verdict";
+import { NonTransformVerdict, Verdict } from "./verdict";
 
 /**
  * Replaces the complete input payload.
@@ -59,42 +54,15 @@ export interface OutputHookTransform {
   output: OutputRequest["output"];
 }
 
-/**
- * Typed input transform verdict.
- */
-export interface InputTransformVerdict extends TransformVerdictBase<InputHookTransform> {}
-
-/**
- * Typed pre-model transform verdict.
- */
-export interface PreModelTransformVerdict extends TransformVerdictBase<PreModelHookTransform> {}
-
-/**
- * Typed post-model transform verdict.
- */
-export interface PostModelTransformVerdict extends TransformVerdictBase<PostModelHookTransform> {}
-
-/**
- * Typed pre-tool transform verdict.
- */
-export interface PreToolTransformVerdict extends TransformVerdictBase<PreToolHookTransform> {}
-
-/**
- * Typed post-tool transform verdict.
- */
-export interface PostToolTransformVerdict extends TransformVerdictBase<PostToolHookTransform> {}
-
-/**
- * Typed output transform verdict.
- */
-export interface OutputTransformVerdict extends TransformVerdictBase<OutputHookTransform> {}
+/** Response choices shared by hooks that support transforms. */
+export type HooksResponse<TTransform> = Verdict<TTransform>;
 
 /**
  * Bare agent_startup response: transforms are forbidden.
  * @example [allow.json](../examples/AgentStartupHookResponse/allow.json)
  * @example [deny.json](../examples/AgentStartupHookResponse/deny.json)
  */
-export type AgentStartupHookResponse = AllowVerdict | DenyVerdict;
+export type AgentStartupHookResponse = NonTransformVerdict;
 
 /**
  * Bare input response.
@@ -102,10 +70,7 @@ export type AgentStartupHookResponse = AllowVerdict | DenyVerdict;
  * @example [deny.json](../examples/InputHookResponse/deny.json)
  * @example [transform.json](../examples/InputHookResponse/transform.json)
  */
-export type InputHookResponse =
-  | AllowVerdict
-  | DenyVerdict
-  | InputTransformVerdict;
+export type InputHookResponse = HooksResponse<InputHookTransform>;
 
 /**
  * Bare pre_model_call response.
@@ -113,10 +78,7 @@ export type InputHookResponse =
  * @example [deny.json](../examples/PreModelHookResponse/deny.json)
  * @example [transform.json](../examples/PreModelHookResponse/transform.json)
  */
-export type PreModelHookResponse =
-  | AllowVerdict
-  | DenyVerdict
-  | PreModelTransformVerdict;
+export type PreModelHookResponse = HooksResponse<PreModelHookTransform>;
 
 /**
  * Bare post_model_call response.
@@ -124,10 +86,7 @@ export type PreModelHookResponse =
  * @example [deny.json](../examples/PostModelHookResponse/deny.json)
  * @example [transform.json](../examples/PostModelHookResponse/transform.json)
  */
-export type PostModelHookResponse =
-  | AllowVerdict
-  | DenyVerdict
-  | PostModelTransformVerdict;
+export type PostModelHookResponse = HooksResponse<PostModelHookTransform>;
 
 /**
  * Bare pre_tool_call response.
@@ -135,10 +94,7 @@ export type PostModelHookResponse =
  * @example [deny.json](../examples/PreToolHookResponse/deny.json)
  * @example [transform.json](../examples/PreToolHookResponse/transform.json)
  */
-export type PreToolHookResponse =
-  | AllowVerdict
-  | DenyVerdict
-  | PreToolTransformVerdict;
+export type PreToolHookResponse = HooksResponse<PreToolHookTransform>;
 
 /**
  * Bare post_tool_call response.
@@ -146,10 +102,7 @@ export type PreToolHookResponse =
  * @example [deny.json](../examples/PostToolHookResponse/deny.json)
  * @example [transform.json](../examples/PostToolHookResponse/transform.json)
  */
-export type PostToolHookResponse =
-  | AllowVerdict
-  | DenyVerdict
-  | PostToolTransformVerdict;
+export type PostToolHookResponse = HooksResponse<PostToolHookTransform>;
 
 /**
  * Bare output response.
@@ -157,14 +110,11 @@ export type PostToolHookResponse =
  * @example [deny.json](../examples/OutputHookResponse/deny.json)
  * @example [transform.json](../examples/OutputHookResponse/transform.json)
  */
-export type OutputHookResponse =
-  | AllowVerdict
-  | DenyVerdict
-  | OutputTransformVerdict;
+export type OutputHookResponse = HooksResponse<OutputHookTransform>;
 
 /**
  * Bare agent_shutdown response: transforms are forbidden.
  * @example [allow.json](../examples/AgentShutdownHookResponse/allow.json)
  * @example [deny.json](../examples/AgentShutdownHookResponse/deny.json)
  */
-export type AgentShutdownHookResponse = AllowVerdict | DenyVerdict;
+export type AgentShutdownHookResponse = NonTransformVerdict;

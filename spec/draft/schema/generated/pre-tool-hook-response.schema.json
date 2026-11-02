@@ -11,7 +11,7 @@
       "$ref": "#/$defs/DenyVerdict"
     },
     {
-      "$ref": "#/$defs/PreToolTransformVerdict"
+      "$ref": "#/$defs/TransformVerdictBase%3CPreToolHookTransform%3E"
     }
   ],
   "$defs": {
@@ -187,8 +187,8 @@
         "decision"
       ]
     },
-    "PreToolTransformVerdict": {
-      "description": "Typed pre-tool transform verdict.",
+    "TransformVerdictBase<PreToolHookTransform>": {
+      "description": "Shared metadata and decision for a transform with a caller-specific payload.",
       "type": "object",
       "properties": {
         "decision": {
