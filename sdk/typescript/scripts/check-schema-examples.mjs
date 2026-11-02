@@ -21,6 +21,14 @@ export const schemaMapping = {
   HostDeclaration10: "host-declaration-1.0.schema.json",
   HostDeclaration11: "host-declaration-1.1.schema.json",
   InterceptionRecord: "interception-record.schema.json",
+  AgentStartupHookResponse: "agent-startup-hook-response.schema.json",
+  InputHookResponse: "input-hook-response.schema.json",
+  PreModelHookResponse: "pre-model-hook-response.schema.json",
+  PostModelHookResponse: "post-model-hook-response.schema.json",
+  PreToolHookResponse: "pre-tool-hook-response.schema.json",
+  PostToolHookResponse: "post-tool-hook-response.schema.json",
+  OutputHookResponse: "output-hook-response.schema.json",
+  AgentShutdownHookResponse: "agent-shutdown-hook-response.schema.json",
 };
 
 async function jsonFiles(directory) {

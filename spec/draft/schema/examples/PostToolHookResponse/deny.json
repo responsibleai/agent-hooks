@@ -1,0 +1,4 @@
+{
+  "decision": "deny",
+  "reason": "untrusted_tool_result"
+}

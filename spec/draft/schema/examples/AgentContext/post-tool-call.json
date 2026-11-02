@@ -10,10 +10,6 @@
   "session": {
     "id": "policy-search-001"
   },
-  "target": {
-    "title": "Public document retention policy",
-    "text": "Public documents are retained for 30 days."
-  },
   "tool_call": {
     "id": "search-001",
     "name": "search_documents",
@@ -27,7 +23,6 @@
       "title": "Public document retention policy",
       "text": "Public documents are retained for 30 days."
     },
-    "is_error": false,
-    "duration_ms": 42
+    "is_error": false
   }
 }

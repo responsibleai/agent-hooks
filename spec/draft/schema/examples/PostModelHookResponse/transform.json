@@ -1,0 +1,10 @@
+{
+  "decision": "transform",
+  "transform": {
+    "response": {
+      "content": "The public retention period is 30 days.",
+      "tool_calls": [],
+      "finish_reason": "stop"
+    }
+  }
+}

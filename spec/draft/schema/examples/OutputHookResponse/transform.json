@@ -1,0 +1,8 @@
+{
+  "decision": "transform",
+  "transform": {
+    "output": {
+      "content": "Public documents are retained for 30 days."
+    }
+  }
+}

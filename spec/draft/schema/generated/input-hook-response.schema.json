@@ -1,0 +1,325 @@
+{
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/input-hook-response.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Hooks — input response",
+  "description": "Bare input response.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/HookAllowVerdict"
+    },
+    {
+      "$ref": "#/$defs/HookDenyVerdict"
+    },
+    {
+      "$ref": "#/$defs/InputTransformVerdict"
+    }
+  ],
+  "$defs": {
+    "HookAllowVerdict": {
+      "description": "Common allow response for every hook.",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "const": "allow"
+        },
+        "reason": {
+          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11).",
+          "pattern": "^(?!host_error:).*",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "message": {
+          "description": "Human-readable text for the caller.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "warnings": {
+          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Warning"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "description": "Offline-verifiable evidence attached to a verdict (§14).",
+          "$ref": "#/$defs/Evidence"
+        },
+        "result_labels": {
+          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "decision"
+      ]
+    },
+    "Warning": {
+      "description": "A recorded concern that does not affect control flow (§5.1).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "reason": {
+          "description": "Interceptor-supplied warning identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11) and host_warning: for host-synthesized\nwarnings (§11.1); an interceptor warning with either prefix fails §5\nvalidation.",
+          "pattern": "^(?!host_error:|host_warning:).*",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "message": {
+          "type": [
+            "null",
+            "string"
+          ]
+        }
+      }
+    },
+    "Evidence": {
+      "description": "Offline-verifiable evidence attached to a verdict (§14).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "artefact": {
+          "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "verification_pointers": {
+          "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14).",
+          "$ref": "#/$defs/VerificationPointers"
+        }
+      }
+    },
+    "VerificationPointers": {
+      "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "HookDenyVerdict": {
+      "description": "Common deny response for every hook.",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "const": "deny"
+        },
+        "approval": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        },
+        "reason": {
+          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11).",
+          "pattern": "^(?!host_error:).*",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "message": {
+          "description": "Human-readable text for the caller.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "warnings": {
+          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Warning"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "description": "Offline-verifiable evidence attached to a verdict (§14).",
+          "$ref": "#/$defs/Evidence"
+        },
+        "result_labels": {
+          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "decision"
+      ]
+    },
+    "InputTransformVerdict": {
+      "description": "Typed input transform verdict.",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "const": "transform"
+        },
+        "transform": {
+          "$ref": "#/$defs/InputHookTransform"
+        },
+        "reason": {
+          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11).",
+          "pattern": "^(?!host_error:).*",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "message": {
+          "description": "Human-readable text for the caller.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "warnings": {
+          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Warning"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "description": "Offline-verifiable evidence attached to a verdict (§14).",
+          "$ref": "#/$defs/Evidence"
+        },
+        "result_labels": {
+          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "decision",
+        "transform"
+      ]
+    },
+    "InputHookTransform": {
+      "description": "Replaces the complete input payload.",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "input": {
+          "$ref": "#/$defs/Input"
+        }
+      },
+      "required": [
+        "input"
+      ]
+    },
+    "Input": {
+      "description": "Conditional payload of input (§4.2).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "role": {
+          "$ref": "#/$defs/InputRole"
+        }
+      },
+      "required": [
+        "content",
+        "role"
+      ]
+    },
+    "JsonValue": {
+      "description": "JSON data carried by hook payloads.",
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        },
+        {
+          "$ref": "#/$defs/JsonObject"
+        },
+        {
+          "type": [
+            "null",
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      ]
+    },
+    "JsonObject": {
+      "description": "A JSON object with arbitrary JSON-valued members.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      }
+    },
+    "InputRole": {
+      "description": "Who produced an input (§4.2).",
+      "type": "string",
+      "enum": [
+        "user",
+        "system",
+        "external"
+      ]
+    }
+  }
+}

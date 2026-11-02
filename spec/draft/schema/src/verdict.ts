@@ -56,7 +56,7 @@ export interface Evidence {
 }
 
 /** Members every decision may carry. */
-interface VerdictBase {
+export interface VerdictBase {
   /**
    * Interceptor-supplied machine identifier. The host_error: prefix is reserved
    * for host-synthesized failures (§11).

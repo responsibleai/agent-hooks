@@ -10,9 +10,6 @@
   "session": {
     "id": "policy-search-001"
   },
-  "target": {
-    "content": "Public documents are retained for 30 days."
-  },
   "output": {
     "content": "Public documents are retained for 30 days."
   }

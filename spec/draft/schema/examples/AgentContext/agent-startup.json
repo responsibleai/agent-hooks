@@ -10,9 +10,6 @@
   "session": {
     "id": "policy-search-001"
   },
-  "target": {
-    "tools_registered": ["search_documents"]
-  },
   "agent_init": {
     "tools_registered": ["search_documents"]
   }

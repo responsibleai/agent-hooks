@@ -28,7 +28,9 @@
 //   5. The per-point files under strict-contexts/ are derived from the master:
 //      the variant for one interception point becomes the root, and the
 //      payload objects that point requires are closed.
-//   6. Keys are ordered $id, $schema, title, description, the rest as the
+//   6. JSON values include fractional numbers even though the rest of the
+//      schema source defaults TypeScript numbers to integers.
+//   7. Keys are ordered $id, $schema, title, description, the rest as the
 //      tool emits them, $defs last; two-space indent; trailing newline.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -65,11 +67,78 @@ interface Root {
   description?: string;
 }
 
+function allowFractionalJsonNumbers(schema: Schema): void {
+  const defs = schema.$defs as Record<string, Json> | undefined;
+  const jsonValue = defs?.JsonValue as Schema | undefined;
+  if (!jsonValue || !Array.isArray(jsonValue.anyOf)) return;
+  const primitive = (jsonValue.anyOf as Json[]).find(
+    (branch): branch is Schema =>
+      branch !== null &&
+      typeof branch === "object" &&
+      !Array.isArray(branch) &&
+      Array.isArray(branch.type) &&
+      branch.type.includes("integer"),
+  );
+  if (primitive) {
+    primitive.type = (primitive.type as string[]).map((type) =>
+      type === "integer" ? "number" : type,
+    );
+  }
+}
+
 const ROOTS: Root[] = [
   { file: "interception-point.schema.json", source: "interception-point.ts", type: "InterceptionPoint" },
   { file: "verdict.schema.json", source: "verdict.ts", type: "Verdict" },
   { file: "interceptor-response.schema.json", source: "interceptor-response.ts", type: "InterceptorResponse" },
   { file: "agent-context.schema.json", source: "agent-context.ts", type: "AgentContext" },
+  {
+    file: "agent-startup-hook-response.schema.json",
+    source: "hook-responses.ts",
+    type: "AgentStartupHookResponse",
+    title: "Agent Hooks — agent_startup response",
+  },
+  {
+    file: "input-hook-response.schema.json",
+    source: "hook-responses.ts",
+    type: "InputHookResponse",
+    title: "Agent Hooks — input response",
+  },
+  {
+    file: "pre-model-hook-response.schema.json",
+    source: "hook-responses.ts",
+    type: "PreModelHookResponse",
+    title: "Agent Hooks — pre_model_call response",
+  },
+  {
+    file: "post-model-hook-response.schema.json",
+    source: "hook-responses.ts",
+    type: "PostModelHookResponse",
+    title: "Agent Hooks — post_model_call response",
+  },
+  {
+    file: "pre-tool-hook-response.schema.json",
+    source: "hook-responses.ts",
+    type: "PreToolHookResponse",
+    title: "Agent Hooks — pre_tool_call response",
+  },
+  {
+    file: "post-tool-hook-response.schema.json",
+    source: "hook-responses.ts",
+    type: "PostToolHookResponse",
+    title: "Agent Hooks — post_tool_call response",
+  },
+  {
+    file: "output-hook-response.schema.json",
+    source: "hook-responses.ts",
+    type: "OutputHookResponse",
+    title: "Agent Hooks — output response",
+  },
+  {
+    file: "agent-shutdown-hook-response.schema.json",
+    source: "hook-responses.ts",
+    type: "AgentShutdownHookResponse",
+    title: "Agent Hooks — agent_shutdown response",
+  },
   {
     file: "approval.schema.json",
     source: "approval.ts",
@@ -127,7 +196,10 @@ function generateRoot(root: Root): Schema {
   }
   // 3: the draft-07 meaning of $ref, which ignores its siblings.
   stripRefSiblings(schema);
-  // 4: identity and, for a definitions-only file, the root annotations.
+  // 4: JSON numbers may be fractional; defaultNumberType applies to the
+  //    other number fields, such as the nonnegative integer sequence.
+  allowFractionalJsonNumbers(schema);
+  // 5: identity and, for a definitions-only file, the root annotations.
   schema.$id = ID_BASE + root.file;
   if (root.title !== undefined) schema.title = root.title;
   if (root.description !== undefined) schema.description = root.description;
@@ -201,6 +273,7 @@ function perPointSchemas(master: Schema): Map<string, Schema> {
         type: variant.type,
         properties: variant.properties,
         required: variant.required,
+        additionalProperties: false,
         $defs: copy,
       }),
     );
