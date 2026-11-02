@@ -3,7 +3,7 @@
 - **Status:** Draft | Accepted | Rejected | Final | Superseded
 - **Created:** YYYY-MM-DD
 - **Author(s):** Name `<email>` (@github-username)
-- **PR:** {URL of this proposal's pull request}
+- **PR:** {URL of this proposal's pull request; its number is the proposal number}
 
 See the [proposal process](README.md) for scope, lifecycle, decision
 authority, and review window.
