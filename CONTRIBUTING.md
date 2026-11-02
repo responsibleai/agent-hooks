@@ -38,7 +38,9 @@
 Each specification folder's JSON Schemas under `spec/<version>/schema/generated/`
 are generated from the TypeScript in `spec/<version>/schema/src/`. Edit
 only `spec/draft/schema/src/`; the generator targets `draft` unless
-`--spec <version>` names another folder. The JSON stays the normative artifact: it is
+`--spec <version>` names another folder. The `lint` job runs the drift
+check for the draft and, with `--spec`, for every released bundle, so a
+frozen source keeps generating its frozen output. The JSON stays the normative artifact: it is
 what validators, the conformance kit and the SDK mirrors consume. Do not
 edit it by hand; the `lint` and `drift` checks fail on any byte that
 differs from the generated text.

@@ -36,11 +36,17 @@ jobs:
           done
       - name: Validate vectors against vectors.schema.json
         run: |
-          ajv validate --spec=draft2020 -c ajv-formats \
-            -s conformance/vectors.schema.json \
-            -r 'spec/0.1.0/schema/generated/*.schema.json' \
-            -r 'spec/0.1.0/schema/generated/strict-contexts/*.schema.json' \
-            -d 'conformance/vectors/*.json'
+          set -e
+          # One run per specification bundle; versions share $id values.
+          for spec_dir in spec/*/; do
+            [ -d "${spec_dir}schema/generated" ] || continue
+            echo "Validating conformance/vectors against ${spec_dir}schema/generated"
+            ajv validate --spec=draft2020 -c ajv-formats \
+              -s conformance/vectors.schema.json \
+              -r "${spec_dir}schema/generated/*.schema.json" \
+              -r "${spec_dir}schema/generated/strict-contexts/*.schema.json" \
+              -d 'conformance/vectors/*.json'
+          done
 
   python:
     runs-on: ubuntu-latest
@@ -245,6 +251,19 @@ jobs:
         # Type-checks spec/draft/schema/src, regenerates to memory and compares
         # with the committed files (sdk/typescript/scripts/generate-schemas.mts).
         run: npm run check:schema
+        working-directory: sdk/typescript
+      - name: Released schema bundles match their TypeScript source
+        # The same check for every spec/<MAJOR.MINOR.PATCH>/ bundle: the
+        # frozen source must still generate the frozen output.
+        run: |
+          set -eu
+          shopt -s nullglob
+          for dir in ../../spec/[0-9]*.[0-9]*.[0-9]*/; do
+            version=$(basename "$dir")
+            echo "Checking spec/$version/schema"
+            npx tsc -p "${dir}schema/src/tsconfig.json"
+            npx tsx scripts/generate-schemas.mts --check --spec "$version"
+          done
         working-directory: sdk/typescript
       - name: Source files carry the standard file header
         run: python3 scripts/check-file-headers.py
