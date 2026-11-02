@@ -5,7 +5,7 @@ Released specifications live in semantic-version folders named
 
 | Version | Status | Wire version | Specification | Schemas |
 | --- | --- | --- | --- | --- |
-| [0.1.0](0.1.0/) | Latest release | `agent-hooks/0.1` | [AGENT-HOOKS-0.1.md](0.1.0/AGENT-HOOKS-0.1.md) | [schema/](0.1.0/schema/) |
+| [0.1.0](0.1.0/) | Beta snapshot (`0.1.0-beta`, not yet tagged) | `agent-hooks/0.1` | [AGENT-HOOKS-0.1.md](0.1.0/AGENT-HOOKS-0.1.md) | [schema/](0.1.0/schema/) |
 | [draft](draft/) | In progress | `agent-hooks/0.1` | [AGENT-HOOKS-0.1.md](draft/AGENT-HOOKS-0.1.md) | [schema/](draft/schema/) |
 
 Each folder is a complete specification bundle:

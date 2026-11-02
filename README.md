@@ -232,9 +232,10 @@ in Go; `Spec.Version`, `Declaration.Version` and
 
 ## Read next
 
-- [`spec/README.md`](spec/README.md): released specification versions
-  and the draft. The latest release is
-  [`spec/0.1.0/AGENT-HOOKS-0.1.md`](spec/0.1.0/AGENT-HOOKS-0.1.md);
+- [`spec/README.md`](spec/README.md): specification versions and the
+  draft. The current version is the beta snapshot
+  [`spec/0.1.0/AGENT-HOOKS-0.1.md`](spec/0.1.0/AGENT-HOOKS-0.1.md)
+  (`0.1.0-beta`, not yet tagged as `v0.1.0`);
   [`spec/0.1.0/schema/`](spec/0.1.0/schema/) separates editable source from
   the normative JSON Schemas in [`generated/`](spec/0.1.0/schema/generated/).
 - [`docs/IMPLEMENTING.md`](docs/IMPLEMENTING.md): what it means to
