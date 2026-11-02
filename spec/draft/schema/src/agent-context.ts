@@ -77,6 +77,14 @@ export interface Response {
   finish_reason: string;
 }
 
+/** Token usage of a model call (§4.3). */
+export interface Usage {
+  /** @minimum 0 */
+  prompt_tokens?: number;
+  /** @minimum 0 */
+  completion_tokens?: number;
+}
+
 /** Conditional payload of pre_tool_call and post_tool_call (§4.2). */
 export interface ToolCall {
   /** @minLength 1 */
@@ -97,14 +105,6 @@ export interface ToolResult {
    * @minimum 0
    */
   duration_ms?: number;
-}
-
-/** Token usage of a model call (§4.3). */
-export interface Usage {
-  /** @minimum 0 */
-  prompt_tokens?: number;
-  /** @minimum 0 */
-  completion_tokens?: number;
 }
 
 /** One declared tool (§4.3). */
