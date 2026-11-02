@@ -11,7 +11,8 @@
     "id": "policy-search-001"
   },
   "model": {
-    "id": "example-model"
+    "id": "example-model",
+    "vendor": "example"
   },
   "messages": [
     {
