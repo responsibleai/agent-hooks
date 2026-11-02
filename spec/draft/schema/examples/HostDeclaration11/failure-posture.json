@@ -3,6 +3,10 @@
   "spec": "agent-hooks/0.1",
   "id": "document-policy-failure-posture",
   "configuration": {
+    "composition": {
+      "profile": "sequential/first_deny",
+      "on_approval": "resume"
+    },
     "failure": {
       "on_error": "deny"
     },

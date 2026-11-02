@@ -653,7 +653,7 @@ impl HostSurface {
             if !model_points {
                 findings.push(Finding {
                     pointer: "/surface/capabilities".into(),
-                    detail: "host surface names incremental_output without both model points; it is mediated at post_model_call (see spec §7.7.4, §12.1)".into(),
+                    detail: "host surface names incremental_output without both model points; it is mediated at post_model_call (see spec §7.7.4)".into(),
                 });
             }
             match &self.exposure_bound {
@@ -2394,13 +2394,20 @@ fn check_consistency(
             );
         }
         // Incremental mediation happens at post_model_call, so the
-        // capability needs the model points; with the pair rule above
-        // that is the same as needing model_calls.
+        // capability needs the model points, which with the pair rule
+        // means model_calls. When both points are stated the pair rule
+        // above has already reported the missing model_calls.
         if caps.contains("incremental_output") && !caps.contains("model_calls") {
-            bad(
-                "/surface/capabilities",
-                "incremental_output requires model_calls: it is mediated at post_model_call (see spec §7.7.4, §12.1)".into(),
-            );
+            let pair_reported = points.as_ref().is_some_and(|p| {
+                p.contains(&InterceptionPoint::PreModelCall)
+                    && p.contains(&InterceptionPoint::PostModelCall)
+            });
+            if !pair_reported {
+                bad(
+                    "/surface/capabilities",
+                    "incremental_output requires model_calls: it is mediated at post_model_call (see spec §7.7.4)".into(),
+                );
+            }
         }
     }
 
@@ -3788,6 +3795,59 @@ mod tests {
         let d = HostDeclaration::from_value(v).unwrap();
         let r = resolve(&d, &incremental_surface(), &names()).unwrap();
         assert!(!r.surface.buffered_output);
+        // Both model points stated but no model_calls: the pair rule
+        // reports it once; this rule stays quiet.
+        let mut v = minimal();
+        v["surface"] = json!({
+            "interception_points": [
+                "agent_startup", "input", "pre_model_call", "post_model_call",
+                "output", "agent_shutdown"
+            ],
+            "capabilities": ["incremental_output", "host_declaration"],
+            "buffered_output": false,
+            "exposure_bound": "one chunk"
+        });
+        let e = HostDeclaration::from_value(v).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::Inconsistent);
+        assert_eq!(e.findings.len(), 1, "{e}");
+        assert!(
+            e.findings[0].detail.contains("model_calls is listed iff"),
+            "{}",
+            e.findings[0].detail
+        );
+    }
+
+    #[test]
+    fn draft_host_declaration_examples_load() {
+        // Every standalone host declaration example of the development
+        // bundle passes the document checks (steps 2 to 7), so the
+        // examples and the loader rules cannot drift apart.
+        let examples = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../..")
+            .join(SPEC_DEV_DIR)
+            .join("schema/examples");
+        let mut seen = 0;
+        for folder in ["HostDeclaration10", "HostDeclaration11"] {
+            let dir = examples.join(folder);
+            let mut entries: Vec<_> = std::fs::read_dir(&dir)
+                .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+                .map(|e| e.unwrap().path())
+                .filter(|p| p.extension().is_some_and(|x| x == "json"))
+                .collect();
+            entries.sort();
+            for path in entries {
+                let text = std::fs::read_to_string(&path).unwrap();
+                let value: Value = serde_json::from_str(&text).unwrap();
+                HostDeclaration::from_value(value)
+                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+                seen += 1;
+            }
+        }
+        assert!(
+            seen >= 2,
+            "no host declaration examples found under {}",
+            examples.display()
+        );
     }
 
     #[test]

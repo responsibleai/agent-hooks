@@ -13,6 +13,10 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `declaration_error:inconsistent`, and a host surface that names it
   without both model points as `declaration_error:surface_unsupported`.
   The other SDKs load through the Rust core and inherit both findings.
+  Vector `AH-CTK-160` pins the refusal, and a Rust test loads every
+  draft host declaration example through the loader; it found two draft
+  examples whose stated profile set did not admit the default
+  `on_approval`, now fixed by stating the composition.
 - Windows x64 FFI/NuGet builds use a pinned nightly Rust compiler and rebuild
   the standard library with strong stack protection. CI and release builds
   require matching-PDB BinSkim BA2014 and CFG passes for the exact DLL.

@@ -2,6 +2,12 @@
   "declaration": "agent-hooks-declaration/1.1",
   "spec": "agent-hooks/0.1",
   "id": "streaming-document-policy",
+  "configuration": {
+    "composition": {
+      "profile": "sequential/first_deny",
+      "on_approval": "resume"
+    }
+  },
   "surface": {
     "interception_points": [
       "agent_startup",
