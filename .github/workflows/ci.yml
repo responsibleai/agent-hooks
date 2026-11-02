@@ -84,8 +84,36 @@ jobs:
           node scripts/check-schema-examples.mjs
           node scripts/check-schema-examples.mjs 0.1.0
         working-directory: sdk/typescript
-      - name: Schema equivalence handles the generated output directory
-        run: npm run check:schema:equivalence -- --old ../../spec/0.1.0/schema/generated --new ../../spec/0.1.0/schema/generated --structural-diff
+      - name: Report schema drift between the latest release and the draft (advisory)
+        # Differential validation and a structural diff of the newest
+        # spec/<MAJOR.MINOR.PATCH>/schema/generated against the draft. The
+        # draft is allowed to move away from the release, so this step
+        # reports and never gates; the report lands in the job summary.
+        continue-on-error: true
+        run: |
+          set -u
+          shopt -s nullglob
+          latest=$(printf '%s\n' ../../spec/[0-9]*.[0-9]*.[0-9]*/ | sort -V | tail -1)
+          version=$(basename "$latest")
+          report="$RUNNER_TEMP/schema-drift.txt"
+          status=0
+          npm run --silent check:schema:equivalence -- \
+            --old "${latest}schema/generated" \
+            --new ../../spec/draft/schema/generated \
+            --structural-diff > "$report" 2>&1 || status=$?
+          {
+            echo "## Schema drift between the $version release and the draft"
+            if [ "$status" -eq 0 ]; then
+              echo "No drift: the draft schemas accept and reject the same instances as the release."
+            else
+              echo "The draft schemas differ from the $version release (exit status $status). This is a report, not a gate."
+            fi
+            echo '```'
+            cat "$report"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat "$report"
+          exit "$status"
         working-directory: sdk/typescript
       - run: cargo fetch --locked
         # napi-cli does not forward --locked; fetching first pins the
