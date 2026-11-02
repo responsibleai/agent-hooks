@@ -237,6 +237,8 @@ jobs:
         run: python3 scripts/check-version-consistency.py
       - name: Specification version folders are complete and indexed
         run: python3 scripts/check-spec-versions.py
+      - name: Repository script regression tests
+        run: python3 -m unittest discover -s scripts -p "test_*.py" -v
       - run: npm ci
         working-directory: sdk/typescript
       - name: Committed JSON Schemas match their TypeScript source

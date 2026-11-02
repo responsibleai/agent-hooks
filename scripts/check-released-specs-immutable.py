@@ -8,6 +8,8 @@ exists at the base revision. Changes under spec/draft/ and new version
 folders are allowed. Inside a released folder one kind of change is
 allowed: a new file under schema/examples/. A modified or deleted file
 anywhere in the folder, and a new file outside schema/examples/, fail.
+A symbolic link anywhere under spec/ fails: the folders hold regular
+files only, so no path can point outside the folder it appears in.
 
 Usage: check-released-specs-immutable.py <base-revision> [<head-revision>]
 """
@@ -18,8 +20,19 @@ import re
 import subprocess
 import sys
 
-VERSION = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)")
+VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 EXAMPLES = re.compile(r"^spec/[^/]+/schema/examples/.+")
+SYMLINK_MODE = "120000"
+
+
+def escape_data(value: str) -> str:
+    """Encode a workflow command message (percent, CR and LF)."""
+    return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
+def escape_property(value: str) -> str:
+    """Encode a workflow command property such as file=; also : and ,."""
+    return escape_data(value).replace(":", "%3A").replace(",", "%2C")
 
 
 def git(*args: str) -> str:
@@ -37,20 +50,27 @@ def released_folders(revision: str) -> set[str]:
     }
 
 
-def changed_paths(base: str, head: str) -> list[tuple[str, str]]:
-    """(status, path) for every path that differs between base and head.
+def changed_paths(base: str, head: str) -> list[tuple[str, str, str]]:
+    """(status, head mode, path) for every path that differs between
+    base and head. Renames are disabled, so each status is one letter:
+    A, M, D or T. The head mode is 000000 for a deleted path."""
+    fields = git("diff", "--raw", "-z", "--no-renames", f"{base}...{head}").split("\0")
+    changes = []
+    for i in range(0, len(fields) - 1, 2):
+        # ":<base mode> <head mode> <base sha> <head sha> <status>"
+        _, head_mode, _, _, status = fields[i].lstrip(":").split(" ")
+        changes.append((status, head_mode, fields[i + 1]))
+    return changes
 
-    Renames are disabled, so each status is one letter: A, M, D or T."""
-    fields = git(
-        "diff", "--name-status", "-z", "--no-renames", f"{base}...{head}"
-    ).split("\0")
-    return [(fields[i], fields[i + 1]) for i in range(0, len(fields) - 1, 2)]
 
-
-def violation(status: str, path: str, released: set[str]) -> str | None:
-    """Why this change is not allowed in a released folder, or None."""
+def violation(status: str, head_mode: str, path: str, released: set[str]) -> str | None:
+    """Why this change is not allowed under spec/, or None."""
     parts = path.split("/")
-    if parts[0] != "spec" or len(parts) <= 2 or parts[1] not in released:
+    if parts[0] != "spec" or len(parts) < 2:
+        return None
+    if head_mode == SYMLINK_MODE:
+        return "is a symbolic link; specification folders hold regular files only"
+    if len(parts) <= 2 or parts[1] not in released:
         return None
     if status == "A":
         if EXAMPLES.match(path):
@@ -70,8 +90,8 @@ def main(argv: list[str]) -> int:
     released = released_folders(base)
     errors = sorted(
         (path, reason)
-        for status, path in changed_paths(base, head)
-        if (reason := violation(status, path, released))
+        for status, head_mode, path in changed_paths(base, head)
+        if (reason := violation(status, head_mode, path, released))
     )
     if errors:
         print(
@@ -80,7 +100,7 @@ def main(argv: list[str]) -> int:
             "spec/draft/ and publish a new version instead:"
         )
         for path, reason in errors:
-            print(f"::error file={path}::{path} {reason}")
+            print(f"::error file={escape_property(path)}::{escape_data(path)} {reason}")
         return 1
     print(
         "released specification folders unchanged: "
