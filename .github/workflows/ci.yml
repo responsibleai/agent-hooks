@@ -10,15 +10,6 @@ permissions:
   contents: read
 
 jobs:
-  spec-validation:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22" }
-      - run: npm ci
-      - run: npm run validate
-
   schema-lint:
     runs-on: ubuntu-latest
     steps:
@@ -81,6 +72,11 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: "22" }
       - run: npm ci
+        working-directory: sdk/typescript
+      - name: Schema examples match their JSON Schemas
+        run: |
+          node scripts/check-schema-examples.mjs
+          node scripts/check-schema-examples.mjs 0.1.0
         working-directory: sdk/typescript
       - name: Schema equivalence handles the generated output directory
         run: npm run check:schema:equivalence -- --old ../../spec/0.1.0/schema/generated --new ../../spec/0.1.0/schema/generated --structural-diff

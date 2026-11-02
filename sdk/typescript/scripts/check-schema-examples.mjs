@@ -7,10 +7,10 @@ import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 
 export const schemaRoot = fileURLToPath(
-  new URL("../spec/draft/schema/", import.meta.url),
+  new URL("../../../spec/draft/schema/", import.meta.url),
 );
 export const releaseSchemaRoot = fileURLToPath(
-  new URL("../spec/0.1.0/schema/", import.meta.url),
+  new URL("../../../spec/0.1.0/schema/", import.meta.url),
 );
 export const schemaMapping = {
   AgentContext: "agent-context.schema.json",
