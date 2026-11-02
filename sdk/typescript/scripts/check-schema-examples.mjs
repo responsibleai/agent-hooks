@@ -18,7 +18,6 @@ export const schemaMapping = {
   HostDeclaration10: "host-declaration-1.0.schema.json",
   HostDeclaration11: "host-declaration-1.1.schema.json",
   InterceptionRecord: "interception-record.schema.json",
-  InterceptionPoint: "interception-point.schema.json",
 };
 
 async function jsonFiles(directory) {

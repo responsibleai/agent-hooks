@@ -28,22 +28,30 @@ and the indicated closed per-hook schema.
 | [AgentContext/agent-startup.json](AgentContext/agent-startup.json) | `strict-contexts/agent_startup.schema.json` |
 | [AgentContext/input.json](AgentContext/input.json) | `strict-contexts/input.schema.json` |
 | [AgentContext/pre-model-call.json](AgentContext/pre-model-call.json) | `strict-contexts/pre_model_call.schema.json` |
+| [AgentContext/pre-model-call-with-tools.json](AgentContext/pre-model-call-with-tools.json) | `strict-contexts/pre_model_call.schema.json` |
 | [AgentContext/post-model-call.json](AgentContext/post-model-call.json) | `strict-contexts/post_model_call.schema.json` |
+| [AgentContext/post-model-call-with-usage.json](AgentContext/post-model-call-with-usage.json) | `strict-contexts/post_model_call.schema.json` |
 | [AgentContext/pre-tool-call.json](AgentContext/pre-tool-call.json) | `strict-contexts/pre_tool_call.schema.json` |
 | [AgentContext/post-tool-call.json](AgentContext/post-tool-call.json) | `strict-contexts/post_tool_call.schema.json` |
+| [AgentContext/post-tool-call-error.json](AgentContext/post-tool-call-error.json) | `strict-contexts/post_tool_call.schema.json` |
 | [AgentContext/output.json](AgentContext/output.json) | `strict-contexts/output.schema.json` |
+| [AgentContext/output-with-metadata.json](AgentContext/output-with-metadata.json) | `strict-contexts/output.schema.json` |
 | [AgentContext/agent-shutdown.json](AgentContext/agent-shutdown.json) | `strict-contexts/agent_shutdown.schema.json` |
 | [Verdict/*.json](Verdict/) | `verdict.schema.json` |
+| [Verdict/allow-with-evidence.json](Verdict/allow-with-evidence.json) | `verdict.schema.json` |
 | [InterceptorResponse/*-envelope.json](InterceptorResponse/) | `interceptor-response.schema.json` and `#/$defs/ResponseEnvelope` |
 | [ApprovalRequest/collection-access.json](ApprovalRequest/collection-access.json) | `approval.schema.json#/$defs/request` |
 | [ApprovalResolution/*.json](ApprovalResolution/) | `approval.schema.json#/$defs/resolution` |
 | [HostDeclaration10/document-policy.json](HostDeclaration10/document-policy.json) | `host-declaration-1.0.schema.json` |
 | [HostDeclaration11/document-policy.json](HostDeclaration11/document-policy.json) | `host-declaration-1.1.schema.json` |
+| [HostDeclaration11/failure-posture.json](HostDeclaration11/failure-posture.json) | `host-declaration-1.1.schema.json` |
+| [HostDeclaration11/streaming-document-policy.json](HostDeclaration11/streaming-document-policy.json) | `host-declaration-1.1.schema.json` |
 | [InterceptionRecord/*.json](InterceptionRecord/) | `interception-record.schema.json` |
-| [InterceptionPoint/pre-tool-call.json](InterceptionPoint/pre-tool-call.json) | `interception-point.schema.json` |
-
+| [InterceptionRecord/continued-after-timeout.json](InterceptionRecord/continued-after-timeout.json) | `interception-record.schema.json` |
 `Verdict/` contains bare decisions: allow, allow with a warning and result label,
-deny, liftable deny, and six transforms. `InterceptorResponse/` shows the separate
+allow with offline-verifiable evidence, deny, liftable deny, and six transforms.
+`allow-with-evidence.json` demonstrates evidence pointers; these are distinct from
+the transport receipts in `InterceptorResponse/`. `InterceptorResponse/` shows the separate
 envelope form with namespaced transport receipts for all three decisions. A bare
 Verdict is also a valid InterceptorResponse; an envelope is not a bare Verdict.
 Approval resolutions cover approve-with-allow, approve-with-transform, reject,
@@ -67,6 +75,26 @@ The approval transform and transform envelope also apply to `pre_tool_call`.
 Records are payload-free projections: `transform.value` is deliberately absent.
 These schema examples do not replace runtime validation of host registrations,
 declaration consistency, transform application, or other cross-field semantics.
+
+The optional-field contexts demonstrate model tool declarations and parameters,
+token usage, trace/tenant/actor/budget metadata, namespaced extensions, and a
+failed tool result; in every case `target` equals that hook's required payload.
+`failure-posture.json` shows a declaration default of `deny` overridden to
+`continue` by one binding. The schema validates the document shape, not whether
+the host implements the registered `example.document_policy` kind, can bound
+that registration's execution, or satisfies the §6.3.1 requirement to notify
+the principal after a continuation. A running host and its conformance claim
+must meet those requirements. `streaming-document-policy.json` demonstrates
+the declaration shape for `buffered_output: false` and its required
+`exposure_bound`; its host must actually support and satisfy the runtime
+streaming requirements in §12.1a.
+
+`continued-after-timeout.json` records a control timeout continued under that
+binding posture, not a policy denial: the combined verdict is `allow`, while the
+per-binding slot carries `substituted_for: host_error:interceptor_timeout`.
+Its reserved `host_warning:control_failed` message contains the binding id and
+failure reason as required, without exception or target content. The record
+keeps only the payload-free verdict projection.
 
 ## Validate locally
 

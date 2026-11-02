@@ -211,6 +211,7 @@ export interface InputContext extends ContextBase {
 /**
  * The context at pre_model_call: model and messages are required (§4.2).
  * @example [pre-model-call.json](../examples/AgentContext/pre-model-call.json)
+ * @example [pre-model-call-with-tools.json](../examples/AgentContext/pre-model-call-with-tools.json)
  */
 export interface PreModelCallContext extends ContextBase {
   interception_point: InterceptionPoint.PreModelCall;
@@ -221,6 +222,7 @@ export interface PreModelCallContext extends ContextBase {
 /**
  * The context at post_model_call: model and response are required (§4.2).
  * @example [post-model-call.json](../examples/AgentContext/post-model-call.json)
+ * @example [post-model-call-with-usage.json](../examples/AgentContext/post-model-call-with-usage.json)
  */
 export interface PostModelCallContext extends ContextBase {
   interception_point: InterceptionPoint.PostModelCall;
@@ -240,6 +242,7 @@ export interface PreToolCallContext extends ContextBase {
 /**
  * The context at post_tool_call: tool_call and tool_result are required (§4.2).
  * @example [post-tool-call.json](../examples/AgentContext/post-tool-call.json)
+ * @example [post-tool-call-error.json](../examples/AgentContext/post-tool-call-error.json)
  */
 export interface PostToolCallContext extends ContextBase {
   interception_point: InterceptionPoint.PostToolCall;
@@ -250,6 +253,7 @@ export interface PostToolCallContext extends ContextBase {
 /**
  * The context at output: output is required (§4.2).
  * @example [output.json](../examples/AgentContext/output.json)
+ * @example [output-with-metadata.json](../examples/AgentContext/output-with-metadata.json)
  */
 export interface OutputContext extends ContextBase {
   interception_point: InterceptionPoint.Output;

@@ -396,6 +396,8 @@ export interface HostDeclaration10 extends HostDeclarationBase {
  * cannot express (knob consistency, the §3.2 floor, surface against the host's
  * code, registered names) live in the loader (§7.7.6).
  * @example [document-policy.json](../examples/HostDeclaration11/document-policy.json)
+ * @example [failure-posture.json](../examples/HostDeclaration11/failure-posture.json)
+ * @example [streaming-document-policy.json](../examples/HostDeclaration11/streaming-document-policy.json)
  * @title Agent Hooks — host declaration document (agent-hooks-declaration/1.1)
  * @additionalProperties false
  */

@@ -84,6 +84,7 @@ interface VerdictBase {
  * @additionalProperties false
  * @example [allow.json](../examples/Verdict/allow.json)
  * @example [allow-with-warning.json](../examples/Verdict/allow-with-warning.json)
+ * @example [allow-with-evidence.json](../examples/Verdict/allow-with-evidence.json)
  */
 export interface AllowVerdict extends VerdictBase {
   decision: Decision.Allow;
