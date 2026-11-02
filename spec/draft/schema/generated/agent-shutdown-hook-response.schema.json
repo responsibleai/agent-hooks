@@ -5,15 +5,15 @@
   "description": "Bare agent_shutdown response: transforms are forbidden.",
   "anyOf": [
     {
-      "$ref": "#/$defs/HookAllowVerdict"
+      "$ref": "#/$defs/AllowVerdictBase"
     },
     {
-      "$ref": "#/$defs/HookDenyVerdict"
+      "$ref": "#/$defs/DenyVerdictBase"
     }
   ],
   "$defs": {
-    "HookAllowVerdict": {
-      "description": "Common allow response for every hook.",
+    "AllowVerdictBase": {
+      "description": "Shared decision shape for allow responses.",
       "type": "object",
       "properties": {
         "decision": {
@@ -118,8 +118,8 @@
         "type": "string"
       }
     },
-    "HookDenyVerdict": {
-      "description": "Common deny response for every hook.",
+    "DenyVerdictBase": {
+      "description": "Shared decision shape for deny responses.",
       "type": "object",
       "properties": {
         "decision": {
