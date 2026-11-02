@@ -31,8 +31,8 @@
   `SPEC_DEV_DIR` in the workflows and in the Rust tests, so a breaking
   draft change has somewhere to be implemented; CI steps that check
   schemas and vectors loop over every bundle. A release tag names the
-  specification version it ships against. Prose links cite the latest
-  release, `spec/0.1.0/`.
+  specification version it ships against. Prose links cite the current
+  version folder, `spec/0.1.0/`.
 - **All five SDKs.** A contract change is not done until Rust core,
   Python, TypeScript, .NET, and Go agree; the Rust core is the single
   source of truth and the wrappers delegate to it.

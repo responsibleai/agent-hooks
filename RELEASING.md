@@ -86,13 +86,22 @@ new folder and `<previous>` the folder it supersedes.
 2. In the copy, replace every `spec/draft/` self-reference with
    `spec/<X.Y.Z>/` (`grep -rl 'spec/draft' spec/<X.Y.Z>`), delete the
    draft banner at the top of `AGENT-HOOKS-*.md`, and set its header
-   line to `**Status:** Released · **Version:** `X.Y.Z` · **Date:**
-   <date>`. Nothing else in the copy changes.
+   line to
+
+   ```markdown
+   > **Status:** Released · **Version:** `X.Y.Z` · **Date:** YYYY-MM-DD
+   ```
+
+   Nothing else in the copy changes.
 3. In `spec/draft/AGENT-HOOKS-*.md`, point the draft banner's link at
-   the new folder.
+   the new folder and reword it to "The latest released specification
+   is [X.Y.Z](../X.Y.Z/AGENT-HOOKS-A.B.md)."
 4. In `spec/README.md`, add the row for `<X.Y.Z>` with the status
-   "Latest release" and change the `<previous>` row to "Superseded".
-5. Link sweep: prose links outside `spec/` cite the latest release
+   "Latest release" and change the `<previous>` row to "Superseded"
+   (it reads "Beta snapshot" while no tag exists). In `README.md`,
+   point the "Read next" sentence at the new folder and drop the beta
+   snapshot wording.
+5. Link sweep: prose links outside `spec/` cite the current version folder
    (`grep -rn 'spec/<previous>/' --exclude-dir=spec --exclude-dir=node_modules --exclude-dir=target .`).
    Move each to `spec/<X.Y.Z>/` unless the document cites the older
    text on purpose. Machine consumers (CI steps, the Python mirror, the
@@ -112,14 +121,25 @@ new folder and `<previous>` the folder it supersedes.
    is published from the working tree at its own `$id` path.
 7. `CHANGELOG.md`: name the specification version in the entry for
    the tag.
-8. Run the checks the `lint`, `schema-lint`, `typescript` and
-   `change-class` jobs run:
+8. Run the checks that read the new folder; the `lint`,
+   `schema-lint`, `typescript`, `change-class` and `pages` jobs run
+   the same commands (`ajv` is `ajv-cli`, installed as in `ci.yml`):
 
    ```bash
    python3 scripts/check-spec-versions.py
    python3 scripts/check-released-specs-immutable.py origin/main HEAD
+   python3 scripts/check-version-consistency.py
+   python3 scripts/check-file-headers.py
+   python3 -m unittest discover -s scripts -p "test_*.py"
+   python3 scripts/stage-docs-site.py
+   for d in spec/*/; do
+     ajv validate --spec=draft2020 -c ajv-formats -s conformance/vectors.schema.json \
+       -r "${d}schema/generated/*.schema.json" \
+       -r "${d}schema/generated/strict-contexts/*.schema.json" \
+       -d 'conformance/vectors/*.json'
+   done
    cd sdk/typescript && npm ci
-   node scripts/check-schema-examples.mjs <X.Y.Z>
+   node scripts/check-schema-examples.mjs
    npx tsc -p ../../spec/<X.Y.Z>/schema/src/tsconfig.json
    npx tsx scripts/generate-schemas.mts --check --spec <X.Y.Z>
    ```
@@ -127,6 +147,17 @@ new folder and `<previous>` the folder it supersedes.
    The new folder passes the released-folder guard because it did not
    exist on `main`; after the merge it is frozen, and only new regular
    `.json` files under its `schema/examples/<Type>/` may be added.
+
+### Tagging the beta snapshot as v0.1.0
+
+`spec/0.1.0/` exists as a frozen beta snapshot. When `v0.1.0` is tagged
+against it without a new cut, retire the three labels that state says:
+the `0.1.0` row in `spec/README.md` becomes "Latest release", the "Read
+next" sentence in `README.md` drops the not-yet-tagged wording, and the
+draft banner reads "The latest released specification is
+[0.1.0](../0.1.0/AGENT-HOOKS-0.1.md)". The header line inside the
+frozen folder keeps `0.1.0-beta`, the stage its text was written at. A
+new cut changes the same three places through steps 3 and 4 above.
 
 ## Tag
 

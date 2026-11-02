@@ -17,7 +17,8 @@ Each folder is a complete specification bundle:
   next to the bundle's schemas on the documentation site
 - `schema/`: TypeScript schema source (`src/`), the generated normative
   JSON Schemas (`generated/`), and the path grammar. The `schema/README.md`
-  inside a released bundle is the copy frozen at the release; follow
+  inside a released bundle is the copy frozen at the release, and its
+  sentence about SDK pinning describes the state at that time; follow
   [`draft/schema/README.md`](draft/schema/README.md) for how to edit,
   generate and check schemas.
 
@@ -42,7 +43,7 @@ drift check target `draft/` by default. SDK development tracks `draft/`
 as well: the Python schema mirror, the Rust tests and the version
 script read it, the CI schema and vector checks cover every bundle, and
 a release tag names the version it ships against. Prose links cite the
-latest release.
+current version folder, `0.1.0/`.
 
 Released folders are immutable records of a release. The `change-class`
 CI check fails a pull request that changes any `MAJOR.MINOR.PATCH`

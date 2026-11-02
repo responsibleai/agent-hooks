@@ -14,6 +14,15 @@ manifests MUST carry the same version at all times:
 Go carries no manifest version: the module version is the git tag.
 PEP 440 spells SemVer pre-releases differently (0.1.0-alpha.2 ->
 0.1.0a2), so versions are compared after normalizing both spellings.
+
+The script also checks the host declaration contract version (spec
+section 7.7.2): the Rust DECLARATION_VERSION must be the current row
+of the contract table in the development bundle's
+DECLARATION-VERSIONS.md, some row of the SDK release table in
+VERSIONING.md must accept it, and the bundle must carry its schema.
+The development bundle is spec/draft unless the SPEC_DEV_DIR
+environment variable names another folder, as the CI workflows do.
+Finally, sdk/typescript/package.json must not commit platform pins.
 """
 
 from __future__ import annotations
@@ -62,13 +71,15 @@ def read_versions() -> dict[str, str]:
     return versions
 
 
-def check_declaration_versions() -> int:
+def check_declaration_versions(
+    root: Path = ROOT, spec_dev_dir: str = SPEC_DEV_DIR
+) -> int:
     """The host declaration contract version (spec section 7.7.2): the
     Rust constant must be the current row of the contract table in the
     development bundle's DECLARATION-VERSIONS.md, some SDK release row
     in VERSIONING.md must accept it, the supported set must list it,
     and the development bundle must carry its schema."""
-    types_rs = (ROOT / "sdk/rust/core/src/types.rs").read_text(encoding="utf-8")
+    types_rs = (root / "sdk/rust/core/src/types.rs").read_text(encoding="utf-8")
     m = re.search(r'pub const DECLARATION_VERSION: &str = "([^"]+)"', types_rs)
     assert m, "no DECLARATION_VERSION in sdk/rust/core/src/types.rs"
     current = m.group(1)
@@ -79,13 +90,13 @@ def check_declaration_versions() -> int:
     if "DECLARATION_VERSION" not in m.group(1) and f'"{current}"' not in m.group(1):
         print(f"::error::SUPPORTED_DECLARATION_VERSIONS does not list {current}")
         return 1
-    contract_table = f"{SPEC_DEV_DIR}/DECLARATION-VERSIONS.md"
+    contract_table = f"{spec_dev_dir}/DECLARATION-VERSIONS.md"
     release_table = "VERSIONING.md"
 
     def rows(path: str) -> list[str]:
         return [
             line
-            for line in (ROOT / path).read_text(encoding="utf-8").splitlines()
+            for line in (root / path).read_text(encoding="utf-8").splitlines()
             if line.startswith("|") and f"`{current}`" in line
         ]
 
@@ -99,13 +110,15 @@ def check_declaration_versions() -> int:
         print(f"::error::{release_table} has no SDK release row accepting {current}")
         return 1
     schema = (
-        ROOT
-        / SPEC_DEV_DIR
+        root
+        / spec_dev_dir
         / "schema/generated"
         / f"host-declaration-{current.split('/')[1]}.schema.json"
     )
     if not schema.exists():
-        print(f"::error::{schema.relative_to(ROOT)} is missing for {current}")
+        print(
+            f"::error::{schema.relative_to(root).as_posix()} is missing for {current}"
+        )
         return 1
     print(f"declaration contract version agrees: {current}")
     return 0
