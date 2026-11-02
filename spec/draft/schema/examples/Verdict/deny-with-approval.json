@@ -1,0 +1,6 @@
+{
+  "decision": "deny",
+  "reason": "collection_requires_approval",
+  "message": "An operator must approve searching the internal collection.",
+  "approval": {}
+}

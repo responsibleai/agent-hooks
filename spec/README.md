@@ -17,6 +17,13 @@ Each folder is a complete specification bundle:
 - `schema/`: TypeScript schema source (`src/`), the generated normative
   JSON Schemas (`generated/`), and the path grammar
 
+Standalone JSON examples are organized by type under
+`<version>/schema/examples/<Type>/<example>.json`; draft source definitions link
+to their examples. From `sdk/typescript` after `npm ci`, run
+`node scripts/check-schema-examples.mjs` for draft or add `0.1.0` to validate
+the release bundle. CI runs both checks; each bundle is checked against its own
+local schemas.
+
 ## Working on the specification
 
 Make normative changes in `draft/`. Edit schema shapes in

@@ -1,0 +1,19 @@
+{
+  "spec": "agent-hooks/0.1",
+  "interception_point": "output",
+  "timestamp": "2026-10-30T16:00:06Z",
+  "sequence": 6,
+  "agent": {
+    "id": "policy-assistant",
+    "framework": "example_host"
+  },
+  "session": {
+    "id": "policy-search-001"
+  },
+  "target": {
+    "content": "Public documents are retained for 30 days."
+  },
+  "output": {
+    "content": "Public documents are retained for 30 days."
+  }
+}

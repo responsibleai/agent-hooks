@@ -1,0 +1,19 @@
+{
+  "spec": "agent-hooks/0.1",
+  "interception_point": "agent_startup",
+  "timestamp": "2026-10-30T16:00:00Z",
+  "sequence": 0,
+  "agent": {
+    "id": "policy-assistant",
+    "framework": "example_host"
+  },
+  "session": {
+    "id": "policy-search-001"
+  },
+  "target": {
+    "tools_registered": ["search_documents"]
+  },
+  "agent_init": {
+    "tools_registered": ["search_documents"]
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "spec": "agent-hooks/0.1",
+  "interception_point": "post_model_call",
+  "timestamp": "2026-10-30T16:00:03Z",
+  "sequence": 3,
+  "agent": {
+    "id": "policy-assistant",
+    "framework": "example_host"
+  },
+  "session": {
+    "id": "policy-search-001"
+  },
+  "target": {
+    "content": "",
+    "tool_calls": [
+      {
+        "id": "search-001",
+        "name": "search_documents",
+        "args": {
+          "query": "document retention policy",
+          "collection": "internal"
+        }
+      }
+    ],
+    "finish_reason": "tool_calls"
+  },
+  "model": {
+    "id": "example-model",
+    "vendor": "example"
+  },
+  "response": {
+    "content": "",
+    "tool_calls": [
+      {
+        "id": "search-001",
+        "name": "search_documents",
+        "args": {
+          "query": "document retention policy",
+          "collection": "internal"
+        }
+      }
+    ],
+    "finish_reason": "tool_calls"
+  },
+  "request_id": "model-request-001",
+  "usage": {
+    "prompt_tokens": 24,
+    "completion_tokens": 18
+  }
+}

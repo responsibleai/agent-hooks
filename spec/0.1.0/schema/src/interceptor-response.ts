@@ -8,6 +8,9 @@ import { Verdict } from "./verdict";
 /**
  * The envelope form: a verdict plus transport metadata.
  * @additionalProperties false
+ * @example [allow-envelope.json](../examples/InterceptorResponse/allow-envelope.json)
+ * @example [deny-envelope.json](../examples/InterceptorResponse/deny-envelope.json)
+ * @example [transform-envelope.json](../examples/InterceptorResponse/transform-envelope.json)
  */
 export interface ResponseEnvelope {
   verdict: Verdict;

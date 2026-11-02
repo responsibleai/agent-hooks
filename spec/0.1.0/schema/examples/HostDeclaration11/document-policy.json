@@ -1,0 +1,51 @@
+{
+  "declaration": "agent-hooks-declaration/1.1",
+  "spec": "agent-hooks/0.1",
+  "id": "document-policy",
+  "configuration": {
+    "identity_provider": null,
+    "composition": {
+      "profile": "sequential/first_deny",
+      "on_approval": "resume"
+    },
+    "approval": {
+      "resolver": "operator"
+    },
+    "failure": {
+      "on_error": "deny"
+    }
+  },
+  "surface": {
+    "interception_points": [
+      "agent_startup",
+      "input",
+      "pre_model_call",
+      "post_model_call",
+      "pre_tool_call",
+      "post_tool_call",
+      "output",
+      "agent_shutdown"
+    ],
+    "capabilities": ["model_calls", "tool_calls", "host_declaration"],
+    "declaration_versions": [
+      "agent-hooks-declaration/1.0",
+      "agent-hooks-declaration/1.1"
+    ],
+    "profiles": {
+      "sequential/first_deny": {
+        "on_approval": ["resume"]
+      }
+    },
+    "buffered_output": true
+  },
+  "bindings": [
+    {
+      "id": "document-policy",
+      "kind": "example.document_policy",
+      "config": {
+        "permitted_collection": "public"
+      },
+      "on_error": "deny"
+    }
+  ]
+}

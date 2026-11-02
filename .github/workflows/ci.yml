@@ -73,6 +73,11 @@ jobs:
         with: { node-version: "22" }
       - run: npm ci
         working-directory: sdk/typescript
+      - name: Schema examples match their JSON Schemas
+        run: |
+          node scripts/check-schema-examples.mjs
+          node scripts/check-schema-examples.mjs 0.1.0
+        working-directory: sdk/typescript
       - name: Schema equivalence handles the generated output directory
         run: npm run check:schema:equivalence -- --old ../../spec/0.1.0/schema/generated --new ../../spec/0.1.0/schema/generated --structural-diff
         working-directory: sdk/typescript

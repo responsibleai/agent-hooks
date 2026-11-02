@@ -1,0 +1,8 @@
+{
+  "decision": "transform",
+  "reason": "public_source_summary",
+  "transform": {
+    "path": "$target.text",
+    "value": "Retention period: 30 days."
+  }
+}

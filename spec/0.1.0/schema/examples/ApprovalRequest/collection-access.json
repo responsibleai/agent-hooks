@@ -1,0 +1,10 @@
+{
+  "context_identity": null,
+  "interception_point": "pre_tool_call",
+  "verdict": {
+    "decision": "deny",
+    "reason": "collection_requires_approval",
+    "message": "An operator must approve searching the internal collection.",
+    "approval": {}
+  }
+}
