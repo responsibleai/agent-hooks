@@ -24,7 +24,6 @@ export interface LiftableDeny {
 /**
  * What the host hands the resolver (§9).
  * @additionalProperties false
- * @example [collection-access.json](../examples/ApprovalRequest/collection-access.json)
  */
 export interface request {
   context_identity: string | null;
@@ -52,8 +51,6 @@ interface ResolutionBase {
 /**
  * approve: the resolver lifts the deny with an allow or transform verdict.
  * @additionalProperties false
- * @example [approve-allow.json](../examples/ApprovalResolution/approve-allow.json)
- * @example [approve-transform.json](../examples/ApprovalResolution/approve-transform.json)
  */
 export interface ApproveResolution extends ResolutionBase {
   outcome: Outcome.Approve;
@@ -63,7 +60,6 @@ export interface ApproveResolution extends ResolutionBase {
 /**
  * reject: the resolver keeps a deny.
  * @additionalProperties false
- * @example [reject.json](../examples/ApprovalResolution/reject.json)
  */
 export interface RejectResolution extends ResolutionBase {
   outcome: Outcome.Reject;
@@ -73,7 +69,6 @@ export interface RejectResolution extends ResolutionBase {
 /**
  * unresolved: no decision; the deny stands and no verdict is carried.
  * @additionalProperties false
- * @example [unresolved.json](../examples/ApprovalResolution/unresolved.json)
  */
 export interface UnresolvedResolution extends ResolutionBase {
   outcome: Outcome.Unresolved;

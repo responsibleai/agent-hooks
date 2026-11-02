@@ -82,9 +82,6 @@ interface VerdictBase {
 /**
  * allow: proceed. Absorbs warn through warnings[] (§5.1).
  * @additionalProperties false
- * @example [allow.json](../examples/Verdict/allow.json)
- * @example [allow-with-warning.json](../examples/Verdict/allow-with-warning.json)
- * @example [allow-with-evidence.json](../examples/Verdict/allow-with-evidence.json)
  */
 export interface AllowVerdict extends VerdictBase {
   decision: Decision.Allow;
@@ -93,8 +90,6 @@ export interface AllowVerdict extends VerdictBase {
 /**
  * deny: stop the action. Absorbs escalate through the approval block (§5.1).
  * @additionalProperties false
- * @example [deny.json](../examples/Verdict/deny.json)
- * @example [deny-with-approval.json](../examples/Verdict/deny-with-approval.json)
  */
 export interface DenyVerdict extends VerdictBase {
   decision: Decision.Deny;
@@ -109,12 +104,6 @@ export interface DenyVerdict extends VerdictBase {
  * transform: proceed with the target rewritten. The transform body is REQUIRED
  * (§5).
  * @additionalProperties false
- * @example [transform-input.json](../examples/Verdict/transform-input.json)
- * @example [transform-messages.json](../examples/Verdict/transform-messages.json)
- * @example [transform-response.json](../examples/Verdict/transform-response.json)
- * @example [transform-tool-args.json](../examples/Verdict/transform-tool-args.json)
- * @example [transform-tool-result.json](../examples/Verdict/transform-tool-result.json)
- * @example [transform-output.json](../examples/Verdict/transform-output.json)
  */
 export interface TransformVerdict extends VerdictBase {
   decision: Decision.Transform;
