@@ -16,8 +16,8 @@
         "agent_shutdown"
       ],
       "capabilities": [
-        "incremental_output",
-        "host_declaration"
+        "host_declaration",
+        "incremental_output"
       ],
       "buffered_output": false,
       "exposure_bound": "one chunk"
