@@ -1083,6 +1083,7 @@
     },
     "AllowVerdict": {
       "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -1139,8 +1140,7 @@
       },
       "required": [
         "decision"
-      ],
-      "additionalProperties": false
+      ]
     },
     "Warning": {
       "description": "A recorded concern that does not affect control flow (§5.1).",
