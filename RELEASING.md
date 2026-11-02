@@ -117,8 +117,8 @@ new folder and `<previous>` the folder it supersedes.
    ```
 
    The new folder passes the released-folder guard because it did not
-   exist on `main`; after the merge it is frozen, and only new files
-   under its `schema/examples/` may be added.
+   exist on `main`; after the merge it is frozen, and only new regular
+   `.json` files under its `schema/examples/<Type>/` may be added.
 
 ## Tag
 

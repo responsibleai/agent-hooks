@@ -6,10 +6,15 @@
 A released folder is any spec/<MAJOR.MINOR.PATCH>/ directory that already
 exists at the base revision. Changes under spec/draft/ and new version
 folders are allowed. Inside a released folder one kind of change is
-allowed: a new file under schema/examples/. A modified or deleted file
-anywhere in the folder, and a new file outside schema/examples/, fail.
-A symbolic link anywhere under spec/ fails: the folders hold regular
-files only, so no path can point outside the folder it appears in.
+allowed: a new regular .json file under schema/examples/<Type>/. A
+modified or deleted file anywhere in the folder, and any other new
+file, fail.
+
+Everything under spec/ is a regular file in a plainly named directory:
+a symbolic link, a gitlink (submodule), an empty, dot, dot-dot or .git
+path component, and a file or directory whose name starts with a dot
+(.gitattributes, .gitignore, .gitmodules) fail wherever they sit, so no
+entry can point outside its folder or rewrite other files on checkout.
 
 Usage: check-released-specs-immutable.py <base-revision> [<head-revision>]
 """
@@ -21,8 +26,10 @@ import subprocess
 import sys
 
 VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
-EXAMPLES = re.compile(r"^spec/[^/]+/schema/examples/.+")
+EXAMPLE = re.compile(r"^spec/[^/]+/schema/examples/[A-Za-z][A-Za-z0-9]*/[^/]+\.json$")
 SYMLINK_MODE = "120000"
+REGULAR_FILE = "100644"
+REGULAR_MODES = (REGULAR_FILE, "100755")
 
 
 def escape_data(value: str) -> str:
@@ -66,16 +73,30 @@ def changed_paths(base: str, head: str) -> list[tuple[str, str, str]]:
 def violation(status: str, head_mode: str, path: str, released: set[str]) -> str | None:
     """Why this change is not allowed under spec/, or None."""
     parts = path.split("/")
-    if parts[0] != "spec" or len(parts) < 2:
+    if parts[0] != "spec":
         return None
-    if head_mode == SYMLINK_MODE:
-        return "is a symbolic link; specification folders hold regular files only"
+    # The entry itself comes first, so a symbolic link or gitlink at
+    # any depth, spec itself included, gets its own message. A deleted
+    # entry has no head mode and no content to check.
+    if status != "D":
+        if head_mode == SYMLINK_MODE:
+            return "is a symbolic link; specification folders hold regular files only"
+        if head_mode not in REGULAR_MODES:
+            return f"has git mode {head_mode}; specification folders hold regular files only"
+        if any(part == "" or part.startswith(".") for part in parts[1:]):
+            return (
+                "has an empty path component or one that starts with a dot; "
+                "specification folders hold no such entries"
+            )
     if len(parts) <= 2 or parts[1] not in released:
         return None
     if status == "A":
-        if EXAMPLES.match(path):
+        if head_mode == REGULAR_FILE and EXAMPLE.match(path):
             return None
-        return "adds a file outside schema/examples/ in a released specification folder"
+        return (
+            "adds a file to a released specification folder; only a regular "
+            ".json file under schema/examples/<Type>/ may be added"
+        )
     if status == "D":
         return "deletes a file from a released specification folder"
     return "changes a file in a released specification folder"
@@ -96,8 +117,8 @@ def main(argv: list[str]) -> int:
     if errors:
         print(
             "::error::Released specification folders are immutable; only new "
-            "files under schema/examples/ may be added. Make other changes in "
-            "spec/draft/ and publish a new version instead:"
+            "regular .json files under schema/examples/<Type>/ may be added. "
+            "Make other changes in spec/draft/ and publish a new version instead:"
         )
         for path, reason in errors:
             print(f"::error file={escape_property(path)}::{escape_data(path)} {reason}")

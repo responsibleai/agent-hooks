@@ -42,10 +42,11 @@ latest release.
 Released folders are immutable records of a release. The `change-class`
 CI check fails a pull request that changes any `MAJOR.MINOR.PATCH`
 folder that already exists on its base branch, with one exception: a
-new file under `<version>/schema/examples/` may be added, because an
-example illustrates a schema without changing it. A modified or
-deleted file anywhere in a released folder, and a new file outside
-`schema/examples/`, fail the check. Make other changes in `draft/` and
+new regular `.json` file under `<version>/schema/examples/<Type>/` may
+be added, because an example illustrates a schema without changing it.
+A modified or deleted file anywhere in a released folder, and any other
+new file, fail the check, as does a symbolic link, a submodule or a
+hidden file anywhere under `spec/`. Make other changes in `draft/` and
 release a new version; adding a new version folder is allowed. The
 check reports on every pull request but is not yet in the required
 set, so a red result still needs a reviewer to act on it.

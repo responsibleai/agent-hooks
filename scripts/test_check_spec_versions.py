@@ -75,6 +75,36 @@ class CheckTest(unittest.TestCase):
         )
         self.assertFalse(any("does not link spec/0.2.0" in e for e in errors))
 
+    def test_hidden_files_fail(self) -> None:
+        (self.root / "spec/0.1.0/schema/examples").mkdir()
+        (self.root / "spec/0.1.0/schema/examples/.gitattributes").write_text("* text\n")
+        (self.root / "spec/.gitignore").write_text("*\n")
+        errors = versions.check(self.root)
+        self.assertIn(
+            "spec/0.1.0/schema/examples/.gitattributes starts with a dot; "
+            "specification folders hold no hidden files",
+            errors,
+        )
+        self.assertIn(
+            "spec/.gitignore starts with a dot; specification folders hold no hidden files",
+            errors,
+        )
+        self.assertFalse(any("must live in a version folder" in e for e in errors))
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "named pipes need a POSIX file system")
+    def test_non_regular_entry_fails(self) -> None:
+        os.mkfifo(self.root / "spec/draft/pipe.json")
+        errors = versions.check(self.root)
+        self.assertIn("spec/draft/pipe.json is not a regular file or directory", errors)
+
+    def test_spec_itself_as_a_symlink_fails(self) -> None:
+        (self.root / "spec").rename(self.root / "elsewhere")
+        os.symlink("elsewhere", self.root / "spec")
+        self.assertEqual(
+            versions.check(self.root),
+            ["spec is a symbolic link; specification folders hold regular files only"],
+        )
+
     def test_non_ascii_digit_folder_is_not_a_version(self) -> None:
         bundle(self.root, "0.1١.0")
         errors = versions.check(self.root)

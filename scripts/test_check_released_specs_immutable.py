@@ -10,6 +10,7 @@ the script the way the change-class workflow does.
 
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -67,8 +68,17 @@ class Repo:
 
     def commit(self, message: str) -> str:
         self.git("add", "-A")
+        return self.commit_index(message)
+
+    def commit_index(self, message: str) -> str:
+        """Commit the index as it stands, without staging the work tree."""
         self.git("commit", "-q", "-m", message)
         return self.git("rev-parse", "HEAD").strip()
+
+    def gitlink(self, relative: str) -> None:
+        """Stage a submodule entry (mode 160000) at relative."""
+        head = self.git("rev-parse", "HEAD").strip()
+        self.git("update-index", "--add", "--cacheinfo", f"160000,{head},{relative}")
 
     def guard(self, base: str, head: str = "HEAD") -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -131,7 +141,60 @@ class GuardTest(unittest.TestCase):
 
     def test_new_file_outside_examples_fails(self) -> None:
         self.repo.write("spec/0.1.0/schema/src/verdict.ts", "export {};\n")
-        self.assert_fails("adds a file outside schema/examples/")
+        self.assert_fails("adds a file to a released specification folder")
+
+    def test_only_regular_json_under_a_type_directory_may_be_added(self) -> None:
+        for relative in (
+            "spec/0.1.0/schema/examples/Verdict/notes.md",
+            "spec/0.1.0/schema/examples/new.json",
+            "spec/0.1.0/schema/examples/Type-2/x.json",
+            "spec/0.1.0/schema/examples/Verdict/nested/x.json",
+        ):
+            self.repo.write(relative)
+            self.assert_fails(
+                f"{relative} adds a file to a released specification folder"
+            )
+            self.repo.remove(relative)
+        self.repo.write("spec/0.1.0/schema/examples/HostDeclaration11/new.json")
+        self.assert_passes()
+
+    @unittest.skipIf(os.name == "nt", "git records file modes on POSIX only")
+    def test_executable_example_fails(self) -> None:
+        relative = "spec/0.1.0/schema/examples/Verdict/run.json"
+        self.repo.write(relative)
+        os.chmod(self.repo.root / relative, 0o755)
+        self.assert_fails(f"{relative} adds a file to a released specification folder")
+
+    def test_gitlink_fails_everywhere_under_spec(self) -> None:
+        self.repo.gitlink("spec/0.1.0/schema/examples/Verdict/sub")
+        self.repo.commit_index("gitlink in a released folder")
+        result = self.repo.guard(self.base)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(
+            "spec/0.1.0/schema/examples/Verdict/sub has git mode 160000", result.stdout
+        )
+        self.repo.gitlink("spec/draft/vendor")
+        self.repo.commit_index("gitlink in the draft")
+        result = self.repo.guard(self.base)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("spec/draft/vendor has git mode 160000", result.stdout)
+
+    def test_dotfiles_fail_everywhere_under_spec(self) -> None:
+        self.repo.write("spec/0.1.0/schema/examples/Verdict/.gitattributes", "* text\n")
+        self.assert_fails(
+            "spec/0.1.0/schema/examples/Verdict/.gitattributes has an empty path"
+        )
+        self.repo.remove("spec/0.1.0/schema/examples/Verdict/.gitattributes")
+        self.repo.write("spec/draft/.gitignore", "build/\n")
+        self.assert_fails("spec/draft/.gitignore has an empty path component")
+        self.repo.remove("spec/draft/.gitignore")
+        self.repo.write("spec/.gitmodules", "")
+        self.assert_fails("spec/.gitmodules has an empty path component")
+
+    def test_spec_itself_as_a_symlink_gets_its_own_message(self) -> None:
+        shutil.move(self.repo.root / "spec", self.repo.root / "elsewhere")
+        os.symlink("elsewhere", self.repo.root / "spec")
+        self.assert_fails("::error file=spec::spec is a symbolic link")
 
     def test_symlink_fails_everywhere_under_spec(self) -> None:
         self.repo.symlink("spec/0.1.0/schema/examples/Verdict/link.json", "allow.json")
@@ -201,7 +264,7 @@ class HelperTest(unittest.TestCase):
             "deletes", guard.violation("D", "000000", "spec/0.1.0/x.md", released)
         )
         self.assertIn(
-            "adds a file outside",
+            "adds a file to",
             guard.violation("A", "100644", "spec/0.1.0/x.md", released),
         )
         self.assertIn(
@@ -210,6 +273,39 @@ class HelperTest(unittest.TestCase):
         self.assertIn(
             "symbolic link", guard.violation("A", "120000", "spec/draft/x", released)
         )
+        self.assertIn("symbolic link", guard.violation("A", "120000", "spec", released))
+        self.assertIn(
+            "git mode 160000",
+            guard.violation("A", "160000", "spec/draft/sub", released),
+        )
+        self.assertIn(
+            "adds a file to",
+            guard.violation(
+                "A", "100755", "spec/0.1.0/schema/examples/T/x.json", released
+            ),
+        )
+        self.assertIsNone(
+            guard.violation(
+                "A", "100644", "spec/0.1.0/schema/examples/T2/x.json", released
+            )
+        )
+        # A deletion has no entry to check; only the released rule applies.
+        self.assertIsNone(
+            guard.violation("D", "000000", "spec/draft/.gitignore", released)
+        )
+        for path in (
+            "spec/0.1.0/schema/examples/../evil.json",
+            "spec/0.1.0/schema/examples/./T/x.json",
+            "spec/0.1.0/schema/examples/.git/x.json",
+            "spec/0.1.0/schema/examples//x.json",
+            "spec/0.1.0/schema/examples/T/.hidden.json",
+            "spec/draft/.gitattributes",
+        ):
+            self.assertIn(
+                "empty path component",
+                guard.violation("A", "100644", path, released),
+                path,
+            )
 
 
 if __name__ == "__main__":

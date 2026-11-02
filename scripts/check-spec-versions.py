@@ -6,8 +6,10 @@
 Released specifications live in spec/<MAJOR.MINOR.PATCH>/; ongoing
 work lives in spec/draft/. Each folder carries the complete spec bundle,
 and spec/README.md lists each folder. Every entry under spec/ is a
-regular file or directory: a symbolic link fails, so nothing in a
-bundle can point outside it.
+regular file or directory whose name does not start with a dot: a
+symbolic link, a device or pipe, and a hidden file such as
+.gitattributes fail, so nothing in a bundle can point outside it or
+rewrite other files on checkout.
 
 Usage: check-spec-versions.py [<repository-root>]
 """
@@ -47,6 +49,17 @@ def walk(root: Path) -> list[Path]:
     return entries
 
 
+def entry_problem(path: Path) -> str | None:
+    """Why this entry may not sit under spec/, or None."""
+    if path.is_symlink():
+        return "is a symbolic link; specification folders hold regular files only"
+    if path.name.startswith("."):
+        return "starts with a dot; specification folders hold no hidden files"
+    if not (path.is_file() or path.is_dir()):
+        return "is not a regular file or directory"
+    return None
+
+
 def check_bundle(root: Path, folder: Path) -> list[str]:
     errors: list[str] = []
     rel = folder.relative_to(root).as_posix()
@@ -59,7 +72,7 @@ def check_bundle(root: Path, folder: Path) -> list[str]:
         if not (folder / name).is_dir():
             errors.append(f"{rel}/{name}/ is missing")
     for path in walk(folder):
-        if path.suffix != ".json" or not path.is_file():
+        if path.suffix != ".json" or path.is_symlink() or not path.is_file():
             continue
         try:
             json.loads(path.read_text(encoding="utf-8"))
@@ -71,6 +84,10 @@ def check_bundle(root: Path, folder: Path) -> list[str]:
 def check(root: Path) -> list[str]:
     """Every problem under <root>/spec, as one message each."""
     spec = root / "spec"
+    if spec.is_symlink():
+        return [
+            "spec is a symbolic link; specification folders hold regular files only"
+        ]
     errors: list[str] = []
     readme_path = spec / "README.md"
     if not readme_path.is_file():
@@ -80,11 +97,9 @@ def check(root: Path) -> list[str]:
         readme = readme_path.read_text(encoding="utf-8")
 
     for path in walk(spec):
-        if path.is_symlink():
-            errors.append(
-                f"{path.relative_to(root).as_posix()} is a symbolic link; "
-                "specification folders hold regular files only"
-            )
+        problem = entry_problem(path)
+        if problem:
+            errors.append(f"{path.relative_to(root).as_posix()} {problem}")
 
     folders = sorted(p for p in spec.iterdir() if p.is_dir() and not p.is_symlink())
     names = {p.name for p in folders}
@@ -105,9 +120,10 @@ def check(root: Path) -> list[str]:
             errors.append(f"spec/README.md does not link spec/{folder.name}/")
 
     for path in spec.iterdir():
-        if path.is_symlink():
+        # Symbolic links and hidden entries were reported above.
+        if path.is_symlink() or path.is_dir() or path.name.startswith("."):
             continue
-        if path.is_file() and path.name != "README.md":
+        if path.name != "README.md":
             errors.append(f"spec/{path.name} must live in a version folder")
     return errors
 
