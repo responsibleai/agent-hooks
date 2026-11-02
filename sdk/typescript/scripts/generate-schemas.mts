@@ -196,6 +196,23 @@ function generateRoot(root: Root): Schema {
   }
   // 3: the draft-07 meaning of $ref, which ignores its siblings.
   stripRefSiblings(schema);
+  // Generic and hosted verdicts keep their decision objects closed. Approval
+  // definitions embed those verdicts; hook response schemas reuse the same
+  // allow/deny shapes while leaving their roots open.
+  if (
+    (root.type === "Verdict" ||
+      root.type === "InterceptorResponse" ||
+      root.file === "approval.schema.json") &&
+    schema.$defs &&
+    typeof schema.$defs === "object"
+  ) {
+    for (const name of ["AllowVerdict", "DenyVerdict"]) {
+      const definition = (schema.$defs as Record<string, Json>)[name];
+      if (definition && typeof definition === "object" && !Array.isArray(definition)) {
+        (definition as Schema).additionalProperties = false;
+      }
+    }
+  }
   // 4: JSON numbers may be fractional; defaultNumberType applies to the
   //    other number fields, such as the nonnegative integer sequence.
   allowFractionalJsonNumbers(schema);

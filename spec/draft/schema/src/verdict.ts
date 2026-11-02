@@ -79,22 +79,22 @@ export interface VerdictBase {
   result_labels?: string[] | null;
 }
 
-/** Shared decision shape for allow responses. */
-export interface AllowVerdictBase extends VerdictBase {
-  decision: Decision.Allow;
-}
-
 /**
  * allow: proceed. Absorbs warn through warnings[] (§5.1).
- * @additionalProperties false
  * @example [allow.json](../examples/Verdict/allow.json)
  * @example [allow-with-warning.json](../examples/Verdict/allow-with-warning.json)
  * @example [allow-with-evidence.json](../examples/Verdict/allow-with-evidence.json)
  */
-export interface AllowVerdict extends AllowVerdictBase {}
+export interface AllowVerdict extends VerdictBase {
+  decision: Decision.Allow;
+}
 
-/** Shared decision shape for deny responses. */
-export interface DenyVerdictBase extends VerdictBase {
+/**
+ * deny: stop the action. Absorbs escalate through the approval block (§5.1).
+ * @example [deny.json](../examples/Verdict/deny.json)
+ * @example [deny-with-approval.json](../examples/Verdict/deny-with-approval.json)
+ */
+export interface DenyVerdict extends VerdictBase {
   decision: Decision.Deny;
   /**
    * Present only on deny: marks the deny as liftable by the approval seam (§9).
@@ -102,14 +102,6 @@ export interface DenyVerdictBase extends VerdictBase {
    */
   approval?: object;
 }
-
-/**
- * deny: stop the action. Absorbs escalate through the approval block (§5.1).
- * @additionalProperties false
- * @example [deny.json](../examples/Verdict/deny.json)
- * @example [deny-with-approval.json](../examples/Verdict/deny-with-approval.json)
- */
-export interface DenyVerdict extends DenyVerdictBase {}
 
 /** Shared metadata and decision for a transform with a caller-specific payload. */
 export interface TransformVerdictBase<TTransform> extends VerdictBase {

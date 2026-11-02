@@ -12,8 +12,8 @@ import {
   PreToolCallRequest,
 } from "./agent-context";
 import {
-  AllowVerdictBase,
-  DenyVerdictBase,
+  AllowVerdict,
+  DenyVerdict,
   TransformVerdictBase,
 } from "./verdict";
 
@@ -94,7 +94,7 @@ export interface OutputTransformVerdict extends TransformVerdictBase<OutputHookT
  * @example [allow.json](../examples/AgentStartupHookResponse/allow.json)
  * @example [deny.json](../examples/AgentStartupHookResponse/deny.json)
  */
-export type AgentStartupHookResponse = AllowVerdictBase | DenyVerdictBase;
+export type AgentStartupHookResponse = AllowVerdict | DenyVerdict;
 
 /**
  * Bare input response.
@@ -103,8 +103,8 @@ export type AgentStartupHookResponse = AllowVerdictBase | DenyVerdictBase;
  * @example [transform.json](../examples/InputHookResponse/transform.json)
  */
 export type InputHookResponse =
-  | AllowVerdictBase
-  | DenyVerdictBase
+  | AllowVerdict
+  | DenyVerdict
   | InputTransformVerdict;
 
 /**
@@ -114,8 +114,8 @@ export type InputHookResponse =
  * @example [transform.json](../examples/PreModelHookResponse/transform.json)
  */
 export type PreModelHookResponse =
-  | AllowVerdictBase
-  | DenyVerdictBase
+  | AllowVerdict
+  | DenyVerdict
   | PreModelTransformVerdict;
 
 /**
@@ -125,8 +125,8 @@ export type PreModelHookResponse =
  * @example [transform.json](../examples/PostModelHookResponse/transform.json)
  */
 export type PostModelHookResponse =
-  | AllowVerdictBase
-  | DenyVerdictBase
+  | AllowVerdict
+  | DenyVerdict
   | PostModelTransformVerdict;
 
 /**
@@ -136,8 +136,8 @@ export type PostModelHookResponse =
  * @example [transform.json](../examples/PreToolHookResponse/transform.json)
  */
 export type PreToolHookResponse =
-  | AllowVerdictBase
-  | DenyVerdictBase
+  | AllowVerdict
+  | DenyVerdict
   | PreToolTransformVerdict;
 
 /**
@@ -147,8 +147,8 @@ export type PreToolHookResponse =
  * @example [transform.json](../examples/PostToolHookResponse/transform.json)
  */
 export type PostToolHookResponse =
-  | AllowVerdictBase
-  | DenyVerdictBase
+  | AllowVerdict
+  | DenyVerdict
   | PostToolTransformVerdict;
 
 /**
@@ -158,8 +158,8 @@ export type PostToolHookResponse =
  * @example [transform.json](../examples/OutputHookResponse/transform.json)
  */
 export type OutputHookResponse =
-  | AllowVerdictBase
-  | DenyVerdictBase
+  | AllowVerdict
+  | DenyVerdict
   | OutputTransformVerdict;
 
 /**
@@ -167,4 +167,4 @@ export type OutputHookResponse =
  * @example [allow.json](../examples/AgentShutdownHookResponse/allow.json)
  * @example [deny.json](../examples/AgentShutdownHookResponse/deny.json)
  */
-export type AgentShutdownHookResponse = AllowVerdictBase | DenyVerdictBase;
+export type AgentShutdownHookResponse = AllowVerdict | DenyVerdict;

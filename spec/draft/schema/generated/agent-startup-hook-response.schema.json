@@ -5,15 +5,15 @@
   "description": "Bare agent_startup response: transforms are forbidden.",
   "anyOf": [
     {
-      "$ref": "#/$defs/AllowVerdictBase"
+      "$ref": "#/$defs/AllowVerdict"
     },
     {
-      "$ref": "#/$defs/DenyVerdictBase"
+      "$ref": "#/$defs/DenyVerdict"
     }
   ],
   "$defs": {
-    "AllowVerdictBase": {
-      "description": "Shared decision shape for allow responses.",
+    "AllowVerdict": {
+      "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
       "type": "object",
       "properties": {
         "decision": {
@@ -118,8 +118,8 @@
         "type": "string"
       }
     },
-    "DenyVerdictBase": {
-      "description": "Shared decision shape for deny responses.",
+    "DenyVerdict": {
+      "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
       "type": "object",
       "properties": {
         "decision": {

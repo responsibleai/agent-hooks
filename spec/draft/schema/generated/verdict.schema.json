@@ -17,7 +17,6 @@
   "$defs": {
     "AllowVerdict": {
       "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -74,7 +73,8 @@
       },
       "required": [
         "decision"
-      ]
+      ],
+      "additionalProperties": false
     },
     "Warning": {
       "description": "A recorded concern that does not affect control flow (§5.1).",
@@ -124,7 +124,6 @@
     },
     "DenyVerdict": {
       "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -187,7 +186,8 @@
       },
       "required": [
         "decision"
-      ]
+      ],
+      "additionalProperties": false
     },
     "TransformVerdict": {
       "description": "transform: proceed with the target rewritten. The transform body is REQUIRED\n(§5).",
