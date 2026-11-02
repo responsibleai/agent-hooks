@@ -254,7 +254,7 @@ function materializeTransformVerdict(schema: Schema, root: Root): void {
   if (!defs) return;
 
   if (root.type === "Verdict") {
-    const genericName = "TransformVerdictBase<TTransform>";
+    const genericName = "TransformVerdict<TTransform>";
     const verdict = defs[genericName];
     if (!verdict) throw new Error(`${root.source}: missing generic transform verdict`);
     const transform = verdict.properties?.transform;
@@ -269,7 +269,7 @@ function materializeTransformVerdict(schema: Schema, root: Root): void {
     delete transformSchema.$defs;
     defs.Transform = transformSchema;
     transform.$ref = "#/$defs/Transform";
-    replaceRefs(schema, "#/$defs/TransformVerdictBase%3CTTransform%3E", "#/$defs/TransformVerdict");
+    replaceRefs(schema, "#/$defs/TransformVerdict%3CTTransform%3E", "#/$defs/TransformVerdict");
     delete defs[genericName];
     delete defs.TTransform;
     verdict.description =
@@ -279,9 +279,9 @@ function materializeTransformVerdict(schema: Schema, root: Root): void {
     return;
   }
 
-  const genericName = "TransformVerdictBase<Transform>";
+  const genericName = "TransformVerdict<Transform>";
   if (!defs[genericName]) return;
-  replaceRefs(schema, "#/$defs/TransformVerdictBase%3CTransform%3E", "#/$defs/TransformVerdict");
+  replaceRefs(schema, "#/$defs/TransformVerdict%3CTransform%3E", "#/$defs/TransformVerdict");
   const verdict = defs[genericName];
   delete defs[genericName];
   verdict.description =

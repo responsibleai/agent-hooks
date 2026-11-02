@@ -252,6 +252,7 @@
     },
     "TransformVerdict": {
       "description": "transform: proceed with the target rewritten. The transform body is REQUIRED (§5).",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -312,8 +313,7 @@
       "required": [
         "decision",
         "transform"
-      ],
-      "additionalProperties": false
+      ]
     }
   }
 }

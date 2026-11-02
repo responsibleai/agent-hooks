@@ -11,7 +11,7 @@
       "$ref": "#/$defs/DenyVerdict"
     },
     {
-      "$ref": "#/$defs/TransformVerdictBase%3CPreModelHookTransform%3E"
+      "$ref": "#/$defs/TransformVerdict%3CPreModelHookTransform%3E"
     }
   ],
   "$defs": {
@@ -189,8 +189,9 @@
         "decision"
       ]
     },
-    "TransformVerdictBase<PreModelHookTransform>": {
-      "description": "Shared metadata and decision for a transform with a caller-specific payload.",
+    "TransformVerdict<PreModelHookTransform>": {
+      "description": "transform: proceed with the target rewritten. The transform body is REQUIRED\n(§5).",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {

@@ -111,8 +111,7 @@
               "$ref": "#/$defs/AllowVerdict"
             },
             {
-              "$ref": "#/$defs/TransformVerdict",
-              "description": "transform: proceed with the target rewritten. The transform body is REQUIRED\n(§5)."
+              "$ref": "#/$defs/TransformVerdict"
             }
           ]
         },
@@ -1188,71 +1187,6 @@
         "type": "string"
       }
     },
-    "TransformVerdict": {
-      "description": "transform: proceed with the target rewritten. The transform body is REQUIRED\n(§5).",
-      "additionalProperties": false,
-      "type": "object",
-      "properties": {
-        "decision": {
-          "type": "string",
-          "const": "transform"
-        },
-        "transform": {
-          "$ref": "#/$defs/Transform"
-        },
-        "reason": {
-          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11).",
-          "pattern": "^(?!host_error:).*",
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "message": {
-          "description": "Human-readable text for the caller.",
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "warnings": {
-          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1).",
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/Warning"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "evidence": {
-          "description": "Offline-verifiable evidence attached to a verdict (§14).",
-          "$ref": "#/$defs/Evidence"
-        },
-        "result_labels": {
-          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "decision",
-        "transform"
-      ]
-    },
     "Transform": {
       "description": "The transform body (§5.2).",
       "additionalProperties": false,
@@ -1336,6 +1270,71 @@
       },
       "required": [
         "decision"
+      ]
+    },
+    "TransformVerdict": {
+      "description": "transform: proceed with the target rewritten. The transform body is REQUIRED (§5).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "const": "transform"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "reason": {
+          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11).",
+          "pattern": "^(?!host_error:).*",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "message": {
+          "description": "Human-readable text for the caller.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "warnings": {
+          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Warning"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "description": "Offline-verifiable evidence attached to a verdict (§14).",
+          "$ref": "#/$defs/Evidence"
+        },
+        "result_labels": {
+          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "decision",
+        "transform"
       ]
     }
   }

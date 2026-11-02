@@ -105,12 +105,6 @@ export interface DenyVerdict extends VerdictBase {
   approval?: object;
 }
 
-/** Shared metadata and decision for a transform with a caller-specific payload. */
-export interface TransformVerdictBase<TTransform> extends VerdictBase {
-  decision: Decision.Transform;
-  transform: TTransform;
-}
-
 /**
  * transform: proceed with the target rewritten. The transform body is REQUIRED
  * (§5).
@@ -122,7 +116,10 @@ export interface TransformVerdictBase<TTransform> extends VerdictBase {
  * @example [transform-tool-result.json](../examples/Verdict/transform-tool-result.json)
  * @example [transform-output.json](../examples/Verdict/transform-output.json)
  */
-export type TransformVerdict = TransformVerdictBase<Transform>;
+export interface TransformVerdict<TTransform = Transform> extends VerdictBase {
+  decision: Decision.Transform;
+  transform: TTransform;
+}
 
 /** Verdict choices for hooks that do not support transforms. */
 export type NonTransformVerdict = AllowVerdict | DenyVerdict;
@@ -136,4 +133,4 @@ export type NonTransformVerdict = AllowVerdict | DenyVerdict;
  */
 export type Verdict<TTransform = Transform> =
   | NonTransformVerdict
-  | TransformVerdictBase<TTransform>;
+  | TransformVerdict<TTransform>;
