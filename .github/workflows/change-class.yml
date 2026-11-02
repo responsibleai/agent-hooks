@@ -31,10 +31,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: Resolve the base revision
+        id: base
+        # The checkout is refs/pull/<n>/merge, whose first parent is the
+        # current tip of the base branch. github.event.pull_request.base.sha
+        # is captured when the PR is opened and never refreshed, so a
+        # version folder released after that point would be invisible to
+        # the released-folder check below.
+        run: echo "sha=$(git rev-parse HEAD^1)" >> "$GITHUB_OUTPUT"
       - name: Enforce label/version-bump coupling
         env:
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
-          BASE: ${{ github.event.pull_request.base.sha }}
+          BASE: ${{ steps.base.outputs.sha }}
         run: |
           set -eu
           changed=$(git diff --name-only "$BASE"...HEAD)
@@ -58,6 +66,16 @@ jobs:
           fi
           echo "change-class ok"
       - name: Released specification folders are immutable
+        # Run the copy of the guard at the base revision, so a pull
+        # request cannot relax the rule it is checked against. The head
+        # copy is used only when the base branch has no guard yet.
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: python3 scripts/check-released-specs-immutable.py "$BASE" HEAD
+          BASE: ${{ steps.base.outputs.sha }}
+        run: |
+          set -eu
+          guard="$RUNNER_TEMP/check-released-specs-immutable.py"
+          if ! git show "$BASE:scripts/check-released-specs-immutable.py" > "$guard" 2>/dev/null; then
+            echo "::notice::the base revision has no released-folder guard; running the head copy"
+            cp scripts/check-released-specs-immutable.py "$guard"
+          fi
+          python3 "$guard" "$BASE" HEAD
