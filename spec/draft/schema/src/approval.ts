@@ -1,21 +1,13 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 // approval.schema.json: the approval request and resolution shapes (§9).
-// Validators reference its definitions by pointer, including #/$defs/request
-// and #/$defs/resolution. The latter is materialized from DefaultResolution
-// because JSON Schema cannot encode a TypeScript generic.
+// The file has no root type: validators reference its definitions by
+// pointer, #/$defs/request and #/$defs/resolution. The tool names a
+// definition after its type, so the two types below keep those names.
 
 import { AgentContext } from "./agent-context";
-import {
-  InputHookTransform,
-  OutputHookTransform,
-  PostModelHookTransform,
-  PostToolHookTransform,
-  PreModelHookTransform,
-  PreToolHookTransform,
-} from "./hook-responses";
 import { InterceptionPoint } from "./interception-point";
-import { AllowVerdict, Decision, DenyVerdict, Transform, TransformVerdict } from "./verdict";
+import { AllowVerdict, Decision, DenyVerdict, TransformVerdict } from "./verdict";
 
 /**
  * The liftable deny being consulted: an interceptor's (passes §5,
@@ -63,15 +55,9 @@ interface ResolutionBase {
  * @example [approve-allow.json](../examples/ApprovalResolution/approve-allow.json)
  * @example [approve-transform.json](../examples/ApprovalResolution/approve-transform.json)
  */
-export interface ApproveResolution<TTransform = Transform> extends ResolutionBase {
+export interface ApproveResolution extends ResolutionBase {
   outcome: Outcome.Approve;
-  verdict: AllowVerdict | TransformVerdict<TTransform>;
-}
-
-/** Lifecycle approval can lift a deny only with an allow verdict. */
-export interface NonTransformApproveResolution extends ResolutionBase {
-  outcome: Outcome.Approve;
-  verdict: AllowVerdict;
+  verdict: AllowVerdict | TransformVerdict;
 }
 
 /**
@@ -94,24 +80,4 @@ export interface UnresolvedResolution extends ResolutionBase {
 }
 
 /** What the resolver returns (§9). */
-export type resolution<TTransform = Transform> =
-  | ApproveResolution<TTransform>
-  | RejectResolution
-  | UnresolvedResolution;
-
-/** Concrete schema representation of the generic union's legacy default. */
-export type DefaultResolution = resolution<Transform>;
-
-export type NonTransformResolution =
-  | NonTransformApproveResolution
-  | RejectResolution
-  | UnresolvedResolution;
-
-export type AgentStartupResolution = NonTransformResolution;
-export type InputResolution = resolution<InputHookTransform>;
-export type PreModelResolution = resolution<PreModelHookTransform>;
-export type PostModelResolution = resolution<PostModelHookTransform>;
-export type PreToolResolution = resolution<PreToolHookTransform>;
-export type PostToolResolution = resolution<PostToolHookTransform>;
-export type OutputResolution = resolution<OutputHookTransform>;
-export type AgentShutdownResolution = NonTransformResolution;
+export type resolution = ApproveResolution | RejectResolution | UnresolvedResolution;

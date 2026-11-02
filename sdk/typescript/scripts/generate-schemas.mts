@@ -195,7 +195,6 @@ function generateRoot(root: Root): Schema {
   }
   // 3: the draft-07 meaning of $ref, which ignores its siblings.
   stripRefSiblings(schema);
-  if (root.file === "approval.schema.json") materializeDefaultApprovalResolution(schema);
   materializeTransformVerdict(schema, root);
   if (root.source === "hook-responses.ts") materializeHookResponseMetadata(schema);
   // Generic verdicts and approval definitions keep decision objects closed.
@@ -220,18 +219,6 @@ function generateRoot(root: Root): Schema {
   if (root.title !== undefined) schema.title = root.title;
   if (root.description !== undefined) schema.description = root.description;
   return ordered(schema);
-}
-
-function materializeDefaultApprovalResolution(schema: Schema): void {
-  const defs = schema.$defs as Record<string, Json> | undefined;
-  const concrete = defs?.DefaultResolution;
-  if (!defs || !concrete || typeof concrete !== "object" || Array.isArray(concrete)) {
-    throw new Error("approval schema has no concrete default resolution");
-  }
-  // JSON Schema cannot encode a TypeScript generic. Keep the existing
-  // #/$defs/resolution target concrete while exposing hook-specific aliases.
-  defs.resolution = concrete;
-  delete defs.DefaultResolution;
 }
 
 function materializeHookResponseMetadata(schema: Schema): void {

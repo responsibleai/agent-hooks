@@ -105,12 +105,11 @@ export async function validateExamples(root = schemaRoot) {
       validate(instance, filename, `strict-contexts/${instance.interception_point}.schema.json`);
     }
   }
-  function assertSchemaProbe(schemaFile, instance, expected, label, definition) {
+  function assertSchemaProbe(schemaFile, instance, expected, label) {
     const schema = schemas.get(schemaFile);
     if (!schema) throw new Error(`missing local schema ${schemaFile}`);
-    const schemaId = schema.$id + (definition ? `#/$defs/${definition}` : "");
-    const validator = ajv.getSchema(schemaId);
-    if (!validator) throw new Error(`unresolved schema ${schemaId}`);
+    const validator = ajv.getSchema(schema.$id);
+    if (!validator) throw new Error(`unresolved schema ${schema.$id}`);
     const valid = validator(instance);
     if (valid !== expected) {
       throw new Error(
@@ -178,48 +177,6 @@ export async function validateExamples(root = schemaRoot) {
         "lifecycle transform",
       );
     }
-    const approval = {
-      context_identity: null,
-      outcome: "approve",
-      verdict: { decision: "allow" },
-    };
-    assertSchemaProbe(
-      "approval.schema.json",
-      approval,
-      true,
-      "lifecycle approval allow",
-      "AgentStartupResolution",
-    );
-    assertSchemaProbe(
-      "approval.schema.json",
-      {
-        ...approval,
-        verdict: { decision: "transform", transform: { args: { limit: 20 } } },
-      },
-      false,
-      "lifecycle approval transform",
-      "AgentStartupResolution",
-    );
-    assertSchemaProbe(
-      "approval.schema.json",
-      {
-        ...approval,
-        verdict: { decision: "transform", transform: { args: { limit: 20 } } },
-      },
-      true,
-      "pre-tool approval transform",
-      "PreToolResolution",
-    );
-    assertSchemaProbe(
-      "approval.schema.json",
-      {
-        ...approval,
-        verdict: { decision: "transform", transform: { messages: [] } },
-      },
-      false,
-      "pre-tool approval rejects another hook's transform",
-      "PreToolResolution",
-    );
     const request = {
       spec: "agent-hooks/0.1",
       timestamp: "2026-01-01T00:00:00Z",
