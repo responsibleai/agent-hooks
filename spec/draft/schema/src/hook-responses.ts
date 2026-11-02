@@ -12,6 +12,7 @@ import {
   PreModelCallRequest,
   PreToolCallRequest,
 } from "./agent-context";
+import { Extensions } from "./common";
 import { NonTransformVerdict, Verdict } from "./verdict";
 
 /**
@@ -56,8 +57,16 @@ export interface OutputHookTransform {
   output: OutputRequest["output"];
 }
 
+/** Shared transport metadata on a hook response, separate from its verdict. */
+export interface HooksResponseMetadata {
+  extensions?: Extensions;
+}
+
 /** Hook-specific verdict choices with optional transport metadata. */
-export type HooksResponse<TTransform> = Verdict<TTransform>;
+export type HooksResponse<TTransform> = Verdict<TTransform> & HooksResponseMetadata;
+
+/** Lifecycle response metadata without enabling transforms. */
+export type NonTransformHookResponse = NonTransformVerdict & HooksResponseMetadata;
 
 /**
  * agent_startup response: transforms are forbidden.
@@ -65,7 +74,7 @@ export type HooksResponse<TTransform> = Verdict<TTransform>;
  * @example [deny.json](../examples/AgentStartupHookResponse/deny.json)
  * @example [allow-with-extensions.json](../examples/AgentStartupHookResponse/allow-with-extensions.json)
  */
-export type AgentStartupHookResponse = NonTransformVerdict;
+export type AgentStartupHookResponse = NonTransformHookResponse;
 
 /**
  * input response.
@@ -122,7 +131,7 @@ export type OutputHookResponse = HooksResponse<OutputHookTransform>;
  * @example [allow.json](../examples/AgentShutdownHookResponse/allow.json)
  * @example [deny.json](../examples/AgentShutdownHookResponse/deny.json)
  */
-export type AgentShutdownHookResponse = NonTransformVerdict;
+export type AgentShutdownHookResponse = NonTransformHookResponse;
 
 /** Synchronous handler for one hook request and its response contract. */
 export type HookHandler<TRequest, TResponse> = (request: TRequest) => TResponse;

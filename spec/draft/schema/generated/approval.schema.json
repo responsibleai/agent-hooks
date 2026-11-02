@@ -1966,10 +1966,6 @@
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
         },
-        "extensions": {
-          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
-          "$ref": "#/$defs/Extensions"
-        },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
           "anyOf": [
@@ -2101,10 +2097,6 @@
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
         },
-        "extensions": {
-          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
-          "$ref": "#/$defs/Extensions"
-        },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
           "anyOf": [
@@ -2168,10 +2160,6 @@
         "evidence": {
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
-        },
-        "extensions": {
-          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
-          "$ref": "#/$defs/Extensions"
         },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",

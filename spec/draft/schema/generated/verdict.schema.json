@@ -57,10 +57,6 @@
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
         },
-        "extensions": {
-          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
-          "$ref": "#/$defs/Extensions"
-        },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
           "anyOf": [
@@ -126,14 +122,6 @@
         "type": "string"
       }
     },
-    "Extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "propertyNames": {
-        "pattern": "^[a-z][a-z0-9_]*$"
-      },
-      "type": "object",
-      "additionalProperties": {}
-    },
     "DenyVerdict": {
       "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
       "additionalProperties": false,
@@ -181,10 +169,6 @@
         "evidence": {
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
-        },
-        "extensions": {
-          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
-          "$ref": "#/$defs/Extensions"
         },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
@@ -267,10 +251,6 @@
         "evidence": {
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
-        },
-        "extensions": {
-          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
-          "$ref": "#/$defs/Extensions"
         },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",

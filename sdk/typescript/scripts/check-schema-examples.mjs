@@ -119,6 +119,8 @@ export async function validateExamples(root = schemaRoot) {
   }
   const hasHookResponseSchemas = hookResponseSchemas.every((schemaFile) => schemas.has(schemaFile));
   if (hasHookResponseSchemas) {
+    assertSchemaProbe("verdict.schema.json", { decision: "allow", extensions: { policy: {} } }, false,
+      "generic verdict excludes response metadata");
     for (const schemaFile of hookResponseSchemas) {
       assertSchemaProbe(schemaFile, { decision: "allow" }, true, "bare allow");
       assertSchemaProbe(
@@ -151,6 +153,12 @@ export async function validateExamples(root = schemaRoot) {
       { decision: "transform", transform: { args: { limit: 20 } }, extensions: { policy: {} } },
       true,
       "pre-tool transform",
+    );
+    assertSchemaProbe(
+      "input-hook-response.schema.json",
+      { decision: "deny", approval: {}, extensions: { policy: {} } },
+      true,
+      "deny with response metadata",
     );
     assertSchemaProbe(
       "input-hook-response.schema.json",

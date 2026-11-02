@@ -196,9 +196,8 @@ function generateRoot(root: Root): Schema {
   // 3: the draft-07 meaning of $ref, which ignores its siblings.
   stripRefSiblings(schema);
   materializeTransformVerdict(schema, root);
-  // Generic and hosted verdicts keep their decision objects closed. Approval
-  // definitions embed those verdicts; hook response schemas reuse the same
-  // allow/deny shapes while leaving their roots open.
+  if (root.source === "hook-responses.ts") materializeHookResponseMetadata(schema);
+  // Generic verdicts and approval definitions keep decision objects closed.
   if (
     (root.type === "Verdict" ||
       root.file === "approval.schema.json") &&
@@ -220,6 +219,25 @@ function generateRoot(root: Root): Schema {
   if (root.title !== undefined) schema.title = root.title;
   if (root.description !== undefined) schema.description = root.description;
   return ordered(schema);
+}
+
+function materializeHookResponseMetadata(schema: Schema): void {
+  const defs = schema.$defs as Record<string, Schema> | undefined;
+  if (!defs) throw new Error("hook response schema has no definitions");
+  let decisionTypes = 0;
+  for (const [name, definition] of Object.entries(defs)) {
+    if (
+      (name === "AllowVerdict" || name === "DenyVerdict" || name.startsWith("TransformVerdict<")) &&
+      definition.additionalProperties === false
+    ) {
+      delete definition.additionalProperties;
+      decisionTypes++;
+    }
+  }
+  if (decisionTypes === 0) throw new Error("hook response schema has no closed verdict definitions");
+  // The response-level metadata is declared by HooksResponseMetadata; defer
+  // closure until all verdict branches and that shared field are evaluated.
+  schema.unevaluatedProperties = false;
 }
 
 function stripRefSiblings(node: Json): void {

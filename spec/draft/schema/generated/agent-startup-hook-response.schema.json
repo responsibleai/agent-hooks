@@ -2,19 +2,33 @@
   "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/agent-startup-hook-response.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — agent_startup response",
-  "description": "Verdict choices for hooks that do not support transforms.",
+  "description": "Lifecycle response metadata without enabling transforms.",
   "anyOf": [
     {
-      "$ref": "#/$defs/AllowVerdict"
+      "allOf": [
+        {
+          "$ref": "#/$defs/AllowVerdict"
+        },
+        {
+          "$ref": "#/$defs/HooksResponseMetadata"
+        }
+      ]
     },
     {
-      "$ref": "#/$defs/DenyVerdict"
+      "allOf": [
+        {
+          "$ref": "#/$defs/DenyVerdict"
+        },
+        {
+          "$ref": "#/$defs/HooksResponseMetadata"
+        }
+      ]
     }
   ],
+  "unevaluatedProperties": false,
   "$defs": {
     "AllowVerdict": {
       "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -53,10 +67,6 @@
         "evidence": {
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
-        },
-        "extensions": {
-          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
-          "$ref": "#/$defs/Extensions"
         },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
@@ -123,6 +133,16 @@
         "type": "string"
       }
     },
+    "HooksResponseMetadata": {
+      "description": "Shared transport metadata on a hook response, separate from its verdict.",
+      "type": "object",
+      "properties": {
+        "extensions": {
+          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+          "$ref": "#/$defs/Extensions"
+        }
+      }
+    },
     "Extensions": {
       "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
       "propertyNames": {
@@ -133,7 +153,6 @@
     },
     "DenyVerdict": {
       "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -178,10 +197,6 @@
         "evidence": {
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
-        },
-        "extensions": {
-          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
-          "$ref": "#/$defs/Extensions"
         },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",

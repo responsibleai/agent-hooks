@@ -5,19 +5,40 @@
   "description": "pre_model_call response.",
   "anyOf": [
     {
-      "$ref": "#/$defs/AllowVerdict"
+      "allOf": [
+        {
+          "$ref": "#/$defs/AllowVerdict"
+        },
+        {
+          "$ref": "#/$defs/HooksResponseMetadata"
+        }
+      ]
     },
     {
-      "$ref": "#/$defs/DenyVerdict"
+      "allOf": [
+        {
+          "$ref": "#/$defs/DenyVerdict"
+        },
+        {
+          "$ref": "#/$defs/HooksResponseMetadata"
+        }
+      ]
     },
     {
-      "$ref": "#/$defs/TransformVerdict%3CPreModelHookTransform%3E"
+      "allOf": [
+        {
+          "$ref": "#/$defs/TransformVerdict%3CPreModelHookTransform%3E"
+        },
+        {
+          "$ref": "#/$defs/HooksResponseMetadata"
+        }
+      ]
     }
   ],
+  "unevaluatedProperties": false,
   "$defs": {
     "AllowVerdict": {
       "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -56,10 +77,6 @@
         "evidence": {
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
-        },
-        "extensions": {
-          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
-          "$ref": "#/$defs/Extensions"
         },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
@@ -126,6 +143,16 @@
         "type": "string"
       }
     },
+    "HooksResponseMetadata": {
+      "description": "Shared transport metadata on a hook response, separate from its verdict.",
+      "type": "object",
+      "properties": {
+        "extensions": {
+          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+          "$ref": "#/$defs/Extensions"
+        }
+      }
+    },
     "Extensions": {
       "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
       "propertyNames": {
@@ -136,7 +163,6 @@
     },
     "DenyVerdict": {
       "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -182,10 +208,6 @@
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
         },
-        "extensions": {
-          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
-          "$ref": "#/$defs/Extensions"
-        },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
           "anyOf": [
@@ -207,7 +229,6 @@
     },
     "TransformVerdict<PreModelHookTransform>": {
       "description": "transform: proceed with the target rewritten. The transform body is REQUIRED\n(§5).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -249,10 +270,6 @@
         "evidence": {
           "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
-        },
-        "extensions": {
-          "description": "Opaque namespaced transport metadata; it never changes enforcement (§5.5).",
-          "$ref": "#/$defs/Extensions"
         },
         "result_labels": {
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
