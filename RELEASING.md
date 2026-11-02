@@ -25,8 +25,9 @@ environment.
    (`0.1.0-alpha`, `0.1.0-beta`), not the tag, and changes only when
    the stage changes.
 
-   When the release publishes a new specification version, snapshot
-   `spec/draft/` into `spec/<MAJOR.MINOR.PATCH>/` before tagging.
+   When the release publishes a new specification version, cut the
+   version folder first ([Cut a specification
+   version](#cut-a-specification-version)).
 
    Regenerate `sdk/typescript/binding.js` after the bump (`npm run
    build:native` in `sdk/typescript`); the napi version strings it
@@ -74,6 +75,50 @@ For local builds and checks, see the
 [Windows source-build instructions](sdk/dotnet/README.md#windows-x64-source-builds-and-release-checks).
 Changing the nightly pin requires rerunning the native scan, gate regressions,
 Rust tests, .NET tests, package-consumer smoke and latency comparison.
+
+## Cut a specification version
+
+A specification version is a frozen copy of `spec/draft/`. Cut it in
+one pull request, merged before the tag that ships it. `<X.Y.Z>` is the
+new folder and `<previous>` the folder it supersedes.
+
+1. Copy the draft: `cp -r spec/draft spec/<X.Y.Z>`.
+2. In the copy, replace every `spec/draft/` self-reference with
+   `spec/<X.Y.Z>/` (`grep -rl 'spec/draft' spec/<X.Y.Z>`), delete the
+   draft banner at the top of `AGENT-HOOKS-*.md`, and set its header
+   line to `**Status:** Released · **Version:** `X.Y.Z` · **Date:**
+   <date>`. Nothing else in the copy changes.
+3. In `spec/draft/AGENT-HOOKS-*.md`, point the draft banner's link at
+   the new folder.
+4. In `spec/README.md`, add the row for `<X.Y.Z>` with the status
+   "Latest release" and change the `<previous>` row to "Superseded".
+5. Link sweep: prose links outside `spec/` cite the latest release
+   (`grep -rn 'spec/<previous>/' --exclude-dir=spec --exclude-dir=node_modules --exclude-dir=target .`).
+   Move each to `spec/<X.Y.Z>/` unless the document cites the older
+   text on purpose. Machine consumers (CI steps, the Python mirror, the
+   Rust tests, the version script) read `spec/draft/` and do not move.
+6. The site: nothing to edit. The `pages` workflow publishes every
+   version folder, derives each bundle's schema URL path from its
+   `$id`, and lists the versions in the navigation. When the wire
+   minor changed, confirm the new `schema/vX.Y/` directory is in the
+   built site.
+7. `CHANGELOG.md`: name the specification version in the entry for
+   the tag.
+8. Run the checks the `lint`, `schema-lint`, `typescript` and
+   `change-class` jobs run:
+
+   ```bash
+   python3 scripts/check-spec-versions.py
+   python3 scripts/check-released-specs-immutable.py origin/main HEAD
+   cd sdk/typescript && npm ci
+   node scripts/check-schema-examples.mjs <X.Y.Z>
+   npx tsc -p ../../spec/<X.Y.Z>/schema/src/tsconfig.json
+   npx tsx scripts/generate-schemas.mts --check --spec <X.Y.Z>
+   ```
+
+   The new folder passes the released-folder guard because it did not
+   exist on `main`; after the merge it is frozen, and only new files
+   under its `schema/examples/` may be added.
 
 ## Tag
 

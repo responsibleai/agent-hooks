@@ -72,7 +72,9 @@ exception is a new file under `spec/<version>/schema/examples/`, which
 illustrates a schema without changing it; modified or deleted files,
 and new files outside `schema/examples/`, still fail. The check is not
 yet a required status check, so a red result does not block a merge on
-its own. [spec/README.md](spec/README.md) lists every version.
+its own. [spec/README.md](spec/README.md) lists every version, and
+[RELEASING.md](RELEASING.md#cut-a-specification-version) has the
+procedure for cutting one.
 SDK development is currently pinned to `spec/0.1.0/`; the policy for how
 SDKs track later specification versions is not yet decided.
 
