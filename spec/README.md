@@ -15,7 +15,10 @@ Each folder is a complete specification bundle:
 - `declaration-errors.json`, `reserved-reasons.json`,
   `reserved-warnings.json`: machine-readable inventories
 - `schema/`: TypeScript schema source (`src/`), the generated normative
-  JSON Schemas (`generated/`), and the path grammar
+  JSON Schemas (`generated/`), and the path grammar. The `schema/README.md`
+  inside a released bundle is the copy frozen at the release; follow
+  [`draft/schema/README.md`](draft/schema/README.md) for how to edit,
+  generate and check schemas.
 
 Standalone JSON examples are organized by type under
 `<version>/schema/examples/<Type>/<example>.json`; draft source definitions link

@@ -1,8 +1,11 @@
 # Schema source and generated output
 
-This is the draft specification's schema folder. Edit `src/` here;
-`npm run generate:schema` and `npm run check:schema` target this folder by
-default. SDKs and the Python mirror are pinned to
+This is the draft specification's schema folder, and this file is the
+one to follow for editing, generating and checking schemas. Edit `src/`
+here; `npm run generate:schema` and `npm run check:schema` target this
+folder by default. A released bundle carries the copy of this file that
+stood at its release; those copies are historical and describe a frozen
+folder that is never edited. SDKs and the Python mirror are pinned to
 [`spec/0.1.0/schema/`](../../0.1.0/schema/) for now.
 
 The TypeScript files in `src/` are the editable schema source.
