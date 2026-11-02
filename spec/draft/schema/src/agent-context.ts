@@ -151,6 +151,40 @@ interface ContextMetadata {
     /** @minimum 0 */
     turn?: number;
   };
+  agent_init?: AgentInit;
+  input?: Input;
+  model?: Model;
+  messages?: Message[];
+  request_id?: string;
+  response?: Response;
+  usage?: Usage;
+  tool_call?: ToolCall;
+  tool_result?: ToolResult;
+  tools?: ToolDecl[];
+  output?: Output;
+  summary?: Summary;
+  trace?: {
+    trace_id?: string;
+    span_id?: string;
+  };
+  tenant?: {
+    id?: string;
+    name?: string;
+  };
+  actor?: {
+    id?: string;
+    kind?: ActorKind;
+  };
+  budgets?: {
+    /** @TJS-type number */
+    tool_call_count?: number;
+    /** @TJS-type number */
+    token_count?: number;
+    /** @TJS-type number */
+    elapsed_seconds?: number;
+    /** @TJS-type number */
+    cost_usd?: number;
+  };
   extensions?: Extensions;
 }
 
