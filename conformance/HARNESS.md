@@ -337,7 +337,7 @@ manifest.
 
 Vector documents write the version they use: `AH-CTK-144` to
 `AH-CTK-159` carry `agent-hooks-declaration/1.1` where they set
-`on_error`, and `AH-CTK-155` keeps a 1.0 document to pin that a 1.1
+`on_error`, `AH-CTK-160` carries it for its surface rule, and `AH-CTK-155` keeps a 1.0 document to pin that a 1.1
 loader accepts it unchanged. Schema-lint validates each document
 against the schema of the version it writes.
 

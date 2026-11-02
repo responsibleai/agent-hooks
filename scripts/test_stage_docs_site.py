@@ -10,6 +10,7 @@ and a draft, built in a temporary directory.
 import importlib.util
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -169,6 +170,21 @@ class StageTest(unittest.TestCase):
         with self.assertRaises(SystemExit) as raised:
             stage.stage(self.root)
         self.assertIn("AGENT-HOOKS-0.1.md is a symbolic link", str(raised.exception))
+
+    def test_symbolic_link_directories_fail(self) -> None:
+        schema = self.root / "spec/0.2.0/schema"
+        generated = schema / "generated"
+        shutil.rmtree(generated)
+        os.symlink("../../0.1.0/schema/generated", generated)
+        with self.assertRaises(SystemExit) as raised:
+            stage.stage(self.root)
+        self.assertIn("generated is a symbolic link", str(raised.exception))
+        os.unlink(generated)
+        shutil.rmtree(schema)
+        os.symlink("../0.1.0/schema", schema)
+        with self.assertRaises(SystemExit) as raised:
+            stage.stage(self.root)
+        self.assertIn("schema is a symbolic link", str(raised.exception))
 
     def test_navigation_lists_versions_newest_first_then_the_draft(self) -> None:
         stage.stage(self.root)

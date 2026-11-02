@@ -134,6 +134,9 @@ class Publisher:
 def generated_schemas(generated: Path) -> list[Path]:
     """Every *.schema.json under generated/, refusing symbolic links."""
     files: list[Path] = []
+    for ancestor in (generated.parent, generated):
+        if ancestor.is_symlink():
+            raise SystemExit(f"{ancestor} {SYMLINK}")
     for dirpath, dirnames, filenames in os.walk(generated, followlinks=False):
         for name in sorted(dirnames) + sorted(filenames):
             path = Path(dirpath) / name

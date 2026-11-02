@@ -94,8 +94,8 @@ new folder and `<previous>` the folder it supersedes.
 
    Nothing else in the copy changes.
 3. In `spec/draft/AGENT-HOOKS-*.md`, point the draft banner's link at
-   the new folder and reword it to "The latest released specification
-   is [X.Y.Z](../X.Y.Z/AGENT-HOOKS-A.B.md)."
+   the new folder and reword it to `The latest released specification
+   is [X.Y.Z](../X.Y.Z/AGENT-HOOKS-A.B.md).`
 4. In `spec/README.md`, add the row for `<X.Y.Z>` with the status
    "Latest release" and change the `<previous>` row to "Superseded"
    (it reads "Beta snapshot" while no tag exists). In `README.md`,
@@ -154,8 +154,8 @@ new folder and `<previous>` the folder it supersedes.
 against it without a new cut, retire the three labels that state says:
 the `0.1.0` row in `spec/README.md` becomes "Latest release", the "Read
 next" sentence in `README.md` drops the not-yet-tagged wording, and the
-draft banner reads "The latest released specification is
-[0.1.0](../0.1.0/AGENT-HOOKS-0.1.md)". The header line inside the
+draft banner reads `The latest released specification is
+[0.1.0](../0.1.0/AGENT-HOOKS-0.1.md)`. The header line inside the
 frozen folder keeps `0.1.0-beta`, the stage its text was written at. A
 new cut changes the same three places through steps 3 and 4 above.
 
