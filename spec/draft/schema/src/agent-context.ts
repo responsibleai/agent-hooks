@@ -8,20 +8,6 @@
 import { Extensions } from "./common";
 import { InterceptionPoint } from "./interception-point";
 
-/** JSON data carried by hook payloads. */
-export type JsonValue =
-  | null
-  | boolean
-  | number
-  | string
-  | JsonValue[]
-  | JsonObject;
-
-/** A JSON object with arbitrary JSON-valued members. */
-export interface JsonObject {
-  [key: string]: JsonValue;
-}
-
 /**
  * Shared metadata present at every interception point.
  */
