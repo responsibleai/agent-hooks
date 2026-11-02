@@ -37,8 +37,17 @@ jobs:
         # current tip of the base branch. github.event.pull_request.base.sha
         # is captured when the PR is opened and never refreshed, so a
         # version folder released after that point would be invisible to
-        # the released-folder check below.
-        run: echo "sha=$(git rev-parse HEAD^1)" >> "$GITHUB_OUTPUT"
+        # the released-folder check below. A checkout that is not a merge
+        # commit fails here with a clear message rather than later with
+        # an unresolved revision.
+        run: |
+          set -eu
+          if ! git rev-parse --verify --quiet HEAD^2 > /dev/null; then
+            echo "::error::HEAD is not a merge commit; expected the refs/pull/<n>/merge checkout"
+            exit 1
+          fi
+          sha=$(git rev-parse --verify HEAD^1)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
       - name: Enforce label/version-bump coupling
         env:
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
@@ -74,7 +83,10 @@ jobs:
         run: |
           set -eu
           guard="$RUNNER_TEMP/check-released-specs-immutable.py"
-          if ! git show "$BASE:scripts/check-released-specs-immutable.py" > "$guard" 2>/dev/null; then
+          git rev-parse --verify --quiet "$BASE^{commit}" > /dev/null
+          if git cat-file -e "$BASE:scripts/check-released-specs-immutable.py" 2>/dev/null; then
+            git show "$BASE:scripts/check-released-specs-immutable.py" > "$guard"
+          else
             echo "::notice::the base revision has no released-folder guard; running the head copy"
             cp scripts/check-released-specs-immutable.py "$guard"
           fi
