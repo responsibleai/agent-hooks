@@ -11,15 +11,20 @@ docs-site/docs/:
   spec.md             the newest version again, the stable "latest" URL
   spec-draft.md       the draft, its back-link pointed at the version page
   schema/<path>       every generated schema of every version at the path
-                      its own $id names (a newer version that publishes
-                      the same path wins), the bundle's reserved-reasons
-                      and declaration-errors inventories beside the root
-                      schemas, and conformance/vectors.schema.json at its
-                      own $id path
+                      its own $id names, with the bundle's reserved-reasons,
+                      reserved-warnings and declaration-errors inventories
+                      beside the root schemas, and conformance/vectors.schema.json
+                      at its own $id path
 
 and docs-site/mkdocs.staged.yml: the committed mkdocs.yml with the
 Specification navigation entries generated from the same folders, newest
 first, then the draft. Nothing it writes is committed.
+
+A published path is immutable: two versions may stage the same path only
+with identical bytes, so a release that changes a schema must publish
+under a new $id path (the generator's ID_BASE). The vectors schema is
+not part of a bundle; it is staged from the working tree, which tracks
+the draft. Symbolic links anywhere in a bundle fail the staging.
 
 Usage: stage-docs-site.py [<repository-root>]
 """
@@ -27,6 +32,7 @@ Usage: stage-docs-site.py [<repository-root>]
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import sys
@@ -42,7 +48,17 @@ BACK_LINK = re.compile(
     r"/AGENT-HOOKS-[0-9]+\.[0-9]+\.md\)"
 )
 NAV_HEAD = "  - Specification:\n"
-INVENTORIES = ("reserved-reasons.json", "declaration-errors.json")
+INVENTORIES = (
+    "reserved-reasons.json",
+    "reserved-warnings.json",
+    "declaration-errors.json",
+)
+SYMLINK = "is a symbolic link; specification bundles hold regular files only"
+
+
+def escape_data(value: str) -> str:
+    """Encode text that may reach a workflow log (percent, CR and LF)."""
+    return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
 def released_versions(spec: Path) -> list[str]:
@@ -61,6 +77,8 @@ def spec_text(folder: Path) -> Path:
     files = sorted(folder.glob("AGENT-HOOKS-*.md"))
     if len(files) != 1:
         raise SystemExit(f"{folder} must contain exactly one AGENT-HOOKS-*.md file")
+    if files[0].is_symlink():
+        raise SystemExit(f"{files[0]} {SYMLINK}")
     return files[0]
 
 
@@ -71,42 +89,84 @@ def published_path(schema_file: Path) -> str:
     identity = document.get("$id")
     if not isinstance(identity, str):
         raise SystemExit(f"{schema_file} has no $id")
+    if any(ord(c) < 32 or c == "\x7f" for c in identity):
+        raise SystemExit(f"{schema_file}: $id contains control characters")
     path = urlsplit(identity).path
     marker = "/schema/"
     if marker not in path:
-        raise SystemExit(f"{schema_file}: $id {identity} has no /schema/ segment")
+        raise SystemExit(
+            f"{schema_file}: $id {escape_data(identity)} has no /schema/ segment"
+        )
     relative = path.split(marker, 1)[1]
     parts = relative.split("/")
     if len(parts) < 2 or any(part in ("", ".", "..") for part in parts):
         raise SystemExit(
-            f"{schema_file}: $id {identity} does not name a file under a path"
+            f"{schema_file}: $id {escape_data(identity)} does not name a file under a path"
         )
     return relative
+
+
+class Publisher:
+    """Writes files under schema/ and keeps every published path immutable."""
+
+    def __init__(self, schema_out: Path) -> None:
+        self.schema_out = schema_out
+        self.staged: dict[str, tuple[str, bytes]] = {}
+
+    def publish(self, source: Path, relative: str, origin: str) -> None:
+        if source.is_symlink():
+            raise SystemExit(f"{source} {SYMLINK}")
+        data = source.read_bytes()
+        earlier = self.staged.get(relative)
+        if earlier is not None and earlier[1] != data:
+            raise SystemExit(
+                f"{origin} and {earlier[0]} both publish schema/{relative} with different "
+                "content; a published $id path is immutable, so the newer bundle must "
+                "publish under its own path (set ID_BASE in "
+                "sdk/typescript/scripts/generate-schemas.mts before regenerating)"
+            )
+        self.staged[relative] = (origin, data)
+        target = self.schema_out / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+
+
+def generated_schemas(generated: Path) -> list[Path]:
+    """Every *.schema.json under generated/, refusing symbolic links."""
+    files: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(generated, followlinks=False):
+        for name in sorted(dirnames) + sorted(filenames):
+            path = Path(dirpath) / name
+            if path.is_symlink():
+                raise SystemExit(f"{path} {SYMLINK}")
+            if path.is_file() and name.endswith(".schema.json"):
+                files.append(path)
+    return sorted(files)
 
 
 def stage_schemas(
     root: Path, versions_oldest_first: list[str], schema_out: Path
 ) -> None:
+    publisher = Publisher(schema_out)
     for version in versions_oldest_first:
         bundle = root / "spec" / version
+        origin = f"spec/{version}"
         prefixes: set[str] = set()
-        for file in sorted((bundle / "schema" / "generated").rglob("*.schema.json")):
+        for file in generated_schemas(bundle / "schema" / "generated"):
             relative = published_path(file)
-            target = schema_out / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(file, target)
+            publisher.publish(file, relative, origin)
             prefixes.add(relative.split("/")[0])
         if len(prefixes) != 1:
             raise SystemExit(
-                f"spec/{version} schemas publish under {sorted(prefixes)}; expected one path"
+                f"{origin} schemas publish under {sorted(prefixes)}; expected one path"
             )
         (prefix,) = prefixes
         for name in INVENTORIES:
-            shutil.copyfile(bundle / name, schema_out / prefix / name)
+            publisher.publish(bundle / name, f"{prefix}/{name}", origin)
     vectors = root / "conformance" / "vectors.schema.json"
-    target = schema_out / published_path(vectors)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(vectors, target)
+    publisher.publish(
+        vectors, published_path(vectors), "conformance/vectors.schema.json"
+    )
 
 
 def staged_config(config: str, versions: list[str]) -> str:

@@ -13,12 +13,17 @@ Each folder is a complete specification bundle:
 - `AGENT-HOOKS-<wire-major>.<wire-minor>.md`: the normative text
 - `DECLARATION-VERSIONS.md`: host declaration contract versions
 - `declaration-errors.json`, `reserved-reasons.json`,
-  `reserved-warnings.json`: machine-readable inventories
+  `reserved-warnings.json`: machine-readable inventories, published
+  next to the bundle's schemas on the documentation site
 - `schema/`: TypeScript schema source (`src/`), the generated normative
   JSON Schemas (`generated/`), and the path grammar. The `schema/README.md`
   inside a released bundle is the copy frozen at the release; follow
   [`draft/schema/README.md`](draft/schema/README.md) for how to edit,
   generate and check schemas.
+
+The conformance vector grammar, `conformance/vectors.schema.json`, is
+not part of a bundle: it tracks the draft, and the documentation site
+publishes it once at its own `$id` path.
 
 Standalone JSON examples are organized by type under
 `<version>/schema/examples/<Type>/<example>.json`; draft source definitions link

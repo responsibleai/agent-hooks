@@ -97,11 +97,19 @@ new folder and `<previous>` the folder it supersedes.
    Move each to `spec/<X.Y.Z>/` unless the document cites the older
    text on purpose. Machine consumers (CI steps, the Python mirror, the
    Rust tests, the version script) read `spec/draft/` and do not move.
-6. The site: nothing to edit. The `pages` workflow publishes every
-   version folder, derives each bundle's schema URL path from its
-   `$id`, and lists the versions in the navigation. When the wire
-   minor changed, confirm the new `schema/vX.Y/` directory is in the
-   built site.
+6. The `$id` path. Every generated schema carries a `$id` under
+   `https://responsibleai.github.io/agent-hooks/schema/vX.Y/`, set by
+   `ID_BASE` in `sdk/typescript/scripts/generate-schemas.mts`. A
+   published path is immutable: two versions may share one only when
+   every file under it is byte-identical, and the site staging fails
+   otherwise. So when the draft changed any schema since `<previous>`,
+   set `ID_BASE` to the new wire minor and regenerate the draft before
+   step 1. The site itself needs no edit: the `pages` workflow publishes
+   every version folder, derives each bundle's schema URL path from its
+   `$id`, and lists the versions in the navigation. When the path
+   changed, confirm the new `schema/vX.Y/` directory is in the built
+   site. `conformance/vectors.schema.json` is not part of a bundle; it
+   is published from the working tree at its own `$id` path.
 7. `CHANGELOG.md`: name the specification version in the entry for
    the tag.
 8. Run the checks the `lint`, `schema-lint`, `typescript` and
