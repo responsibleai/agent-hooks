@@ -44,6 +44,7 @@ jobs:
         run: |
           set -e
           # One run per specification bundle; versions share $id values.
+          validated=0
           for spec_dir in spec/*/; do
             [ -d "${spec_dir}schema/generated" ] || continue
             echo "Validating conformance/vectors against ${spec_dir}schema/generated"
@@ -52,7 +53,13 @@ jobs:
               -r "${spec_dir}schema/generated/*.schema.json" \
               -r "${spec_dir}schema/generated/strict-contexts/*.schema.json" \
               -d 'conformance/vectors/*.json'
+            validated=$((validated + 1))
           done
+          if [ "$validated" -eq 0 ]; then
+            echo "::error::no spec/*/schema/generated directory found; the vectors were validated against nothing"
+            exit 1
+          fi
+          echo "vectors validated against $validated bundle(s)"
 
   python:
     runs-on: ubuntu-latest
@@ -88,37 +95,81 @@ jobs:
       - name: Schema examples match their JSON Schemas (every bundle)
         run: node scripts/check-schema-examples.mjs
         working-directory: sdk/typescript
-      - name: Report schema drift between the latest release and the draft (advisory)
-        # Differential validation and a structural diff of the newest
-        # spec/<MAJOR.MINOR.PATCH>/schema/generated against the draft. The
-        # draft is allowed to move away from the release, so this step
-        # reports and never gates; the report lands in the job summary.
-        continue-on-error: true
+      - name: Compare the latest release schemas with the draft
+        # Differential validation (the tool exits 1 when the two sets
+        # judge an instance differently) and a structural diff of the
+        # newest spec/<MAJOR.MINOR.PATCH>/schema/generated against the
+        # draft, as two runs. This step gates the tool's health only: it
+        # fails when no release folder exists, when a run crashes, or
+        # when a report lacks its summary line. The drift verdict itself
+        # is the next step's, which may fail without failing the job.
+        id: drift
         run: |
           set -u
-          shopt -s nullglob
-          latest=$(printf '%s\n' ../../spec/[0-9]*.[0-9]*.[0-9]*/ | sort -V | tail -1)
-          version=$(basename "$latest")
-          report="$RUNNER_TEMP/schema-drift.txt"
-          status=0
-          npm run --silent check:schema:equivalence -- \
-            --old "${latest}schema/generated" \
-            --new ../../spec/draft/schema/generated \
-            --structural-diff > "$report" 2>&1 || status=$?
+          semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          version=$(for dir in ../../spec/*/; do basename "$dir"; done | grep -E "$semver" | sort -V | tail -1)
+          if [ -z "$version" ]; then
+            echo "::error::no released spec/<MAJOR.MINOR.PATCH>/ folder to compare with the draft"
+            exit 1
+          fi
+          old="../../spec/$version/schema/generated"
+          new="../../spec/draft/schema/generated"
+          validation="$RUNNER_TEMP/schema-drift-validation.txt"
+          structure="$RUNNER_TEMP/schema-drift-structure.txt"
+          validation_status=0
+          npm run --silent check:schema:equivalence -- --old "$old" --new "$new" \
+            > "$validation" 2>&1 || validation_status=$?
+          structure_status=0
+          npm run --silent check:schema:equivalence -- --old "$old" --new "$new" --structural-diff \
+            > "$structure" 2>&1 || structure_status=$?
+          cat "$validation" "$structure"
+          disagreements=$(sed -nE 's/^total: .* ([0-9]+) disagreements .*$/\1/p' "$validation" | tail -1)
+          differing=$(sed -nE 's/^structural diff: ([0-9]+) differing path\(s\).*$/\1/p' "$structure" | tail -1)
+          healthy=true
+          [ -n "$disagreements" ] && [ -n "$differing" ] || healthy=false
+          [ "$structure_status" -eq 0 ] || healthy=false
+          case "$validation_status" in
+            0) [ "${disagreements:-1}" -eq 0 ] || healthy=false ;;
+            1) [ "${disagreements:-0}" -gt 0 ] || healthy=false ;;
+            *) healthy=false ;;
+          esac
+          if [ "$healthy" != true ]; then
+            echo "::error::schema-equivalence did not report cleanly (validation exit $validation_status, structural exit $structure_status); see the step log"
+            exit 1
+          fi
           {
-            echo "## Schema drift between the $version release and the draft"
-            if [ "$status" -eq 0 ]; then
-              echo "No drift: the draft schemas accept and reject the same instances as the release."
+            echo "version=$version"
+            echo "disagreements=$disagreements"
+            echo "differing=$differing"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Schema drift between the \`$version\` release and the draft"
+            if [ "$disagreements" -eq 0 ] && [ "$differing" -eq 0 ]; then
+              echo "No drift: the draft schemas accept and reject the same instances as the release, and no path differs after normalization."
             else
-              echo "The draft schemas differ from the $version release (exit status $status). This is a report, not a gate."
+              echo "Drift: $disagreements instance(s) judged differently and $differing differing path(s). This is a report, not a gate."
             fi
             echo '```'
-            cat "$report"
+            cat "$validation" "$structure"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          cat "$report"
-          exit "$status"
         working-directory: sdk/typescript
+      - name: Report schema drift between the latest release and the draft (advisory)
+        # The draft is allowed to move away from the release, so this
+        # step continues on error; its red result is the signal, and
+        # the numbers come from the gated step above.
+        continue-on-error: true
+        env:
+          VERSION: ${{ steps.drift.outputs.version }}
+          DISAGREEMENTS: ${{ steps.drift.outputs.disagreements }}
+          DIFFERING: ${{ steps.drift.outputs.differing }}
+        run: |
+          if [ "$DISAGREEMENTS" -eq 0 ] && [ "$DIFFERING" -eq 0 ]; then
+            echo "no drift between the $VERSION release and the draft"
+          else
+            echo "::warning::the draft schemas drift from the $VERSION release: $DISAGREEMENTS instance(s) judged differently, $DIFFERING differing path(s); see the job summary"
+            exit 1
+          fi
       - run: cargo fetch --locked
         # napi-cli does not forward --locked; fetching first pins the
         # graph, and the build below resolves offline-consistent.
@@ -289,13 +340,21 @@ jobs:
         # frozen source must still generate the frozen output.
         run: |
           set -eu
-          shopt -s nullglob
-          for dir in ../../spec/[0-9]*.[0-9]*.[0-9]*/; do
+          semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          checked=0
+          for dir in ../../spec/*/; do
             version=$(basename "$dir")
+            [[ $version =~ $semver ]] || continue
             echo "Checking spec/$version/schema"
             npx tsc -p "${dir}schema/src/tsconfig.json"
             npx tsx scripts/generate-schemas.mts --check --spec "$version"
+            checked=$((checked + 1))
           done
+          if [ "$checked" -eq 0 ]; then
+            echo "::error::no released spec/<MAJOR.MINOR.PATCH>/ folder found; nothing checked"
+            exit 1
+          fi
+          echo "checked $checked released bundle(s)"
         working-directory: sdk/typescript
       - name: Source files carry the standard file header
         run: python3 scripts/check-file-headers.py
