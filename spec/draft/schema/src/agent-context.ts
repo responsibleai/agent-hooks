@@ -154,10 +154,8 @@ interface ContextMetadata {
   extensions?: Extensions;
 }
 
-export type HookInterceptionPoint = InterceptionPoint;
-
 export interface HooksRequest extends ContextMetadata {
-  interception_point: HookInterceptionPoint;
+  interception_point: InterceptionPoint;
   [extension: string]: unknown;
 }
 
