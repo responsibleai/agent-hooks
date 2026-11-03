@@ -10,7 +10,10 @@ AGENT-HOOKS-DRAFT.md with Status Draft and Version DRAFT. Every bundle
 carries its schemas either flat under schema/ (the 0.1 layout) or under
 schema/generated/ with per-point files in strict-contexts/ (the draft
 layout); the inventories sit beside the text, and spec/README.md links
-every folder.
+every folder. Every $id in a bundle sits under that bundle's published
+path, schema/v<MAJOR.MINOR>/ for a release and schema/draft/ for the
+draft, and no file in a released bundle carries another version's wire
+string.
 
 Every entry under spec/ is a regular file or directory whose name does
 not start with a dot: a symbolic link, a device or pipe, and a hidden
@@ -47,6 +50,9 @@ REQUIRED_FILES = (
     "reserved-reasons.json",
 )
 REQUIRED_SCHEMAS = ("agent-context.schema.json", "verdict.schema.json")
+ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"
+WIRE = re.compile(r"agent-hooks/((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))")
+TEXT_SUFFIXES = {".md", ".json", ".ts", ".abnf", ".txt"}
 # Per-point context schemas: the draft layout's and the flat layout's folder.
 POINT_DIRS = ("strict-contexts", "agent-context")
 
@@ -189,13 +195,31 @@ def check_bundle(root: Path, folder: Path) -> list[str]:
                 f"{schemas.relative_to(root).as_posix()} has no per-point schema folder "
                 f"({' or '.join(POINT_DIRS)})"
             )
+    id_base = ID_ORIGIN + ("draft/" if folder.name == "draft" else f"v{folder.name}/")
     for path in walk(folder):
-        if path.suffix != ".json" or path.is_symlink() or not path.is_file():
+        if path.is_symlink() or not path.is_file() or path.suffix not in TEXT_SUFFIXES:
             continue
-        try:
-            json.loads(path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            errors.append(f"{path.relative_to(root).as_posix()} is invalid JSON: {exc}")
+        rel_path = path.relative_to(root).as_posix()
+        text = path.read_text(encoding="utf-8")
+        if path.suffix == ".json":
+            try:
+                document = json.loads(text)
+            except json.JSONDecodeError as exc:
+                errors.append(f"{rel_path} is invalid JSON: {exc}")
+                continue
+            identity = document.get("$id") if isinstance(document, dict) else None
+            if isinstance(identity, str) and not identity.startswith(id_base):
+                errors.append(
+                    f"{rel_path} has $id {escape_data(identity)}; expected one under {id_base}"
+                )
+        if folder.name != "draft":
+            foreign = sorted({m for m in WIRE.findall(text) if m != folder.name})
+            if foreign:
+                errors.append(
+                    f"{rel_path} carries the wire string of another version "
+                    f"({', '.join('agent-hooks/' + v for v in foreign)}); a released "
+                    f"bundle carries agent-hooks/{folder.name} only"
+                )
     return errors
 
 

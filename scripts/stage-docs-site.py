@@ -188,8 +188,16 @@ def stage_schemas(root: Path, bundles: list[str], schema_out: Path) -> None:
         # A bundle carries the inventories of its time; 0.1 predates
         # reserved-warnings.json, so only the files present are published.
         for inventory in INVENTORIES:
-            if (bundle / inventory).is_file() or (bundle / inventory).is_symlink():
-                publisher.publish(bundle / inventory, f"{prefix}/{inventory}", origin)
+            source = bundle / inventory
+            if not (source.is_file() or source.is_symlink()):
+                continue
+            relative = published_path(source)
+            if relative != f"{prefix}/{inventory}":
+                raise SystemExit(
+                    f"{origin}/{inventory}: $id names schema/{relative}; the bundle "
+                    f"publishes under schema/{prefix}/"
+                )
+            publisher.publish(source, relative, origin)
     vectors = root / "conformance" / "vectors.schema.json"
     publisher.publish(
         vectors, published_path(vectors), "conformance/vectors.schema.json"

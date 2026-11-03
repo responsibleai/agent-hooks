@@ -43,7 +43,21 @@ class CutTest(unittest.TestCase):
             encoding="utf-8",
         )
         (draft / "schema/generated/x.schema.json").write_text(
-            '{"$id": "x"}\n', encoding="utf-8"
+            '{"$id": "https://responsibleai.github.io/agent-hooks/schema/draft/x.schema.json"}\n',
+            encoding="utf-8",
+        )
+        (draft / "reserved-reasons.json").write_text(
+            '{"$id": "https://responsibleai.github.io/agent-hooks/schema/draft/reserved-reasons.json"}\n',
+            encoding="utf-8",
+        )
+        (draft / "schema/src").mkdir()
+        (draft / "schema/src/agent-context.ts").write_text(
+            "/** The wire version agent-hooks/0.1 (§4.1). */\n", encoding="utf-8"
+        )
+        (draft / "schema/examples/AgentContext").mkdir(parents=True)
+        (draft / "schema/examples/AgentContext/input.json").write_text(
+            '{"spec": "agent-hooks/0.1", "interception_point": "input"}\n',
+            encoding="utf-8",
         )
         (self.root / "spec/0.1").mkdir()
 
@@ -70,8 +84,39 @@ Every context carries `agent-hooks/0.2`. The schema is
                 encoding="utf-8"
             ),
         )
-        self.assertTrue(
-            (self.root / "spec/0.2/schema/generated/x.schema.json").is_file()
+        self.assertEqual(
+            (self.root / "spec/0.2/schema/generated/x.schema.json").read_text(
+                encoding="utf-8"
+            ),
+            '{"$id": "https://responsibleai.github.io/agent-hooks/schema/v0.2/x.schema.json"}\n',
+        )
+        self.assertEqual(
+            (self.root / "spec/0.2/reserved-reasons.json").read_text(encoding="utf-8"),
+            '{"$id": "https://responsibleai.github.io/agent-hooks/schema/v0.2/reserved-reasons.json"}\n',
+        )
+        for folder in ("0.2", "draft"):
+            self.assertEqual(
+                (
+                    self.root
+                    / "spec"
+                    / folder
+                    / "schema/examples/AgentContext/input.json"
+                ).read_text(encoding="utf-8"),
+                '{"spec": "agent-hooks/0.2", "interception_point": "input"}\n',
+                folder,
+            )
+            self.assertEqual(
+                (self.root / "spec" / folder / "schema/src/agent-context.ts").read_text(
+                    encoding="utf-8"
+                ),
+                "/** The wire version agent-hooks/0.2 (§4.1). */\n",
+                folder,
+            )
+        self.assertEqual(
+            (self.root / "spec/draft/schema/generated/x.schema.json").read_text(
+                encoding="utf-8"
+            ),
+            '{"$id": "https://responsibleai.github.io/agent-hooks/schema/draft/x.schema.json"}\n',
         )
         draft = (self.root / "spec/draft/AGENT-HOOKS-DRAFT.md").read_text(
             encoding="utf-8"
@@ -79,7 +124,7 @@ Every context carries `agent-hooks/0.2`. The schema is
         self.assertIn("`agent-hooks/0.2`", draft)
         self.assertIn("**Version:** `DRAFT`", draft)
         self.assertIn("spec/draft/schema/generated", draft)
-        self.assertTrue(any("--spec 0.2" in step for step in follow_ups))
+        self.assertTrue(any("--check --spec 0.2" in step for step in follow_ups))
         self.assertTrue(
             any("spec/0.2" in step and "tag" in step for step in follow_ups)
         )

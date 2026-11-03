@@ -5,13 +5,17 @@
 
 Copies spec/draft/ to spec/<MAJOR.MINOR>/, renames the text to
 AGENT-HOOKS-<MAJOR.MINOR>.md, sets its title and header to Released,
-the version and the date, drops the draft banner, sets the wire string
-to agent-hooks/<MAJOR.MINOR> in the copy and the draft, and rewrites
-the copy's spec/draft/ self-references to the new folder. It then
-prints what remains by hand: regenerate the copy's schemas under their
-own id path, point the draft banner at the new version, add the
-spec/README.md row and the CHANGELOG section, and tag after merge.
-RELEASING.md has the full procedure.
+the version and the date, and drops the draft banner. In every text
+file of the copy it rewrites the spec/draft/ self-references to the new
+folder, the schema id base from schema/draft/ to schema/v<MAJOR.MINOR>/
+(schemas and inventories alike) and the wire string to
+agent-hooks/<MAJOR.MINOR>. In the draft it sets the wire string in
+every text file (the text, the examples, the schema source and its
+generated output), so the draft follows the version it just released.
+It then prints what remains by
+hand: confirm the copy's schemas, point the draft banner at the new
+version, add the spec/README.md row and the CHANGELOG section, and tag
+after merge. RELEASING.md has the full procedure.
 
 Usage: cut-spec-version.py <MAJOR.MINOR> [--date YYYY-MM-DD] [--root <repository-root>]
 """
@@ -34,6 +38,7 @@ HEADER = re.compile(
     re.M,
 )
 WIRE = re.compile(r"agent-hooks/(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"
 TEXT_SUFFIXES = {".md", ".json", ".ts", ".abnf", ".txt"}
 
 
@@ -75,21 +80,27 @@ def cut(root: Path, version: str, date: str) -> list[str]:
     (target / "AGENT-HOOKS-DRAFT.md").unlink()
     released = released_text(draft_file.read_text(encoding="utf-8"), version, date)
     (target / f"AGENT-HOOKS-{version}.md").write_text(released, encoding="utf-8")
+    wire = f"agent-hooks/{version}"
     for path in sorted(target.rglob("*")):
         if path.is_file() and path.suffix in TEXT_SUFFIXES:
             text = path.read_text(encoding="utf-8")
             updated = text.replace("spec/draft/", f"spec/{version}/")
+            updated = updated.replace(f"{ID_ORIGIN}draft/", f"{ID_ORIGIN}v{version}/")
+            updated = WIRE.sub(wire, updated)
             if updated != text:
                 path.write_text(updated, encoding="utf-8")
-    # The draft now describes the next version and keeps the wire string
-    # of the one just released.
-    draft_file.write_text(
-        WIRE.sub(f"agent-hooks/{version}", draft_file.read_text(encoding="utf-8")),
-        encoding="utf-8",
-    )
+    # The draft now describes the next version and carries the wire
+    # string of the one just released, in every text file: the text, the
+    # examples, and the schema source with its generated output.
+    for path in sorted(draft.rglob("*")):
+        if path.is_file() and not path.is_symlink() and path.suffix in TEXT_SUFFIXES:
+            text = path.read_text(encoding="utf-8")
+            updated = WIRE.sub(wire, text)
+            if updated != text:
+                path.write_text(updated, encoding="utf-8")
     return [
-        f"regenerate the copy's schemas under schema/v{version}/: "
-        f"cd sdk/typescript && npx tsx scripts/generate-schemas.mts --spec {version}",
+        f"confirm the copy's schemas still match their source under schema/v{version}/: "
+        f"cd sdk/typescript && npx tsx scripts/generate-schemas.mts --check --spec {version}",
         f"point the draft banner in spec/draft/AGENT-HOOKS-DRAFT.md at {version}",
         f"add the spec/README.md row for {version} and set the previous version to Superseded",
         f"move the CHANGELOG.md bullets under 'Unreleased specification' to 'Specification {version} — {date}'",

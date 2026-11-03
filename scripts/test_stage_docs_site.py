@@ -58,7 +58,10 @@ def bundle(
     text = "AGENT-HOOKS-DRAFT.md" if name == "draft" else f"AGENT-HOOKS-{name}.md"
     (folder / text).write_text(f"# spec {name}\n", encoding="utf-8")
     for inventory in inventories:
-        (folder / inventory).write_text(json.dumps({"from": name}), encoding="utf-8")
+        (folder / inventory).write_text(
+            json.dumps({"$id": ID_BASE + f"{wire}/{inventory}", "from": name}),
+            encoding="utf-8",
+        )
     (schemas / "agent-context.schema.json").write_text(
         schema(f"{wire}/agent-context.schema.json", marker), encoding="utf-8"
     )
@@ -169,22 +172,36 @@ class StageTest(unittest.TestCase):
         stage.stage(self.root)
         for name in ("reserved-reasons.json", "declaration-errors.json"):
             self.assertEqual(
-                json.loads(self.read(f"schema/v0.1/{name}")), {"from": "0.1"}
+                json.loads(self.read(f"schema/v0.1/{name}"))["from"], "0.1"
             )
         self.assertFalse((self.docs / "schema/v0.1/reserved-warnings.json").exists())
         for name in stage.INVENTORIES:
             self.assertEqual(
-                json.loads(self.read(f"schema/v0.10/{name}")), {"from": "0.10"}
+                json.loads(self.read(f"schema/v0.10/{name}"))["from"], "0.10"
             )
             self.assertEqual(
-                json.loads(self.read(f"schema/draft/{name}")), {"from": "draft"}
+                json.loads(self.read(f"schema/draft/{name}"))["from"], "draft"
             )
 
     def test_a_shared_path_with_identical_bytes_is_allowed(self) -> None:
         bundle(self.root, "0.3", "v0.2", "second")
         for inventory in stage.INVENTORIES:
-            (self.root / "spec/0.3" / inventory).write_text(json.dumps({"from": "0.2"}))
+            (self.root / "spec/0.3" / inventory).write_text(
+                json.dumps({"$id": ID_BASE + f"v0.2/{inventory}", "from": "0.2"})
+            )
         self.assertEqual(stage.stage(self.root), ["0.10", "0.3", "0.2", "0.1"])
+
+    def test_an_inventory_whose_id_names_another_path_fails(self) -> None:
+        (self.root / "spec/0.2/reserved-reasons.json").write_text(
+            json.dumps({"$id": ID_BASE + "draft/reserved-reasons.json"})
+        )
+        with self.assertRaises(SystemExit) as raised:
+            stage.stage(self.root)
+        self.assertIn(
+            "spec/0.2/reserved-reasons.json: $id names schema/draft/reserved-reasons.json; "
+            "the bundle publishes under schema/v0.2/",
+            str(raised.exception),
+        )
 
     def test_a_shared_path_with_different_bytes_fails(self) -> None:
         bundle(self.root, "0.3", "v0.2", "changed")

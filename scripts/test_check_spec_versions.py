@@ -29,6 +29,9 @@ def header(status: str, version: str) -> str:
     return f"# spec\n\n> **Status:** {status} · **Version:** `{version}` · **Date:** 2026-10-22\n"
 
 
+ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"
+
+
 def bundle(root: Path, name: str, layout: str) -> Path:
     """A bundle: 'flat' puts schemas under schema/ with agent-context/,
     'generated' under schema/generated/ with strict-contexts/ and src/."""
@@ -45,9 +48,14 @@ def bundle(root: Path, name: str, layout: str) -> Path:
         (folder / relative).write_text(
             "{}\n" if relative.endswith(".json") else "# x\n"
         )
+    base = ID_ORIGIN + ("draft/" if name == "draft" else f"v{name}/")
     for schema in versions.REQUIRED_SCHEMAS:
-        (schemas / schema).write_text("{}\n", encoding="utf-8")
-    (points / "input.schema.json").write_text("{}\n", encoding="utf-8")
+        (schemas / schema).write_text(
+            f'{{"$id": "{base}{schema}"}}\n', encoding="utf-8"
+        )
+    (points / "input.schema.json").write_text(
+        f'{{"$id": "{base}agent-context/input.schema.json"}}\n', encoding="utf-8"
+    )
     return folder
 
 
@@ -205,6 +213,43 @@ class CheckTest(unittest.TestCase):
                 e.startswith("spec/draft/reserved-reasons.json is invalid JSON")
                 for e in errors
             )
+        )
+
+    def test_ids_must_sit_under_the_bundle_path(self) -> None:
+        (self.root / "spec/0.1/reserved-reasons.json").write_text(
+            f'{{"$id": "{ID_ORIGIN}draft/reserved-reasons.json"}}\n', encoding="utf-8"
+        )
+        (self.root / "spec/draft/schema/generated/verdict.schema.json").write_text(
+            f'{{"$id": "{ID_ORIGIN}v0.1/verdict.schema.json"}}\n', encoding="utf-8"
+        )
+        errors = versions.check(self.root)
+        self.assertIn(
+            f"spec/0.1/reserved-reasons.json has $id {ID_ORIGIN}draft/reserved-reasons.json; "
+            f"expected one under {ID_ORIGIN}v0.1/",
+            errors,
+        )
+        self.assertIn(
+            f"spec/draft/schema/generated/verdict.schema.json has $id "
+            f"{ID_ORIGIN}v0.1/verdict.schema.json; expected one under {ID_ORIGIN}draft/",
+            errors,
+        )
+
+    def test_released_bundle_carries_its_own_wire_string_only(self) -> None:
+        (self.root / "spec/0.1/AGENT-HOOKS-0.1.md").write_text(
+            header("Released", "0.1")
+            + "Contexts carry `agent-hooks/0.1`; see also `agent-hooks/0.2`.\n",
+            encoding="utf-8",
+        )
+        (self.root / "spec/draft/AGENT-HOOKS-DRAFT.md").write_text(
+            header("Draft", "DRAFT") + "The draft keeps `agent-hooks/0.1`.\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            versions.check(self.root),
+            [
+                "spec/0.1/AGENT-HOOKS-0.1.md carries the wire string of another version "
+                "(agent-hooks/0.2); a released bundle carries agent-hooks/0.1 only"
+            ],
         )
 
     def test_stale_references_fail(self) -> None:
