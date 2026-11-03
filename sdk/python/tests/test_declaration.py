@@ -170,7 +170,8 @@ def test_constants_match_the_core() -> None:
     }
     assert DECLARATION_VERSION in SUPPORTED_DECLARATION_VERSIONS
     assert DECLARATION_VERSION != SPEC_VERSION
-    assert SPEC_VERSION == f"agent-hooks/{SUPPORTED_SPEC_VERSIONS[-1]}"
+    expected_spec = f"agent-hooks/{SUPPORTED_SPEC_VERSIONS[-1]}"
+    assert expected_spec == SPEC_VERSION
 
 
 def test_three_paths_produce_identical_records(tmp_path: pathlib.Path) -> None:

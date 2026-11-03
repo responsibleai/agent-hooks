@@ -706,6 +706,29 @@ pub trait ApprovalResolver: Send + Sync {
 }
 
 #[cfg(test)]
+mod version_constants_tests {
+    use super::*;
+
+    #[test]
+    fn spec_version_is_the_last_supported_version() {
+        // VERSIONING.md: SUPPORTED_SPEC_VERSIONS lists MAJOR.MINOR folders,
+        // oldest first, and SPEC_VERSION is the wire string of the last.
+        let last = SUPPORTED_SPEC_VERSIONS
+            .last()
+            .expect("at least one supported version");
+        assert_eq!(SPEC_VERSION, format!("agent-hooks/{last}"));
+        for v in SUPPORTED_SPEC_VERSIONS {
+            let parts: Vec<&str> = v.split('.').collect();
+            assert_eq!(parts.len(), 2, "{v} is not MAJOR.MINOR");
+            assert!(
+                parts.iter().all(|p| p.bytes().all(|b| b.is_ascii_digit())),
+                "{v}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 mod verdict_validate_tests {
     use super::*;
 
