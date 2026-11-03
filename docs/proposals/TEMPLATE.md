@@ -1,6 +1,6 @@
 # P-XXX: {Short title naming the design question or change}
 
-- **Status:** Draft | Accepted | Rejected | Final | Superseded
+- **Status:** Draft | Accepted | Rejected | Final | Superseded {then `(in draft)` once merged into `spec/draft/`, `(released in X.Y)` after a cut}
 - **Created:** YYYY-MM-DD
 - **Author(s):** Name `<email>` (@github-username)
 - **PR:** {URL of this proposal's pull request; its number is the proposal number}
