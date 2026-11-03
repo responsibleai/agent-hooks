@@ -1,11 +1,12 @@
-# Agent Hooks Specification — Version 0.1
+# Agent Hooks Specification — Draft
 
-> **Draft:** This is the working draft for the next specification release.
-> It is not a released specification. The current specification is the
-> beta snapshot [0.1.0](../0.1.0/AGENT-HOOKS-0.1.md) (`0.1.0-beta`, not
-> yet tagged).
+> **Draft:** This is the working text for the next specification version.
+> It is not a released specification. The latest released version is
+> [0.1](../0.1/AGENT-HOOKS-0.1.md). The wire string `agent-hooks/0.1` in
+> this text names the released version the draft is compatible with; a
+> breaking change bumps it when the next version is cut.
 
-> **Status:** Beta · **Version:** `0.1.0-beta` · **Date:** 2026-10-02
+> **Status:** Draft · **Version:** `DRAFT` · **Date:** 2026-11-03
 > **Editors:** Responsible AI / Agent Governance Toolkit
 >
 > This document defines a framework-neutral contract for **lifecycle hooks** in
