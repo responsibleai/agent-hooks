@@ -247,7 +247,6 @@ export interface PostToolCallRequest extends HooksRequest {
 /**
  * The request at output: output is required (§4.2).
  * @example [output.json](../examples/AgentContext/output.json)
- * @example [output-with-extensions.json](../examples/AgentContext/output-with-extensions.json)
  */
 export interface OutputRequest extends HooksRequest {
   interception_point: InterceptionPoint.Output;
