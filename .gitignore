@@ -461,7 +461,6 @@ sdk/go/**/*.test
 .DS_Store
 .claude/
 docs-site/docs/spec.md
-docs-site/docs/spec-draft.md
 docs-site/docs/spec/
 docs-site/docs/schema/
 docs-site/mkdocs.staged.yml

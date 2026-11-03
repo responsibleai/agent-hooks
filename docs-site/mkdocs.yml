@@ -68,11 +68,12 @@ nav:
   # two entries below show the shape; the published site does not read
   # them.
   - Specification:
-      - "0.1.0": spec/0.1.0.md
-      - Draft: spec-draft.md
+      - "0.1": spec/0.1.md
+      - Draft: spec/draft.md
   - FAQ: faq.md
 
-# spec.md is the stable "latest" URL: a copy of the newest spec/<version>.md
-# page kept so existing links work. The versioned page is the one in the nav.
+# spec.md is the stable "latest" URL: a copy of the newest released
+# spec/<version>.md page, kept so existing links work. The versioned page
+# and spec/draft.md are the ones in the nav.
 not_in_nav: |
   spec.md

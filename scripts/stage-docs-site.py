@@ -4,23 +4,25 @@
 """Stage the specification bundles into the documentation site.
 
 The pages workflow runs this before mkdocs. For every
-spec/<MAJOR.MINOR.PATCH>/ folder and for spec/draft/ it writes, under
+spec/<MAJOR.MINOR>/ folder and for spec/draft/ it writes, under
 docs-site/docs/:
 
-  spec/<version>.md   one page per released version
-  spec.md             the newest version again, the stable "latest" URL
-  spec-draft.md       the draft, its back-link pointed at the version page
-  schema/<path>       every generated schema of every version at the path
-                      its own $id names, with the bundle's reserved-reasons,
-                      reserved-warnings and declaration-errors inventories
-                      beside the root schemas, and conformance/vectors.schema.json
-                      at its own $id path
+  spec/<version>.md   one page per released version, from AGENT-HOOKS-<version>.md
+  spec/draft.md       the draft, from AGENT-HOOKS-DRAFT.md, its banner link
+                      pointed at the version page beside it
+  spec.md             the newest released version again, the stable "latest" URL
+  schema/<path>       every schema of every bundle at the path its own $id
+                      names (schema/vX.Y/ for a release, schema/draft/ for the
+                      draft), read from schema/generated/ when the bundle has
+                      it and from schema/ otherwise; the inventories the bundle
+                      carries beside its root schemas; and
+                      conformance/vectors.schema.json at its own $id path
 
 and docs-site/mkdocs.staged.yml: the committed mkdocs.yml with the
 Specification navigation entries generated from the same folders, newest
 first, then the draft. Nothing it writes is committed.
 
-A published path is immutable: two versions may stage the same path only
+A published path is immutable: two bundles may stage the same path only
 with identical bytes, so a release that changes a schema must publish
 under a new $id path (the generator's ID_BASE). The vectors schema is
 not part of a bundle; it is staged from the working tree, which tracks
@@ -40,12 +42,11 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
-# The draft banner's link to a released bundle, rewritten to that
-# version's page in the site.
+VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+# The draft banner's link to a released text, rewritten to that
+# version's page, which sits in the same site folder as the draft page.
 BACK_LINK = re.compile(
-    r"\]\(\.\./((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))"
-    r"/AGENT-HOOKS-[0-9]+\.[0-9]+\.md\)"
+    r"\]\(\.\./((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))/AGENT-HOOKS-\1\.md\)"
 )
 NAV_HEAD = "  - Specification:\n"
 INVENTORIES = (
@@ -74,9 +75,18 @@ def released_versions(spec: Path) -> list[str]:
 
 
 def spec_text(folder: Path) -> Path:
+    """The one specification text of a bundle: AGENT-HOOKS-<folder>.md,
+    or AGENT-HOOKS-DRAFT.md for the draft."""
+    expected = (
+        "AGENT-HOOKS-DRAFT.md"
+        if folder.name == "draft"
+        else f"AGENT-HOOKS-{folder.name}.md"
+    )
     files = sorted(folder.glob("AGENT-HOOKS-*.md"))
-    if len(files) != 1:
-        raise SystemExit(f"{folder} must contain exactly one AGENT-HOOKS-*.md file")
+    if [f.name for f in files] != [expected]:
+        raise SystemExit(
+            f"{folder} must contain exactly one specification text, {expected}"
+        )
     if files[0].is_symlink():
         raise SystemExit(f"{files[0]} {SYMLINK}")
     return files[0]
@@ -84,7 +94,7 @@ def spec_text(folder: Path) -> Path:
 
 def published_path(schema_file: Path) -> str:
     """The path after /schema/ in the file's $id, such as
-    v0.1/agent-context/input.schema.json."""
+    draft/agent-context/input.schema.json."""
     document = json.loads(schema_file.read_text(encoding="utf-8"))
     identity = document.get("$id")
     if not isinstance(identity, str):
@@ -131,31 +141,42 @@ class Publisher:
         target.write_bytes(data)
 
 
-def generated_schemas(generated: Path) -> list[Path]:
-    """Every *.schema.json under generated/, refusing symbolic links."""
-    files: list[Path] = []
-    for ancestor in (generated.parent, generated):
+def schema_root(bundle: Path) -> Path:
+    """Where a bundle keeps its schemas: schema/generated/ when present, else schema/."""
+    generated = bundle / "schema" / "generated"
+    return (
+        generated
+        if generated.is_dir() and not generated.is_symlink()
+        else bundle / "schema"
+    )
+
+
+def bundle_schemas(root: Path) -> list[Path]:
+    """Every *.schema.json under a bundle's schema root, refusing symbolic
+    links on the way; src/ holds TypeScript and examples/ hold instances,
+    so neither contributes a schema."""
+    for ancestor in (root.parent, root):
         if ancestor.is_symlink():
             raise SystemExit(f"{ancestor} {SYMLINK}")
-    for dirpath, dirnames, filenames in os.walk(generated, followlinks=False):
+    files: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
         for name in sorted(dirnames) + sorted(filenames):
             path = Path(dirpath) / name
             if path.is_symlink():
                 raise SystemExit(f"{path} {SYMLINK}")
             if path.is_file() and name.endswith(".schema.json"):
                 files.append(path)
+        dirnames[:] = [d for d in sorted(dirnames) if d not in ("src", "examples")]
     return sorted(files)
 
 
-def stage_schemas(
-    root: Path, versions_oldest_first: list[str], schema_out: Path
-) -> None:
+def stage_schemas(root: Path, bundles: list[str], schema_out: Path) -> None:
     publisher = Publisher(schema_out)
-    for version in versions_oldest_first:
-        bundle = root / "spec" / version
-        origin = f"spec/{version}"
+    for name in bundles:
+        bundle = root / "spec" / name
+        origin = f"spec/{name}"
         prefixes: set[str] = set()
-        for file in generated_schemas(bundle / "schema" / "generated"):
+        for file in bundle_schemas(schema_root(bundle)):
             relative = published_path(file)
             publisher.publish(file, relative, origin)
             prefixes.add(relative.split("/")[0])
@@ -164,8 +185,11 @@ def stage_schemas(
                 f"{origin} schemas publish under {sorted(prefixes)}; expected one path"
             )
         (prefix,) = prefixes
-        for name in INVENTORIES:
-            publisher.publish(bundle / name, f"{prefix}/{name}", origin)
+        # A bundle carries the inventories of its time; 0.1 predates
+        # reserved-warnings.json, so only the files present are published.
+        for inventory in INVENTORIES:
+            if (bundle / inventory).is_file() or (bundle / inventory).is_symlink():
+                publisher.publish(bundle / inventory, f"{prefix}/{inventory}", origin)
     vectors = root / "conformance" / "vectors.schema.json"
     publisher.publish(
         vectors, published_path(vectors), "conformance/vectors.schema.json"
@@ -183,7 +207,7 @@ def staged_config(config: str, versions: list[str]) -> str:
     while end < len(lines) and lines[end].startswith("      "):
         end += 1
     entries = [f'      - "{v}": spec/{v}.md\n' for v in versions]
-    entries.append("      - Draft: spec-draft.md\n")
+    entries.append("      - Draft: spec/draft.md\n")
     return "".join(lines[: start + 1] + entries + lines[end:])
 
 
@@ -192,7 +216,7 @@ def stage(root: Path) -> list[str]:
     docs = root / "docs-site" / "docs"
     versions = released_versions(spec)
     if not versions:
-        raise SystemExit("spec/ has no released MAJOR.MINOR.PATCH folder")
+        raise SystemExit("spec/ has no released MAJOR.MINOR folder")
 
     pages = docs / "spec"
     shutil.rmtree(pages, ignore_errors=True)
@@ -201,13 +225,13 @@ def stage(root: Path) -> list[str]:
         shutil.copyfile(spec_text(spec / version), pages / f"{version}.md")
     shutil.copyfile(spec_text(spec / versions[0]), docs / "spec.md")
     draft = spec_text(spec / "draft").read_text(encoding="utf-8")
-    (docs / "spec-draft.md").write_text(
-        BACK_LINK.sub(r"](spec/\1.md)", draft), encoding="utf-8"
-    )
+    (pages / "draft.md").write_text(BACK_LINK.sub(r"](\1.md)", draft), encoding="utf-8")
 
     schema_out = docs / "schema"
     shutil.rmtree(schema_out, ignore_errors=True)
-    stage_schemas(root, list(reversed(versions)), schema_out)
+    # Oldest release first, the draft last, so a conflict names the
+    # bundle that arrived later.
+    stage_schemas(root, [*reversed(versions), "draft"], schema_out)
 
     config = (root / "docs-site" / "mkdocs.yml").read_text(encoding="utf-8")
     (root / "docs-site" / "mkdocs.staged.yml").write_text(

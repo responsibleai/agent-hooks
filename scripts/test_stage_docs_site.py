@@ -3,14 +3,13 @@
 
 """Regression tests for scripts/stage-docs-site.py.
 
-Each case stages a small repository tree with several released bundles
-and a draft, built in a temporary directory.
+Each case stages a small repository tree built in a temporary
+directory: released bundles in both schema layouts and a draft.
 """
 
 import importlib.util
 import json
 import os
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -28,8 +27,8 @@ nav:
   - Home: index.md
   # The Specification entries are regenerated at build time.
   - Specification:
-      - "0.0.1": spec/0.0.1.md
-      - Draft: spec-draft.md
+      - "0.0": spec/0.0.md
+      - Draft: spec/draft.md
   - FAQ: faq.md
 """
 
@@ -39,23 +38,34 @@ def schema(identity: str, marker: str) -> str:
 
 
 def bundle(
-    root: Path, version: str, wire: str, marker: str, inventory: str | None = None
-) -> None:
-    """A bundle whose schemas publish under <wire> and carry <marker>;
-    its inventories name <inventory>, by default the version."""
-    folder = root / "spec" / version
-    (folder / "schema/generated/strict-contexts").mkdir(parents=True)
-    (folder / "AGENT-HOOKS-0.1.md").write_text(f"# spec {version}\n", encoding="utf-8")
-    for name in stage.INVENTORIES:
-        (folder / name).write_text(
-            json.dumps({"from": inventory or version}), encoding="utf-8"
-        )
-    (folder / "schema/generated/agent-context.schema.json").write_text(
+    root: Path,
+    name: str,
+    wire: str,
+    marker: str,
+    layout: str = "generated",
+    inventories: tuple[str, ...] = stage.INVENTORIES,
+) -> Path:
+    """A bundle whose schemas publish under <wire> and carry <marker>.
+    'generated' puts them under schema/generated/ with strict-contexts/
+    and a src/ folder; 'flat' puts them under schema/ with agent-context/."""
+    folder = root / "spec" / name
+    schemas = folder / "schema" / ("generated" if layout == "generated" else "")
+    points = schemas / ("strict-contexts" if layout == "generated" else "agent-context")
+    points.mkdir(parents=True)
+    if layout == "generated":
+        (folder / "schema/src").mkdir()
+        (folder / "schema/src/verdict.ts").write_text("export {};\n", encoding="utf-8")
+    text = "AGENT-HOOKS-DRAFT.md" if name == "draft" else f"AGENT-HOOKS-{name}.md"
+    (folder / text).write_text(f"# spec {name}\n", encoding="utf-8")
+    for inventory in inventories:
+        (folder / inventory).write_text(json.dumps({"from": name}), encoding="utf-8")
+    (schemas / "agent-context.schema.json").write_text(
         schema(f"{wire}/agent-context.schema.json", marker), encoding="utf-8"
     )
-    (folder / "schema/generated/strict-contexts/input.schema.json").write_text(
+    (points / "input.schema.json").write_text(
         schema(f"{wire}/agent-context/input.schema.json", marker), encoding="utf-8"
     )
+    return folder
 
 
 class StageTest(unittest.TestCase):
@@ -63,21 +73,26 @@ class StageTest(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        bundle(self.root, "0.1.0", "v0.1", "first")
-        # 0.1.1 keeps the v0.1 path with byte-identical files, which is allowed.
-        bundle(self.root, "0.1.1", "v0.1", "first", inventory="0.1.0")
-        bundle(self.root, "0.2.0", "v0.2", "second")
-        # 0.10.0 sorts after 0.2.0 numerically, not lexically.
-        bundle(self.root, "0.10.0", "v0.10", "tenth")
-        draft = self.root / "spec/draft"
-        draft.mkdir()
-        (draft / "AGENT-HOOKS-0.1.md").write_text(
-            "> The current one is [0.10.0](../0.10.0/AGENT-HOOKS-0.1.md).\n# draft\n",
+        # 0.1 is flat and predates reserved-warnings.json, like the real one.
+        bundle(
+            self.root,
+            "0.1",
+            "v0.1",
+            "first",
+            layout="flat",
+            inventories=("reserved-reasons.json", "declaration-errors.json"),
+        )
+        bundle(self.root, "0.2", "v0.2", "second")
+        # 0.10 sorts after 0.2 numerically, not lexically.
+        bundle(self.root, "0.10", "v0.10", "tenth")
+        draft = bundle(self.root, "draft", "draft", "working")
+        (draft / "AGENT-HOOKS-DRAFT.md").write_text(
+            "> The latest released version is [0.10](../0.10/AGENT-HOOKS-0.10.md).\n# draft\n",
             encoding="utf-8",
         )
         (self.root / "conformance").mkdir()
         (self.root / "conformance/vectors.schema.json").write_text(
-            schema("v0.1/conformance/vectors.schema.json", "vectors"), encoding="utf-8"
+            schema("draft/conformance/vectors.schema.json", "vectors"), encoding="utf-8"
         )
         (self.root / "docs-site/docs").mkdir(parents=True)
         (self.root / "docs-site/mkdocs.yml").write_text(MKDOCS, encoding="utf-8")
@@ -87,21 +102,29 @@ class StageTest(unittest.TestCase):
         return (self.docs / relative).read_text(encoding="utf-8")
 
     def test_versions_are_ordered_numerically_newest_first(self) -> None:
-        self.assertEqual(stage.stage(self.root), ["0.10.0", "0.2.0", "0.1.1", "0.1.0"])
+        self.assertEqual(stage.stage(self.root), ["0.10", "0.2", "0.1"])
 
-    def test_one_page_per_version_and_the_latest_alias(self) -> None:
+    def test_one_page_per_version_the_draft_page_and_the_latest_alias(self) -> None:
         for version in stage.stage(self.root):
             self.assertEqual(self.read(f"spec/{version}.md"), f"# spec {version}\n")
-        self.assertEqual(self.read("spec.md"), "# spec 0.10.0\n")
-
-    def test_draft_back_link_points_at_the_version_page(self) -> None:
-        stage.stage(self.root)
+        self.assertEqual(self.read("spec.md"), "# spec 0.10\n")
         self.assertEqual(
-            self.read("spec-draft.md"),
-            "> The current one is [0.10.0](spec/0.10.0.md).\n# draft\n",
+            self.read("spec/draft.md"),
+            "> The latest released version is [0.10](0.10.md).\n# draft\n",
+        )
+        self.assertFalse((self.docs / "spec-draft.md").exists())
+
+    def test_text_file_must_carry_the_folder_name(self) -> None:
+        (self.root / "spec/0.2/AGENT-HOOKS-0.2.md").rename(
+            self.root / "spec/0.2/AGENT-HOOKS-0.2.0.md"
+        )
+        with self.assertRaises(SystemExit) as raised:
+            stage.stage(self.root)
+        self.assertIn(
+            "exactly one specification text, AGENT-HOOKS-0.2.md", str(raised.exception)
         )
 
-    def test_schemas_and_inventories_land_at_their_id_paths(self) -> None:
+    def test_schemas_from_both_layouts_land_at_their_id_paths(self) -> None:
         stage.stage(self.root)
         self.assertEqual(
             json.loads(self.read("schema/v0.1/agent-context.schema.json"))["title"],
@@ -121,67 +144,86 @@ class StageTest(unittest.TestCase):
             json.loads(self.read("schema/v0.10/agent-context.schema.json"))["title"],
             "tenth",
         )
-        for name in (
-            "reserved-reasons.json",
-            "reserved-warnings.json",
-            "declaration-errors.json",
-        ):
-            self.assertEqual(
-                json.loads(self.read(f"schema/v0.1/{name}")), {"from": "0.1.0"}
-            )
-            self.assertEqual(
-                json.loads(self.read(f"schema/v0.10/{name}")), {"from": "0.10.0"}
-            )
         self.assertEqual(
-            json.loads(self.read("schema/v0.1/conformance/vectors.schema.json"))[
+            json.loads(self.read("schema/draft/agent-context.schema.json"))["title"],
+            "working",
+        )
+        self.assertEqual(
+            json.loads(self.read("schema/draft/agent-context/input.schema.json"))[
+                "title"
+            ],
+            "working",
+        )
+        self.assertEqual(
+            json.loads(self.read("schema/draft/conformance/vectors.schema.json"))[
                 "title"
             ],
             "vectors",
         )
         self.assertFalse((self.docs / "schema/strict-contexts").exists())
+        self.assertFalse((self.docs / "schema/v0.2/src").exists())
+
+    def test_inventories_follow_the_bundle_and_absent_ones_are_not_published(
+        self,
+    ) -> None:
+        stage.stage(self.root)
+        for name in ("reserved-reasons.json", "declaration-errors.json"):
+            self.assertEqual(
+                json.loads(self.read(f"schema/v0.1/{name}")), {"from": "0.1"}
+            )
+        self.assertFalse((self.docs / "schema/v0.1/reserved-warnings.json").exists())
+        for name in stage.INVENTORIES:
+            self.assertEqual(
+                json.loads(self.read(f"schema/v0.10/{name}")), {"from": "0.10"}
+            )
+            self.assertEqual(
+                json.loads(self.read(f"schema/draft/{name}")), {"from": "draft"}
+            )
+
+    def test_a_shared_path_with_identical_bytes_is_allowed(self) -> None:
+        bundle(self.root, "0.3", "v0.2", "second")
+        for inventory in stage.INVENTORIES:
+            (self.root / "spec/0.3" / inventory).write_text(json.dumps({"from": "0.2"}))
+        self.assertEqual(stage.stage(self.root), ["0.10", "0.3", "0.2", "0.1"])
 
     def test_a_shared_path_with_different_bytes_fails(self) -> None:
-        bundle(self.root, "0.1.2", "v0.1", "changed", inventory="0.1.0")
+        bundle(self.root, "0.3", "v0.2", "changed")
         with self.assertRaises(SystemExit) as raised:
             stage.stage(self.root)
         message = str(raised.exception)
         self.assertIn(
-            "spec/0.1.2 and spec/0.1.1 both publish schema/v0.1/agent-context.schema.json",
+            "spec/0.3 and spec/0.2 both publish schema/v0.2/agent-context.schema.json",
             message,
         )
         self.assertIn("ID_BASE", message)
 
-    def test_a_shared_path_with_different_inventories_fails(self) -> None:
-        bundle(self.root, "0.1.2", "v0.1", "first")
-        with self.assertRaises(SystemExit) as raised:
-            stage.stage(self.root)
-        self.assertIn("schema/v0.1/reserved-reasons.json", str(raised.exception))
-
     def test_symbolic_links_fail(self) -> None:
-        generated = self.root / "spec/0.2.0/schema/generated"
+        generated = self.root / "spec/0.2/schema/generated"
         os.symlink("agent-context.schema.json", generated / "copy.schema.json")
         with self.assertRaises(SystemExit) as raised:
             stage.stage(self.root)
         self.assertIn("copy.schema.json is a symbolic link", str(raised.exception))
         os.unlink(generated / "copy.schema.json")
-        text = self.root / "spec/0.2.0/AGENT-HOOKS-0.1.md"
+        text = self.root / "spec/0.2/AGENT-HOOKS-0.2.md"
         text.unlink()
-        os.symlink("../0.1.0/AGENT-HOOKS-0.1.md", text)
+        os.symlink("../0.1/AGENT-HOOKS-0.1.md", text)
         with self.assertRaises(SystemExit) as raised:
             stage.stage(self.root)
-        self.assertIn("AGENT-HOOKS-0.1.md is a symbolic link", str(raised.exception))
+        self.assertIn("AGENT-HOOKS-0.2.md", str(raised.exception))
 
-    def test_symbolic_link_directories_fail(self) -> None:
-        schema = self.root / "spec/0.2.0/schema"
-        generated = schema / "generated"
+    def test_symlinked_schema_directories_fail(self) -> None:
+        generated = self.root / "spec/0.2/schema/generated"
+        import shutil
+
         shutil.rmtree(generated)
-        os.symlink("../../0.1.0/schema/generated", generated)
+        os.symlink("../../0.10/schema/generated", generated)
         with self.assertRaises(SystemExit) as raised:
             stage.stage(self.root)
         self.assertIn("generated is a symbolic link", str(raised.exception))
         os.unlink(generated)
-        shutil.rmtree(schema)
-        os.symlink("../0.1.0/schema", schema)
+        schema_dir = self.root / "spec/0.2/schema"
+        shutil.rmtree(schema_dir)
+        os.symlink("../0.10/schema", schema_dir)
         with self.assertRaises(SystemExit) as raised:
             stage.stage(self.root)
         self.assertIn("schema is a symbolic link", str(raised.exception))
@@ -196,21 +238,20 @@ nav:
   - Home: index.md
   # The Specification entries are regenerated at build time.
   - Specification:
-      - "0.10.0": spec/0.10.0.md
-      - "0.2.0": spec/0.2.0.md
-      - "0.1.1": spec/0.1.1.md
-      - "0.1.0": spec/0.1.0.md
-      - Draft: spec-draft.md
+      - "0.10": spec/0.10.md
+      - "0.2": spec/0.2.md
+      - "0.1": spec/0.1.md
+      - Draft: spec/draft.md
   - FAQ: faq.md
 """,
         )
 
     def test_restaging_replaces_stale_output(self) -> None:
         stage.stage(self.root)
-        (self.docs / "spec/9.9.9.md").write_text("stale\n", encoding="utf-8")
+        (self.docs / "spec/9.9.md").write_text("stale\n", encoding="utf-8")
         (self.docs / "schema/v9.9").mkdir()
         stage.stage(self.root)
-        self.assertFalse((self.docs / "spec/9.9.9.md").exists())
+        self.assertFalse((self.docs / "spec/9.9.md").exists())
         self.assertFalse((self.docs / "schema/v9.9").exists())
 
 
