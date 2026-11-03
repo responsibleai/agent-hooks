@@ -1,8 +1,0 @@
-{
-  "decision": "transform",
-  "reason": "public_sources_only",
-  "transform": {
-    "path": "$target.content",
-    "value": "Find the public document retention policy."
-  }
-}

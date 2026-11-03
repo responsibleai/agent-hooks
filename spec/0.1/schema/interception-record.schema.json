@@ -1,0 +1,277 @@
+{
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-record.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Hooks — interception record",
+  "description": "Host-side record of one emission (AGENT-HOOKS-0.1 §10.3). Payload-free: identities (when a provider is declared) bind the record to the exact pre/post-composition context; session_id/sequence/decided_by provide ordering and attribution; composition makes the record interpretable without out-of-band host configuration.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "interception_point",
+    "mode",
+    "verdict",
+    "input_identity",
+    "enforced_identity",
+    "identity_provider",
+    "session_id",
+    "sequence",
+    "composition",
+    "interceptors_registered"
+  ],
+  "properties": {
+    "interception_point": {
+      "$ref": "interception-point.schema.json"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "enforce",
+        "evaluate_only"
+      ]
+    },
+    "verdict": {
+      "description": "The payload-free projection of the combined verdict (§10.3): transform.value dropped, approval members stripped, messages truncated to 256 UTF-8 bytes.",
+      "type": "object",
+      "properties": {
+        "transform": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "approval": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Presence only; members are stripped by the projection."
+        }
+      }
+    },
+    "input_identity": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Identity provider output on the context before dispatch; null iff identity_provider is null."
+    },
+    "enforced_identity": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Identity provider output after composition completes; null iff identity_provider is null."
+    },
+    "identity_provider": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The declared identity provider (§10.1): \"jcs-sha256\", a host-defined id (name rules enforced: ^[a-z][a-z0-9_-]*$ and never a jcs prefix), or null (identity-unbound).",
+      "anyOf": [
+        {
+          "const": null
+        },
+        {
+          "const": "jcs-sha256"
+        },
+        {
+          "allOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            },
+            {
+              "not": {
+                "pattern": "^jcs"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "session_id": {
+      "type": "string",
+      "description": "ctx.session.id — correlates records across a session."
+    },
+    "sequence": {
+      "type": "integer",
+      "description": "ctx.sequence — total order of records within the session (§12.2.3)."
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "OPTIONAL. The context's RFC 3339 timestamp, copied verbatim (§10.3); absent when the context lacked the field."
+    },
+    "trace": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "trace_id": {
+          "type": "string"
+        },
+        "span_id": {
+          "type": "string"
+        }
+      },
+      "description": "OPTIONAL. W3C Trace Context identifiers echoed from the context's optional trace block (§4.5, §10.3); absent when the context carried neither member."
+    },
+    "decided_by": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Registration index of the interceptor whose verdict won aggregation or whose liftable deny was consulted (§7.6); null for a pure-allow combination or a host-synthesized verdict."
+    },
+    "composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile"
+      ],
+      "properties": {
+        "profile": {
+          "type": "string",
+          "enum": [
+            "sequential/first_deny",
+            "sequential/run_all",
+            "parallel/strictest",
+            "parallel/unanimous"
+          ]
+        },
+        "on_approval": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "resume"
+          ]
+        },
+        "on_disagreement": {
+          "type": "string",
+          "enum": [
+            "deny",
+            "approval"
+          ]
+        },
+        "on_transform_conflict": {
+          "type": "string",
+          "enum": [
+            "deny",
+            "approval"
+          ]
+        }
+      },
+      "description": "The composition profile and knobs in effect for this emission (§7.1)."
+    },
+    "declaration": {
+      "type": "string",
+      "pattern": "^agent-hooks-declaration/[0-9]+\\.[0-9]+$",
+      "description": "OPTIONAL. The host declaration contract version the emitter was built from (§7.7.8), e.g. agent-hooks-declaration/1.0. Present iff the emitter was constructed from a declaration document; absent for a host configured in code. One closed-grammar string, so payload-free by construction."
+    },
+    "verdicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "index",
+          "decision"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "deny",
+              "transform"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "Host-chosen payload-free registration identifier for the interceptor at index (§10.3)."
+          }
+        }
+      },
+      "description": "Payload-free per-interceptor summary. REQUIRED in multi-verdict profiles (sequential/run_all, parallel/*); OPTIONAL in sequential/first_deny."
+    },
+    "fold_truncated": {
+      "type": "boolean",
+      "description": "true iff one or more registered interceptors were never invoked in this emission (short-circuit, approval-stop, or a failed fold-transform). Defined for the sequential profiles (§7.4)."
+    },
+    "resolved_by": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "approval",
+        "rejection",
+        null
+      ],
+      "description": "Consultation outcome (§7.6, §10.3): \"approval\" iff a permit resolution substituted for a verdict; \"rejection\" iff the seam was consulted and did not lift the deny; absent/null iff never consulted."
+    },
+    "interceptors_registered": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of interceptors registered at emission time (§10.3)."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "composition": {
+            "type": "object",
+            "properties": {
+              "profile": {
+                "enum": [
+                  "sequential/run_all",
+                  "parallel/strictest",
+                  "parallel/unanimous"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "verdicts"
+        ]
+      }
+    },
+    {
+      "description": "§10.3: identities are null when identity_provider is null.",
+      "if": {
+        "properties": {
+          "identity_provider": {
+            "const": null
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "input_identity": {
+            "const": null
+          },
+          "enforced_identity": {
+            "const": null
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,393 @@
+{
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/agent-context/post_tool_call.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Hooks \u2014 agent context (post_tool_call)",
+  "description": "Closed required+conditional schema for interception_point=post_tool_call (AGENT-HOOKS-0.1 \u00a74.2). Used by the CTK for strict validation.",
+  "type": "object",
+  "required": [
+    "spec",
+    "interception_point",
+    "timestamp",
+    "sequence",
+    "agent",
+    "session",
+    "target",
+    "tool_call",
+    "tool_result"
+  ],
+  "properties": {
+    "spec": {
+      "type": "string",
+      "pattern": "^agent-hooks/\\d+\\.\\d+$"
+    },
+    "interception_point": {
+      "const": "post_tool_call"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "agent": {
+      "type": "object",
+      "required": [
+        "id",
+        "framework"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "framework": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "session": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "turn": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "target": true,
+    "agent_init": {
+      "$ref": "#/$defs/agent_init"
+    },
+    "input": {
+      "$ref": "#/$defs/input"
+    },
+    "model": {
+      "$ref": "#/$defs/model"
+    },
+    "messages": {
+      "$ref": "#/$defs/messages"
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "response": {
+      "$ref": "#/$defs/response"
+    },
+    "usage": {
+      "$ref": "#/$defs/usage"
+    },
+    "tool_call": {
+      "$ref": "#/$defs/tool_call"
+    },
+    "tool_result": {
+      "$ref": "#/$defs/tool_result"
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/tool_decl"
+      }
+    },
+    "output": {
+      "$ref": "#/$defs/output"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "trace": {
+      "type": "object",
+      "properties": {
+        "trace_id": {
+          "type": "string"
+        },
+        "span_id": {
+          "type": "string"
+        }
+      }
+    },
+    "tenant": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "human",
+            "service",
+            "agent"
+          ]
+        }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "properties": {
+        "tool_call_count": {
+          "type": "number"
+        },
+        "token_count": {
+          "type": "number"
+        },
+        "elapsed_seconds": {
+          "type": "number"
+        },
+        "cost_usd": {
+          "type": "number"
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "agent_init": {
+      "type": "object",
+      "required": [
+        "tools_registered"
+      ],
+      "properties": {
+        "tools_registered": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "required": [
+        "content",
+        "role"
+      ],
+      "properties": {
+        "content": true,
+        "role": {
+          "type": "string",
+          "enum": [
+            "user",
+            "system",
+            "external"
+          ]
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "vendor": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object"
+        }
+      }
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "content": true
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "required": [
+        "content",
+        "tool_calls",
+        "finish_reason"
+      ],
+      "properties": {
+        "content": true,
+        "tool_calls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "args"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "args": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "finish_reason": {
+          "type": "string"
+        }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "properties": {
+        "prompt_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completion_tokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "tool_call": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "args"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "args": {
+          "type": "object"
+        },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "tool_result": {
+      "type": "object",
+      "required": [
+        "value",
+        "is_error"
+      ],
+      "properties": {
+        "value": true,
+        "is_error": {
+          "type": "boolean"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "tool_decl": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "object"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": [
+        "content"
+      ],
+      "properties": {
+        "content": true
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "reason"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "error",
+            "cancelled"
+          ]
+        },
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}
