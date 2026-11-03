@@ -66,21 +66,22 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    python3 scripts/check-file-headers.py
    python3 -m unittest discover -s scripts -p "test_*.py"
    python3 scripts/stage-docs-site.py
-   for d in spec/*/; do
-     root="${d}schema/generated"; [ -d "$root" ] || root="${d}schema"
-     mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sed 's/^/-r=/')
-     ajv validate --spec=draft2020 -c ajv-formats -s conformance/vectors.schema.json \
-       "${refs[@]}" -d 'conformance/vectors/*.json'
-   done
+   root=spec/draft/schema/generated
+   mapfile -t refs < <(find "$root" -name '*.schema.json' | sed 's/^/-r=/')
+   ajv validate --spec=draft2020 -c ajv-formats -s conformance/vectors.schema.json \
+     "${refs[@]}" -d 'conformance/vectors/*.json'
    cd sdk/typescript && npm ci
    node scripts/check-schema-examples.mjs
    npx tsc -p ../../spec/X.Y/schema/src/tsconfig.json
    npx tsx scripts/generate-schemas.mts --check --spec X.Y
    ```
 
-   The new folder passes the released-folder guard because it did not
-   exist on `main`; after the merge it is frozen, and only new regular
-   `.json` files under its `schema/examples/<Type>/` may be added.
+   The vectors validate against the draft only until a cut bundle
+   carries the schemas the grammar references (`ci.yml`,
+   `RESOLVABLE_RELEASES`). The new folder passes the released-folder
+   guard because it did not exist on `main`; after the merge it is
+   frozen, and only new regular `.json` files under its
+   `schema/examples/<Type>/` may be added.
 8. Reproducibility. A reviewer reruns the cut on the pull request's
    merge base and diffs the result against the pull request:
 
@@ -114,7 +115,8 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
 ### Before the tag
 
 1. Bump the version on every surface through one PR, with a
-   `CHANGELOG.md` entry that names the tag:
+   `CHANGELOG.md` entry that names the tag (the `Unreleased SDK`
+   section becomes the tag's dated section):
    - `sdk/rust/Cargo.toml` and `sdk/rust/Cargo.lock`
    - `sdk/python/Cargo.toml`, `sdk/python/Cargo.lock`,
      `sdk/python/pyproject.toml`
