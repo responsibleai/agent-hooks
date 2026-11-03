@@ -1,5 +1,5 @@
 {
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interceptor-response.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/interceptor-response.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — interceptor response",
   "description": "Response envelope adopted under P-006 (Decided 2026-10-15) as part of the 0.1\ncontract (§5.5). Bare Verdict remains valid; transport metadata never changes\nenforcement.",

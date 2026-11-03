@@ -53,12 +53,14 @@ for source annotations and the broader SDK test matrix.
 
 ## Filesystem paths are not public schema identities
 
-This layout does not change validation semantics, `$id`, or public URLs.
-Published schemas remain under
-`https://responsibleai.github.io/agent-hooks/schema/v0.1/`, with per-point
-schemas at `agent-context/<interception_point>.schema.json`.
-The Pages workflow copies `generated/strict-contexts/` to that existing
-`agent-context/` URL path, and publishes only generated JSON, never `src/`
+This layout does not change validation semantics. The draft's schemas
+carry `$id` values under
+`https://responsibleai.github.io/agent-hooks/schema/draft/`, with per-point
+schemas at `agent-context/<interception_point>.schema.json`; that path is
+mutable and changes with the draft. A released version X.Y publishes under
+`schema/vX.Y/`, which never changes once published. The generator sets the
+base from the bundle it targets (`--spec`), and the Pages workflow publishes
+each file at the path its own `$id` names, generated JSON only, never `src/`
 or this README.
 
 References resolve relative to `$id`, not to the renamed checkout directory.

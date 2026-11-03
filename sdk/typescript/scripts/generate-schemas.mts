@@ -45,7 +45,15 @@ const SPEC = specArg >= 0 && specArg + 1 < process.argv.length ? process.argv[sp
 const SCHEMA_DIR = `spec/${SPEC}/schema`;
 const SRC = join(ROOT, "spec", SPEC, "schema", "src");
 const OUT = join(ROOT, "spec", SPEC, "schema", "generated");
-const ID_BASE = "https://responsibleai.github.io/agent-hooks/schema/v0.1/";
+// Published identity of the bundle's schemas. The draft publishes under
+// schema/draft/ (mutable); a released version X.Y publishes under
+// schema/vX.Y/ (immutable). --id-base <url> overrides both.
+const ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/";
+const idBaseArg = process.argv.indexOf("--id-base");
+const ID_BASE =
+  idBaseArg >= 0 && idBaseArg + 1 < process.argv.length
+    ? process.argv[idBaseArg + 1]
+    : ID_ORIGIN + (SPEC === "draft" ? "draft/" : `v${SPEC}/`);
 const DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
 
 const SETTINGS: TJS.PartialArgs = {

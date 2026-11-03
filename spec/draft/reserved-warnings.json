@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/reserved-warnings.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/reserved-warnings.json",
   "title": "Agent Hooks — reserved host_warning:* reasons",
   "description": "Host-synthesized warning reasons (AGENT-HOOKS-0.1 §11.1), placed on the allow a host substitutes under on_error: continue (§6.3.1). Interceptors MUST NOT emit warning reasons with the host_warning: prefix; a host treats such a verdict as host_error:verdict_invalid (§5).",
   "warnings": [

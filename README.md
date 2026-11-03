@@ -82,7 +82,7 @@ package versions. Enterprise settings channels can carry it unchanged.
 
 ```json
 {
-  "$schema": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.1.schema.json",
+  "$schema": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration-1.1.schema.json",
   "declaration": "agent-hooks-declaration/1.1",
   "spec": "agent-hooks/0.1",
   "id": "prod-eu-strict",

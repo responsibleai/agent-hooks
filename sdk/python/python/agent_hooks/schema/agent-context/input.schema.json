@@ -1,5 +1,5 @@
 {
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/agent-context/input.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/agent-context/input.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — agent context (input)",
   "description": "Closed required+conditional schema for interception_point=input (AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",

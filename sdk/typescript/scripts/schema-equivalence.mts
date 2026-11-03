@@ -12,8 +12,9 @@
 // containing either layout's generated files (or a schema/ folder with generated/).
 // --new defaults to the checkout's spec/draft/schema/generated. Git refs may
 // predate the source/output split or the versioned spec/<version>/ folders; a
-// versioned ref is read from spec/draft/. Sets are keyed by published identity,
-// not disk path.
+// versioned ref is read from spec/draft/. Sets are keyed by published identity
+// below each set's own id base (schema/vX.Y/ or schema/draft/), not disk path,
+// so a released set and the draft compare file by file.
 //
 // The corpus for every validation target is the seeds of every shape (the
 // conformance vectors, the golden files and hand-written instances), plus
@@ -36,7 +37,11 @@ type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Obj = { [key: string]: Json };
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const ID_BASE = "https://responsibleai.github.io/agent-hooks/schema/v0.1/";
+// Every schema's $id sits under one path segment below this origin:
+// schema/vX.Y/ for a released version, schema/draft/ for the draft. A
+// set is keyed by the path below that segment, so two sets compare by
+// the file they publish, whatever their version.
+const ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/";
 const POINTS = [
   "agent_startup",
   "input",
@@ -66,14 +71,36 @@ if (!OLD) {
 
 // ---- schema sets ------------------------------------------------------------
 
-type SchemaSet = Map<string, Obj>; // path relative to ID_BASE -> document
+type SchemaSet = Map<string, Obj>; // path below the set's id base -> document
+const BASES = new WeakMap<SchemaSet, string>();
+
+/** Split an $id or absolute $ref into its base (origin plus one segment) and the path below it. */
+function splitIdentity(id: string): { base: string; key: string } {
+  if (!id.startsWith(ID_ORIGIN)) throw new Error(`unexpected schema identity ${JSON.stringify(id)}`);
+  const rest = id.slice(ID_ORIGIN.length);
+  const slash = rest.indexOf("/");
+  if (slash <= 0 || slash === rest.length - 1) throw new Error(`unexpected schema identity ${JSON.stringify(id)}`);
+  return { base: ID_ORIGIN + rest.slice(0, slash + 1), key: rest.slice(slash + 1) };
+}
+
+/** A reference's path below its set's base, or the reference itself when it is already relative. */
+function localName(target: string): string {
+  return target.startsWith(ID_ORIGIN) ? splitIdentity(target).key : target;
+}
+
+function baseOf(set: SchemaSet): string {
+  const base = BASES.get(set);
+  if (!base) throw new Error("empty schema set");
+  return base;
+}
 
 function addDocument(set: SchemaSet, text: string): void {
   const doc = JSON.parse(text) as Obj;
-  if (typeof doc.$id !== "string" || !doc.$id.startsWith(ID_BASE)) {
-    throw new Error(`unexpected schema identity ${JSON.stringify(doc.$id)}`);
-  }
-  const key = doc.$id.slice(ID_BASE.length);
+  if (typeof doc.$id !== "string") throw new Error(`schema without $id`);
+  const { base, key } = splitIdentity(doc.$id);
+  const known = BASES.get(set);
+  if (known === undefined) BASES.set(set, base);
+  else if (known !== base) throw new Error(`schema set mixes id bases ${known} and ${base}`);
   if (set.has(key)) throw new Error(`duplicate schema identity ${doc.$id}`);
   set.set(key, doc);
 }
@@ -128,7 +155,7 @@ function deref(set: SchemaSet, file: string, node: Json, depth = 0): Located {
   if (target === "") {
     doc = set.get(file);
   } else {
-    const name = target.startsWith(ID_BASE) ? target.slice(ID_BASE.length) : target;
+    const name = localName(target);
     docFile = name;
     doc = set.get(name);
   }
@@ -603,6 +630,16 @@ const TARGETS: Target[] = [
   { name: "host-declaration-1.1", file: "host-declaration-1.1.schema.json", shape: "declaration", pointer: "" },
 ];
 
+/** "old" or "new" when the target's file exists in only that set, else undefined. */
+function onlyOneSide(oldSet: SchemaSet, newSet: SchemaSet, t: Target): "old" | "new" | undefined {
+  const inOld = oldSet.has(t.file);
+  const inNew = newSet.has(t.file);
+  if (inOld && !inNew) return "old";
+  if (!inOld && inNew) return "new";
+  if (!inOld && !inNew) throw new Error(`${t.name}: ${t.file} is in neither schema set`);
+  return undefined;
+}
+
 function pointerSchema(set: SchemaSet, file: string, pointer: string): Obj {
   let node: Json = set.get(file)!;
   for (const seg of pointer.replace(/^#\//, "").split("/").filter(Boolean)) node = (node as Obj)[seg];
@@ -622,7 +659,7 @@ function normalize(set: SchemaSet, file: string, node: Json, depth = 0): Json {
   if (typeof obj.$ref === "string") {
     const ref = obj.$ref;
     const target = ref.split("#")[0];
-    const nextFile = target === "" ? file : target.startsWith(ID_BASE) ? target.slice(ID_BASE.length) : target;
+    const nextFile = target === "" ? file : localName(target);
     obj = deref(set, file, obj).node;
     file = nextFile;
   }
@@ -693,6 +730,12 @@ function main(): number {
   if (STRUCTURAL) {
     let total = 0;
     for (const t of TARGETS) {
+      const side = onlyOneSide(oldSet, newSet, t);
+      if (side) {
+        total += 1;
+        console.log(`== ${t.name}: 1 differing path(s): the file exists only in the ${side} set`);
+        continue;
+      }
       const a = normalize(oldSet, t.file, pointerSchema(oldSet, t.file, t.pointer));
       const b = normalize(newSet, t.file, pointerSchema(newSet, t.file, t.pointer));
       const lines: string[] = [];
@@ -715,9 +758,19 @@ function main(): number {
   let totalDisagreements = 0;
   const examples: string[] = [];
   console.log("target                        instances  valid(old)  valid(new)  disagree");
+  let missingTargets = 0;
   for (const t of TARGETS) {
-    const validateOld = oldAjv.getSchema(ID_BASE + t.file + t.pointer);
-    const validateNew = newAjv.getSchema(ID_BASE + t.file + t.pointer);
+    const side = onlyOneSide(oldSet, newSet, t);
+    if (side) {
+      // Counted as one disagreement: every instance the present side
+      // judges has no verdict on the other side.
+      missingTargets++;
+      totalDisagreements++;
+      console.log(`${t.name.padEnd(29)} ${"-".padStart(9)}  ${"-".padStart(10)}  ${"-".padStart(10)}  ${"1".padStart(8)}  (file exists only in the ${side} set)`);
+      continue;
+    }
+    const validateOld = oldAjv.getSchema(baseOf(oldSet) + t.file + t.pointer);
+    const validateNew = newAjv.getSchema(baseOf(newSet) + t.file + t.pointer);
     if (!validateOld || !validateNew) throw new Error(`${t.name}: validator missing at ${t.pointer || "the root"}`);
     const own = seeds.get(t.shape) ?? [];
     const oldSchema = pointerSchema(oldSet, t.file, t.pointer);
@@ -752,7 +805,7 @@ function main(): number {
       `${t.name.padEnd(29)} ${String(corpus.size).padStart(9)}  ${String(validOld).padStart(10)}  ${String(validNew).padStart(10)}  ${String(disagree).padStart(8)}`,
     );
   }
-  console.log(`total: ${totalInstances} instances across ${TARGETS.length} targets, ${totalDisagreements} disagreements (seed ${SEED}, ${RANDOM} random mutants per seed)`);
+  console.log(`total: ${totalInstances} instances across ${TARGETS.length} targets, ${totalDisagreements} disagreements (seed ${SEED}, ${RANDOM} random mutants per seed${missingTargets ? `; ${missingTargets} target(s) exist on one side only, counted once each` : ""})`);
   for (const e of examples) console.log(`  ${e}`);
   return totalDisagreements ? 1 : 0;
 }

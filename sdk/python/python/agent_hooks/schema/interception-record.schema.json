@@ -1,5 +1,5 @@
 {
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-record.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/interception-record.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — interception record",
   "description": "Host-side record of one emission (AGENT-HOOKS-0.1 §10.3). Payload-free:\nidentities (when a provider is declared) bind the record to the exact\npre/post-composition context; session_id/sequence/decided_by provide ordering\nand attribution; composition makes the record interpretable without\nout-of-band host configuration.\n\nTwo rules relate members and cannot be typed, so they are written as JSON\nSchema in the allOf tag below and copied through by the generator: verdicts\nis REQUIRED under the multi-verdict profiles (§7.4), and the identities are\nnull when identity_provider is null (§10.3).",
