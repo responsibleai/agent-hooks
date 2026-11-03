@@ -3,7 +3,7 @@
 
 """Fail when a change edits a released specification folder.
 
-A released folder is any spec/<MAJOR.MINOR.PATCH>/ directory that already
+A released folder is any spec/<MAJOR.MINOR>/ directory that already
 exists at the base revision. Changes under spec/draft/ and new version
 folders are allowed. Inside a released folder one kind of change is
 allowed: a new regular .json file under schema/examples/<Type>/. A
@@ -25,7 +25,7 @@ import re
 import subprocess
 import sys
 
-VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 EXAMPLE = re.compile(r"^spec/[^/]+/schema/examples/[A-Za-z][A-Za-z0-9]*/[^/]+\.json$")
 SYMLINK_MODE = "120000"
 REGULAR_FILE = "100644"

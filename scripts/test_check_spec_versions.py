@@ -3,8 +3,9 @@
 
 """Regression tests for scripts/check-spec-versions.py.
 
-Each case builds a minimal spec/ tree in a temporary directory, so the
-checks run against a known layout rather than the checkout.
+Each case builds a minimal repository tree in a temporary directory: a
+released 0.1 bundle in the flat schema layout, a draft in the generated
+layout, and a docs folder for the reference scan.
 """
 
 import importlib.util
@@ -21,18 +22,33 @@ assert MODULE_SPEC and MODULE_SPEC.loader
 versions = importlib.util.module_from_spec(MODULE_SPEC)
 MODULE_SPEC.loader.exec_module(versions)
 
-README = "| [0.1.0](0.1.0/) | row |\n| [draft](draft/) | row |\n"
+README = "| [0.1](0.1/) | row |\n| [draft](draft/) | row |\n"
 
 
-def bundle(root: Path, name: str) -> None:
+def header(status: str, version: str) -> str:
+    return f"# spec\n\n> **Status:** {status} · **Version:** `{version}` · **Date:** 2026-10-22\n"
+
+
+def bundle(root: Path, name: str, layout: str) -> Path:
+    """A bundle: 'flat' puts schemas under schema/ with agent-context/,
+    'generated' under schema/generated/ with strict-contexts/ and src/."""
     folder = root / "spec" / name
-    (folder / "schema/src").mkdir(parents=True)
-    (folder / "schema/generated/strict-contexts").mkdir(parents=True)
-    (folder / "AGENT-HOOKS-0.1.md").write_text("# spec\n", encoding="utf-8")
+    schemas = folder / "schema" / ("generated" if layout == "generated" else "")
+    points = schemas / ("strict-contexts" if layout == "generated" else "agent-context")
+    points.mkdir(parents=True)
+    if layout == "generated":
+        (folder / "schema/src").mkdir()
+    text = versions.expected_text(folder)
+    status, version = ("Draft", "DRAFT") if name == "draft" else ("Released", name)
+    (folder / text).write_text(header(status, version), encoding="utf-8")
     for relative in versions.REQUIRED_FILES:
         (folder / relative).write_text(
             "{}\n" if relative.endswith(".json") else "# x\n"
         )
+    for schema in versions.REQUIRED_SCHEMAS:
+        (schemas / schema).write_text("{}\n", encoding="utf-8")
+    (points / "input.schema.json").write_text("{}\n", encoding="utf-8")
+    return folder
 
 
 class CheckTest(unittest.TestCase):
@@ -42,8 +58,14 @@ class CheckTest(unittest.TestCase):
         self.root = Path(self.temporary.name)
         (self.root / "spec").mkdir()
         (self.root / "spec/README.md").write_text(README, encoding="utf-8")
-        bundle(self.root, "0.1.0")
-        bundle(self.root, "draft")
+        bundle(self.root, "0.1", "flat")
+        bundle(self.root, "draft", "generated")
+        (self.root / "docs").mkdir()
+        (self.root / "docs/guide.md").write_text(
+            "See [the spec](../spec/0.1/AGENT-HOOKS-0.1.md) and the draft "
+            "spec/draft/AGENT-HOOKS-DRAFT.md.\n",
+            encoding="utf-8",
+        )
 
     def test_complete_tree_passes(self) -> None:
         self.assertEqual(versions.check(self.root), [])
@@ -53,36 +75,94 @@ class CheckTest(unittest.TestCase):
             text=True,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(result.stdout, "specification folders agree: 0.1.0, draft\n")
+        self.assertEqual(result.stdout, "specification folders agree: 0.1, draft\n")
+
+    def test_header_must_match_the_folder(self) -> None:
+        text = self.root / "spec/0.1/AGENT-HOOKS-0.1.md"
+        text.write_text(header("Released", "0.1.0"), encoding="utf-8")
+        self.assertIn(
+            "spec/0.1/AGENT-HOOKS-0.1.md header says Version 0.1.0; expected 0.1",
+            versions.check(self.root),
+        )
+        text.write_text(header("Beta", "0.1"), encoding="utf-8")
+        self.assertIn(
+            "spec/0.1/AGENT-HOOKS-0.1.md header says Status Beta; expected Released",
+            versions.check(self.root),
+        )
+        text.write_text("# spec without a header line\n", encoding="utf-8")
+        self.assertTrue(
+            any("has no '> **Status:**" in e for e in versions.check(self.root))
+        )
+
+    def test_draft_header_says_draft(self) -> None:
+        text = self.root / "spec/draft/AGENT-HOOKS-DRAFT.md"
+        text.write_text(header("Released", "0.2"), encoding="utf-8")
+        errors = versions.check(self.root)
+        self.assertIn(
+            "spec/draft/AGENT-HOOKS-DRAFT.md header says Status Released; expected Draft",
+            errors,
+        )
+        self.assertIn(
+            "spec/draft/AGENT-HOOKS-DRAFT.md header says Version 0.2; expected DRAFT",
+            errors,
+        )
+
+    def test_text_file_name_must_match(self) -> None:
+        (self.root / "spec/0.1/AGENT-HOOKS-0.1.md").rename(
+            self.root / "spec/0.1/AGENT-HOOKS-0.1.0.md"
+        )
+        errors = versions.check(self.root)
+        self.assertTrue(
+            any(
+                e.startswith(
+                    "spec/0.1 must contain exactly one specification text, AGENT-HOOKS-0.1.md"
+                )
+                for e in errors
+            ),
+            errors,
+        )
+
+    def test_patch_level_folder_is_rejected(self) -> None:
+        bundle(self.root, "0.1.0", "flat")
+        self.assertIn(
+            "spec/0.1.0/ is not draft or a MAJOR.MINOR version",
+            versions.check(self.root),
+        )
+
+    def test_both_schema_layouts_pass_and_empty_schema_folders_fail(self) -> None:
+        bundle(self.root, "0.2", "generated")
+        (self.root / "spec/README.md").write_text(
+            README + "| [0.2](0.2/) | row |\n", encoding="utf-8"
+        )
+        self.assertEqual(versions.check(self.root), [])
+        for file in (self.root / "spec/0.2/schema/generated").rglob("*.schema.json"):
+            file.unlink()
+        errors = versions.check(self.root)
+        self.assertIn("spec/0.2/schema/generated has no *.schema.json files", errors)
 
     def test_symlinked_file_fails(self) -> None:
-        link = self.root / "spec/0.1.0/schema/generated/extra.schema.json"
+        link = self.root / "spec/0.1/schema/extra.schema.json"
         os.symlink("verdict.schema.json", link)
-        errors = versions.check(self.root)
-        self.assertEqual(
-            errors,
-            [
-                "spec/0.1.0/schema/generated/extra.schema.json is a symbolic link; "
-                "specification folders hold regular files only"
-            ],
+        self.assertIn(
+            "spec/0.1/schema/extra.schema.json is a symbolic link; "
+            "specification folders hold regular files only",
+            versions.check(self.root),
         )
 
     def test_symlinked_version_folder_fails_and_is_not_a_bundle(self) -> None:
-        os.symlink("draft", self.root / "spec/0.2.0")
+        os.symlink("draft", self.root / "spec/0.2")
         errors = versions.check(self.root)
         self.assertTrue(
-            any(e.startswith("spec/0.2.0 is a symbolic link") for e in errors)
+            any(e.startswith("spec/0.2 is a symbolic link") for e in errors)
         )
-        self.assertFalse(any("does not link spec/0.2.0" in e for e in errors))
+        self.assertFalse(any("does not link spec/0.2" in e for e in errors))
 
     def test_hidden_files_fail(self) -> None:
-        (self.root / "spec/0.1.0/schema/examples").mkdir()
-        (self.root / "spec/0.1.0/schema/examples/.gitattributes").write_text("* text\n")
-        (self.root / "spec/.gitignore").write_text("*\n")
+        (self.root / "spec/0.1/schema/.gitattributes").write_text("* text\n")
+        (self.root / "spec/.gitignore").write_text("build/\n")
         errors = versions.check(self.root)
         self.assertIn(
-            "spec/0.1.0/schema/examples/.gitattributes starts with a dot; "
-            "specification folders hold no hidden files",
+            "spec/0.1/schema/.gitattributes starts with a dot; specification folders hold no hidden files",
             errors,
         )
         self.assertIn(
@@ -94,8 +174,10 @@ class CheckTest(unittest.TestCase):
     @unittest.skipUnless(hasattr(os, "mkfifo"), "named pipes need a POSIX file system")
     def test_non_regular_entry_fails(self) -> None:
         os.mkfifo(self.root / "spec/draft/pipe.json")
-        errors = versions.check(self.root)
-        self.assertIn("spec/draft/pipe.json is not a regular file or directory", errors)
+        self.assertIn(
+            "spec/draft/pipe.json is not a regular file or directory",
+            versions.check(self.root),
+        )
 
     def test_spec_itself_as_a_symlink_fails(self) -> None:
         (self.root / "spec").rename(self.root / "elsewhere")
@@ -106,25 +188,52 @@ class CheckTest(unittest.TestCase):
         )
 
     def test_non_ascii_digit_folder_is_not_a_version(self) -> None:
-        bundle(self.root, "0.1١.0")
-        errors = versions.check(self.root)
+        bundle(self.root, "0.١", "flat")
         self.assertIn(
-            "spec/0.1١.0/ is not draft or a MAJOR.MINOR.PATCH version", errors
+            "spec/0.١/ is not draft or a MAJOR.MINOR version", versions.check(self.root)
         )
 
     def test_missing_file_and_invalid_json_are_reported(self) -> None:
         (self.root / "spec/draft/reserved-reasons.json").write_text(
             "{", encoding="utf-8"
         )
-        (self.root / "spec/0.1.0/declaration-errors.json").unlink()
+        (self.root / "spec/0.1/declaration-errors.json").unlink()
         errors = versions.check(self.root)
-        self.assertIn("spec/0.1.0/declaration-errors.json is missing", errors)
+        self.assertIn("spec/0.1/declaration-errors.json is missing", errors)
         self.assertTrue(
             any(
                 e.startswith("spec/draft/reserved-reasons.json is invalid JSON")
                 for e in errors
             )
         )
+
+    def test_stale_references_fail(self) -> None:
+        (self.root / "docs/old.md").write_text(
+            "Read spec/0.1.0/AGENT-HOOKS-0.1.md, then spec/draft/AGENT-HOOKS-0.1.md,\n"
+            "then AGENT-HOOKS-0.2.md, and never spec/draft/AGENT-HOOKS-DRAFT.md.\n",
+            encoding="utf-8",
+        )
+        errors = versions.check(self.root)
+        self.assertIn(
+            "docs/old.md:1 names a spec/<MAJOR.MINOR.PATCH> path; "
+            "specification folders are spec/<MAJOR.MINOR>/",
+            errors,
+        )
+        self.assertIn(
+            "docs/old.md:1 links spec/draft/AGENT-HOOKS-0.1.md, which does not exist",
+            errors,
+        )
+        self.assertIn(
+            "docs/old.md:2 names AGENT-HOOKS-0.2.md, but spec/0.2/ does not hold it",
+            errors,
+        )
+        self.assertFalse(any("AGENT-HOOKS-DRAFT.md" in e for e in errors))
+
+    def test_frozen_folders_and_build_output_are_not_scanned(self) -> None:
+        (self.root / "spec/0.1/notes.md").write_text("spec/0.1.0 was the old name\n")
+        (self.root / "node_modules").mkdir()
+        (self.root / "node_modules/x.md").write_text("spec/0.1.0\n")
+        self.assertEqual(versions.check(self.root), [])
 
     def test_annotation_encodes_the_message(self) -> None:
         self.assertEqual(
@@ -133,12 +242,13 @@ class CheckTest(unittest.TestCase):
 
 
 class VersionPatternTest(unittest.TestCase):
-    def test_ascii_digits_only(self) -> None:
-        self.assertTrue(versions.VERSION.fullmatch("0.1.0"))
-        self.assertTrue(versions.VERSION.fullmatch("10.22.303"))
-        self.assertIsNone(versions.VERSION.fullmatch("0.1١.0"))
-        self.assertIsNone(versions.VERSION.fullmatch("01.1.0"))
-        self.assertIsNone(versions.VERSION.fullmatch("0.1.0-beta"))
+    def test_major_minor_with_ascii_digits_only(self) -> None:
+        self.assertTrue(versions.VERSION.fullmatch("0.1"))
+        self.assertTrue(versions.VERSION.fullmatch("10.22"))
+        self.assertIsNone(versions.VERSION.fullmatch("0.1.0"))
+        self.assertIsNone(versions.VERSION.fullmatch("0.١"))
+        self.assertIsNone(versions.VERSION.fullmatch("01.1"))
+        self.assertIsNone(versions.VERSION.fullmatch("0.1-beta"))
 
 
 if __name__ == "__main__":

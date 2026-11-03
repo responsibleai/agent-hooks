@@ -1,15 +1,25 @@
 #!/usr/bin/env python3
 # Copyright (c) Microsoft. All rights reserved.
 
-"""Fail when specification version folders are incomplete or unindexed.
+"""Fail when specification folders are incomplete, mislabelled or stale.
 
-Released specifications live in spec/<MAJOR.MINOR.PATCH>/; ongoing
-work lives in spec/draft/. Each folder carries the complete spec bundle,
-and spec/README.md lists each folder. Every entry under spec/ is a
-regular file or directory whose name does not start with a dot: a
-symbolic link, a device or pipe, and a hidden file such as
-.gitattributes fail, so nothing in a bundle can point outside it or
-rewrite other files on checkout.
+Released specifications live in spec/<MAJOR.MINOR>/, each holding one
+AGENT-HOOKS-<MAJOR.MINOR>.md whose header says Released and names the
+folder as its version. The working text lives in spec/draft/ as
+AGENT-HOOKS-DRAFT.md with Status Draft and Version DRAFT. Every bundle
+carries its schemas either flat under schema/ (the 0.1 layout) or under
+schema/generated/ with per-point files in strict-contexts/ (the draft
+layout); the inventories sit beside the text, and spec/README.md links
+every folder.
+
+Every entry under spec/ is a regular file or directory whose name does
+not start with a dot: a symbolic link, a device or pipe, and a hidden
+file such as .gitattributes fail, so nothing in a bundle can point
+outside it or rewrite other files on checkout.
+
+The rest of the repository must not name a folder or file that is
+gone: a spec/<X.Y.Z> path, or an AGENT-HOOKS-<x>.md whose folder does
+not exist. Released folders are frozen and are not scanned.
 
 Usage: check-spec-versions.py [<repository-root>]
 """
@@ -23,16 +33,59 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+HEADER = re.compile(
+    r"^> \*\*Status:\*\* (?P<status>[A-Za-z]+) · \*\*Version:\*\* `(?P<version>[^`]+)`"
+    r" · \*\*Date:\*\* (?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\s*$",
+    re.M,
+)
 REQUIRED_FILES = (
     "DECLARATION-VERSIONS.md",
     "declaration-errors.json",
     "reserved-reasons.json",
-    "reserved-warnings.json",
-    "schema/generated/agent-context.schema.json",
-    "schema/generated/verdict.schema.json",
 )
-REQUIRED_DIRS = ("schema/src", "schema/generated/strict-contexts")
+REQUIRED_SCHEMAS = ("agent-context.schema.json", "verdict.schema.json")
+# Per-point context schemas: the draft layout's and the flat layout's folder.
+POINT_DIRS = ("strict-contexts", "agent-context")
+
+# References the rest of the repository must not make.
+OLD_LAYOUT = re.compile(r"\bspec/(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\b")
+SPEC_FILE = re.compile(r"AGENT-HOOKS-(?P<name>[A-Za-z0-9.]+)\.md")
+SPEC_PATH = re.compile(
+    r"spec/(?P<folder>[^/\s`'\"()\[\]#<>]+)/AGENT-HOOKS-(?P<name>[A-Za-z0-9.]+)\.md"
+)
+SCAN_SUFFIXES = {
+    ".md",
+    ".yml",
+    ".yaml",
+    ".json",
+    ".py",
+    ".mjs",
+    ".mts",
+    ".ts",
+    ".rs",
+    ".cs",
+    ".go",
+    ".toml",
+    ".txt",
+    ".abnf",
+    ".html",
+    ".cfg",
+    ".ini",
+    ".sh",
+    ".ps1",
+    ".props",
+}
+SKIP_DIRS = {
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    "site",
+    ".mkdocs-venv",
+    "bin",
+    "obj",
+}
 
 
 def escape_data(value: str) -> str:
@@ -60,17 +113,80 @@ def entry_problem(path: Path) -> str | None:
     return None
 
 
+def expected_text(folder: Path) -> str:
+    return (
+        "AGENT-HOOKS-DRAFT.md"
+        if folder.name == "draft"
+        else f"AGENT-HOOKS-{folder.name}.md"
+    )
+
+
+def check_text(root: Path, folder: Path) -> list[str]:
+    """The one specification text of a bundle and its header line."""
+    rel = folder.relative_to(root).as_posix()
+    expected = expected_text(folder)
+    names = sorted(p.name for p in folder.glob("AGENT-HOOKS-*.md"))
+    if names != [expected]:
+        return [
+            f"{rel} must contain exactly one specification text, {expected}; found {names}"
+        ]
+    text = (folder / expected).read_text(encoding="utf-8")
+    match = HEADER.search(text)
+    if not match:
+        return [
+            f"{rel}/{expected} has no '> **Status:** ... · **Version:** `...` · **Date:** ...' line"
+        ]
+    status, version = match.group("status"), match.group("version")
+    if folder.name == "draft":
+        want_status, want_version = "Draft", "DRAFT"
+    else:
+        want_status, want_version = "Released", folder.name
+    errors = []
+    if status != want_status:
+        errors.append(
+            f"{rel}/{expected} header says Status {status}; expected {want_status}"
+        )
+    if version != want_version:
+        errors.append(
+            f"{rel}/{expected} header says Version {version}; expected {want_version}"
+        )
+    return errors
+
+
+def schema_root(folder: Path) -> Path:
+    """Where a bundle's schemas live: schema/generated/ when present, else schema/."""
+    generated = folder / "schema" / "generated"
+    return generated if generated.is_dir() else folder / "schema"
+
+
 def check_bundle(root: Path, folder: Path) -> list[str]:
     errors: list[str] = []
     rel = folder.relative_to(root).as_posix()
-    if len(list(folder.glob("AGENT-HOOKS-*.md"))) != 1:
-        errors.append(f"{rel} must contain exactly one AGENT-HOOKS-*.md file")
+    errors.extend(check_text(root, folder))
     for name in REQUIRED_FILES:
         if not (folder / name).is_file():
             errors.append(f"{rel}/{name} is missing")
-    for name in REQUIRED_DIRS:
-        if not (folder / name).is_dir():
-            errors.append(f"{rel}/{name}/ is missing")
+    schemas = schema_root(folder)
+    if not (folder / "schema").is_dir():
+        errors.append(f"{rel}/schema/ is missing")
+    else:
+        files = [
+            p for p in walk(schemas) if p.name.endswith(".schema.json") and p.is_file()
+        ]
+        if not files:
+            errors.append(
+                f"{schemas.relative_to(root).as_posix()} has no *.schema.json files"
+            )
+        for name in REQUIRED_SCHEMAS:
+            if not (schemas / name).is_file():
+                errors.append(
+                    f"{schemas.relative_to(root).as_posix()}/{name} is missing"
+                )
+        if not any((schemas / d).is_dir() for d in POINT_DIRS):
+            errors.append(
+                f"{schemas.relative_to(root).as_posix()} has no per-point schema folder "
+                f"({' or '.join(POINT_DIRS)})"
+            )
     for path in walk(folder):
         if path.suffix != ".json" or path.is_symlink() or not path.is_file():
             continue
@@ -81,8 +197,60 @@ def check_bundle(root: Path, folder: Path) -> list[str]:
     return errors
 
 
+def check_references(root: Path, released: set[str]) -> list[str]:
+    """Stale references anywhere in the repository outside the frozen folders."""
+    errors: list[str] = []
+    spec = root / "spec"
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        here = Path(dirpath)
+        dirnames[:] = sorted(
+            d
+            for d in dirnames
+            if d not in SKIP_DIRS and not (here == spec and d in released)
+        )
+        for name in sorted(filenames):
+            path = here / name
+            if (
+                path.suffix not in SCAN_SUFFIXES
+                or path.is_symlink()
+                or not path.is_file()
+            ):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            rel = path.relative_to(root).as_posix()
+            for line_number, line in enumerate(text.splitlines(), start=1):
+                if OLD_LAYOUT.search(line):
+                    errors.append(
+                        f"{rel}:{line_number} names a spec/<MAJOR.MINOR.PATCH> path; "
+                        "specification folders are spec/<MAJOR.MINOR>/"
+                    )
+                for match in SPEC_PATH.finditer(line):
+                    target = (
+                        spec
+                        / match.group("folder")
+                        / f"AGENT-HOOKS-{match.group('name')}.md"
+                    )
+                    if not target.is_file():
+                        errors.append(
+                            f"{rel}:{line_number} links {match.group(0)}, which does not exist"
+                        )
+                for match in SPEC_FILE.finditer(line):
+                    version = match.group("name")
+                    if version == "DRAFT":
+                        continue
+                    if not (spec / version / match.group(0)).is_file():
+                        errors.append(
+                            f"{rel}:{line_number} names {match.group(0)}, but spec/{version}/ "
+                            "does not hold it"
+                        )
+    return errors
+
+
 def check(root: Path) -> list[str]:
-    """Every problem under <root>/spec, as one message each."""
+    """Every problem under <root>/spec and every stale reference, one message each."""
     spec = root / "spec"
     if spec.is_symlink():
         return [
@@ -107,13 +275,11 @@ def check(root: Path) -> list[str]:
         errors.append("spec/draft/ is missing")
     versions = [p for p in folders if VERSION.fullmatch(p.name)]
     if not versions:
-        errors.append("spec/ has no released MAJOR.MINOR.PATCH folder")
+        errors.append("spec/ has no released MAJOR.MINOR folder")
 
     for folder in folders:
         if folder.name != "draft" and not VERSION.fullmatch(folder.name):
-            errors.append(
-                f"spec/{folder.name}/ is not draft or a MAJOR.MINOR.PATCH version"
-            )
+            errors.append(f"spec/{folder.name}/ is not draft or a MAJOR.MINOR version")
             continue
         errors.extend(check_bundle(root, folder))
         if f"]({folder.name}/)" not in readme:
@@ -125,6 +291,8 @@ def check(root: Path) -> list[str]:
             continue
         if path.name != "README.md":
             errors.append(f"spec/{path.name} must live in a version folder")
+
+    errors.extend(check_references(root, {p.name for p in versions}))
     return errors
 
 
