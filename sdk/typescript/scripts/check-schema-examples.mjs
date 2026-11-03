@@ -120,19 +120,51 @@ export async function validateExamples(root = schemaRoot) {
   }
   const hasHookResponseSchemas = hookResponseSchemas.every((schemaFile) => schemas.has(schemaFile));
   if (hasHookResponseSchemas) {
-    for (const [point, expected] of [
-      ["pre_model_call", { request_id: true, usage: false }],
-      ["post_model_call", { request_id: true, usage: true }],
-      ["agent_startup", { request_id: false, usage: false }],
-      ["input", { request_id: false, usage: false }],
-      ["pre_tool_call", { request_id: false, usage: false }],
-      ["post_tool_call", { request_id: false, usage: false }],
-      ["output", { request_id: false, usage: false }],
-      ["agent_shutdown", { request_id: false, usage: false }],
-    ]) {
+    const hookPayloads = {
+      agent_startup: ["agent_init"],
+      input: ["input"],
+      pre_model_call: ["model", "messages", "tools", "request_id"],
+      post_model_call: ["model", "response", "request_id", "usage"],
+      pre_tool_call: ["tool_call"],
+      post_tool_call: ["tool_call", "tool_result"],
+      output: ["output"],
+      agent_shutdown: ["summary"],
+    };
+    const commonFields = [
+      "spec",
+      "timestamp",
+      "sequence",
+      "agent",
+      "session",
+      "trace",
+      "tenant",
+      "actor",
+      "budgets",
+      "extensions",
+    ];
+    for (const [point, payloadFields] of Object.entries(hookPayloads)) {
       const schema = schemas.get(`strict-contexts/${point}.schema.json`);
       if (!schema) throw new Error(`missing strict context schema for ${point}`);
-      for (const [field, shouldExist] of Object.entries(expected)) {
+      for (const field of commonFields) {
+        if (!Object.hasOwn(schema.properties ?? {}, field)) {
+          throw new Error(`strict-contexts/${point}.schema.json: expected common field ${field}`);
+        }
+      }
+      for (const field of [
+        "agent_init",
+        "input",
+        "model",
+        "messages",
+        "response",
+        "request_id",
+        "usage",
+        "tool_call",
+        "tool_result",
+        "tools",
+        "output",
+        "summary",
+      ]) {
+        const shouldExist = payloadFields.includes(field);
         const exists = Object.hasOwn(schema.properties ?? {}, field);
         if (exists !== shouldExist) {
           throw new Error(

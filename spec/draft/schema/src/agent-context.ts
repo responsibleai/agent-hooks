@@ -126,7 +126,7 @@ export enum ActorKind {
 }
 
 /**
- * Shared metadata present at every point.
+ * Metadata available at every interception point.
  */
 interface ContextMetadata {
   /** @pattern ^agent-hooks/\d+\.\d+$ */
@@ -151,16 +151,6 @@ interface ContextMetadata {
     /** @minimum 0 */
     turn?: number;
   };
-  agent_init?: AgentInit;
-  input?: Input;
-  model?: Model;
-  messages?: Message[];
-  response?: Response;
-  tool_call?: ToolCall;
-  tool_result?: ToolResult;
-  tools?: ToolDecl[];
-  output?: Output;
-  summary?: Summary;
   trace?: {
     trace_id?: string;
     span_id?: string;
@@ -217,6 +207,7 @@ export interface PreModelCallRequest extends HooksRequest {
   interception_point: InterceptionPoint.PreModelCall;
   model: Model;
   messages: Message[];
+  tools?: ToolDecl[];
   request_id?: string;
 }
 

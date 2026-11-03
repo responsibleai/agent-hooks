@@ -100,46 +100,6 @@
             "id"
           ]
         },
-        "input": {
-          "description": "Conditional payload of input (§4.2).",
-          "$ref": "#/$defs/Input"
-        },
-        "model": {
-          "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
-          "$ref": "#/$defs/Model"
-        },
-        "messages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Message"
-          }
-        },
-        "response": {
-          "description": "Conditional payload of post_model_call (§4.2).",
-          "$ref": "#/$defs/Response"
-        },
-        "tool_call": {
-          "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolCall"
-        },
-        "tool_result": {
-          "description": "Conditional payload of post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolResult"
-        },
-        "tools": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolDecl"
-          }
-        },
-        "output": {
-          "description": "Conditional payload of output (§4.2).",
-          "$ref": "#/$defs/Output"
-        },
-        "summary": {
-          "description": "Conditional payload of agent_shutdown (§4.2).",
-          "$ref": "#/$defs/Summary"
-        },
         "trace": {
           "type": "object",
           "properties": {
@@ -230,214 +190,6 @@
       "type": "object",
       "additionalProperties": {}
     },
-    "Input": {
-      "description": "Conditional payload of input (§4.2).",
-      "type": "object",
-      "properties": {
-        "content": {},
-        "role": {
-          "$ref": "#/$defs/InputRole"
-        }
-      },
-      "required": [
-        "content",
-        "role"
-      ]
-    },
-    "InputRole": {
-      "description": "Who produced an input (§4.2).",
-      "type": "string",
-      "enum": [
-        "user",
-        "system",
-        "external"
-      ]
-    },
-    "Model": {
-      "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "vendor": {
-          "type": "string"
-        },
-        "params": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
-        }
-      },
-      "required": [
-        "id"
-      ]
-    },
-    "Message": {
-      "description": "One message of the model request (§4.2).",
-      "type": "object",
-      "properties": {
-        "role": {
-          "type": "string"
-        },
-        "content": {}
-      },
-      "required": [
-        "content",
-        "role"
-      ]
-    },
-    "Response": {
-      "description": "Conditional payload of post_model_call (§4.2).",
-      "type": "object",
-      "properties": {
-        "content": {},
-        "tool_calls": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolCallRequest"
-          }
-        },
-        "finish_reason": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "content",
-        "finish_reason",
-        "tool_calls"
-      ]
-    },
-    "ToolCallRequest": {
-      "description": "One tool call the model asked for (§4.2).",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "args": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
-        }
-      },
-      "required": [
-        "args",
-        "name"
-      ]
-    },
-    "ToolCall": {
-      "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
-      "type": "object",
-      "properties": {
-        "id": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "name": {
-          "minLength": 1,
-          "type": "string"
-        },
-        "args": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
-        },
-        "content_hash": {
-          "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "args",
-        "id",
-        "name"
-      ]
-    },
-    "ToolResult": {
-      "description": "Conditional payload of post_tool_call (§4.2).",
-      "type": "object",
-      "properties": {
-        "value": {},
-        "is_error": {
-          "type": "boolean"
-        },
-        "duration_ms": {
-          "type": "number",
-          "minimum": 0
-        }
-      },
-      "required": [
-        "is_error",
-        "value"
-      ]
-    },
-    "ToolDecl": {
-      "description": "One declared tool (§4.3).",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "schema": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
-        }
-      },
-      "required": [
-        "name"
-      ]
-    },
-    "Output": {
-      "description": "Conditional payload of output (§4.2).",
-      "type": "object",
-      "properties": {
-        "content": {}
-      },
-      "required": [
-        "content"
-      ]
-    },
-    "Summary": {
-      "description": "Conditional payload of agent_shutdown (§4.2).",
-      "type": "object",
-      "properties": {
-        "reason": {
-          "$ref": "#/$defs/SummaryReason"
-        },
-        "tool_calls": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "errors": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "duration_seconds": {
-          "type": "number",
-          "minimum": 0
-        }
-      },
-      "required": [
-        "reason"
-      ]
-    },
-    "SummaryReason": {
-      "description": "Why the agent stopped (§4.2).",
-      "type": "string",
-      "enum": [
-        "completed",
-        "error",
-        "cancelled"
-      ]
-    },
     "InputRequest": {
       "description": "The request at input: input is required (§4.2).",
       "type": "object",
@@ -508,46 +260,6 @@
             "id"
           ]
         },
-        "agent_init": {
-          "description": "Conditional payload of agent_startup (§4.2).",
-          "$ref": "#/$defs/AgentInit"
-        },
-        "model": {
-          "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
-          "$ref": "#/$defs/Model"
-        },
-        "messages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Message"
-          }
-        },
-        "response": {
-          "description": "Conditional payload of post_model_call (§4.2).",
-          "$ref": "#/$defs/Response"
-        },
-        "tool_call": {
-          "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolCall"
-        },
-        "tool_result": {
-          "description": "Conditional payload of post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolResult"
-        },
-        "tools": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolDecl"
-          }
-        },
-        "output": {
-          "description": "Conditional payload of output (§4.2).",
-          "$ref": "#/$defs/Output"
-        },
-        "summary": {
-          "description": "Conditional payload of agent_shutdown (§4.2).",
-          "$ref": "#/$defs/Summary"
-        },
         "trace": {
           "type": "object",
           "properties": {
@@ -615,6 +327,29 @@
         "timestamp"
       ]
     },
+    "Input": {
+      "description": "Conditional payload of input (§4.2).",
+      "type": "object",
+      "properties": {
+        "content": {},
+        "role": {
+          "$ref": "#/$defs/InputRole"
+        }
+      },
+      "required": [
+        "content",
+        "role"
+      ]
+    },
+    "InputRole": {
+      "description": "Who produced an input (§4.2).",
+      "type": "string",
+      "enum": [
+        "user",
+        "system",
+        "external"
+      ]
+    },
     "PreModelCallRequest": {
       "description": "The request at pre_model_call: model and messages are required (§4.2).",
       "type": "object",
@@ -630,6 +365,12 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/Message"
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ToolDecl"
           }
         },
         "request_id": {
@@ -693,40 +434,6 @@
           "required": [
             "id"
           ]
-        },
-        "agent_init": {
-          "description": "Conditional payload of agent_startup (§4.2).",
-          "$ref": "#/$defs/AgentInit"
-        },
-        "input": {
-          "description": "Conditional payload of input (§4.2).",
-          "$ref": "#/$defs/Input"
-        },
-        "response": {
-          "description": "Conditional payload of post_model_call (§4.2).",
-          "$ref": "#/$defs/Response"
-        },
-        "tool_call": {
-          "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolCall"
-        },
-        "tool_result": {
-          "description": "Conditional payload of post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolResult"
-        },
-        "tools": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolDecl"
-          }
-        },
-        "output": {
-          "description": "Conditional payload of output (§4.2).",
-          "$ref": "#/$defs/Output"
-        },
-        "summary": {
-          "description": "Conditional payload of agent_shutdown (§4.2).",
-          "$ref": "#/$defs/Summary"
         },
         "trace": {
           "type": "object",
@@ -794,6 +501,60 @@
         "session",
         "spec",
         "timestamp"
+      ]
+    },
+    "Model": {
+      "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "vendor": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "Message": {
+      "description": "One message of the model request (§4.2).",
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string"
+        },
+        "content": {}
+      },
+      "required": [
+        "content",
+        "role"
+      ]
+    },
+    "ToolDecl": {
+      "description": "One declared tool (§4.3).",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "name"
       ]
     },
     "PostModelCallRequest": {
@@ -876,42 +637,6 @@
             "id"
           ]
         },
-        "agent_init": {
-          "description": "Conditional payload of agent_startup (§4.2).",
-          "$ref": "#/$defs/AgentInit"
-        },
-        "input": {
-          "description": "Conditional payload of input (§4.2).",
-          "$ref": "#/$defs/Input"
-        },
-        "messages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Message"
-          }
-        },
-        "tool_call": {
-          "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolCall"
-        },
-        "tool_result": {
-          "description": "Conditional payload of post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolResult"
-        },
-        "tools": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolDecl"
-          }
-        },
-        "output": {
-          "description": "Conditional payload of output (§4.2).",
-          "$ref": "#/$defs/Output"
-        },
-        "summary": {
-          "description": "Conditional payload of agent_shutdown (§4.2).",
-          "$ref": "#/$defs/Summary"
-        },
         "trace": {
           "type": "object",
           "properties": {
@@ -978,6 +703,48 @@
         "session",
         "spec",
         "timestamp"
+      ]
+    },
+    "Response": {
+      "description": "Conditional payload of post_model_call (§4.2).",
+      "type": "object",
+      "properties": {
+        "content": {},
+        "tool_calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ToolCallRequest"
+          }
+        },
+        "finish_reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content",
+        "finish_reason",
+        "tool_calls"
+      ]
+    },
+    "ToolCallRequest": {
+      "description": "One tool call the model asked for (§4.2).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "args": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "args",
+        "name"
       ]
     },
     "Usage": {
@@ -1064,46 +831,6 @@
             "id"
           ]
         },
-        "agent_init": {
-          "description": "Conditional payload of agent_startup (§4.2).",
-          "$ref": "#/$defs/AgentInit"
-        },
-        "input": {
-          "description": "Conditional payload of input (§4.2).",
-          "$ref": "#/$defs/Input"
-        },
-        "model": {
-          "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
-          "$ref": "#/$defs/Model"
-        },
-        "messages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Message"
-          }
-        },
-        "response": {
-          "description": "Conditional payload of post_model_call (§4.2).",
-          "$ref": "#/$defs/Response"
-        },
-        "tool_result": {
-          "description": "Conditional payload of post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolResult"
-        },
-        "tools": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolDecl"
-          }
-        },
-        "output": {
-          "description": "Conditional payload of output (§4.2).",
-          "$ref": "#/$defs/Output"
-        },
-        "summary": {
-          "description": "Conditional payload of agent_shutdown (§4.2).",
-          "$ref": "#/$defs/Summary"
-        },
         "trace": {
           "type": "object",
           "properties": {
@@ -1169,6 +896,34 @@
         "spec",
         "timestamp",
         "tool_call"
+      ]
+    },
+    "ToolCall": {
+      "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "args": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": true
+        },
+        "content_hash": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "args",
+        "id",
+        "name"
       ]
     },
     "PostToolCallRequest": {
@@ -1244,42 +999,6 @@
             "id"
           ]
         },
-        "agent_init": {
-          "description": "Conditional payload of agent_startup (§4.2).",
-          "$ref": "#/$defs/AgentInit"
-        },
-        "input": {
-          "description": "Conditional payload of input (§4.2).",
-          "$ref": "#/$defs/Input"
-        },
-        "model": {
-          "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
-          "$ref": "#/$defs/Model"
-        },
-        "messages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Message"
-          }
-        },
-        "response": {
-          "description": "Conditional payload of post_model_call (§4.2).",
-          "$ref": "#/$defs/Response"
-        },
-        "tools": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolDecl"
-          }
-        },
-        "output": {
-          "description": "Conditional payload of output (§4.2).",
-          "$ref": "#/$defs/Output"
-        },
-        "summary": {
-          "description": "Conditional payload of agent_shutdown (§4.2).",
-          "$ref": "#/$defs/Summary"
-        },
         "trace": {
           "type": "object",
           "properties": {
@@ -1346,6 +1065,24 @@
         "timestamp",
         "tool_call",
         "tool_result"
+      ]
+    },
+    "ToolResult": {
+      "description": "Conditional payload of post_tool_call (§4.2).",
+      "type": "object",
+      "properties": {
+        "value": {},
+        "is_error": {
+          "type": "boolean"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "is_error",
+        "value"
       ]
     },
     "OutputRequest": {
@@ -1418,46 +1155,6 @@
             "id"
           ]
         },
-        "agent_init": {
-          "description": "Conditional payload of agent_startup (§4.2).",
-          "$ref": "#/$defs/AgentInit"
-        },
-        "input": {
-          "description": "Conditional payload of input (§4.2).",
-          "$ref": "#/$defs/Input"
-        },
-        "model": {
-          "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
-          "$ref": "#/$defs/Model"
-        },
-        "messages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Message"
-          }
-        },
-        "response": {
-          "description": "Conditional payload of post_model_call (§4.2).",
-          "$ref": "#/$defs/Response"
-        },
-        "tool_call": {
-          "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolCall"
-        },
-        "tool_result": {
-          "description": "Conditional payload of post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolResult"
-        },
-        "tools": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolDecl"
-          }
-        },
-        "summary": {
-          "description": "Conditional payload of agent_shutdown (§4.2).",
-          "$ref": "#/$defs/Summary"
-        },
         "trace": {
           "type": "object",
           "properties": {
@@ -1523,6 +1220,16 @@
         "session",
         "spec",
         "timestamp"
+      ]
+    },
+    "Output": {
+      "description": "Conditional payload of output (§4.2).",
+      "type": "object",
+      "properties": {
+        "content": {}
+      },
+      "required": [
+        "content"
       ]
     },
     "AgentShutdownRequest": {
@@ -1595,46 +1302,6 @@
             "id"
           ]
         },
-        "agent_init": {
-          "description": "Conditional payload of agent_startup (§4.2).",
-          "$ref": "#/$defs/AgentInit"
-        },
-        "input": {
-          "description": "Conditional payload of input (§4.2).",
-          "$ref": "#/$defs/Input"
-        },
-        "model": {
-          "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
-          "$ref": "#/$defs/Model"
-        },
-        "messages": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Message"
-          }
-        },
-        "response": {
-          "description": "Conditional payload of post_model_call (§4.2).",
-          "$ref": "#/$defs/Response"
-        },
-        "tool_call": {
-          "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolCall"
-        },
-        "tool_result": {
-          "description": "Conditional payload of post_tool_call (§4.2).",
-          "$ref": "#/$defs/ToolResult"
-        },
-        "tools": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolDecl"
-          }
-        },
-        "output": {
-          "description": "Conditional payload of output (§4.2).",
-          "$ref": "#/$defs/Output"
-        },
         "trace": {
           "type": "object",
           "properties": {
@@ -1700,6 +1367,39 @@
         "spec",
         "summary",
         "timestamp"
+      ]
+    },
+    "Summary": {
+      "description": "Conditional payload of agent_shutdown (§4.2).",
+      "type": "object",
+      "properties": {
+        "reason": {
+          "$ref": "#/$defs/SummaryReason"
+        },
+        "tool_calls": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "errors": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "reason"
+      ]
+    },
+    "SummaryReason": {
+      "description": "Why the agent stopped (§4.2).",
+      "type": "string",
+      "enum": [
+        "completed",
+        "error",
+        "cancelled"
       ]
     }
   }
