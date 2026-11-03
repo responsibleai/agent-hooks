@@ -26,14 +26,17 @@ jobs:
         env:
           SPEC_VERSION: 0.1.0
           SPEC_FILE: AGENT-HOOKS-0.1.md
+          DRAFT_SPEC_FILE: AGENT-HOOKS-draft.md
           SCHEMA_PATH: v0.1
         run: |
           uv venv .mkdocs-venv
           uv pip install --python .mkdocs-venv/bin/python "mkdocs-material==9.6.23"
           spec_dir="spec/${SPEC_VERSION}"
           schema_dir="docs-site/docs/schema/${SCHEMA_PATH}"
+          mkdir -p docs-site/docs/schema
           cp "${spec_dir}/${SPEC_FILE}" docs-site/docs/spec.md
-          sed -E 's#\]\(\.\./[0-9]+\.[0-9]+\.[0-9]+/AGENT-HOOKS-[0-9]+\.[0-9]+\.md\)#](spec.md)#g' "spec/draft/${SPEC_FILE}" > docs-site/docs/spec-draft.md
+          sed -E 's#\]\(\.\./[0-9]+\.[0-9]+\.[0-9]+/AGENT-HOOKS-[0-9]+\.[0-9]+\.md\)#](spec.md)#g' "spec/draft/${DRAFT_SPEC_FILE}" > docs-site/docs/spec-draft.md
+          cp spec/draft/schema/path-grammar.abnf docs-site/docs/schema/path-grammar.abnf
           # Publish released schemas so every $id dereferences; draft schemas are not published.
           mkdir -p "${schema_dir}/agent-context" "${schema_dir}/conformance"
           # Keep the published agent-context/ URLs even though the source

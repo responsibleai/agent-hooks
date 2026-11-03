@@ -6,11 +6,12 @@ Released specifications live in semantic-version folders named
 | Version | Status | Wire version | Specification | Schemas |
 | --- | --- | --- | --- | --- |
 | [0.1.0](0.1.0/) | Latest release | `agent-hooks/0.1` | [AGENT-HOOKS-0.1.md](0.1.0/AGENT-HOOKS-0.1.md) | [schema/](0.1.0/schema/) |
-| [draft](draft/) | In progress | `agent-hooks/0.1` | [AGENT-HOOKS-0.1.md](draft/AGENT-HOOKS-0.1.md) | [schema/](draft/schema/) |
+| [draft](draft/) | In progress | `agent-hooks/draft` | [AGENT-HOOKS-draft.md](draft/AGENT-HOOKS-draft.md) | [schema/](draft/schema/) |
 
 Each folder is a complete specification bundle:
 
-- `AGENT-HOOKS-<wire-major>.<wire-minor>.md`: the normative text
+- `<version>/AGENT-HOOKS-<wire-major>.<wire-minor>.md` or
+  `draft/AGENT-HOOKS-draft.md`: the normative text
 - `DECLARATION-VERSIONS.md`: host declaration contract versions
 - `declaration-errors.json`, `reserved-reasons.json`,
   `reserved-warnings.json`: machine-readable inventories

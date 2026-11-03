@@ -6,12 +6,12 @@ default. SDKs and the Python mirror are pinned to
 [`spec/0.1.0/schema/`](../../0.1.0/schema/) for now.
 
 The TypeScript files in `src/` are the editable schema source.
-`generated/` contains the committed, normative JSON Schemas consumed by
-validators and SDKs. Do not edit generated JSON by hand.
+`generated/` contains the committed draft JSON Schemas. Do not edit generated JSON by hand.
 
 - Root schemas are written to `generated/*.schema.json`.
-- Closed per-interception-point schemas are derived from the agent-context
-  union and written to `generated/strict-contexts/*.schema.json`.
+- `generated/strict-contexts/*.schema.json` contains the per-interception-point
+  request schemas. Each interception point is explicitly defined by its
+  `HookRequest` and `HookResponse` pair below.
 - `src/host-declaration.ts` generates both supported declaration schemas.
 - `path-grammar.abnf` remains a hand-maintained grammar, not generated output.
 
