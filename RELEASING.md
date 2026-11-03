@@ -1,13 +1,117 @@
 # Releasing
 
-One root tag `vX.Y.Z[-pre.N]` releases the spec and all five SDKs
-together ([VERSIONING.md](VERSIONING.md)). The release workflow
-(`.github/workflows/release.yml`) does the publishing. Its header
-describes the one-time trusted-publisher setup per registry; all
-registries use OIDC, no tokens. Publish jobs run in the `release`
-environment.
+Two trains release from this repository on their own schedules
+([VERSIONING.md](VERSIONING.md)): the specification, as a frozen
+`spec/<MAJOR.MINOR>/` folder marked by a `spec/<MAJOR.MINOR>` tag, and
+the five SDKs together, from one root tag `vX.Y.Z[-pre.N]` that the
+release workflow (`.github/workflows/release.yml`) publishes. The
+workflow's header describes the one-time trusted-publisher setup per
+registry; all registries use OIDC, no tokens. Publish jobs run in the
+`release` environment.
 
-## Before the tag
+## Release a specification version
+
+A specification version `X.Y` is a frozen copy of the draft. Pick `X.Y`
+from the bump table in VERSIONING.md: MINOR for an additive draft,
+MAJOR for a breaking one. Cut it in one spec-only pull request.
+
+1. Run the cut script. It copies `spec/draft/` to `spec/X.Y/`, renames
+   the text to `AGENT-HOOKS-X.Y.md`, sets the title and the header line
+   to Released, `X.Y` and the date, drops the draft banner, sets the
+   wire string to `agent-hooks/X.Y` in the copy and in the draft, and
+   rewrites the copy's `spec/draft/` self-references. It prints what
+   remains.
+
+   ```bash
+   python3 scripts/cut-spec-version.py X.Y
+   ```
+
+2. Regenerate the copy's schemas under their own id path,
+   `https://responsibleai.github.io/agent-hooks/schema/vX.Y/`. The
+   generator sets the base from `--spec`; a published path is
+   immutable, so the staging of the site fails when two bundles bring
+   different bytes to one path.
+
+   ```bash
+   cd sdk/typescript && npx tsx scripts/generate-schemas.mts --spec X.Y
+   ```
+
+3. In `spec/draft/AGENT-HOOKS-DRAFT.md`, point the banner at the new
+   version: `The latest released version is [X.Y](../X.Y/AGENT-HOOKS-X.Y.md).`
+   The header keeps Status Draft and Version DRAFT, with the date of
+   the change.
+4. In `spec/README.md`, add the row for `X.Y` with the status
+   "Released" and the date, and set the previous version to
+   "Superseded". In `README.md`, point the status line and the "Read
+   next" sentence at the new folder. Move prose links from the
+   previous version to `X.Y` unless the document cites the older text
+   on purpose (`grep -rn 'spec/<previous>/' --exclude-dir=spec .`).
+   Machine consumers read `spec/draft/` and do not move.
+5. In `CHANGELOG.md`, rename the "Unreleased specification" section to
+   "Specification X.Y — YYYY-MM-DD" and start a new empty one. In
+   `docs/proposals/README.md`, proposals whose text is in the cut move
+   from "in draft" to "released in X.Y".
+6. The site needs no edit: the `pages` workflow publishes every version
+   folder at `/spec/X.Y/` with its schemas at the path their `$id`
+   names, and lists the versions in the navigation, newest first, then
+   the draft.
+7. Run the checks that read the new folder; the `lint`,
+   `schema-lint`, `typescript`, `change-class` and `pages` jobs run
+   the same commands (`ajv` is `ajv-cli`, installed as in `ci.yml`):
+
+   ```bash
+   python3 scripts/check-spec-versions.py
+   python3 scripts/check-released-specs-immutable.py origin/main HEAD
+   python3 scripts/check-version-consistency.py
+   python3 scripts/check-file-headers.py
+   python3 -m unittest discover -s scripts -p "test_*.py"
+   python3 scripts/stage-docs-site.py
+   for d in spec/*/; do
+     root="${d}schema/generated"; [ -d "$root" ] || root="${d}schema"
+     mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sed 's/^/-r=/')
+     ajv validate --spec=draft2020 -c ajv-formats -s conformance/vectors.schema.json \
+       "${refs[@]}" -d 'conformance/vectors/*.json'
+   done
+   cd sdk/typescript && npm ci
+   node scripts/check-schema-examples.mjs
+   npx tsc -p ../../spec/X.Y/schema/src/tsconfig.json
+   npx tsx scripts/generate-schemas.mts --check --spec X.Y
+   ```
+
+   The new folder passes the released-folder guard because it did not
+   exist on `main`; after the merge it is frozen, and only new regular
+   `.json` files under its `schema/examples/<Type>/` may be added.
+8. Reproducibility. A reviewer reruns the cut on the pull request's
+   merge base and diffs the result against the pull request:
+
+   ```bash
+   git worktree add /tmp/cut-check origin/main
+   (cd /tmp/cut-check && python3 scripts/cut-spec-version.py X.Y --date YYYY-MM-DD \
+     && cd sdk/typescript && npm ci && npx tsx scripts/generate-schemas.mts --spec X.Y)
+   diff -r /tmp/cut-check/spec/X.Y spec/X.Y && echo reproducible
+   ```
+
+   0.1 was not cut from the draft but read from the last SDK tag that
+   touched the text; its proof is one file, one line:
+
+   ```bash
+   git diff --stat v0.1.0-beta.3:spec HEAD:spec/0.1
+   ```
+
+9. After the merge, tag the merge commit. The tag starts no workflow;
+   Pages publishes on the push to `main`. Only repository admins and
+   maintainers may create it: extend the `release-tags-restricted`
+   ruleset to `refs/tags/spec/*` before the first push. `spec/0.1`
+   goes on the commit that merges the 0.1 folder.
+
+   ```bash
+   git tag -s spec/X.Y <merge-sha> -m "Agent Hooks specification X.Y"
+   git push origin spec/X.Y
+   ```
+
+## Release the SDKs
+
+### Before the tag
 
 1. Bump the version on every surface through one PR, with a
    `CHANGELOG.md` entry that names the tag:
@@ -24,22 +128,33 @@ environment.
    The draft's header says Status Draft and Version DRAFT with the date
    of its last change; no SDK tag edits it.
 
-   When the release publishes a new specification version, cut the
-   version folder first ([Cut a specification
-   version](#cut-a-specification-version)).
+   An SDK release does not cut a specification version. Set
+   `SUPPORTED_SPEC_VERSIONS` in the five cores to the `spec/<X.Y>/`
+   folders whose contexts the SDK accepts, with `SPEC_VERSION` the
+   highest of them; when the SDK needs text that no released version
+   holds, release the specification first (above).
 
    Regenerate `sdk/typescript/binding.js` after the bump (`npm run
    build:native` in `sdk/typescript`); the napi version strings it
    embeds come from `package.json`, and the CI `typescript` job fails
    on drift.
+   Add the tag's row to the table in
+   [VERSIONING.md](VERSIONING.md#sdk-releases-and-the-versions-they-support)
+   when the supported specification versions, the accepted host
+   declaration versions or the current one change.
    Run `python3 scripts/check-version-consistency.py`; the CI `lint`
-   job runs the same check.
-   Add a row for the tag to the SDK-release table in
-   `VERSIONING.md` when the accepted host declaration versions or the
-   current one change (spec §7.7.2); the same script checks that a row
-   there accepts the current version. SDK development tracks
-   `spec/draft/`; the tag names the specification version it ships
-   against ([VERSIONING.md](VERSIONING.md#specification-folders)).
+   job runs the same check, and the first job of the release workflow
+   reruns it on the tag and on every dry run. It fails when the five
+   SDKs disagree, when a supported specification version has no
+   `spec/<X.Y>/` folder, when `SPEC_VERSION` is not the highest
+   supported or says DRAFT, when no table row accepts the current
+   declaration version, or when the row for the current SDK version
+   lists other specification versions than the cores do. That job
+   also validates the conformance vectors. It runs them against the
+   draft schemas, because the vector grammar references the draft's
+   schema ids and the vectors use documents 0.1 never defined; once 0.2
+   is cut from the draft, that bundle's schemas are the released set
+   the job reads, and the vectors move with them.
 2. Run the bench suite and compare against the latency budget in
    [ARCHITECTURE.md](ARCHITECTURE.md#latency-budget). CI does not gate
    on it; this step is the regression check.
@@ -54,7 +169,7 @@ environment.
    the nupkg, and the Go build and tests). It uploads the build
    artifacts to the run, publishes nothing and attests nothing.
 
-### Windows FFI hardening
+#### Windows FFI hardening
 
 The Windows x64 FFI leg uses
 [the shared Windows build action](.github/actions/windows-ffi/action.yml):
@@ -75,79 +190,7 @@ For local builds and checks, see the
 Changing the nightly pin requires rerunning the native scan, gate regressions,
 Rust tests, .NET tests, package-consumer smoke and latency comparison.
 
-## Cut a specification version
-
-A specification version is a frozen copy of `spec/draft/`. Cut it in
-one pull request, merged before the tag that ships it. `<X.Y.Z>` is the
-new folder and `<previous>` the folder it supersedes.
-
-1. Copy the draft: `cp -r spec/draft spec/<X.Y.Z>`.
-2. In the copy, replace every `spec/draft/` self-reference with
-   `spec/<X.Y.Z>/` (`grep -rl 'spec/draft' spec/<X.Y.Z>`), delete the
-   draft banner at the top of `AGENT-HOOKS-*.md`, and set its header
-   line to
-
-   ```markdown
-   > **Status:** Released · **Version:** `X.Y.Z` · **Date:** YYYY-MM-DD
-   ```
-
-   Nothing else in the copy changes.
-3. In `spec/draft/AGENT-HOOKS-*.md`, point the draft banner's link at
-   the new folder and reword it to `The latest released specification
-   is [X.Y.Z](../X.Y.Z/AGENT-HOOKS-A.B.md).`
-4. In `spec/README.md`, add the row for `<X.Y.Z>` with the status
-   "Latest release" and change the `<previous>` row to "Superseded".
-   In `README.md`,
-   point the "Read next" sentence at the new folder and drop the beta
-   snapshot wording.
-5. Link sweep: prose links outside `spec/` cite the current version folder
-   (`grep -rn 'spec/<previous>/' --exclude-dir=spec --exclude-dir=node_modules --exclude-dir=target .`).
-   Move each to `spec/<X.Y.Z>/` unless the document cites the older
-   text on purpose. Machine consumers (CI steps, the Python mirror, the
-   Rust tests, the version script) read `spec/draft/` and do not move.
-6. The `$id` path. Every generated schema carries a `$id` under
-   `https://responsibleai.github.io/agent-hooks/schema/vX.Y/`, set by
-   `ID_BASE` in `sdk/typescript/scripts/generate-schemas.mts`. A
-   published path is immutable: two versions may share one only when
-   every file under it is byte-identical, and the site staging fails
-   otherwise. So when the draft changed any schema since `<previous>`,
-   set `ID_BASE` to the new wire minor and regenerate the draft before
-   step 1. The site itself needs no edit: the `pages` workflow publishes
-   every version folder, derives each bundle's schema URL path from its
-   `$id`, and lists the versions in the navigation. When the path
-   changed, confirm the new `schema/vX.Y/` directory is in the built
-   site. `conformance/vectors.schema.json` is not part of a bundle; it
-   is published from the working tree at its own `$id` path.
-7. `CHANGELOG.md`: name the specification version in the entry for
-   the tag.
-8. Run the checks that read the new folder; the `lint`,
-   `schema-lint`, `typescript`, `change-class` and `pages` jobs run
-   the same commands (`ajv` is `ajv-cli`, installed as in `ci.yml`):
-
-   ```bash
-   python3 scripts/check-spec-versions.py
-   python3 scripts/check-released-specs-immutable.py origin/main HEAD
-   python3 scripts/check-version-consistency.py
-   python3 scripts/check-file-headers.py
-   python3 -m unittest discover -s scripts -p "test_*.py"
-   python3 scripts/stage-docs-site.py
-   for d in spec/*/; do
-     ajv validate --spec=draft2020 -c ajv-formats -s conformance/vectors.schema.json \
-       -r "${d}schema/generated/*.schema.json" \
-       -r "${d}schema/generated/strict-contexts/*.schema.json" \
-       -d 'conformance/vectors/*.json'
-   done
-   cd sdk/typescript && npm ci
-   node scripts/check-schema-examples.mjs
-   npx tsc -p ../../spec/<X.Y.Z>/schema/src/tsconfig.json
-   npx tsx scripts/generate-schemas.mts --check --spec <X.Y.Z>
-   ```
-
-   The new folder passes the released-folder guard because it did not
-   exist on `main`; after the merge it is frozen, and only new regular
-   `.json` files under its `schema/examples/<Type>/` may be added.
-
-## Tag
+### Tag
 
 Tag the merged version-bump commit on `main` and push the tag. Only
 repository admins and maintainers can create `v*` tags (ruleset
@@ -158,7 +201,7 @@ git tag -s v<version> -m "agent-hooks <version>"
 git push origin v<version>
 ```
 
-## What the tag run publishes
+### What the tag run publishes
 
 - crates.io `agent-hooks-sdk`
 - PyPI `agent-hooks-sdk` (five platform wheels and the sdist)
@@ -178,7 +221,7 @@ skips versions and files that already exist, so a rerun after a
 partial failure is safe, and a non-dry dispatch on the tag ref appends
 missing artifacts. The workflow creates no GitHub Release object.
 
-## Go module tag
+### Go module tag
 
 Go resolves a subdirectory module's versions from tags prefixed with
 that directory. The module `github.com/responsibleai/agent-hooks/sdk/go`
@@ -202,7 +245,7 @@ a release, and proxy.golang.org caches it for good; so before the first
 push, extend the ruleset (or add one) to `refs/tags/sdk/go/v*`, and
 keep the rule that the Go tag points at the root tag's commit.
 
-## After the release
+### After the release
 
 Check each registry shows the version:
 
