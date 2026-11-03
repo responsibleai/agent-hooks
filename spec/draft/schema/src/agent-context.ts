@@ -155,9 +155,7 @@ interface ContextMetadata {
   input?: Input;
   model?: Model;
   messages?: Message[];
-  request_id?: string;
   response?: Response;
-  usage?: Usage;
   tool_call?: ToolCall;
   tool_result?: ToolResult;
   tools?: ToolDecl[];

@@ -85,16 +85,9 @@
         "$ref": "#/$defs/Message"
       }
     },
-    "request_id": {
-      "type": "string"
-    },
     "response": {
       "description": "Conditional payload of post_model_call (§4.2).",
       "$ref": "#/$defs/Response"
-    },
-    "usage": {
-      "description": "Token usage of a model call (§4.3).",
-      "$ref": "#/$defs/Usage"
     },
     "tool_call": {
       "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
@@ -416,20 +409,6 @@
         "is_error",
         "value"
       ]
-    },
-    "Usage": {
-      "description": "Token usage of a model call (§4.3).",
-      "type": "object",
-      "properties": {
-        "prompt_tokens": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "completion_tokens": {
-          "minimum": 0,
-          "type": "integer"
-        }
-      }
     }
   }
 }

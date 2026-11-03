@@ -120,6 +120,27 @@ export async function validateExamples(root = schemaRoot) {
   }
   const hasHookResponseSchemas = hookResponseSchemas.every((schemaFile) => schemas.has(schemaFile));
   if (hasHookResponseSchemas) {
+    for (const [point, expected] of [
+      ["pre_model_call", { request_id: true, usage: false }],
+      ["post_model_call", { request_id: true, usage: true }],
+      ["agent_startup", { request_id: false, usage: false }],
+      ["input", { request_id: false, usage: false }],
+      ["pre_tool_call", { request_id: false, usage: false }],
+      ["post_tool_call", { request_id: false, usage: false }],
+      ["output", { request_id: false, usage: false }],
+      ["agent_shutdown", { request_id: false, usage: false }],
+    ]) {
+      const schema = schemas.get(`strict-contexts/${point}.schema.json`);
+      if (!schema) throw new Error(`missing strict context schema for ${point}`);
+      for (const [field, shouldExist] of Object.entries(expected)) {
+        const exists = Object.hasOwn(schema.properties ?? {}, field);
+        if (exists !== shouldExist) {
+          throw new Error(
+            `strict-contexts/${point}.schema.json: ${field} should ${shouldExist ? "be present" : "be absent"} from this hook's properties`,
+          );
+        }
+      }
+    }
     assertSchemaProbe(
       "verdict.schema.json",
       { decision: "allow", extensions: { policy: {} } },
