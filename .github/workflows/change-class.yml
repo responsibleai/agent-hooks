@@ -5,7 +5,7 @@
 # - PRs that touch the normative surface (spec/, conformance vectors/
 #   schema) must carry one of the change-class labels so reviewers and
 #   the CHANGELOG see the classification.
-# - PRs must not modify a spec/<MAJOR.MINOR.PATCH>/ folder that exists on
+# - PRs must not modify a spec/<MAJOR.MINOR>/ folder that exists on
 #   the base branch; edit spec/draft/ or add a new version folder. The
 #   one exception: a new regular .json file under
 #   <version>/schema/examples/<Type>/ may be added. Modified or deleted

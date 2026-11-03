@@ -76,7 +76,7 @@ jobs:
             root="${spec_dir}schema/generated"
             [ -d "$root" ] || root="${spec_dir}schema"
             [ -d "$root" ] || continue
-            if [ "$spec_dir" != "$SPEC_DEV_DIR/" ] && ! printf '%s\n' $RESOLVABLE_RELEASES | grep -qx "$name"; then
+            if [ "$spec_dir" != "$SPEC_DEV_DIR/" ] && ! tr ' ' '\n' <<< "$RESOLVABLE_RELEASES" | grep -qx "$name"; then
               echo "skipping spec/$name: the vector grammar references the draft schema ids and schemas this bundle does not publish"
               continue
             fi
@@ -130,8 +130,9 @@ jobs:
       - name: Compare the latest release schemas with the draft
         # Differential validation (the tool exits 1 when the two sets
         # judge an instance differently) and a structural diff of the
-        # newest spec/<MAJOR.MINOR.PATCH>/schema/generated against the
-        # draft, as two runs. This step gates the tool's health only: it
+        # newest spec/<MAJOR.MINOR>/ schema set (schema/generated/ when
+        # present, else schema/) against the draft, as two runs. This
+        # step gates the tool's health only: it
         # fails when no release folder exists, when a run crashes, or
         # when a report lacks its summary line. The drift verdict itself
         # is the next step's, which may fail without failing the job.
