@@ -3,10 +3,7 @@
   "mode": "enforce",
   "verdict": {
     "decision": "transform",
-    "reason": "operator_limited_scope",
-    "transform": {
-      "path": "$target.collection"
-    }
+    "reason": "operator_limited_scope"
   },
   "input_identity": null,
   "enforced_identity": null,

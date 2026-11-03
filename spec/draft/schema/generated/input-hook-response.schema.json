@@ -228,7 +228,7 @@
       ]
     },
     "TransformVerdict<InputHookTransform>": {
-      "description": "transform: proceed with the target rewritten. The transform body is REQUIRED\n(§5).",
+      "description": "transform: proceed with the hook-specific replacement payload.",
       "type": "object",
       "properties": {
         "decision": {

@@ -105,11 +105,12 @@ export async function validateExamples(root = schemaRoot) {
       validate(instance, filename, `strict-contexts/${instance.interception_point}.schema.json`);
     }
   }
-  function assertSchemaProbe(schemaFile, instance, expected, label) {
+  function assertSchemaProbe(schemaFile, instance, expected, label, definition) {
     const schema = schemas.get(schemaFile);
     if (!schema) throw new Error(`missing local schema ${schemaFile}`);
-    const validator = ajv.getSchema(schema.$id);
-    if (!validator) throw new Error(`unresolved schema ${schema.$id}`);
+    const schemaId = schema.$id + (definition ? `#/$defs/${definition}` : "");
+    const validator = ajv.getSchema(schemaId);
+    if (!validator) throw new Error(`unresolved schema ${schemaId}`);
     const valid = validator(instance);
     if (valid !== expected) {
       throw new Error(
@@ -119,8 +120,33 @@ export async function validateExamples(root = schemaRoot) {
   }
   const hasHookResponseSchemas = hookResponseSchemas.every((schemaFile) => schemas.has(schemaFile));
   if (hasHookResponseSchemas) {
-    assertSchemaProbe("verdict.schema.json", { decision: "allow", extensions: { policy: {} } }, false,
-      "generic verdict excludes response metadata");
+    assertSchemaProbe(
+      "verdict.schema.json",
+      { decision: "allow", extensions: { policy: {} } },
+      false,
+      "shared verdict excludes response metadata",
+    );
+    assertSchemaProbe(
+      "verdict.schema.json",
+      { decision: "transform", transform: { path: "$target.args" } },
+      false,
+      "shared verdict rejects legacy path transform",
+    );
+    for (const [label, transform] of [
+      ["input", { input: { content: "x", role: "user" } }],
+      ["pre-model", { messages: [{ role: "user", content: "x" }] }],
+      ["post-model", { response: { content: "x", tool_calls: [], finish_reason: "stop" } }],
+      ["pre-tool", { args: {} }],
+      ["post-tool", { value: "x" }],
+      ["output", { output: { content: "x" } }],
+    ]) {
+      assertSchemaProbe(
+        "verdict.schema.json",
+        { decision: "transform", transform },
+        true,
+        `${label} transform in any-hook verdict`,
+      );
+    }
     for (const schemaFile of hookResponseSchemas) {
       assertSchemaProbe(schemaFile, { decision: "allow" }, true, "bare allow");
       assertSchemaProbe(
@@ -177,6 +203,48 @@ export async function validateExamples(root = schemaRoot) {
         "lifecycle transform",
       );
     }
+    assertSchemaProbe(
+      "approval.schema.json",
+      { context_identity: null, outcome: "approve", verdict: { decision: "allow" } },
+      true,
+      "approval allows an allow verdict",
+      "resolution",
+    );
+    assertSchemaProbe(
+      "approval.schema.json",
+      {
+        context_identity: null,
+        outcome: "approve",
+        verdict: { decision: "transform", transform: { args: {} } },
+      },
+      false,
+      "approval cannot lift a deny with transform",
+      "resolution",
+    );
+    const record = {
+      interception_point: "pre_tool_call",
+      mode: "enforce",
+      verdict: { decision: "transform" },
+      input_identity: null,
+      enforced_identity: null,
+      identity_provider: null,
+      session_id: "s",
+      sequence: 0,
+      composition: { profile: "sequential/first_deny" },
+      interceptors_registered: 1,
+    };
+    assertSchemaProbe(
+      "interception-record.schema.json",
+      record,
+      true,
+      "record keeps transform decision only",
+    );
+    assertSchemaProbe(
+      "interception-record.schema.json",
+      { ...record, verdict: { decision: "transform", transform: { path: "$target" } } },
+      false,
+      "record omits transform details",
+    );
     const request = {
       spec: "agent-hooks/0.1",
       timestamp: "2026-01-01T00:00:00Z",

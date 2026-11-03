@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-// verdict.schema.json: the interceptor return value (§5).
+// Shared decision types used by the hook-specific response schemas (§5).
 
 /** The three decisions (§5). */
 export enum Decision {
@@ -23,21 +23,6 @@ export interface Warning {
    */
   reason?: string | null;
   message?: string | null;
-}
-
-/**
- * The transform body (§5.2).
- * @additionalProperties false
- */
-export interface Transform {
-  /**
-   * JSONPath rooted at $target (§5.2). $policy_target is a deprecated alias
-   * accepted through agent-hooks v0.2.
-   * @pattern ^\$(target|policy_target)(\.|\[|$)
-   */
-  path: string;
-  /** Any JSON value, including null. An absent member is equivalent to null (§5.2). */
-  value?: unknown;
 }
 
 /** Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14). */
@@ -106,17 +91,10 @@ export interface DenyVerdict extends VerdictBase {
 }
 
 /**
- * transform: proceed with the target rewritten. The transform body is REQUIRED
- * (§5).
+ * transform: proceed with the hook-specific replacement payload.
  * @additionalProperties false
- * @example [transform-input.json](../examples/Verdict/transform-input.json)
- * @example [transform-messages.json](../examples/Verdict/transform-messages.json)
- * @example [transform-response.json](../examples/Verdict/transform-response.json)
- * @example [transform-tool-args.json](../examples/Verdict/transform-tool-args.json)
- * @example [transform-tool-result.json](../examples/Verdict/transform-tool-result.json)
- * @example [transform-output.json](../examples/Verdict/transform-output.json)
  */
-export interface TransformVerdict<TTransform = Transform> extends VerdictBase {
+export interface TransformVerdict<TTransform> extends VerdictBase {
   decision: Decision.Transform;
   transform: TTransform;
 }
@@ -131,6 +109,6 @@ export type NonTransformVerdict = AllowVerdict | DenyVerdict;
  * (§7.1).
  * @title Agent Hooks — verdict
  */
-export type Verdict<TTransform = Transform> =
+export type Verdict<TTransform> =
   | NonTransformVerdict
   | TransformVerdict<TTransform>;

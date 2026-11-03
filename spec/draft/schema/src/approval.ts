@@ -7,7 +7,7 @@
 
 import { AgentContext } from "./agent-context";
 import { InterceptionPoint } from "./interception-point";
-import { AllowVerdict, Decision, DenyVerdict, TransformVerdict } from "./verdict";
+import { AllowVerdict, Decision, DenyVerdict } from "./verdict";
 
 /**
  * The liftable deny being consulted: an interceptor's (passes §5,
@@ -50,14 +50,13 @@ interface ResolutionBase {
 }
 
 /**
- * approve: the resolver lifts the deny with an allow or transform verdict.
+ * approve: the resolver lifts the deny with an allow verdict.
  * @additionalProperties false
  * @example [approve-allow.json](../examples/ApprovalResolution/approve-allow.json)
- * @example [approve-transform.json](../examples/ApprovalResolution/approve-transform.json)
  */
 export interface ApproveResolution extends ResolutionBase {
   outcome: Outcome.Approve;
-  verdict: AllowVerdict | TransformVerdict;
+  verdict: AllowVerdict;
 }
 
 /**
