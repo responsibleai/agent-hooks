@@ -118,14 +118,20 @@ public sealed class DeclarationTests
         Assert.Equal(
             Declaration.SupportedVersions,
             ((JsonArray)core["supported"]!).Select(n => (string)n!).ToList());
+        Assert.Equal(Spec.Version, (string)core["spec"]!);
+        Assert.Equal(
+            Spec.SupportedVersions,
+            ((JsonArray)core["spec_supported"]!).Select(n => (string)n!).ToList());
+        Assert.Equal(Spec.Version, "agent-hooks/" + Spec.SupportedVersions[^1]);
         Assert.NotEqual(Spec.Version, Declaration.Version);
     }
 
     [Fact]
     public void ErrorClassesMatchTheInventory()
     {
+        // The inventory of the bundle SDK development tracks (VERSIONING.md).
         var inventory = JsonNode.Parse(File.ReadAllText(
-            Path.Combine(RepoRoot(), "spec", "0.1.0", "declaration-errors.json")))!;
+            Path.Combine(RepoRoot(), "spec", "draft", "declaration-errors.json")))!;
         var ids = ((JsonArray)inventory["classes"]!).Select(c => (string)c!["id"]!).ToList();
         var codes = Enum.GetValues<DeclarationErrorClass>().Select(c => c.ToCode()).ToList();
         Assert.Equal(ids, codes);

@@ -29,6 +29,8 @@ import {
   SUPPORTED_DECLARATION_VERSIONS,
   canonicalDeclaration,
   declarationVersions,
+  SPEC_VERSION,
+  SUPPORTED_SPEC_VERSIONS,
 } from "../dist/index.js";
 import { builderFromValue } from "../dist/ctk/index.js";
 
@@ -113,6 +115,9 @@ test("declaration version constants match the core", () => {
   const v = declarationVersions();
   assert.equal(DECLARATION_VERSION, v.current);
   assert.deepEqual([...SUPPORTED_DECLARATION_VERSIONS], v.supported);
+  assert.equal(SPEC_VERSION, v.spec);
+  assert.deepEqual([...SUPPORTED_SPEC_VERSIONS], v.spec_supported);
+  assert.equal(SPEC_VERSION, `agent-hooks/${SUPPORTED_SPEC_VERSIONS.at(-1)}`);
   assert.equal(DECLARATION_VERSION, V11);
   assert.deepEqual([...SUPPORTED_DECLARATION_VERSIONS], [V, V11]);
 });

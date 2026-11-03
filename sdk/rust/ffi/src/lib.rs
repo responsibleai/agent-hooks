@@ -506,7 +506,7 @@ mod tests {
             let v = CStr::from_ptr((*r).value).to_str().unwrap();
             assert_eq!(
                 v,
-                r#"{"current":"agent-hooks-declaration/1.1","supported":["agent-hooks-declaration/1.0","agent-hooks-declaration/1.1"]}"#
+                r#"{"current":"agent-hooks-declaration/1.1","spec":"agent-hooks/0.1","spec_supported":["0.1"],"supported":["agent-hooks-declaration/1.0","agent-hooks-declaration/1.1"]}"#
             );
             ah_free_result(r);
         }

@@ -836,8 +836,18 @@ export function resolveSurfaceOnly(
 }
 
 /** The contract versions the core writes and accepts (§7.7.2). */
-export function declarationVersions(): { current: string; supported: string[] } {
-  return JSON.parse(native.declarationVersions()) as { current: string; supported: string[] };
+export function declarationVersions(): {
+  current: string;
+  supported: string[];
+  spec: string;
+  spec_supported: string[];
+} {
+  return JSON.parse(native.declarationVersions()) as {
+    current: string;
+    supported: string[];
+    spec: string;
+    spec_supported: string[];
+  };
 }
 
 // ---- builder (code path) ----------------------------------------------------

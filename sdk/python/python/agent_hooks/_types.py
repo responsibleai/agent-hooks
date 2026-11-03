@@ -10,8 +10,15 @@ from typing import Any, Final
 
 from agent_hooks.composition import CompositionConfig
 
-#: Spec version this SDK implements (§4.1 ``spec`` field).
+#: Spec version this SDK implements (§4.1 ``spec`` field): the wire
+#: string every context it builds carries.
 SPEC_VERSION: Final[str] = "agent-hooks/0.1"
+
+#: The specification versions whose contexts this SDK accepts, oldest
+#: first; each names a ``spec/<MAJOR.MINOR>/`` folder, and the last is
+#: the version of :data:`SPEC_VERSION` (VERSIONING.md). A test pins it
+#: to the core.
+SUPPORTED_SPEC_VERSIONS: Final[tuple[str, ...]] = ("0.1",)
 
 #: Name of the default identity provider (§10.1, §10.2).
 JCS_SHA256: Final[str] = "jcs-sha256"

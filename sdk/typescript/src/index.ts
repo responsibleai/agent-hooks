@@ -9,8 +9,15 @@
 import { native, AgentHooksCoreError } from "./native";
 export { AgentHooksCoreError };
 
-/** Spec version this SDK implements (§4.1 `spec` field). */
+/** Spec version this SDK implements (§4.1 `spec` field): the wire
+ * string every context it builds carries. */
 export const SPEC_VERSION = "agent-hooks/0.1";
+
+/** The specification versions whose contexts this SDK accepts, oldest
+ * first; each names a `spec/<MAJOR.MINOR>/` folder, and the last is the
+ * version of {@link SPEC_VERSION} (VERSIONING.md). A test pins it to
+ * the core. */
+export const SUPPORTED_SPEC_VERSIONS: readonly string[] = Object.freeze(["0.1"]);
 
 /** Name of the default identity provider (§10.1, §10.2). */
 export const JCS_SHA256 = "jcs-sha256";

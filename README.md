@@ -222,11 +222,13 @@ version. See [RELEASING.md](RELEASING.md).
 
 The spec is versioned `MAJOR.MINOR`, the declaration contract
 `MAJOR.MINOR`, and the packages by semver, each on its own axis. Every
-SDK exports the spec version, the current declaration version and the
-accepted set: `SPEC_VERSION`, `DECLARATION_VERSION` and
+SDK exports the spec version it writes, the specification versions it
+accepts, the current declaration version and the accepted set:
+`SPEC_VERSION`, `SUPPORTED_SPEC_VERSIONS`, `DECLARATION_VERSION` and
 `SUPPORTED_DECLARATION_VERSIONS` in Rust, Python and TypeScript;
-`SpecVersion`, `DeclarationVersion` and `SupportedDeclarationVersions`
-in Go; `Spec.Version`, `Declaration.Version` and
+`SpecVersion`, `SupportedSpecVersions`, `DeclarationVersion` and
+`SupportedDeclarationVersions` in Go; `Spec.Version`,
+`Spec.SupportedVersions`, `Declaration.Version` and
 `Declaration.SupportedVersions` in .NET. See
 [VERSIONING.md](VERSIONING.md) and
 [spec/draft/DECLARATION-VERSIONS.md](spec/draft/DECLARATION-VERSIONS.md).

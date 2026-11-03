@@ -526,11 +526,16 @@ pub fn spec_version() -> &'static str {
 // ---- host declaration (§7.7) -----------------------------------------------
 
 /// The declaration contract versions this core writes and accepts
-/// (§7.7.2): `{"current": "...", "supported": ["..."]}`.
+/// (§7.7.2), and the specification versions it writes and accepts:
+/// `{"current": "...", "supported": ["..."], "spec": "agent-hooks/X.Y",
+/// "spec_supported": ["X.Y"]}`. The wrapper SDKs pin their mirrored
+/// constants to this.
 pub fn declaration_versions() -> String {
     serde_json::json!({
         "current": crate::DECLARATION_VERSION,
         "supported": crate::SUPPORTED_DECLARATION_VERSIONS,
+        "spec": crate::SPEC_VERSION,
+        "spec_supported": crate::SUPPORTED_SPEC_VERSIONS,
     })
     .to_string()
 }

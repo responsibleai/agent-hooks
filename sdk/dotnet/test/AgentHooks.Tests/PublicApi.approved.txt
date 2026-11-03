@@ -506,6 +506,7 @@ sealed class ResolvedDeclaration
 static class Spec
     const string JcsSha256 = "jcs-sha256"
     const string Version = "agent-hooks/0.1"
+    static readonly IReadOnlyList<string> SupportedVersions
 enum SynthesisPolicy : int
     Deny = 0
     Approval = 1

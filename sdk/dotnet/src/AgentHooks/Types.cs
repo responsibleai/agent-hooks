@@ -11,7 +11,13 @@ namespace AgentHooks;
 /// <summary>Spec version this SDK implements (§4.1 <c>spec</c> field).</summary>
 public static class Spec
 {
+    /// <summary>The wire string every context this SDK builds carries.</summary>
     public const string Version = "agent-hooks/0.1";
+
+    /// <summary>The specification versions whose contexts this SDK accepts,
+    /// oldest first; each names a <c>spec/&lt;MAJOR.MINOR&gt;/</c> folder, and
+    /// the last is the version of <see cref="Version"/> (VERSIONING.md).</summary>
+    public static readonly IReadOnlyList<string> SupportedVersions = ["0.1"];
 
     /// <summary>Name of the default identity provider (§10.1, §10.2).</summary>
     public const string JcsSha256 = "jcs-sha256";

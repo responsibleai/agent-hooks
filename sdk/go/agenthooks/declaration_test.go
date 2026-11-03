@@ -157,6 +157,29 @@ func declErr(t *testing.T, err error) *DeclarationError {
 	return de
 }
 
+func TestSpecVersionsMatchTheCore(t *testing.T) {
+	out, err := nativeDeclarationVersions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v struct {
+		Spec          string   `json:"spec"`
+		SpecSupported []string `json:"spec_supported"`
+	}
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		t.Fatal(err)
+	}
+	if v.Spec != SpecVersion {
+		t.Errorf("core spec %q, Go constant %q", v.Spec, SpecVersion)
+	}
+	if !reflect.DeepEqual(v.SpecSupported, SupportedSpecVersions) {
+		t.Errorf("core spec_supported %v, Go %v", v.SpecSupported, SupportedSpecVersions)
+	}
+	if want := "agent-hooks/" + SupportedSpecVersions[len(SupportedSpecVersions)-1]; SpecVersion != want {
+		t.Errorf("SpecVersion %q is not the highest supported version %q", SpecVersion, want)
+	}
+}
+
 func TestDeclarationVersionsMatchTheCore(t *testing.T) {
 	current, supported, err := DeclarationVersions()
 	if err != nil {

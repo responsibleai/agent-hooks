@@ -12,8 +12,14 @@ import (
 	"time"
 )
 
-// SpecVersion is the spec version this module implements (§4.1 `spec` field).
+// SpecVersion is the spec version this module implements (§4.1 `spec`
+// field): the wire string every context it builds carries.
 const SpecVersion = "agent-hooks/0.1"
+
+// SupportedSpecVersions lists the specification versions whose contexts
+// this module accepts, oldest first; each names a spec/<MAJOR.MINOR>/
+// folder, and the last is the version of SpecVersion (VERSIONING.md).
+var SupportedSpecVersions = []string{"0.1"}
 
 // JCSSHA256 is the name of the default identity provider (§10.1, §10.2).
 const JCSSHA256 = "jcs-sha256"

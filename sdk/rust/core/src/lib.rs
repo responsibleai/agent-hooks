@@ -100,6 +100,6 @@ pub use types::{
     HostWarning, InterceptionPoint, InterceptionRecord, Interceptor, ManagedInterceptor,
     ManagedInterceptorOutcome, OnError, Transform, Verdict, VerdictSummary, Warning,
     DECLARATION_VERSION, EVIDENCE_MAX_BYTES, JCS_SHA256, SPEC_VERSION,
-    SUPPORTED_DECLARATION_VERSIONS,
+    SUPPORTED_DECLARATION_VERSIONS, SUPPORTED_SPEC_VERSIONS,
 };
 pub use verdict::from_wire as verdict_from_wire;

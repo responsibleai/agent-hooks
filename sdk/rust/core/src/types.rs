@@ -8,8 +8,14 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fmt;
 
-/// Spec version this crate implements (§4.1 `spec` field).
+/// Spec version this crate implements (§4.1 `spec` field): the wire
+/// string every context it builds carries.
 pub const SPEC_VERSION: &str = "agent-hooks/0.1";
+
+/// The specification versions whose contexts this crate accepts,
+/// oldest first; each names a `spec/<MAJOR.MINOR>/` folder, and the
+/// last is the version of [`SPEC_VERSION`] (VERSIONING.md).
+pub const SUPPORTED_SPEC_VERSIONS: &[&str] = &["0.1"];
 
 /// Name of the default identity provider (§10.1, §10.2).
 pub const JCS_SHA256: &str = "jcs-sha256";

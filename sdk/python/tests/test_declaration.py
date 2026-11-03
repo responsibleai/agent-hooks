@@ -22,6 +22,7 @@ from agent_hooks import (
     DECLARATION_VERSION,
     SPEC_VERSION,
     SUPPORTED_DECLARATION_VERSIONS,
+    SUPPORTED_SPEC_VERSIONS,
     ApprovalOutcome,
     ApprovalRequest,
     ApprovalResolution,
@@ -164,9 +165,12 @@ def test_constants_match_the_core() -> None:
     assert versions == {
         "current": DECLARATION_VERSION,
         "supported": list(SUPPORTED_DECLARATION_VERSIONS),
+        "spec": SPEC_VERSION,
+        "spec_supported": list(SUPPORTED_SPEC_VERSIONS),
     }
     assert DECLARATION_VERSION in SUPPORTED_DECLARATION_VERSIONS
     assert DECLARATION_VERSION != SPEC_VERSION
+    assert SPEC_VERSION == f"agent-hooks/{SUPPORTED_SPEC_VERSIONS[-1]}"
 
 
 def test_three_paths_produce_identical_records(tmp_path: pathlib.Path) -> None:
