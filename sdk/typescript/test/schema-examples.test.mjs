@@ -8,6 +8,8 @@ import { test } from "node:test";
 import {
   bundleSchemaRoot,
   bundles,
+  hasExamples,
+  schemaDirectory,
   schemaMapping,
   schemaRoot,
   validateExamples,
@@ -32,24 +34,38 @@ async function releasedBundles() {
   return (await bundles()).filter((name) => name !== "draft");
 }
 
+/** A flat-layout copy of the draft schemas: files at the root, per-point files under agent-context/. */
+async function flatFixture(t) {
+  const root = await mkdtemp(path.join(os.tmpdir(), "schema-examples-flat-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  for (const entry of await readdir(path.join(schemaRoot, "generated"), { withFileTypes: true })) {
+    if (entry.isFile()) await cp(path.join(schemaRoot, "generated", entry.name), path.join(root, entry.name));
+  }
+  await cp(path.join(schemaRoot, "generated/strict-contexts"), path.join(root, "agent-context"), { recursive: true });
+  await cp(path.join(schemaRoot, "examples"), path.join(root, "examples"), { recursive: true });
+  return root;
+}
+
 test("bundles lists the draft and every released version", async () => {
   const names = await bundles();
   assert.ok(names.includes("draft"));
   const released = names.filter((name) => name !== "draft");
   assert.ok(released.length > 0, "no released bundle under spec/");
-  for (const name of released) assert.match(name, /^\d+\.\d+\.\d+$/);
+  for (const name of released) assert.match(name, /^\d+\.\d+$/);
 });
 
 test("bundles rejects a symbolic link and a stray folder under spec/", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "schema-bundles-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(path.join(root, "draft"));
-  await mkdir(path.join(root, "0.1.0"));
+  await mkdir(path.join(root, "0.1"));
   await writeFile(path.join(root, "README.md"), "# versions\n");
-  assert.deepEqual(await bundles(root), ["0.1.0", "draft"]);
-  await mkdir(path.join(root, "0.1.0-beta"));
-  await assert.rejects(bundles(root), /not draft or a MAJOR\.MINOR\.PATCH version/);
-  await rm(path.join(root, "0.1.0-beta"), { recursive: true });
+  assert.deepEqual(await bundles(root), ["0.1", "draft"]);
+  for (const stray of ["0.1.0", "0.1-beta"]) {
+    await mkdir(path.join(root, stray));
+    await assert.rejects(bundles(root), /not draft or a MAJOR\.MINOR version/);
+    await rm(path.join(root, stray), { recursive: true });
+  }
   try {
     await symlink("draft", path.join(root, "0.2.0"));
   } catch (error) {
@@ -59,27 +75,44 @@ test("bundles rejects a symbolic link and a stray folder under spec/", async (t)
   await assert.rejects(bundles(root), /symbolic links are not allowed/);
 });
 
-test("every bundle's examples validate against its own schemas", async () => {
+test("every bundle with examples validates them against its own schemas", async () => {
+  let checked = 0;
   for (const name of await bundles()) {
-    assert.ok(await validateExamples(bundleSchemaRoot(name)) > 0, name);
+    const root = bundleSchemaRoot(name);
+    if (!(await hasExamples(root))) continue;
+    assert.ok(await validateExamples(root) > 0, name);
+    checked++;
   }
+  assert.ok(checked > 0, "no bundle with examples");
 });
 
-test("draft-only example additions and edits do not affect release validation", async (t) => {
-  const root = await fixture(t);
+test("a bundle without an examples folder is reported as such, not validated", async () => {
   const [release] = await releasedBundles();
-  const releaseRoot = bundleSchemaRoot(release);
+  assert.equal(await hasExamples(bundleSchemaRoot(release)), false, `${release} gained examples`);
+  assert.equal(await hasExamples(schemaRoot), true);
+});
+
+test("the flat schema layout validates the same examples", async (t) => {
+  const root = await flatFixture(t);
+  assert.equal(await schemaDirectory(root), root);
+  assert.equal(await schemaDirectory(schemaRoot), path.join(schemaRoot, "generated"));
+  assert.ok(await validateExamples(root) > 0);
+});
+
+test("edits to one bundle's examples do not affect another bundle", async (t) => {
+  const root = await fixture(t);
+  const other = await flatFixture(t);
   const draftExample = path.join(root, "examples/Verdict/allow.json");
-  const releaseExample = path.join(releaseRoot, "examples/Verdict/allow.json");
-  const releaseContents = await readFile(releaseExample);
+  const otherExample = path.join(other, "examples/Verdict/allow.json");
+  const otherContents = await readFile(otherExample);
   const draft = JSON.parse(await readFile(draftExample, "utf8"));
-  draft.message = "Updated draft-only example";
+  draft.message = "Updated in one bundle only";
   await writeFile(draftExample, JSON.stringify(draft));
   await write(root, "examples/Verdict/draft-only.json", { decision: "allow" });
 
   assert.ok(await validateExamples(root) > 0);
-  assert.ok(await validateExamples(releaseRoot) > 0);
-  assert.deepEqual(await readFile(releaseExample), releaseContents);
+  assert.ok(await validateExamples(other) > 0);
+  assert.deepEqual(await readFile(otherExample), otherContents);
 });
 
 test("invalid draft-only examples still fail validation", async (t) => {

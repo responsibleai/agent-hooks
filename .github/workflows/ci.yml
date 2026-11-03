@@ -26,11 +26,22 @@ jobs:
       - name: Validate schemas are well-formed
         run: |
           set -e
-          # Validate each specification bundle separately; versions share $id values.
+          # Validate each specification bundle separately. A bundle keeps
+          # its schemas under schema/generated/ (the draft) or flat under
+          # schema/ (0.1). The vector grammar references the draft's ids,
+          # so it joins the draft's set only.
+          validated=0
           for spec_dir in spec/*/; do
-            [ -d "${spec_dir}schema/generated" ] || continue
-            echo "Validating ${spec_dir}schema/generated"
-            schemas=("${spec_dir}"schema/generated/*.schema.json "${spec_dir}"schema/generated/strict-contexts/*.schema.json conformance/vectors.schema.json)
+            [ -d "${spec_dir}schema" ] || continue
+            root="${spec_dir}schema/generated"
+            [ -d "$root" ] || root="${spec_dir}schema"
+            mapfile -t schemas < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort)
+            if [ "${#schemas[@]}" -eq 0 ]; then
+              echo "::error::$root holds no *.schema.json files"
+              exit 1
+            fi
+            [ "$spec_dir" = "$SPEC_DEV_DIR/" ] && schemas+=(conformance/vectors.schema.json)
+            echo "Validating ${#schemas[@]} schemas under $root"
             for f in "${schemas[@]}"; do
               # -r must not include the file under -s (ajv rejects duplicate $id)
               refs=()
@@ -39,24 +50,45 @@ jobs:
               done
               ajv compile --spec=draft2020 -c ajv-formats -s "$f" "${refs[@]}"
             done
+            validated=$((validated + 1))
           done
+          if [ "$validated" -eq 0 ]; then
+            echo "::error::no spec/*/schema folder found; nothing validated"
+            exit 1
+          fi
+          echo "schemas validated for $validated bundle(s)"
       - name: Validate vectors against vectors.schema.json
+        # The vectors live once and track the draft: the grammar's $ref
+        # values name the draft schema ids, and the vectors use documents
+        # that 0.1 never defined (declaration 1.1, on_error). So they are
+        # validated against the draft (SPEC_DEV_DIR) and against every
+        # released bundle listed in RESOLVABLE_RELEASES, which is empty
+        # until a cut bundle carries the schemas the vectors reference.
+        # Any other released bundle is skipped and named below, never
+        # silently.
+        env:
+          RESOLVABLE_RELEASES: ""
         run: |
           set -e
-          # One run per specification bundle; versions share $id values.
           validated=0
           for spec_dir in spec/*/; do
-            [ -d "${spec_dir}schema/generated" ] || continue
-            echo "Validating conformance/vectors against ${spec_dir}schema/generated"
+            name=$(basename "$spec_dir")
+            root="${spec_dir}schema/generated"
+            [ -d "$root" ] || root="${spec_dir}schema"
+            [ -d "$root" ] || continue
+            if [ "$spec_dir" != "$SPEC_DEV_DIR/" ] && ! printf '%s\n' $RESOLVABLE_RELEASES | grep -qx "$name"; then
+              echo "skipping spec/$name: the vector grammar references the draft schema ids and schemas this bundle does not publish"
+              continue
+            fi
+            mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+            echo "Validating conformance/vectors against $root"
             ajv validate --spec=draft2020 -c ajv-formats \
-              -s conformance/vectors.schema.json \
-              -r "${spec_dir}schema/generated/*.schema.json" \
-              -r "${spec_dir}schema/generated/strict-contexts/*.schema.json" \
+              -s conformance/vectors.schema.json "${refs[@]}" \
               -d 'conformance/vectors/*.json'
             validated=$((validated + 1))
           done
           if [ "$validated" -eq 0 ]; then
-            echo "::error::no spec/*/schema/generated directory found; the vectors were validated against nothing"
+            echo "::error::the vectors were validated against no bundle"
             exit 1
           fi
           echo "vectors validated against $validated bundle(s)"
@@ -106,13 +138,14 @@ jobs:
         id: drift
         run: |
           set -u
-          semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
-          version=$(for dir in ../../spec/*/; do basename "$dir"; done | grep -E "$semver" | sort -V | tail -1)
+          version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          version=$(for dir in ../../spec/*/; do basename "$dir"; done | grep -E "$version_pattern" | sort -V | tail -1)
           if [ -z "$version" ]; then
-            echo "::error::no released spec/<MAJOR.MINOR.PATCH>/ folder to compare with the draft"
+            echo "::error::no released spec/<MAJOR.MINOR>/ folder to compare with the draft"
             exit 1
           fi
-          old="../../spec/$version/schema/generated"
+          # The tool reads schema/generated/ when a bundle has it, else schema/.
+          old="../../spec/$version/schema"
           new="../../spec/draft/schema/generated"
           validation="$RUNNER_TEMP/schema-drift-validation.txt"
           structure="$RUNNER_TEMP/schema-drift-structure.txt"
@@ -336,25 +369,31 @@ jobs:
         run: npm run check:schema
         working-directory: sdk/typescript
       - name: Released schema bundles match their TypeScript source
-        # The same check for every spec/<MAJOR.MINOR.PATCH>/ bundle: the
-        # frozen source must still generate the frozen output.
+        # The same check for every spec/<MAJOR.MINOR>/ bundle that carries
+        # schema source: the frozen source must still generate the frozen
+        # output. A bundle without schema/src/ (0.1 predates the source
+        # split) is frozen as committed and is named, not checked.
         run: |
           set -eu
-          semver='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
-          checked=0
+          version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          found=0
           for dir in ../../spec/*/; do
             version=$(basename "$dir")
-            [[ $version =~ $semver ]] || continue
+            [[ $version =~ $version_pattern ]] || continue
+            found=$((found + 1))
+            if [ ! -d "${dir}schema/src" ]; then
+              echo "spec/$version has no schema/src; its schemas are frozen as committed"
+              continue
+            fi
             echo "Checking spec/$version/schema"
             npx tsc -p "${dir}schema/src/tsconfig.json"
             npx tsx scripts/generate-schemas.mts --check --spec "$version"
-            checked=$((checked + 1))
           done
-          if [ "$checked" -eq 0 ]; then
-            echo "::error::no released spec/<MAJOR.MINOR.PATCH>/ folder found; nothing checked"
+          if [ "$found" -eq 0 ]; then
+            echo "::error::no released spec/<MAJOR.MINOR>/ folder found"
             exit 1
           fi
-          echo "checked $checked released bundle(s)"
+          echo "looked at $found released bundle(s)"
         working-directory: sdk/typescript
       - name: Source files carry the standard file header
         run: python3 scripts/check-file-headers.py

@@ -5,21 +5,24 @@
 //
 //   node scripts/check-schema-examples.mjs [<bundle> ...]
 //
-// A bundle is spec/draft or spec/<MAJOR.MINOR.PATCH>; with no argument
-// every bundle is checked. Each example sits at
+// A bundle is spec/draft or spec/<MAJOR.MINOR>; with no argument every
+// bundle is checked. Each example sits at
 // <bundle>/schema/examples/<Type>/<name>.json and is validated against the
-// schema `schemaMapping` names for <Type>, using only the schemas under
-// <bundle>/schema/generated (no fetching). Anything under examples/ that
-// is not a regular file or a directory, such as a symbolic link, fails.
+// schema `schemaMapping` names for <Type>, using only the bundle's own
+// schemas (under schema/generated/ when that folder exists, else flat
+// under schema/; no fetching). A bundle without an examples/ folder is
+// skipped and said so; 0.1 predates the examples. Anything under
+// examples/ that is not a regular file or a directory, such as a
+// symbolic link, fails.
 
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 
 export const specRoot = fileURLToPath(new URL("../../../spec/", import.meta.url));
-const VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
+const VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 
 export const schemaMapping = {
   AgentContext: "agent-context.schema.json",
@@ -51,7 +54,7 @@ export async function bundles(root = specRoot) {
     }
     if (!entry.isDirectory()) continue;
     if (entry.name !== "draft" && !VERSION.test(entry.name)) {
-      throw new Error(`${filename}: not draft or a MAJOR.MINOR.PATCH version`);
+      throw new Error(`${filename}: not draft or a MAJOR.MINOR version`);
     }
     names.push(entry.name);
   }
@@ -77,15 +80,37 @@ async function readJson(filename) {
   }
 }
 
+/** Whether a bundle's schema folder carries standalone examples. */
+export async function hasExamples(root) {
+  try {
+    return (await stat(path.join(root, "examples"))).isDirectory();
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+/** Where a bundle keeps its schemas: schema/generated/ when present, else schema/. */
+export async function schemaDirectory(root) {
+  const generated = path.join(root, "generated");
+  try {
+    if ((await stat(generated)).isDirectory()) return generated;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  return root;
+}
+
 export async function validateExamples(root = schemaRoot) {
   // Match schema-lint's Draft 2020-12 + ajv-formats behavior. The generated
   // schemas use union types and annotation keywords not covered by strict mode.
   // No loadSchema callback is supplied: missing refs fail, never fetch.
   const ajv = new Ajv2020({ strict: false, allErrors: true });
   addFormats(ajv);
-  const generated = path.join(root, "generated");
+  const generated = await schemaDirectory(root);
   const schemas = new Map();
   for (const filename of await jsonFiles(generated)) {
+    if (!filename.endsWith(".schema.json")) continue;
     const schema = await readJson(filename);
     if (!ajv.validateSchema(schema)) {
       throw new Error(`${filename}: invalid schema: ${ajv.errorsText()}`);
@@ -118,7 +143,11 @@ export async function validateExamples(root = schemaRoot) {
     const instance = await readJson(filename);
     validate(instance, filename, schemaMapping[parts[0]]);
     if (parts[0] === "AgentContext") {
-      validate(instance, filename, `strict-contexts/${instance.interception_point}.schema.json`);
+      // The per-point folder is strict-contexts/ in the generated layout
+      // and agent-context/ in the flat one.
+      const point = `${instance.interception_point}.schema.json`;
+      const folder = schemas.has(`strict-contexts/${point}`) ? "strict-contexts" : "agent-context";
+      validate(instance, filename, `${folder}/${point}`);
     }
     if (parts[0] === "Verdict" || parts[0] === "InterceptorResponse") {
       validate(instance, filename, "interceptor-response.schema.json");
@@ -135,8 +164,16 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       throw new Error(`Usage: node check-schema-examples.mjs [${known.join("|")}]...`);
     }
   }
+  let checked = 0;
   for (const name of selected) {
-    const count = await validateExamples(bundleSchemaRoot(name));
+    const root = bundleSchemaRoot(name);
+    if (!(await hasExamples(root))) {
+      console.log(`check-schema-examples: skipping ${name}, it has no schema/examples/ folder`);
+      continue;
+    }
+    const count = await validateExamples(root);
+    checked++;
     console.log(`check-schema-examples: validated ${count} JSON examples for ${name}`);
   }
+  if (checked === 0) throw new Error("no bundle with a schema/examples/ folder was checked");
 }
