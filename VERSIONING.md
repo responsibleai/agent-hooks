@@ -148,7 +148,7 @@ to the specification and contract versions they support.
 tag that touched the specification text, which is why 0.1 is that
 text. Add a row for every tag that changes the supported specification
 versions, the accepted declaration set or the current declaration
-version ([RELEASING.md](RELEASING.md), step 1).
+version ([RELEASING.md](RELEASING.md#release-the-sdks), step 1).
 `scripts/check-version-consistency.py` fails when no row here accepts
 the current `DECLARATION_VERSION` or when the row for the current SDK
 version lists other specification versions than the SDKs do.

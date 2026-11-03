@@ -89,7 +89,9 @@ bindings from a host declaration document (spec section 7.7) instead of
 calling the setters. The document is a versioned contract of its own,
 `agent-hooks-declaration/1.1`, separate from the wire version; the
 loader also accepts `1.0`, whose documents keep their meaning. The crate
-exports `DECLARATION_VERSION` and `SUPPORTED_DECLARATION_VERSIONS`.
+exports `DECLARATION_VERSION` and `SUPPORTED_DECLARATION_VERSIONS`,
+beside `SPEC_VERSION` and `SUPPORTED_SPEC_VERSIONS`, the specification
+versions whose contexts it accepts.
 Version 1.1 adds two optional members: `configuration.failure.on_error`
 (the document default, `deny` or `continue`) and `bindings[].on_error`
 (one binding's own posture). A document in which any binding resolves

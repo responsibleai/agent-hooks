@@ -3,10 +3,12 @@
 This is the draft specification's schema folder, and this file is the
 one to follow for editing, generating and checking schemas. Edit `src/`
 here; `npm run generate:schema` and `npm run check:schema` target this
-folder by default. A released bundle carries the copy of this file that
-stood at its release; those copies are historical and describe a frozen
-folder that is never edited. SDK development and the Python mirror
-read this folder; a release tag names the version it ships against.
+folder by default. A bundle cut from the draft keeps the copy of this
+file that stood at its cut; that copy describes a frozen folder and is
+never edited. 0.1 predates the source layout and has no copy. SDK
+development and the Python mirror read this folder; an SDK release
+names the specification versions it supports in
+`SUPPORTED_SPEC_VERSIONS` (VERSIONING.md).
 
 The TypeScript files in `src/` are the editable schema source.
 `generated/` contains the committed, normative JSON Schemas consumed by

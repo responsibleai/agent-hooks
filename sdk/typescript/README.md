@@ -77,8 +77,9 @@ setters. The document is a versioned contract,
 `agent-hooks-declaration/1.1` (1.0 documents load unchanged), separate
 from the wire version `agent-hooks/0.1`. The SDK exports the version
 it writes (`DECLARATION_VERSION`) and the set it accepts
-(`SUPPORTED_DECLARATION_VERSIONS`). A document of any other version is
-refused.
+(`SUPPORTED_DECLARATION_VERSIONS`), beside `SPEC_VERSION` and
+`SUPPORTED_SPEC_VERSIONS`, the specification versions whose contexts it
+accepts. A document of any other version is refused.
 
 ```ts
 import {

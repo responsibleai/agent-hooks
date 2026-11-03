@@ -23,7 +23,7 @@ Major 0 is reserved for the conformance kit and is never accepted.
 ## SDK releases and the versions they accept
 
 The table of SDK releases and the contract versions each accepts lives in
-[VERSIONING.md](../../VERSIONING.md#sdk-releases-and-the-declaration-versions-they-accept),
+[VERSIONING.md](../../VERSIONING.md#sdk-releases-and-the-versions-they-support),
 outside the bundles: a release row is added after the bundle it ships
 against was frozen.
 

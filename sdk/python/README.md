@@ -93,7 +93,9 @@ contract version, and `emitter.declaration` holds the resolved document whose
 `canonical_json()` is the equivalence oracle.
 
 `DECLARATION_VERSION` and `SUPPORTED_DECLARATION_VERSIONS` name the contract
-versions this SDK writes and accepts; they sit next to `SPEC_VERSION`.
+versions this SDK writes and accepts; they sit next to `SPEC_VERSION` and
+`SUPPORTED_SPEC_VERSIONS`, the specification versions whose contexts this
+SDK accepts.
 
 ## Interceptor usage
 

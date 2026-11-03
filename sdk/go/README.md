@@ -72,8 +72,10 @@ calling the setters. The document is a versioned contract of its own,
 `agent-hooks-declaration/1.1` (1.0 documents still load unchanged),
 separate from the wire version. The module exports
 `agenthooks.DeclarationVersion` and
-`agenthooks.SupportedDeclarationVersions`; `DeclarationVersions()`
-reads the same values from the Rust core.
+`agenthooks.SupportedDeclarationVersions`, beside `agenthooks.SpecVersion`
+and `agenthooks.SupportedSpecVersions`, the specification versions whose
+contexts it accepts; `DeclarationVersions()` reads the same values from
+the Rust core.
 
 The host registers in code what a document may reference: its surface,
 kind resolvers (one Go func per binding kind), custom identity

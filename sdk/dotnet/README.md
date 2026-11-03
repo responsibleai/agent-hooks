@@ -70,7 +70,9 @@ bindings from a host declaration document (spec §7.7) instead of
 calling the setters. The document is a versioned contract of its own,
 `agent-hooks-declaration/1.1` (`Declaration.Version`,
 `Declaration.SupportedVersions`, which also lists `1.0`), separate from
-the wire version `Spec.Version`. 1.1 adds two optional members,
+the wire version `Spec.Version`; `Spec.SupportedVersions` lists the
+specification versions whose contexts the SDK accepts. 1.1 adds two
+optional members,
 `configuration.failure.on_error` and `bindings[].on_error`
 (`DeclarationBuilder.FailureOnError`, `BindWith(.., new BindOptions(OnError: ..))`);
 a 1.0 document loads unchanged and keeps its own version on its records.
