@@ -7,7 +7,9 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -293,6 +295,77 @@ class SpecVersionsTest(unittest.TestCase):
         result, output = self.run_check(root)
         self.assertEqual(result, 1)
         self.assertIn("has no SDK release row for v0.1.0-beta.4", output)
+
+
+GIT_ENV = {
+    **os.environ,
+    "GIT_CONFIG_GLOBAL": os.devnull,
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_AUTHOR_NAME": "test",
+    "GIT_AUTHOR_EMAIL": "test@example.invalid",
+    "GIT_COMMITTER_NAME": "test",
+    "GIT_COMMITTER_EMAIL": "test@example.invalid",
+}
+
+
+class SpecTagsTest(unittest.TestCase):
+    """Every supported specification version carries the tag spec/<X.Y>
+    on an ancestor of HEAD."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root)
+        types = self.root / "sdk/rust/core/src/types.rs"
+        types.parent.mkdir(parents=True)
+        types.write_text(
+            RUST_TYPES.format(spec="0.1", supported='"0.1"'), encoding="utf-8"
+        )
+        self.git("init", "-q", "-b", "main")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "spec 0.1")
+
+    def git(self, *args):
+        return subprocess.run(
+            ["git", "-C", str(self.root), *args],
+            env=GIT_ENV,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    def run_check(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            result = check_version_consistency.check_spec_tags(self.root)
+        return result, output.getvalue()
+
+    def test_missing_tag_fails(self):
+        result, output = self.run_check()
+        self.assertEqual(result, 1)
+        self.assertIn("tag spec/0.1 does not exist", output)
+
+    def test_tag_on_the_history_passes(self):
+        self.git("tag", "spec/0.1")
+        (self.root / "later.txt").write_text("x\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "later")
+        result, output = self.run_check()
+        self.assertEqual(result, 0, output)
+        self.assertIn("tag spec/0.1 is on this history", output)
+
+    def test_tag_off_the_history_fails(self):
+        self.git("checkout", "-q", "--orphan", "elsewhere")
+        (self.root / "other.txt").write_text("x\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "elsewhere")
+        self.git("tag", "spec/0.1")
+        self.git("checkout", "-q", "main")
+        result, output = self.run_check()
+        self.assertEqual(result, 1)
+        self.assertIn("tag spec/0.1 is not an ancestor of HEAD", output)
+
+    def test_main_accepts_the_flag_only(self):
+        self.assertEqual(check_version_consistency.main(["--something"]), 2)
 
 
 if __name__ == "__main__":

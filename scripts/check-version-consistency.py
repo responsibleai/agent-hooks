@@ -28,6 +28,10 @@ It also checks the specification versions the SDKs support
 SUPPORTED_SPEC_VERSIONS, every supported version has a spec/<X.Y>/
 folder, none says DRAFT, SPEC_VERSION is the highest supported, and the
 VERSIONING.md row for the current SDK version lists the same versions.
+With --require-spec-tags, as the release workflow runs it, every
+supported version must also carry the tag spec/<X.Y> on an ancestor of
+HEAD, so an SDK tag cannot claim a specification version that was
+never released.
 Finally, sdk/typescript/package.json must not commit platform pins.
 """
 
@@ -36,6 +40,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -235,6 +240,64 @@ def check_spec_versions(root: Path = ROOT, sdk_version: str | None = None) -> in
     return 0
 
 
+def supported_spec_versions(root: Path = ROOT) -> tuple[str, ...]:
+    """The Rust core's SUPPORTED_SPEC_VERSIONS; check_spec_versions
+    proves the other cores agree."""
+    pattern = SPEC_CONSTANTS["sdk/rust/core/src/types.rs"][1]
+    match = re.search(
+        pattern, (root / "sdk/rust/core/src/types.rs").read_text(encoding="utf-8")
+    )
+    assert match, "no SUPPORTED_SPEC_VERSIONS in sdk/rust/core/src/types.rs"
+    return tuple(re.findall(r'"([^"]+)"', match.group(1)))
+
+
+def check_spec_tags(root: Path = ROOT) -> int:
+    """Every supported specification version carries the tag spec/<X.Y>
+    on an ancestor of HEAD (RELEASING.md): the tag marks the commit that
+    merged the frozen folder and is pushed before any SDK tag that
+    supports the version."""
+    for version in supported_spec_versions(root):
+        tag = f"spec/{version}"
+        resolved = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                f"refs/tags/{tag}^{{commit}}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if resolved.returncode != 0:
+            error(
+                f"tag {tag} does not exist; push it before tagging an SDK release that supports {version}"
+            )
+            return 1
+        ancestor = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "merge-base",
+                "--is-ancestor",
+                resolved.stdout.strip(),
+                "HEAD",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if ancestor.returncode != 0:
+            error(
+                f"tag {tag} is not an ancestor of HEAD; the SDK tag must contain the released {version} folder"
+            )
+            return 1
+        print(f"tag {tag} is on this history")
+    return 0
+
+
 def check_no_committed_platform_pins(
     package_path: Path = ROOT / "sdk/typescript/package.json",
 ) -> int:
@@ -251,12 +314,20 @@ def check_no_committed_platform_pins(
     return 0
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argv = [] if argv is None else argv
+    if argv not in ([], ["--require-spec-tags"]):
+        print(
+            "usage: check-version-consistency.py [--require-spec-tags]", file=sys.stderr
+        )
+        return 2
     if check_no_committed_platform_pins() != 0:
         return 1
     if check_declaration_versions() != 0:
         return 1
     if check_spec_versions() != 0:
+        return 1
+    if argv == ["--require-spec-tags"] and check_spec_tags() != 0:
         return 1
     versions = read_versions()
     normalized = {path: normalize(v) for path, v in versions.items()}
@@ -270,4 +341,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

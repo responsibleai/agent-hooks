@@ -149,7 +149,11 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    `spec/<X.Y>/` folder, when `SPEC_VERSION` is not the highest
    supported or says DRAFT, when no table row accepts the current
    declaration version, or when the row for the current SDK version
-   lists other specification versions than the cores do. That job
+   lists other specification versions than the cores do, and, with
+   `--require-spec-tags`, when a supported version has no `spec/<X.Y>`
+   tag on an ancestor of the tagged commit. So `spec/0.1` must be
+   pushed before the next SDK tag; it goes on the commit that merges
+   the 0.1 folder. That job
    also validates the conformance vectors. It runs them against the
    draft schemas, because the vector grammar references the draft's
    schema ids and the vectors use documents 0.1 never defined; once 0.2
