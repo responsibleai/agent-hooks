@@ -31,7 +31,7 @@
 //! Refusals are construction errors ([`DeclarationError`]), never
 //! verdicts: no emitter exists yet, so there is no record to carry a
 //! §11 reason. The eleven classes are inventoried in
-//! `spec/0.1.0/declaration-errors.json`.
+//! `spec/draft/declaration-errors.json`.
 //!
 //! Nothing in the pipeline drops, clears or defaults a member the
 //! document stated. Defaults fill absent members only, and a document
@@ -2903,7 +2903,7 @@ pub fn resolve(
 }
 
 /// Bring a document from an older accepted minor to `to` (§7.7.2),
-/// one explicit step per version (`spec/0.1.0/DECLARATION-VERSIONS.md`).
+/// one explicit step per version (`spec/draft/DECLARATION-VERSIONS.md`).
 ///
 /// - 1.0 to 1.1: the `declaration` member changes; nothing else. The
 ///   members 1.1 adds (`configuration.failure.on_error`,

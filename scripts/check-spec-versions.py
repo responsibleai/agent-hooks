@@ -18,8 +18,10 @@ file such as .gitattributes fail, so nothing in a bundle can point
 outside it or rewrite other files on checkout.
 
 The rest of the repository must not name a folder or file that is
-gone: a spec/<X.Y.Z> path, or an AGENT-HOOKS-<x>.md whose folder does
-not exist. Released folders are frozen and are not scanned.
+gone: a spec/<X.Y.Z> path, or an AGENT-HOOKS-<X.Y>.md whose folder does
+not exist. Released folders are frozen and are not scanned, and neither
+are the script tests under scripts/, whose fixtures name old layouts on
+purpose. A placeholder such as AGENT-HOOKS-<X.Y>.md is not a reference.
 
 Usage: check-spec-versions.py [<repository-root>]
 """
@@ -50,9 +52,9 @@ POINT_DIRS = ("strict-contexts", "agent-context")
 
 # References the rest of the repository must not make.
 OLD_LAYOUT = re.compile(r"\bspec/(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\b")
-SPEC_FILE = re.compile(r"AGENT-HOOKS-(?P<name>[A-Za-z0-9.]+)\.md")
+SPEC_FILE = re.compile(r"AGENT-HOOKS-(?P<name>[0-9][0-9.]*|DRAFT)\.md")
 SPEC_PATH = re.compile(
-    r"spec/(?P<folder>[^/\s`'\"()\[\]#<>]+)/AGENT-HOOKS-(?P<name>[A-Za-z0-9.]+)\.md"
+    r"spec/(?P<folder>[^/\s`'\"()\[\]#<>]+)/AGENT-HOOKS-(?P<name>[0-9][0-9.]*|DRAFT)\.md"
 )
 SCAN_SUFFIXES = {
     ".md",
@@ -214,6 +216,12 @@ def check_references(root: Path, released: set[str]) -> list[str]:
                 path.suffix not in SCAN_SUFFIXES
                 or path.is_symlink()
                 or not path.is_file()
+            ):
+                continue
+            if (
+                here == root / "scripts"
+                and name.startswith("test_")
+                and name.endswith(".py")
             ):
                 continue
             try:

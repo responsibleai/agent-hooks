@@ -3,8 +3,11 @@
 What a harness or gateway maintainer takes on to expose the contract.
 
 This guide is informative. The normative text is
-[spec/0.1.0/AGENT-HOOKS-0.1.md](../spec/0.1.0/AGENT-HOOKS-0.1.md); section numbers
-below point into it. Read it with
+[spec/0.1/AGENT-HOOKS-0.1.md](../spec/0.1/AGENT-HOOKS-0.1.md); section numbers
+below point into it. What 0.1 does not yet define, such as the failure
+posture `on_error` (§6.3.1) and the reserved warnings (§11.1), is in the
+working draft, [spec/draft/AGENT-HOOKS-DRAFT.md](../spec/draft/AGENT-HOOKS-DRAFT.md).
+Read it with
 [conformance/HARNESS.md](../conformance/HARNESS.md), which covers the
 test side in detail.
 
@@ -69,7 +72,7 @@ The document has its own version, `agent-hooks-declaration/1.1`
 (1.0 is still accepted), written in the required `declaration`
 member. It moves independently
 of the wire version and of package versions
-([spec/0.1.0/DECLARATION-VERSIONS.md](../spec/0.1.0/DECLARATION-VERSIONS.md)).
+([spec/draft/DECLARATION-VERSIONS.md](../spec/draft/DECLARATION-VERSIONS.md)).
 
 ### What the host does
 

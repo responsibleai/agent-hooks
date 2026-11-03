@@ -143,11 +143,11 @@ class DeclarationTablesTest(unittest.TestCase):
 
     def test_other_development_bundle(self):
         root = self.build(CONTRACT_ROW, RELEASE_ROW)
-        shutil.move(root / "spec/draft", root / "spec/0.2.0")
+        shutil.move(root / "spec/draft", root / "spec/0.2")
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
             result = check_version_consistency.check_declaration_versions(
-                root, "spec/0.2.0"
+                root, "spec/0.2"
             )
         self.assertEqual(result, 0, output.getvalue())
 

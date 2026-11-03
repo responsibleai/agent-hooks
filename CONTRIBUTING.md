@@ -23,16 +23,16 @@
   the schema source under `spec/draft/schema/src/`, then regenerate the
   JSON under `spec/draft/schema/generated/` (see [Schema source](#schema-source));
   the `drift` check regenerates the draft schemas and the vendored copies
-  and fails on any difference. Released folders such as `spec/0.1.0/`
+  and fails on any difference. Released folders such as `spec/0.1/`
   are immutable; see [spec/README.md](spec/README.md).
 - **SDK development tracks `spec/draft/`.** The machine consumers (the
   `drift` mirror copy, the Rust tests and
   `scripts/check-version-consistency.py`) read the draft, named once as
   `SPEC_DEV_DIR` in the workflows and in the Rust tests, so a breaking
   draft change has somewhere to be implemented; CI steps that check
-  schemas and vectors loop over every bundle. A release tag names the
-  specification version it ships against. Prose links cite the current
-  version folder, `spec/0.1.0/`.
+  schemas and vectors loop over every bundle. An SDK release names the
+  specification versions it supports. Prose links cite the released
+  text, `spec/0.1/`, and the draft for what 0.1 does not define.
 - **All five SDKs.** A contract change is not done until Rust core,
   Python, TypeScript, .NET, and Go agree; the Rust core is the single
   source of truth and the wrappers delegate to it.

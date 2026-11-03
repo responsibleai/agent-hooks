@@ -64,7 +64,7 @@ vectors (the host declaration document, spec §7.7) is MINOR.
 Released specification bundles live in `spec/<MAJOR.MINOR.PATCH>/`;
 ongoing work lives in `spec/draft/`. The folder name is the
 specification release version and has no pre-release suffix. It is not
-the wire version: `spec/0.1.0/` defines `agent-hooks/0.1`, and later
+the wire version: `spec/0.1/` defines `agent-hooks/0.1`, and later
 specification releases can keep the same wire version. Released folders
 are immutable; the `change-class` CI check fails pull requests that
 change a version folder that already exists on the base branch. The one
@@ -81,8 +81,8 @@ Rust tests and the version script read the draft (named once as
 `SPEC_DEV_DIR` in the workflows and in the Rust tests), and the CI
 schema and vector checks cover every bundle, so a breaking draft change
 has somewhere to be implemented. A release tag names the specification
-version it ships against. Prose links cite the current version folder,
-`spec/0.1.0/`.
+version it ships against. Prose links cite the released text,
+`spec/0.1/`, and the draft for what 0.1 does not define.
 
 ## Three independent axes
 
@@ -92,7 +92,7 @@ above), the host declaration contract version
 (the root tag). The Rust core exports `DECLARATION_VERSION` and
 `SUPPORTED_DECLARATION_VERSIONS` next to `SPEC_VERSION`; each other
 SDK exports the same two constants once it gains the loader.
-[spec/0.1.0/DECLARATION-VERSIONS.md](spec/0.1.0/DECLARATION-VERSIONS.md) maps
+[spec/draft/DECLARATION-VERSIONS.md](spec/draft/DECLARATION-VERSIONS.md) maps
 contract versions to schema files; the table below maps SDK releases
 to the contract versions they accept.
 

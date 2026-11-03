@@ -1,9 +1,10 @@
 # agent-hooks
 
-> Status: Beta. Spec: [AGENT-HOOKS-0.1](spec/0.1.0/AGENT-HOOKS-0.1.md), wire
-> version `agent-hooks/0.1`. Host declaration contract:
-> `agent-hooks-declaration/1.1` (1.0 still accepted)
-> ([version table](spec/0.1.0/DECLARATION-VERSIONS.md)).
+> Status: Beta. Spec: [AGENT-HOOKS-0.1](spec/0.1/AGENT-HOOKS-0.1.md), the
+> released specification, wire version `agent-hooks/0.1`; the working text
+> is the [draft](spec/draft/AGENT-HOOKS-DRAFT.md). Host declaration
+> contract: `agent-hooks-declaration/1.1` (1.0 still accepted)
+> ([version table](spec/draft/DECLARATION-VERSIONS.md)).
 
 Agent Hooks is the interception contract between an agent host and the
 controls that govern it. It fixes eight points in the agent loop, the
@@ -17,7 +18,7 @@ is trusted, interceptors run in-process with full data access, and the
 eight points do not promise complete mediation. It is a control plane,
 not a telemetry plane: every verdict binds the host, and passive
 observation is out of scope. See [SECURITY.md](SECURITY.md) and
-[spec §1.4](spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
+[spec §1.4](spec/0.1/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
 
 ## Points and verdicts
 
@@ -153,7 +154,7 @@ emitter = InterceptionEmitter.from_declaration_path("agent-hooks.declaration.jso
 A document that names a point, profile, capability, provider or kind
 the code cannot honour is refused at load, before any emission, with
 one of eleven `declaration_error:*` classes
-([`spec/0.1.0/declaration-errors.json`](spec/0.1.0/declaration-errors.json)).
+([`spec/draft/declaration-errors.json`](spec/draft/declaration-errors.json)).
 Nothing is narrowed or applied in part. A loader refuses a version it
 does not accept and names the versions it does. Once built, the emitter
 is sealed, and every record it writes carries the contract version.
@@ -228,17 +229,18 @@ accepted set: `SPEC_VERSION`, `DECLARATION_VERSION` and
 in Go; `Spec.Version`, `Declaration.Version` and
 `Declaration.SupportedVersions` in .NET. See
 [VERSIONING.md](VERSIONING.md) and
-[spec/0.1.0/DECLARATION-VERSIONS.md](spec/0.1.0/DECLARATION-VERSIONS.md).
+[spec/draft/DECLARATION-VERSIONS.md](spec/draft/DECLARATION-VERSIONS.md).
 
 ## Read next
 
-- [`spec/README.md`](spec/README.md): specification versions and the
-  draft. The current version folder, `spec/0.1.0/`, is a beta snapshot
-  (`0.1.0-beta`, not yet tagged as `v0.1.0`):
-  [`spec/0.1.0/AGENT-HOOKS-0.1.md`](spec/0.1.0/AGENT-HOOKS-0.1.md) is the
-  text and [`spec/0.1.0/schema/`](spec/0.1.0/schema/) separates the
-  TypeScript source from the normative JSON Schemas in
-  [`generated/`](spec/0.1.0/schema/generated/).
+- [`spec/README.md`](spec/README.md): specification versions. The
+  released specification is 0.1,
+  [`spec/0.1/AGENT-HOOKS-0.1.md`](spec/0.1/AGENT-HOOKS-0.1.md), the text
+  the SDKs shipped against at `v0.1.0-beta.3`. The draft,
+  [`spec/draft/AGENT-HOOKS-DRAFT.md`](spec/draft/AGENT-HOOKS-DRAFT.md), is
+  the working text; its [`schema/`](spec/draft/schema/) separates the
+  TypeScript source from the generated JSON Schemas in
+  [`generated/`](spec/draft/schema/generated/).
 - [`docs/IMPLEMENTING.md`](docs/IMPLEMENTING.md): what it means to
   implement Agent Hooks in a harness or gateway.
 - [`conformance/HARNESS.md`](conformance/HARNESS.md): how to write a

@@ -21,9 +21,8 @@ environment.
      `sdk/dotnet/test/AgentHooks.Tests/packages.lock.json`
    - install pins in `README.md` and the per-SDK READMEs
 
-   The `Version` line in `spec/draft/AGENT-HOOKS-0.1.md` carries the stage
-   (`0.1.0-alpha`, `0.1.0-beta`), not the tag, and changes only when
-   the stage changes.
+   The draft's header says Status Draft and Version DRAFT with the date
+   of its last change; no SDK tag edits it.
 
    When the release publishes a new specification version, cut the
    version folder first ([Cut a specification
@@ -97,8 +96,8 @@ new folder and `<previous>` the folder it supersedes.
    the new folder and reword it to `The latest released specification
    is [X.Y.Z](../X.Y.Z/AGENT-HOOKS-A.B.md).`
 4. In `spec/README.md`, add the row for `<X.Y.Z>` with the status
-   "Latest release" and change the `<previous>` row to "Superseded"
-   (it reads "Beta snapshot" while no tag exists). In `README.md`,
+   "Latest release" and change the `<previous>` row to "Superseded".
+   In `README.md`,
    point the "Read next" sentence at the new folder and drop the beta
    snapshot wording.
 5. Link sweep: prose links outside `spec/` cite the current version folder
@@ -147,17 +146,6 @@ new folder and `<previous>` the folder it supersedes.
    The new folder passes the released-folder guard because it did not
    exist on `main`; after the merge it is frozen, and only new regular
    `.json` files under its `schema/examples/<Type>/` may be added.
-
-### Tagging the beta snapshot as v0.1.0
-
-`spec/0.1.0/` exists as a frozen beta snapshot. When `v0.1.0` is tagged
-against it without a new cut, retire the three labels that state says:
-the `0.1.0` row in `spec/README.md` becomes "Latest release", the "Read
-next" sentence in `README.md` drops the not-yet-tagged wording, and the
-draft banner reads `The latest released specification is
-[0.1.0](../0.1.0/AGENT-HOOKS-0.1.md)`. The header line inside the
-frozen folder keeps `0.1.0-beta`, the stage its text was written at. A
-new cut changes the same three places through steps 3 and 4 above.
 
 ## Tag
 

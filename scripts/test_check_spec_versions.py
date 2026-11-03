@@ -229,6 +229,34 @@ class CheckTest(unittest.TestCase):
         )
         self.assertFalse(any("AGENT-HOOKS-DRAFT.md" in e for e in errors))
 
+    def test_placeholders_are_not_references_and_patch_names_are(self) -> None:
+        (self.root / "docs/how.md").write_text(
+            "Cut `spec/<X.Y>/AGENT-HOOKS-<X.Y>.md`, never AGENT-HOOKS-A.B.md, "
+            "and not AGENT-HOOKS-0.1.0.md either.\n",
+            encoding="utf-8",
+        )
+        errors = versions.check(self.root)
+        self.assertEqual(
+            errors,
+            [
+                "docs/how.md:1 names AGENT-HOOKS-0.1.0.md, but spec/0.1.0/ does not hold it"
+            ],
+        )
+
+    def test_script_tests_are_not_scanned(self) -> None:
+        (self.root / "scripts").mkdir()
+        (self.root / "scripts/test_fixture.py").write_text(
+            'OLD = "spec/0.1.0/AGENT-HOOKS-0.1.md"\n'
+        )
+        (self.root / "scripts/helper.py").write_text(
+            'OLD = "spec/0.1.0/AGENT-HOOKS-0.1.md"\n'
+        )
+        errors = versions.check(self.root)
+        self.assertEqual(len(errors), 2, errors)
+        self.assertTrue(
+            all(e.startswith("scripts/helper.py:1") for e in errors), errors
+        )
+
     def test_frozen_folders_and_build_output_are_not_scanned(self) -> None:
         (self.root / "spec/0.1/notes.md").write_text("spec/0.1.0 was the old name\n")
         (self.root / "node_modules").mkdir()
