@@ -1,9 +1,23 @@
 # Changelog
 
-User-visible changes to the spec and SDKs. Versioning rules:
-[VERSIONING.md](VERSIONING.md).
+User-visible changes, in two kinds of section: a specification
+version ("Specification X.Y", one per `spec/<X.Y>/` folder) and an SDK
+release (one per root tag). Versioning rules: [VERSIONING.md](VERSIONING.md).
 
 ## Unreleased
+
+- Windows x64 FFI/NuGet builds use a pinned nightly Rust compiler and rebuild
+  the standard library with strong stack protection. CI and release builds
+  require matching-PDB BinSkim BA2014 and CFG passes for the exact DLL.
+  Other SDK toolchains and non-Windows builds are unchanged.
+
+## Unreleased specification
+
+The draft, `spec/draft/AGENT-HOOKS-DRAFT.md`, holds these changes since
+0.1. They ship as specification 0.2 when it is cut; until then the
+draft keeps the wire string `agent-hooks/0.1`, the released version it
+is compatible with. The SDKs already implement them and still write
+`agent-hooks/0.1`.
 
 - Spec §7.7.4 (draft) states that `incremental_output` requires both
   model points and `model_calls`, not only `buffered_output: false`:
@@ -17,13 +31,6 @@ User-visible changes to the spec and SDKs. Versioning rules:
   draft host declaration example through the loader; it found two draft
   examples whose stated profile set did not admit the default
   `on_approval`, now fixed by stating the composition.
-- Windows x64 FFI/NuGet builds use a pinned nightly Rust compiler and rebuild
-  the standard library with strong stack protection. CI and release builds
-  require matching-PDB BinSkim BA2014 and CFG passes for the exact DLL.
-  Other SDK toolchains and non-Windows builds are unchanged.
-
-## 0.1.0-beta.4 — 2026-10-22 — tag `v0.1.0-beta.4`
-
 - Spec §6.3.1 adds one failure posture knob, `on_error`, with the
   values `deny` (the default) and `continue`. It covers the three
   interceptor failures of §6.3 (raise or panic, timeout, invalid
@@ -66,6 +73,18 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `host_warning:*` warning reasons; the §5 gate and
   `spec/schema/generated/verdict.schema.json` reject them as
   `host_error:verdict_invalid`.
+- Schema source and generated output: the draft's JSON Schemas are
+  generated from TypeScript under `spec/draft/schema/src/` into
+  `spec/draft/schema/generated/`, with the per-point context schemas in
+  `strict-contexts/`, and carry `$id` values under `schema/draft/`.
+  0.1 keeps its schemas flat under `spec/0.1/schema/` with `$id` values
+  under `schema/v0.1/`.
+- Standalone JSON examples for every schema under
+  `spec/draft/schema/examples/<Type>/`, validated against the draft's
+  own schemas in CI.
+
+## 0.1.0-beta.4 — 2026-10-22 — tag `v0.1.0-beta.4`
+
 - .NET SDK: additive public API for the posture: `OnError`,
   `BindOptions.OnError`, `BindingContext.OnError` with the previous
   constructors and `Deconstruct` kept as forwarding overloads,
@@ -89,6 +108,17 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `expect.host_messages_must_contain`, and `RunRecord.host_messages`;
   a vector document validates against the schema of the version it
   writes. Claims gain the `on_error: continue` disclosure. Additive.
+
+## Specification 0.1 — 2026-10-22
+
+- The first released specification: the text the SDKs shipped against
+  at the `v0.1.0-beta.3` tag, read into `spec/0.1/AGENT-HOOKS-0.1.md`
+  unchanged except for its header line, which says Released, version
+  `0.1`, 2026-10-22. Wire string `agent-hooks/0.1`; host declaration
+  contract `agent-hooks-declaration/1.0`; schemas flat under
+  `spec/0.1/schema/` with `$id` values under `schema/v0.1/`. The tag
+  `spec/0.1` marks the commit that merged the folder. The folder is
+  frozen; later changes are in the draft.
 
 ## 0.1.0-beta.3 — 2026-10-22 — tag `v0.1.0-beta.3`
 
