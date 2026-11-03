@@ -152,5 +152,136 @@ class DeclarationTablesTest(unittest.TestCase):
         self.assertEqual(result, 0, output.getvalue())
 
 
+RUST_TYPES = (
+    'pub const SPEC_VERSION: &str = "agent-hooks/{spec}";\n'
+    "pub const SUPPORTED_SPEC_VERSIONS: &[&str] = &[{supported}];\n"
+)
+TS_INDEX = (
+    'export const SPEC_VERSION = "agent-hooks/{spec}";\n'
+    "export const SUPPORTED_SPEC_VERSIONS: readonly string[] = Object.freeze([{supported}]);\n"
+)
+PY_TYPES = (
+    'SPEC_VERSION: Final[str] = "agent-hooks/{spec}"\n'
+    "SUPPORTED_SPEC_VERSIONS: Final[tuple[str, ...]] = ({supported},)\n"
+)
+CS_TYPES = (
+    "public static class Spec\n{{\n"
+    '    public const string Version = "agent-hooks/{spec}";\n'
+    "    public static readonly IReadOnlyList<string> SupportedVersions = [{supported}];\n}}\n"
+    'public static class Declaration\n{{\n    public const string Version = "agent-hooks-declaration/1.1";\n}}\n'
+)
+GO_TYPES = (
+    'const SpecVersion = "agent-hooks/{spec}"\n'
+    "var SupportedSpecVersions = []string{{{supported}}}\n"
+)
+CORES = {
+    "sdk/rust/core/src/types.rs": RUST_TYPES,
+    "sdk/typescript/src/index.ts": TS_INDEX,
+    "sdk/python/python/agent_hooks/_types.py": PY_TYPES,
+    "sdk/dotnet/src/AgentHooks/Types.cs": CS_TYPES,
+    "sdk/go/agenthooks/types.go": GO_TYPES,
+}
+
+
+class SpecVersionsTest(unittest.TestCase):
+    """The five cores name the same supported specification versions,
+    each with a folder, SPEC_VERSION the highest, and the VERSIONING.md
+    row for the SDK version agrees."""
+
+    def build(
+        self,
+        spec="0.1",
+        supported=("0.1",),
+        folders=("0.1",),
+        row="`0.1`",
+        overrides=None,
+    ):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root)
+        quoted = ", ".join(f'"{v}"' for v in supported)
+        for path, template in CORES.items():
+            text = (overrides or {}).get(path) or template.format(
+                spec=spec, supported=quoted
+            )
+            (root / path).parent.mkdir(parents=True, exist_ok=True)
+            (root / path).write_text(text, encoding="utf-8")
+        for folder in folders:
+            (root / "spec" / folder).mkdir(parents=True)
+        (root / "VERSIONING.md").write_text(
+            "| SDK release | Spec | Accepts | Current |\n| --- | --- | --- | --- |\n"
+            f"| `v0.1.0-beta.4` | {row} | `agent-hooks-declaration/1.1` | `agent-hooks-declaration/1.1` |\n",
+            encoding="utf-8",
+        )
+        return root
+
+    def run_check(self, root):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            result = check_version_consistency.check_spec_versions(root, "0.1.0-beta.4")
+        return result, output.getvalue()
+
+    def test_agreeing_cores_pass(self):
+        result, output = self.run_check(self.build())
+        self.assertEqual(result, 0, output)
+        self.assertIn(
+            "specification versions agree: agent-hooks/0.1, supported 0.1", output
+        )
+
+    def test_two_supported_versions_pass_when_spec_version_is_the_highest(self):
+        root = self.build(
+            spec="0.2",
+            supported=("0.1", "0.2"),
+            folders=("0.1", "0.2"),
+            row="`0.1`, `0.2`",
+        )
+        self.assertEqual(self.run_check(root)[0], 0)
+
+    def test_disagreeing_core_fails(self):
+        overrides = {
+            "sdk/go/agenthooks/types.go": GO_TYPES.format(
+                spec="0.1", supported='"0.1", "0.2"'
+            )
+        }
+        result, output = self.run_check(self.build(overrides=overrides))
+        self.assertEqual(result, 1)
+        self.assertIn("the SDKs disagree", output)
+        self.assertIn("sdk/go/agenthooks/types.go", output)
+
+    def test_draft_and_missing_folder_fail(self):
+        result, output = self.run_check(
+            self.build(supported=("0.1", "DRAFT"), row="`0.1`, `DRAFT`")
+        )
+        self.assertEqual(result, 1)
+        self.assertIn("names DRAFT, not a MAJOR.MINOR version", output)
+        result, output = self.run_check(
+            self.build(spec="0.2", supported=("0.1", "0.2"), row="`0.1`, `0.2`")
+        )
+        self.assertEqual(result, 1)
+        self.assertIn("spec/0.2/ does not exist", output)
+
+    def test_spec_version_must_be_the_highest_supported(self):
+        root = self.build(
+            spec="0.1",
+            supported=("0.1", "0.2"),
+            folders=("0.1", "0.2"),
+            row="`0.1`, `0.2`",
+        )
+        result, output = self.run_check(root)
+        self.assertEqual(result, 1)
+        self.assertIn("must be agent-hooks/0.2", output)
+
+    def test_versioning_row_must_match(self):
+        result, output = self.run_check(self.build(row="`0.1`, `0.2`"))
+        self.assertEqual(result, 1)
+        self.assertIn(
+            "VERSIONING.md row for v0.1.0-beta.4 lists specification versions", output
+        )
+        root = self.build()
+        (root / "VERSIONING.md").write_text("| none |\n", encoding="utf-8")
+        result, output = self.run_check(root)
+        self.assertEqual(result, 1)
+        self.assertIn("has no SDK release row for v0.1.0-beta.4", output)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

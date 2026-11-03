@@ -22,6 +22,12 @@ DECLARATION-VERSIONS.md, some row of the SDK release table in
 VERSIONING.md must accept it, and the bundle must carry its schema.
 The development bundle is spec/draft unless the SPEC_DEV_DIR
 environment variable names another folder, as the CI workflows do.
+
+It also checks the specification versions the SDKs support
+(VERSIONING.md): the five cores carry the same SPEC_VERSION and
+SUPPORTED_SPEC_VERSIONS, every supported version has a spec/<X.Y>/
+folder, none says DRAFT, SPEC_VERSION is the highest supported, and the
+VERSIONING.md row for the current SDK version lists the same versions.
 Finally, sdk/typescript/package.json must not commit platform pins.
 """
 
@@ -37,6 +43,31 @@ ROOT = Path(__file__).resolve().parent.parent
 # The specification bundle SDK development tracks (VERSIONING.md). The
 # CI workflows export the same name.
 SPEC_DEV_DIR = os.environ.get("SPEC_DEV_DIR", "spec/draft")
+VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+# Where each core states the wire string it writes and the
+# specification versions it accepts.
+SPEC_CONSTANTS = {
+    "sdk/rust/core/src/types.rs": (
+        r'pub const SPEC_VERSION: &str = "([^"]+)"',
+        r"pub const SUPPORTED_SPEC_VERSIONS: &\[&str\] = &\[([^\]]*)\]",
+    ),
+    "sdk/typescript/src/index.ts": (
+        r'export const SPEC_VERSION = "([^"]+)"',
+        r"export const SUPPORTED_SPEC_VERSIONS: readonly string\[\] = Object\.freeze\(\[([^\]]*)\]\)",
+    ),
+    "sdk/python/python/agent_hooks/_types.py": (
+        r'SPEC_VERSION: Final\[str\] = "([^"]+)"',
+        r"SUPPORTED_SPEC_VERSIONS: Final\[tuple\[str, \.\.\.\]\] = \(([^)]*)\)",
+    ),
+    "sdk/dotnet/src/AgentHooks/Types.cs": (
+        r'public const string Version = "(agent-hooks/[^"]+)"',
+        r"public static readonly IReadOnlyList<string> SupportedVersions = \[([^\]]*)\];",
+    ),
+    "sdk/go/agenthooks/types.go": (
+        r'const SpecVersion = "([^"]+)"',
+        r"var SupportedSpecVersions = \[\]string\{([^}]*)\}",
+    ),
+}
 
 
 def normalize(version: str) -> str:
@@ -50,21 +81,21 @@ def normalize(version: str) -> str:
     return v
 
 
-def read_versions() -> dict[str, str]:
-    cargo = (ROOT / "sdk/rust/Cargo.toml").read_text(encoding="utf-8")
+def read_versions(root: Path = ROOT) -> dict[str, str]:
+    cargo = (root / "sdk/rust/Cargo.toml").read_text(encoding="utf-8")
     m = re.search(r'^version\s*=\s*"([^"]+)"', cargo, re.M)
     assert m, "no workspace version in sdk/rust/Cargo.toml"
     versions = {"sdk/rust/Cargo.toml": m.group(1)}
 
-    py = (ROOT / "sdk/python/pyproject.toml").read_text(encoding="utf-8")
+    py = (root / "sdk/python/pyproject.toml").read_text(encoding="utf-8")
     m = re.search(r'^version\s*=\s*"([^"]+)"', py, re.M)
     assert m, "no version in sdk/python/pyproject.toml"
     versions["sdk/python/pyproject.toml"] = m.group(1)
 
-    pkg = json.loads((ROOT / "sdk/typescript/package.json").read_text(encoding="utf-8"))
+    pkg = json.loads((root / "sdk/typescript/package.json").read_text(encoding="utf-8"))
     versions["sdk/typescript/package.json"] = pkg["version"]
 
-    props = (ROOT / "sdk/dotnet/Directory.Build.props").read_text(encoding="utf-8")
+    props = (root / "sdk/dotnet/Directory.Build.props").read_text(encoding="utf-8")
     m = re.search(r"<Version>([^<]+)</Version>", props)
     assert m, "no <Version> in sdk/dotnet/Directory.Build.props"
     versions["sdk/dotnet/Directory.Build.props"] = m.group(1)
@@ -124,6 +155,81 @@ def check_declaration_versions(
     return 0
 
 
+def check_spec_versions(root: Path = ROOT, sdk_version: str | None = None) -> int:
+    """The specification versions the SDKs support (VERSIONING.md): the
+    five cores agree, every supported version has a spec/<X.Y>/ folder,
+    none says DRAFT, SPEC_VERSION is the highest supported, and the
+    VERSIONING.md row for the current SDK version lists the same
+    versions. `sdk_version` defaults to the Rust manifest's version."""
+    constants: dict[str, tuple[str, tuple[str, ...]]] = {}
+    for path, (version_pattern, supported_pattern) in SPEC_CONSTANTS.items():
+        text = (root / path).read_text(encoding="utf-8")
+        version = re.search(version_pattern, text)
+        supported = re.search(supported_pattern, text)
+        assert version and supported, (
+            f"no SPEC_VERSION or SUPPORTED_SPEC_VERSIONS in {path}"
+        )
+        constants[path] = (
+            version.group(1),
+            tuple(re.findall(r'"([^"]+)"', supported.group(1))),
+        )
+    if len(set(constants.values())) != 1:
+        print("::error::the SDKs disagree on SPEC_VERSION or SUPPORTED_SPEC_VERSIONS:")
+        for path, (version, supported) in constants.items():
+            print(f"  {path}: {version}, supported {list(supported)}")
+        return 1
+    ((spec_version, supported),) = set(constants.values())
+    if not supported:
+        print("::error::SUPPORTED_SPEC_VERSIONS is empty")
+        return 1
+    for version in supported:
+        if not VERSION.fullmatch(version):
+            print(
+                f"::error::SUPPORTED_SPEC_VERSIONS names {version}, not a MAJOR.MINOR version"
+            )
+            return 1
+        if not (root / "spec" / version).is_dir():
+            print(
+                f"::error::SUPPORTED_SPEC_VERSIONS names {version}, but spec/{version}/ does not exist"
+            )
+            return 1
+    highest = max(supported, key=lambda v: tuple(int(x) for x in v.split(".")))
+    if spec_version != f"agent-hooks/{highest}":
+        print(
+            f"::error::SPEC_VERSION is {spec_version}; the highest supported version "
+            f"is {highest}, so it must be agent-hooks/{highest}"
+        )
+        return 1
+    if sdk_version is None:
+        sdk_version = read_versions(root)["sdk/rust/Cargo.toml"]
+    tag = f"v{sdk_version}"
+    row = next(
+        (
+            line
+            for line in (root / "VERSIONING.md")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if re.match(rf"^\|\s*`{re.escape(tag)}`", line)
+        ),
+        None,
+    )
+    if row is None:
+        print(f"::error::VERSIONING.md has no SDK release row for {tag}")
+        return 1
+    cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
+    listed = tuple(re.findall(r"`([^`]+)`", cells[1])) if len(cells) > 1 else ()
+    if listed != supported:
+        print(
+            f"::error::VERSIONING.md row for {tag} lists specification versions "
+            f"{list(listed)}; the SDKs support {list(supported)}"
+        )
+        return 1
+    print(
+        f"specification versions agree: {spec_version}, supported {', '.join(supported)}"
+    )
+    return 0
+
+
 def check_no_committed_platform_pins(
     package_path: Path = ROOT / "sdk/typescript/package.json",
 ) -> int:
@@ -144,6 +250,8 @@ def main() -> int:
     if check_no_committed_platform_pins() != 0:
         return 1
     if check_declaration_versions() != 0:
+        return 1
+    if check_spec_versions() != 0:
         return 1
     versions = read_versions()
     normalized = {path: normalize(v) for path, v in versions.items()}
