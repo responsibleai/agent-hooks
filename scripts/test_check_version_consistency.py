@@ -270,6 +270,18 @@ class SpecVersionsTest(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertIn("must be agent-hooks/0.2", output)
 
+    def test_error_lines_are_encoded(self):
+        # The same line break in every core, so the check reaches the
+        # version-shape rule and must print the value on one line.
+        injected = "0.1\n::error::injected"
+        root = self.build(supported=(injected,), row="`0.1`")
+        result, output = self.run_check(root)
+        self.assertEqual(result, 1)
+        self.assertIn(
+            "names 0.1%0A::error::injected, not a MAJOR.MINOR version", output
+        )
+        self.assertNotIn("\n::error::injected", output)
+
     def test_versioning_row_must_match(self):
         result, output = self.run_check(self.build(row="`0.1`, `0.2`"))
         self.assertEqual(result, 1)

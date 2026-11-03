@@ -3,8 +3,8 @@
 
 """Fail when the SDK version surfaces disagree (VERSIONING.md).
 
-One tag releases the spec and all SDKs together, so the four version
-manifests MUST carry the same version at all times:
+One tag releases all SDKs together, so the four version manifests
+MUST carry the same version at all times:
 
   sdk/rust/Cargo.toml            [workspace.package] version  (SemVer)
   sdk/python/pyproject.toml      [project] version            (PEP 440)
@@ -70,6 +70,15 @@ SPEC_CONSTANTS = {
 }
 
 
+def escape_data(value: str) -> str:
+    """Encode a workflow command message (percent, CR and LF)."""
+    return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
+def error(message: str) -> None:
+    print(f"::error::{escape_data(message)}")
+
+
 def normalize(version: str) -> str:
     """Map a SemVer or PEP 440 pre-release to one canonical spelling."""
     v = version.strip().lower()
@@ -119,7 +128,7 @@ def check_declaration_versions(
     )
     assert m, "no SUPPORTED_DECLARATION_VERSIONS in sdk/rust/core/src/types.rs"
     if "DECLARATION_VERSION" not in m.group(1) and f'"{current}"' not in m.group(1):
-        print(f"::error::SUPPORTED_DECLARATION_VERSIONS does not list {current}")
+        error(f"SUPPORTED_DECLARATION_VERSIONS does not list {current}")
         return 1
     contract_table = f"{spec_dev_dir}/DECLARATION-VERSIONS.md"
     release_table = "VERSIONING.md"
@@ -132,13 +141,13 @@ def check_declaration_versions(
         ]
 
     if not any("current" in r for r in rows(contract_table)):
-        print(f"::error::{contract_table} has no current row for {current}")
+        error(f"{contract_table} has no current row for {current}")
         return 1
     # An SDK release row starts with a backticked tag such as
     # `v0.1.0-beta.2`; the contract-version table never does.
     release_row = re.compile(r"^\|\s*`v\d+\.\d+\.\d+[^`]*`")
     if not any(release_row.match(r) for r in rows(release_table)):
-        print(f"::error::{release_table} has no SDK release row accepting {current}")
+        error(f"{release_table} has no SDK release row accepting {current}")
         return 1
     schema = (
         root
@@ -147,9 +156,7 @@ def check_declaration_versions(
         / f"host-declaration-{current.split('/')[1]}.schema.json"
     )
     if not schema.exists():
-        print(
-            f"::error::{schema.relative_to(root).as_posix()} is missing for {current}"
-        )
+        error(f"{schema.relative_to(root).as_posix()} is missing for {current}")
         return 1
     print(f"declaration contract version agrees: {current}")
     return 0
@@ -174,29 +181,27 @@ def check_spec_versions(root: Path = ROOT, sdk_version: str | None = None) -> in
             tuple(re.findall(r'"([^"]+)"', supported.group(1))),
         )
     if len(set(constants.values())) != 1:
-        print("::error::the SDKs disagree on SPEC_VERSION or SUPPORTED_SPEC_VERSIONS:")
+        error("the SDKs disagree on SPEC_VERSION or SUPPORTED_SPEC_VERSIONS:")
         for path, (version, supported) in constants.items():
-            print(f"  {path}: {version}, supported {list(supported)}")
+            print(f"  {path}: {escape_data(version)}, supported {list(supported)}")
         return 1
     ((spec_version, supported),) = set(constants.values())
     if not supported:
-        print("::error::SUPPORTED_SPEC_VERSIONS is empty")
+        error("SUPPORTED_SPEC_VERSIONS is empty")
         return 1
     for version in supported:
         if not VERSION.fullmatch(version):
-            print(
-                f"::error::SUPPORTED_SPEC_VERSIONS names {version}, not a MAJOR.MINOR version"
-            )
+            error(f"SUPPORTED_SPEC_VERSIONS names {version}, not a MAJOR.MINOR version")
             return 1
         if not (root / "spec" / version).is_dir():
-            print(
-                f"::error::SUPPORTED_SPEC_VERSIONS names {version}, but spec/{version}/ does not exist"
+            error(
+                f"SUPPORTED_SPEC_VERSIONS names {version}, but spec/{version}/ does not exist"
             )
             return 1
     highest = max(supported, key=lambda v: tuple(int(x) for x in v.split(".")))
     if spec_version != f"agent-hooks/{highest}":
-        print(
-            f"::error::SPEC_VERSION is {spec_version}; the highest supported version "
+        error(
+            f"SPEC_VERSION is {spec_version}; the highest supported version "
             f"is {highest}, so it must be agent-hooks/{highest}"
         )
         return 1
@@ -214,13 +219,13 @@ def check_spec_versions(root: Path = ROOT, sdk_version: str | None = None) -> in
         None,
     )
     if row is None:
-        print(f"::error::VERSIONING.md has no SDK release row for {tag}")
+        error(f"VERSIONING.md has no SDK release row for {tag}")
         return 1
     cells = [cell.strip() for cell in row.strip().strip("|").split("|")]
     listed = tuple(re.findall(r"`([^`]+)`", cells[1])) if len(cells) > 1 else ()
     if listed != supported:
-        print(
-            f"::error::VERSIONING.md row for {tag} lists specification versions "
+        error(
+            f"VERSIONING.md row for {tag} lists specification versions "
             f"{list(listed)}; the SDKs support {list(supported)}"
         )
         return 1
@@ -258,7 +263,7 @@ def main() -> int:
     if len(set(normalized.values())) == 1:
         print(f"version surfaces agree: {next(iter(normalized.values()))}")
         return 0
-    print("::error::SDK version surfaces disagree (VERSIONING.md):")
+    error("SDK version surfaces disagree (VERSIONING.md):")
     for path, raw in versions.items():
         print(f"  {path}: {raw} (normalized {normalized[path]})")
     return 1
