@@ -62,6 +62,11 @@ and review window.
   old one `Superseded by P-<PR>` and states what survives (see
   P-001/P-002 for the pattern).
 
+Two more words say where a proposal's text stands: a proposal is **in
+draft** once its change has merged into `spec/draft/`, and **released
+in X.Y** once a specification version containing it has been cut
+([RELEASING.md](../../RELEASING.md#release-a-specification-version)).
+
 ## Decision authority and review window
 
 Decision authority rests with the maintainers listed in
