@@ -13,8 +13,9 @@
       "$ref": "#/$defs/ToolCall"
     },
     "spec": {
-      "pattern": "^agent-hooks/\\d+\\.\\d+$",
-      "type": "string"
+      "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+      "type": "string",
+      "const": "agent-hooks/draft"
     },
     "timestamp": {
       "format": "date-time",

@@ -2,9 +2,10 @@
 
 > **Draft:** This is the working text for the next specification version.
 > It is not a released specification. The latest released version is
-> [0.1](../0.1/AGENT-HOOKS-0.1.md). The wire string `agent-hooks/0.1` in
-> this text is the last released one; the first breaking change to land
-> here moves it to the version the next cut will be named.
+> [0.1](../0.1/AGENT-HOOKS-0.1.md). The draft is the version `draft`,
+> wire string `agent-hooks/draft`. It changes without notice and is never
+> claimed. A cut copies it to a numbered version and the numbered copy
+> gets its own wire string.
 
 > **Status:** Draft · **Version:** `DRAFT` · **Date:** 2026-11-03
 > **Editors:** Responsible AI / Agent Governance Toolkit
@@ -232,7 +233,7 @@ per-point closed schemas at `spec/draft/schema/generated/strict-contexts/<interc
 
 ```jsonc
 {
-  "spec": "agent-hooks/0.1",
+  "spec": "agent-hooks/draft",
   "interception_point": "<one of §3>",
   "timestamp": "2026-06-19T14:03:11.123Z",
   "sequence": 0,
@@ -244,7 +245,7 @@ per-point closed schemas at `spec/draft/schema/generated/strict-contexts/<interc
 
 | Field | Type | Constraint |
 | --- | --- | --- |
-| `spec` | string | MUST match `^agent-hooks/\d+\.\d+$`. Identifies the spec version the host targets. |
+| `spec` | string | MUST be `agent-hooks/draft`, this version's wire string. A released version's contexts carry its own, `agent-hooks/<major>.<minor>`; a host validates each context by the version it names. |
 | `interception_point` | string | MUST be one of the eight values in §3. |
 | `timestamp` | string | RFC 3339 UTC instant at which the host constructed the context. |
 | `sequence` | integer ≥ 0 | MUST be strictly increasing within `session.id`. Starts at 0 on `agent_startup`. |
@@ -1074,8 +1075,14 @@ neither means the same under both versions. A 1.0 loader refuses a
 rules below require; a 1.1 loader accepts a 1.0 document unchanged
 and refuses `on_error` under a 1.0 version string as
 `declaration_error:unknown_field`, because the 1.0 schema is closed.
-Major 0 is reserved for the conformance kit; no loader accepts it, so
-a vector can name it and get the same refusal on every host.
+The accepted set is the specification version's: 0.1 defines 1.0
+alone, this version defines both. A document names its specification
+version in `spec` (§7.7.3); a 1.1 document therefore says
+`agent-hooks/draft`, and a loader that supports several versions
+refuses a 1.1 document written for 0.1 with
+`declaration_error:version_unsupported`. Major 0 is reserved for the
+conformance kit; no loader accepts it, so a vector can name it and
+get the same refusal on every host.
 
 A **minor** change adds an OPTIONAL member, adds an enum value whose
 absence keeps the earlier meaning, adds a refusal class that fires only
@@ -1136,7 +1143,7 @@ order carries no meaning are sets; `bindings` is an ordered list.
 | --- | --- | --- | --- |
 | `$schema` | string | no | absent; ignored by the loader |
 | `declaration` | `agent-hooks-declaration/<major>.<minor>` | yes | none |
-| `spec` | `agent-hooks/<major>.<minor>` | no | the loader's `SPEC_VERSION` |
+| `spec` | `agent-hooks/draft` for this version, `agent-hooks/<major>.<minor>` for a released one | no | the loader's `SPEC_VERSION`, the newest released version it supports |
 | `id` | `^[a-z0-9][a-z0-9._-]{0,63}$` | no | absent; an operator label for logs |
 | `host` | `{name, version?}` | no | absent; informative, never checked |
 | `configuration` | object, below | no | all defaults |
@@ -1320,7 +1327,7 @@ so a given document yields one refusal class on every SDK:
 | 1 | Read (path only): regular file, at most 1 MiB, strict UTF-8, no byte-order mark | `unreadable` |
 | 2 | Parse: one JSON object, no duplicate keys, depth at most 32, at most 1 MiB of text | `malformed` |
 | 3 | `declaration` present and in the accepted set | `version_unsupported` |
-| 4 | `spec`, when present, has the loader's major and a minor no greater than the loader's | `spec_unsupported` |
+| 4 | `spec`, when present, names a specification version the loader supports | `spec_unsupported` |
 | 5 | No unknown member at any closed level | `unknown_field` |
 | 6 | Types, enums, patterns, ranges, required-iff rules | `invalid_field` |
 | 7 | Internal consistency (§7.7.3, §7.7.4, §7.7.5): the floor and pairs, knobs under the consulting profile, the composition inside a stated `surface.profiles`, `incremental_output` with `buffered_output: false` and with `model_calls`, the own version in `declaration_versions`, `at` within the surface, unique binding ids | `inconsistent` |
@@ -1348,7 +1355,7 @@ closed namespace, `declaration_error:<class>`, with eleven classes:
 | `declaration_error:unreadable` | not a regular file, over 1 MiB, not strict UTF-8, byte-order mark, I/O error |
 | `declaration_error:malformed` | not JSON, root not an object, duplicate key, depth over 32, text over 1 MiB, non-finite number from the value path |
 | `declaration_error:version_unsupported` | `declaration` missing, not a string, or not in the accepted set |
-| `declaration_error:spec_unsupported` | `spec` present with another major, a higher minor than the loader's, or a malformed value |
+| `declaration_error:spec_unsupported` | `spec` present and naming no specification version the loader supports, or a malformed value |
 | `declaration_error:unknown_field` | an unknown member at any closed level |
 | `declaration_error:invalid_field` | wrong type, enum, pattern, range, a required-iff rule, or an integer token outside the I-JSON safe range anywhere in the document |
 | `declaration_error:inconsistent` | a step 7 rule |

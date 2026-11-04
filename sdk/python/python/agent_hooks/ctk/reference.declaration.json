@@ -1,7 +1,7 @@
 {
   "$schema": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration-1.1.schema.json",
   "declaration": "agent-hooks-declaration/1.1",
-  "spec": "agent-hooks/0.1",
+  "spec": "agent-hooks/draft",
   "id": "reference-agent",
   "host": { "name": "reference-agent", "version": "0.1.0" },
   "configuration": {

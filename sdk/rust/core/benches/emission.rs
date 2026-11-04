@@ -49,6 +49,7 @@ fn bench_compose(c: &mut Criterion) {
             |b, (comp, verd)| {
                 b.iter(|| {
                     agent_hooks::ffi_surface::compose_aggregate(
+                        agent_hooks::SPEC_VERSION_DRAFT,
                         std::hint::black_box(comp),
                         std::hint::black_box(verd),
                     )

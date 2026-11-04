@@ -48,13 +48,13 @@ pub fn context_identity(ctx_json: String) -> Result<String> {
 }
 
 #[napi]
-pub fn validate_verdict(verdict_json: String) -> Result<String> {
-    core::validate_verdict(&verdict_json).map_err(map_err)
+pub fn validate_verdict(spec: String, verdict_json: String) -> Result<String> {
+    core::validate_verdict(&spec, &verdict_json).map_err(map_err)
 }
 
 #[napi]
-pub fn normalize_interceptor_response(response_json: String) -> Result<String> {
-    core::normalize_interceptor_response(&response_json).map_err(map_err)
+pub fn normalize_interceptor_response(spec: String, response_json: String) -> Result<String> {
+    core::normalize_interceptor_response(&spec, &response_json).map_err(map_err)
 }
 
 /// §4/§6.3: envelope validation (fail closed, value-free detail).
@@ -93,8 +93,12 @@ pub fn finalize(
 }
 
 #[napi]
-pub fn compose_aggregate(composition_json: String, verdicts_json: String) -> Result<String> {
-    core::compose_aggregate(&composition_json, &verdicts_json).map_err(map_err)
+pub fn compose_aggregate(
+    spec: String,
+    composition_json: String,
+    verdicts_json: String,
+) -> Result<String> {
+    core::compose_aggregate(&spec, &composition_json, &verdicts_json).map_err(map_err)
 }
 
 /// §6.3 `on_error: continue`: the substituted allow, its
@@ -110,8 +114,8 @@ pub fn control_failure_substitute(request_json: String) -> Result<String> {
 /// emitter maps it: `{verdict, failure: null | {reason, detail,
 /// continuable}}`. `continuable` is false for a cancelled outcome.
 #[napi]
-pub fn managed_outcome(outcome_json: String) -> Result<String> {
-    core::managed_outcome(&outcome_json).map_err(map_err)
+pub fn managed_outcome(spec: String, outcome_json: String) -> Result<String> {
+    core::managed_outcome(&spec, &outcome_json).map_err(map_err)
 }
 
 // ---- host declaration (§7.7) ----------------------------------------------

@@ -42,8 +42,9 @@
           "$ref": "#/$defs/AgentInit"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -473,8 +474,9 @@
           "$ref": "#/$defs/Input"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -665,8 +667,9 @@
           }
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -849,8 +852,9 @@
           "$ref": "#/$defs/Response"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -1032,8 +1036,9 @@
           "$ref": "#/$defs/ToolCall"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -1221,8 +1226,9 @@
           "$ref": "#/$defs/ToolResult"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -1404,8 +1410,9 @@
           "$ref": "#/$defs/Output"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -1590,8 +1597,9 @@
           "$ref": "#/$defs/Summary"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",

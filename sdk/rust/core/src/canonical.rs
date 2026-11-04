@@ -324,19 +324,14 @@ pub fn validate_envelope(ctx: &AgentContext) -> Result<(), (HostError, String)> 
             format!("$.{path}: missing or not {want} (see spec §4)"),
         ))
     }
-    let spec_ok = ctx.get("spec").and_then(Value::as_str).is_some_and(|v| {
-        v.strip_prefix("agent-hooks/").is_some_and(|ver| {
-            let mut it = ver.splitn(2, '.');
-            let major = it.next().unwrap_or("");
-            let minor = it.next().unwrap_or("");
-            !major.is_empty()
-                && !minor.is_empty()
-                && major.bytes().all(|b| b.is_ascii_digit())
-                && minor.bytes().all(|b| b.is_ascii_digit())
-        })
-    });
-    if !spec_ok {
-        return err("spec", "an agent-hooks/<maj>.<min> string");
+    // The member names the specification version whose rules the
+    // emission runs under; a version this build does not support is
+    // refused here, before any rule is chosen.
+    if crate::types::SpecVersion::of_context(ctx).is_none() {
+        return err(
+            "spec",
+            "a supported wire string (agent-hooks/0.1 or agent-hooks/draft)",
+        );
     }
     let ip = interception_point_str(ctx)?;
     if ctx.get("timestamp").and_then(Value::as_str).is_none() {
@@ -447,6 +442,34 @@ mod tests {
         .as_object()
         .unwrap()
         .clone()
+    }
+
+    #[test]
+    fn envelope_accepts_each_supported_version_and_nothing_else() {
+        let mut c = ctx(json!({}));
+        for spec in crate::types::SpecVersion::ALL {
+            c.insert("spec".into(), json!(spec.wire()));
+            assert!(validate_envelope(&c).is_ok(), "{spec}");
+        }
+        for bad in [
+            json!("agent-hooks/0.2"),
+            json!("agent-hooks/0.0"),
+            json!("agent-hooks/DRAFT"),
+            json!("agent-hooks/draft "),
+            json!("0.1"),
+            json!(1),
+            Value::Null,
+        ] {
+            c.insert("spec".into(), bad.clone());
+            let (e, detail) = validate_envelope(&c).unwrap_err();
+            assert_eq!(e, HostError::ContextInvalid, "{bad}");
+            assert!(detail.starts_with("$.spec:"), "{detail}");
+        }
+        c.remove("spec");
+        assert_eq!(
+            validate_envelope(&c).unwrap_err().0,
+            HostError::ContextInvalid
+        );
     }
 
     #[test]

@@ -1,27 +1,24 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-//! Shared by the integration tests: the specification bundle SDK
-//! development tracks (VERSIONING.md). The unit tests in
-//! `src/declaration.rs` carry the same constant, and the CI workflows
-//! export it as `SPEC_DEV_DIR`; the three agree by convention.
+//! Shared by the integration tests: the specification bundles this
+//! build supports, one per [`SpecVersion`] (VERSIONING.md). A test
+//! that reads an inventory or a schema runs once per bundle.
 
 #![allow(dead_code)]
 
+use agent_hooks::SpecVersion;
 use std::path::{Path, PathBuf};
 
-/// Repository-relative path of the development specification bundle.
-pub const SPEC_DEV_DIR: &str = "spec/draft";
-
-/// Absolute path of a file in the development bundle.
-pub fn spec_path(name: &str) -> PathBuf {
+/// Absolute path of a file in the bundle of `spec`.
+pub fn spec_path(spec: SpecVersion, name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../..")
-        .join(SPEC_DEV_DIR)
+        .join(spec.bundle_dir())
         .join(name)
 }
 
-/// A file of the development bundle, read at test time.
-pub fn spec_file(name: &str) -> String {
-    let path = spec_path(name);
+/// A file of the bundle of `spec`, read at test time.
+pub fn spec_file(spec: SpecVersion, name: &str) -> String {
+    let path = spec_path(spec, name);
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }

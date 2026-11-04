@@ -129,8 +129,11 @@ export enum ActorKind {
  * interception_point and makes that point's payload required.
  */
 interface ContextBase {
-  /** @pattern ^agent-hooks/\d+\.\d+$ */
-  spec: string;
+  /**
+   * This version's wire string (§4.1). A released version's contexts
+   * carry that version's own string, agent-hooks/<major>.<minor>.
+   */
+  spec: "agent-hooks/draft";
   interception_point: InterceptionPoint;
   /** @format date-time */
   timestamp: string;

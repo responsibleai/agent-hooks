@@ -8,7 +8,7 @@
 //! data is added by inserting into the returned map before emitting, or
 //! session-wide via [`AgentContextBuilder::with_optional`].
 
-use crate::types::{AgentContext, InterceptionPoint, SPEC_VERSION};
+use crate::types::{AgentContext, InterceptionPoint, SpecVersion};
 use serde_json::{json, Map, Value};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -53,6 +53,7 @@ pub struct AgentContextBuilder {
     seq: u64,
     optional: Map<String, Value>,
     now: TimestampFn,
+    spec: SpecVersion,
 }
 
 impl AgentContextBuilder {
@@ -68,7 +69,23 @@ impl AgentContextBuilder {
             seq: 0,
             optional: Map::new(),
             now: Box::new(rfc3339_now),
+            spec: SpecVersion::DEFAULT,
         }
+    }
+
+    /// The specification version every subsequent context names in
+    /// `spec` (§4.1). The default is [`SpecVersion::DEFAULT`], the
+    /// newest released version; a host that follows the draft selects
+    /// [`SpecVersion::Draft`] here and runs its emitter under the same
+    /// version.
+    pub fn with_spec(mut self, spec: SpecVersion) -> Self {
+        self.spec = spec;
+        self
+    }
+
+    /// The specification version this builder stamps.
+    pub fn spec(&self) -> SpecVersion {
+        self.spec
     }
 
     /// Replace the timestamp provider (e.g. for deterministic tests).
@@ -89,7 +106,7 @@ impl AgentContextBuilder {
 
     fn envelope(&mut self, ip: InterceptionPoint, target: Value) -> AgentContext {
         let mut ctx = Map::new();
-        ctx.insert("spec".into(), json!(SPEC_VERSION));
+        ctx.insert("spec".into(), json!(self.spec.wire()));
         ctx.insert("interception_point".into(), json!(ip.as_str()));
         ctx.insert("timestamp".into(), json!((self.now)()));
         ctx.insert("sequence".into(), json!(self.seq));
@@ -220,5 +237,21 @@ mod tests {
             assert!(c1.contains_key(k), "missing {k}");
         }
         assert_eq!(c1["input"]["role"], "user");
+    }
+
+    #[test]
+    fn spec_defaults_to_the_released_version_and_can_select_the_draft() {
+        let mut b = AgentContextBuilder::new("a", "test", "s");
+        assert_eq!(b.spec(), SpecVersion::DEFAULT);
+        assert_eq!(
+            b.input(serde_json::json!("hi"), "user")["spec"],
+            crate::SPEC_VERSION
+        );
+        let mut d = AgentContextBuilder::new("a", "test", "s").with_spec(SpecVersion::Draft);
+        assert_eq!(d.spec(), SpecVersion::Draft);
+        assert_eq!(
+            d.output(serde_json::json!("x"))["spec"],
+            crate::SPEC_VERSION_DRAFT
+        );
     }
 }

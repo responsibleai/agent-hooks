@@ -163,26 +163,34 @@ pub unsafe extern "C" fn ah_context_identity(ctx_json: *const c_char) -> *mut Ah
     guarded(move || core::context_identity(a?).map_err(core_err))
 }
 
-/// §5
+/// §5, under the specification version `spec` names (the context's
+/// wire string, `agent-hooks/0.1` or `agent-hooks/draft`).
 ///
 /// # Safety
-/// `verdict_json` must be null or a valid NUL-terminated C string.
+/// Both pointers must be null or valid NUL-terminated C strings.
 #[no_mangle]
-pub unsafe extern "C" fn ah_validate_verdict(verdict_json: *const c_char) -> *mut AhResult {
+pub unsafe extern "C" fn ah_validate_verdict(
+    spec: *const c_char,
+    verdict_json: *const c_char,
+) -> *mut AhResult {
+    let s = from_c(spec, "spec");
     let a = from_c(verdict_json, "verdict_json");
-    guarded(move || core::validate_verdict(a?).map_err(core_err))
+    guarded(move || core::validate_verdict(s?, a?).map_err(core_err))
 }
 
-/// §5.5 hosted/cross-process response normalization.
+/// §5.5 hosted/cross-process response normalization, under the
+/// specification version `spec` names.
 ///
 /// # Safety
-/// `response_json` must be null or a valid NUL-terminated C string.
+/// Both pointers must be null or valid NUL-terminated C strings.
 #[no_mangle]
 pub unsafe extern "C" fn ah_normalize_interceptor_response(
+    spec: *const c_char,
     response_json: *const c_char,
 ) -> *mut AhResult {
+    let s = from_c(spec, "spec");
     let a = from_c(response_json, "response_json");
-    guarded(move || core::normalize_interceptor_response(a?).map_err(core_err))
+    guarded(move || core::normalize_interceptor_response(s?, a?).map_err(core_err))
 }
 
 /// §4/§6.3: envelope validation. Ok(empty string) on a valid envelope;
@@ -265,18 +273,21 @@ pub unsafe extern "C" fn ah_finalize(
 }
 
 /// §7.3/§7.5 aggregation for multi-verdict profiles (see
-/// `ffi_surface::compose_aggregate`).
+/// `ffi_surface::compose_aggregate`), with the §5 gate under the
+/// specification version `spec` names.
 ///
 /// # Safety
 /// All pointers must be null or valid NUL-terminated C strings.
 #[no_mangle]
 pub unsafe extern "C" fn ah_compose_aggregate(
+    spec: *const c_char,
     composition_json: *const c_char,
     verdicts_json: *const c_char,
 ) -> *mut AhResult {
+    let s = from_c(spec, "spec");
     let a = from_c(composition_json, "composition_json");
     let b = from_c(verdicts_json, "verdicts_json");
-    guarded(move || core::compose_aggregate(a?, b?).map_err(core_err))
+    guarded(move || core::compose_aggregate(s?, a?, b?).map_err(core_err))
 }
 
 /// §6.3 `on_error: continue`: the substituted allow, its
@@ -305,9 +316,13 @@ pub unsafe extern "C" fn ah_control_failure_substitute(
 /// # Safety
 /// `outcome_json` must be null or a valid NUL-terminated C string.
 #[no_mangle]
-pub unsafe extern "C" fn ah_managed_outcome(outcome_json: *const c_char) -> *mut AhResult {
+pub unsafe extern "C" fn ah_managed_outcome(
+    spec: *const c_char,
+    outcome_json: *const c_char,
+) -> *mut AhResult {
+    let s = from_c(spec, "spec");
     let a = from_c(outcome_json, "outcome_json");
-    guarded(move || core::managed_outcome(a?).map_err(core_err))
+    guarded(move || core::managed_outcome(s?, a?).map_err(core_err))
 }
 
 // ---- CTK engine (§13.2) ----------------------------------------------------
@@ -506,7 +521,7 @@ mod tests {
             let v = CStr::from_ptr((*r).value).to_str().unwrap();
             assert_eq!(
                 v,
-                r#"{"current":"agent-hooks-declaration/1.1","spec":"agent-hooks/0.1","spec_supported":["0.1"],"supported":["agent-hooks-declaration/1.0","agent-hooks-declaration/1.1"]}"#
+                r#"{"by_spec":{"0.1":{"current":"agent-hooks-declaration/1.0","supported":["agent-hooks-declaration/1.0"]},"draft":{"current":"agent-hooks-declaration/1.1","supported":["agent-hooks-declaration/1.0","agent-hooks-declaration/1.1"]}},"current":"agent-hooks-declaration/1.1","spec":"agent-hooks/0.1","spec_supported":["0.1","draft"],"supported":["agent-hooks-declaration/1.0","agent-hooks-declaration/1.1"]}"#
             );
             ah_free_result(r);
         }
@@ -517,7 +532,7 @@ mod tests {
         unsafe {
             // A 1.1 document with the new members resolves; the
             // resolved form spells the posture out per binding.
-            let doc = r#"{"declaration": "agent-hooks-declaration/1.1",
+            let doc = r#"{"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft",
                           "configuration": {"failure": {"on_error": "continue"}},
                           "bindings": [{"id": "allow", "kind": "com.example.allow", "on_error": "deny"},
                                        {"id": "soft", "kind": "com.example.allow"}]}"#;
@@ -601,11 +616,19 @@ mod tests {
             );
             assert_eq!(ok, 0);
             assert_eq!(code, "host_error:context_invalid");
-            let (ok, value, _) = call1(ah_managed_outcome, br#"{"outcome": "cancelled"}"#);
+            let (ok, value, _) = call2(
+                ah_managed_outcome,
+                "agent-hooks/draft",
+                r#"{"outcome": "cancelled"}"#,
+            );
             assert_eq!(ok, 1);
             assert!(value.contains("\"continuable\":false"), "{value}");
             assert!(value.contains("host_error:interceptor_failed"), "{value}");
-            let (ok, value, _) = call1(ah_managed_outcome, br#"{"outcome": "timeout"}"#);
+            let (ok, value, _) = call2(
+                ah_managed_outcome,
+                "agent-hooks/draft",
+                r#"{"outcome": "timeout"}"#,
+            );
             assert_eq!(ok, 1);
             assert!(value.contains("\"continuable\":true"), "{value}");
             assert!(value.contains("host_error:interceptor_timeout"), "{value}");
@@ -626,7 +649,18 @@ mod tests {
                 "{value}"
             );
 
+            // A document that says nothing about its specification
+            // version is a 0.1 document, which defines contract 1.0
+            // alone; under the draft both versions are accepted.
             let bad = r#"{"declaration": "agent-hooks-declaration/0.1", "bindings": []}"#;
+            let (ok, detail, code) = call2(ah_declaration_resolve, bad, HOST);
+            assert_eq!(ok, 0);
+            assert_eq!(code, "declaration_error:version_unsupported");
+            assert!(
+                detail.contains("\"accepted\":[\"agent-hooks-declaration/1.0\"]"),
+                "{detail}"
+            );
+            let bad = r#"{"declaration": "agent-hooks-declaration/0.1", "spec": "agent-hooks/draft", "bindings": []}"#;
             let (ok, detail, code) = call2(ah_declaration_resolve, bad, HOST);
             assert_eq!(ok, 0);
             assert_eq!(code, "declaration_error:version_unsupported");
@@ -705,12 +739,31 @@ mod tests {
             let (ok, value, _) = call1(ah_canonical_json, br#"{"b":1,"a":2}"#);
             assert_eq!(ok, 1);
             assert_eq!(value, r#"{"a":2,"b":1}"#);
-            let (ok, value, _) = call1(
+            let (ok, value, _) = call2(
                 ah_normalize_interceptor_response,
-                br#"{"decision":"allow"}"#,
+                "agent-hooks/0.1",
+                r#"{"decision":"allow"}"#,
             );
             assert_eq!(ok, 1);
             assert_eq!(value, r#"{"verdict":{"decision":"allow"}}"#);
+        }
+    }
+
+    #[test]
+    fn gates_take_the_specification_version() {
+        unsafe {
+            // The same interceptor warning is a 0.1 verdict and a draft
+            // refusal (§11.1); a string that names no version is a
+            // wrapper defect, not a verdict refusal.
+            let warning = r#"{"decision":"allow","warnings":[{"reason":"host_warning:x"}]}"#;
+            let (ok, _, _) = call2(ah_validate_verdict, "agent-hooks/0.1", warning);
+            assert_eq!(ok, 1);
+            let (ok, _, code) = call2(ah_validate_verdict, "agent-hooks/draft", warning);
+            assert_eq!(ok, 0);
+            assert_eq!(code, "host_error:verdict_invalid");
+            let (ok, _, code) = call2(ah_validate_verdict, "agent-hooks/0.2", warning);
+            assert_eq!(ok, 0);
+            assert_eq!(code, "marshal_error");
         }
     }
 }

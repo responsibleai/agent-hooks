@@ -82,7 +82,7 @@ proptest! {
     /// accepts a host_error-prefixed reason.
     #[test]
     fn verdict_gate_never_panics(v in arb_json()) {
-        if let Ok(verdict) = agent_hooks::verdict_from_wire(&v) {
+        if let Ok(verdict) = agent_hooks::verdict_from_wire(&v, agent_hooks::SpecVersion::Draft) {
             prop_assert!(!verdict
                 .reason
                 .as_deref()
@@ -125,8 +125,10 @@ proptest! {
     fn ffi_string_surface_never_panics(s in "\\PC{0,128}") {
         let _ = ffi_surface::canonical_json(&s);
         let _ = ffi_surface::context_identity(&s);
-        let _ = ffi_surface::validate_verdict(&s);
-        let _ = ffi_surface::normalize_interceptor_response(&s);
+        let _ = ffi_surface::validate_verdict(&s, &s);
+        let _ = ffi_surface::validate_verdict(agent_hooks::SPEC_VERSION, &s);
+        let _ = ffi_surface::normalize_interceptor_response(&s, &s);
+        let _ = ffi_surface::normalize_interceptor_response(agent_hooks::SPEC_VERSION, &s);
     }
 
     /// Differential: the CTK engine's dotted-path lookup agrees with
@@ -158,6 +160,7 @@ fn arb_unknown_key() -> impl Strategy<Value = String> {
 fn minimal_declaration() -> serde_json::Value {
     serde_json::json!({
         "declaration": agent_hooks::DECLARATION_VERSION,
+        "spec": agent_hooks::SPEC_VERSION_DRAFT,
         "host": { "name": "h" },
         "configuration": {
             "composition": { "profile": "sequential/first_deny" },

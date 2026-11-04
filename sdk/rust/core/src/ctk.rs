@@ -28,6 +28,7 @@ use crate::types::{
     InterceptionPoint, Interceptor, ManagedInterceptor, ManagedInterceptorOutcome, Verdict,
 };
 use crate::AgentContextBuilder;
+use crate::SpecVersion;
 pub use async_trait::async_trait;
 use serde_json::{json, Map, Value};
 use std::path::Path;
@@ -103,6 +104,9 @@ impl ScriptedInterceptor {
                 .push(ctx_value.clone());
         }
         let wire = scripted_intercept(&self.rules, &ctx_value);
+        // The script's verdict is read under the context's own version,
+        // the same rules the emitter's §5 gate applies to it.
+        let spec = SpecVersion::of_context(context).unwrap_or_default();
         match wire.get("__ctk_fault__").and_then(Value::as_str) {
             // §7 isolation fault (TM-05): the trait takes &AgentContext,
             // so in-place mutation is statically impossible in Rust —
@@ -112,6 +116,7 @@ impl ScriptedInterceptor {
             Some("mutate") => Scripted::Verdict(Box::new(
                 crate::verdict_from_wire(
                     &serde_json::json!({"decision": "allow", "reason": "ctk:mutated"}),
+                    spec,
                 )
                 .expect("static allow shape"),
             )),
@@ -122,7 +127,7 @@ impl ScriptedInterceptor {
             // A §5-malformed shape fails the emitter's gate and yields
             // host_error:verdict_invalid (fail closed either way).
             None => Scripted::Verdict(Box::new(
-                crate::verdict_from_wire(&wire).unwrap_or_else(|_| invalid_verdict()),
+                crate::verdict_from_wire(&wire, spec).unwrap_or_else(|_| invalid_verdict()),
             )),
         }
     }
@@ -219,9 +224,10 @@ impl ApprovalResolver for ScriptedResolver {
             Some("reject") => crate::ApprovalOutcome::Reject,
             _ => crate::ApprovalOutcome::Unresolved,
         };
+        let spec = SpecVersion::of_context(request.context).unwrap_or_default();
         let verdict = out
             .get("verdict")
-            .map(|v| crate::verdict_from_wire(v).expect("malformed approval_script verdict"));
+            .map(|v| crate::verdict_from_wire(v, spec).expect("malformed approval_script verdict"));
         let echoed = out["context_identity"].as_str().unwrap_or_default();
         ApprovalResolution {
             outcome,
@@ -1063,12 +1069,19 @@ impl ReferenceHarness {
             .expect("host messages poisoned")
             .clear();
         self.session_counter += 1;
+        // The harness builds its contexts under the version the
+        // emitter runs: the vector document's `spec`, or the reference
+        // document's for a field-based vector.
+        let spec = emitter.spec().unwrap_or_default();
         self.emitter = Some(emitter);
-        self.builder = Some(AgentContextBuilder::new(
-            "ref-agent",
-            "reference-agent",
-            &format!("sess-{}", self.session_counter),
-        ));
+        self.builder = Some(
+            AgentContextBuilder::new(
+                "ref-agent",
+                "reference-agent",
+                &format!("sess-{}", self.session_counter),
+            )
+            .with_spec(spec),
+        );
     }
 
     fn invoke_tool(&self, name: &str, args: &Value) -> (Value, bool) {

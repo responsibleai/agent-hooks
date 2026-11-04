@@ -36,10 +36,10 @@ AhResult *ah_context_identity(const char *ctx_json);
 /* Section 4/6.3: envelope validation (fail closed, value-free detail).
  * Ok value is the empty string. */
 AhResult *ah_validate_envelope(const char *ctx_json);
-AhResult *ah_validate_verdict(const char *verdict_json);
+AhResult *ah_validate_verdict(const char *spec, const char *verdict_json);
 /* Section 5.5: accepts a bare Verdict or InterceptorResponse and returns
  * the normalized envelope form. */
-AhResult *ah_normalize_interceptor_response(const char *response_json);
+AhResult *ah_normalize_interceptor_response(const char *spec, const char *response_json);
 AhResult *ah_apply_transform(const char *target_json, const char *path,
                              const char *value_json);
 AhResult *ah_apply_transform_ctx(const char *ctx_json, const char *path,
@@ -61,7 +61,8 @@ AhResult *ah_finalize(const char *ctx_json, const char *verdict_json,
  * substituted allow (decision allow, one warning with reason
  * host_warning:control_failed, nothing else); the wrapper attaches
  * substituted_for to the returned summaries positionally. */
-AhResult *ah_compose_aggregate(const char *composition_json,
+AhResult *ah_compose_aggregate(const char *spec,
+                               const char *composition_json,
                                const char *verdicts_json);
 
 /* Failure posture on_error: continue (spec section 6.3).
@@ -87,7 +88,7 @@ AhResult *ah_compose_aggregate(const char *composition_json,
  * continuable is false for cancelled; a wrapper MUST NOT substitute an
  * allow for it. A verdict outcome crosses the section 5 gate. */
 AhResult *ah_control_failure_substitute(const char *request_json);
-AhResult *ah_managed_outcome(const char *outcome_json);
+AhResult *ah_managed_outcome(const char *spec, const char *outcome_json);
 
 /* Host declaration document (spec section 7.7).
  * ah_declaration_versions: {"current": "...", "supported": [...]}.
