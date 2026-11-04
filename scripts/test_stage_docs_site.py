@@ -127,7 +127,7 @@ class StageTest(unittest.TestCase):
             "exactly one specification text, AGENT-HOOKS-0.2.md", str(raised.exception)
         )
 
-    def test_schemas_from_both_layouts_land_at_their_id_paths(self) -> None:
+    def test_schemas_from_any_layout_land_at_their_id_paths(self) -> None:
         stage.stage(self.root)
         self.assertEqual(
             json.loads(self.read("schema/v0.1/agent-context.schema.json"))["title"],

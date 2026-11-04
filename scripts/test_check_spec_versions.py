@@ -44,12 +44,16 @@ def bundle(root: Path, name: str, layout: str) -> Path:
     text = versions.expected_text(folder)
     status, version = ("Draft", "DRAFT") if name == "draft" else ("Released", name)
     (folder / text).write_text(header(status, version), encoding="utf-8")
-    for relative in versions.REQUIRED_FILES:
+    for relative in (
+        "DECLARATION-VERSIONS.md",
+        "declaration-errors.json",
+        "reserved-reasons.json",
+    ):
         (folder / relative).write_text(
             "{}\n" if relative.endswith(".json") else "# x\n"
         )
     base = ID_ORIGIN + ("draft/" if name == "draft" else f"v{name}/")
-    for schema in versions.REQUIRED_SCHEMAS:
+    for schema in ("agent-context.schema.json", "verdict.schema.json"):
         (schemas / schema).write_text(
             f'{{"$id": "{base}{schema}"}}\n', encoding="utf-8"
         )
@@ -137,16 +141,31 @@ class CheckTest(unittest.TestCase):
             versions.check(self.root),
         )
 
-    def test_both_schema_layouts_pass_and_empty_schema_folders_fail(self) -> None:
+    def test_any_schema_layout_passes_and_an_empty_schema_folder_fails(self) -> None:
         bundle(self.root, "0.2", "generated")
         (self.root / "spec/README.md").write_text(
             README + "| [0.2](0.2/) | row |\n", encoding="utf-8"
         )
         self.assertEqual(versions.check(self.root), [])
+        # No file name is fixed: a bundle may rename or drop a root schema.
+        (self.root / "spec/0.2/schema/generated/agent-context.schema.json").unlink()
+        (self.root / "spec/0.2/schema/generated/context.schema.json").write_text(
+            f'{{"$id": "{ID_ORIGIN}v0.2/context.schema.json"}}\n', encoding="utf-8"
+        )
+        self.assertEqual(versions.check(self.root), [])
         for file in (self.root / "spec/0.2/schema/generated").rglob("*.schema.json"):
             file.unlink()
+        # Source and example files are not schemas.
+        (self.root / "spec/0.2/schema/src/verdict.ts").write_text("export {};\n")
+        (self.root / "spec/0.2/schema/examples/Verdict").mkdir(parents=True)
+        (self.root / "spec/0.2/schema/examples/Verdict/x.schema.json").write_text(
+            "{}\n"
+        )
         errors = versions.check(self.root)
-        self.assertIn("spec/0.2/schema/generated has no *.schema.json files", errors)
+        self.assertIn(
+            "spec/0.2/schema has no *.schema.json files outside src/ and examples/",
+            errors,
+        )
 
     def test_symlinked_file_fails(self) -> None:
         link = self.root / "spec/0.1/schema/extra.schema.json"
@@ -201,13 +220,11 @@ class CheckTest(unittest.TestCase):
             "spec/0.١/ is not draft or a MAJOR.MINOR version", versions.check(self.root)
         )
 
-    def test_missing_file_and_invalid_json_are_reported(self) -> None:
+    def test_invalid_json_is_reported(self) -> None:
         (self.root / "spec/draft/reserved-reasons.json").write_text(
             "{", encoding="utf-8"
         )
-        (self.root / "spec/0.1/declaration-errors.json").unlink()
         errors = versions.check(self.root)
-        self.assertIn("spec/0.1/declaration-errors.json is missing", errors)
         self.assertTrue(
             any(
                 e.startswith("spec/draft/reserved-reasons.json is invalid JSON")

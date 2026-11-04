@@ -7,13 +7,13 @@ Released specifications live in spec/<MAJOR.MINOR>/, each holding one
 AGENT-HOOKS-<MAJOR.MINOR>.md whose header says Released and names the
 folder as its version. The working text lives in spec/draft/ as
 AGENT-HOOKS-DRAFT.md with Status Draft and Version DRAFT. Every bundle
-carries its schemas either flat under schema/ (the 0.1 layout) or under
-schema/generated/ with per-point files in strict-contexts/ (the draft
-layout); the inventories sit beside the text, and spec/README.md links
-every folder. Every $id in a bundle sits under that bundle's published
-path, schema/v<MAJOR.MINOR>/ for a release and schema/draft/ for the
-draft, and no file in a released bundle carries another version's wire
-string.
+has a schema/ folder with at least one *.schema.json outside src/ and
+examples/; which files a bundle's generator produces is the bundle's
+own business, so no other file name is required here. spec/README.md
+links every folder. Every $id in a bundle sits under that bundle's
+published path, schema/v<MAJOR.MINOR>/ for a release and schema/draft/
+for the draft, and no file in a released bundle carries another
+version's wire string.
 
 Every entry under spec/ is a regular file or directory whose name does
 not start with a dot: a symbolic link, a device or pipe, and a hidden
@@ -44,17 +44,11 @@ HEADER = re.compile(
     r" · \*\*Date:\*\* (?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\s*$",
     re.M,
 )
-REQUIRED_FILES = (
-    "DECLARATION-VERSIONS.md",
-    "declaration-errors.json",
-    "reserved-reasons.json",
-)
-REQUIRED_SCHEMAS = ("agent-context.schema.json", "verdict.schema.json")
 ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"
 WIRE = re.compile(r"agent-hooks/((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))")
 TEXT_SUFFIXES = {".md", ".json", ".ts", ".abnf", ".txt"}
-# Per-point context schemas: the draft layout's and the flat layout's folder.
-POINT_DIRS = ("strict-contexts", "agent-context")
+# Folders under schema/ that hold no schema: TypeScript source and instances.
+NOT_SCHEMAS = ("src", "examples")
 
 # References the rest of the repository must not make.
 OLD_LAYOUT = re.compile(r"\bspec/(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\b")
@@ -161,39 +155,26 @@ def check_text(root: Path, folder: Path) -> list[str]:
     return errors
 
 
-def schema_root(folder: Path) -> Path:
-    """Where a bundle's schemas live: schema/generated/ when present, else schema/."""
-    generated = folder / "schema" / "generated"
-    return generated if generated.is_dir() else folder / "schema"
-
-
 def check_bundle(root: Path, folder: Path) -> list[str]:
     errors: list[str] = []
     rel = folder.relative_to(root).as_posix()
     errors.extend(check_text(root, folder))
-    for name in REQUIRED_FILES:
-        if not (folder / name).is_file():
-            errors.append(f"{rel}/{name} is missing")
-    schemas = schema_root(folder)
-    if not (folder / "schema").is_dir():
+    schema_dir = folder / "schema"
+    if not schema_dir.is_dir():
         errors.append(f"{rel}/schema/ is missing")
     else:
-        files = [
-            p for p in walk(schemas) if p.name.endswith(".schema.json") and p.is_file()
-        ]
-        if not files:
-            errors.append(
-                f"{schemas.relative_to(root).as_posix()} has no *.schema.json files"
+        schemas = [
+            p
+            for p in walk(schema_dir)
+            if p.name.endswith(".schema.json")
+            and p.is_file()
+            and not any(
+                part in NOT_SCHEMAS for part in p.relative_to(schema_dir).parts[:-1]
             )
-        for name in REQUIRED_SCHEMAS:
-            if not (schemas / name).is_file():
-                errors.append(
-                    f"{schemas.relative_to(root).as_posix()}/{name} is missing"
-                )
-        if not any((schemas / d).is_dir() for d in POINT_DIRS):
+        ]
+        if not schemas:
             errors.append(
-                f"{schemas.relative_to(root).as_posix()} has no per-point schema folder "
-                f"({' or '.join(POINT_DIRS)})"
+                f"{rel}/schema has no *.schema.json files outside src/ and examples/"
             )
     id_base = ID_ORIGIN + ("draft/" if folder.name == "draft" else f"v{folder.name}/")
     for path in walk(folder):

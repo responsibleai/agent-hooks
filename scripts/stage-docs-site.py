@@ -11,12 +11,12 @@ docs-site/docs/:
   spec/draft.md       the draft, from AGENT-HOOKS-DRAFT.md, its banner link
                       pointed at the version page beside it
   spec.md             the newest released version again, the stable "latest" URL
-  schema/<path>       every schema of every bundle at the path its own $id
-                      names (schema/vX.Y/ for a release, schema/draft/ for the
-                      draft), read from schema/generated/ when the bundle has
-                      it and from schema/ otherwise; the inventories the bundle
-                      carries beside its root schemas; and
-                      conformance/vectors.schema.json at its own $id path
+  schema/<path>       every *.schema.json under a bundle's schema/ (outside
+                      src/ and examples/) at the path its own $id names
+                      (schema/vX.Y/ for a release, schema/draft/ for the
+                      draft); the inventories the bundle carries beside its
+                      root schemas; and conformance/vectors.schema.json at its
+                      own $id path
 
 and docs-site/mkdocs.staged.yml: the committed mkdocs.yml with the
 Specification navigation entries generated from the same folders, newest
@@ -141,23 +141,12 @@ class Publisher:
         target.write_bytes(data)
 
 
-def schema_root(bundle: Path) -> Path:
-    """Where a bundle keeps its schemas: schema/generated/ when present, else schema/."""
-    generated = bundle / "schema" / "generated"
-    return (
-        generated
-        if generated.is_dir() and not generated.is_symlink()
-        else bundle / "schema"
-    )
-
-
 def bundle_schemas(root: Path) -> list[Path]:
-    """Every *.schema.json under a bundle's schema root, refusing symbolic
-    links on the way; src/ holds TypeScript and examples/ hold instances,
-    so neither contributes a schema."""
-    for ancestor in (root.parent, root):
-        if ancestor.is_symlink():
-            raise SystemExit(f"{ancestor} {SYMLINK}")
+    """Every *.schema.json under a bundle's schema/ folder, refusing
+    symbolic links on the way; src/ holds TypeScript and examples/ hold
+    instances, so neither contributes a schema."""
+    if root.is_symlink():
+        raise SystemExit(f"{root} {SYMLINK}")
     files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
         for name in sorted(dirnames) + sorted(filenames):
@@ -176,7 +165,7 @@ def stage_schemas(root: Path, bundles: list[str], schema_out: Path) -> None:
         bundle = root / "spec" / name
         origin = f"spec/{name}"
         prefixes: set[str] = set()
-        for file in bundle_schemas(schema_root(bundle)):
+        for file in bundle_schemas(bundle / "schema"):
             relative = published_path(file)
             publisher.publish(file, relative, origin)
             prefixes.add(relative.split("/")[0])

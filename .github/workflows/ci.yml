@@ -26,10 +26,10 @@ jobs:
       - name: Validate schemas are well-formed
         run: |
           set -e
-          # Validate each specification bundle separately. A bundle keeps
-          # its schemas under schema/generated/ (the draft) or flat under
-          # schema/ (0.1). The vector grammar references the draft's ids,
-          # so it joins the draft's set only.
+          # Validate each specification bundle separately: every
+          # *.schema.json under its schema/ folder outside src/. The vector
+          # grammar references the draft's ids, so it joins the draft's set
+          # only.
           validated=0
           for spec_dir in spec/*/; do
             [ -d "${spec_dir}schema" ] || continue
@@ -60,12 +60,12 @@ jobs:
       - name: Validate vectors against vectors.schema.json
         # The vectors live once and track the draft: the grammar's $ref
         # values name the draft schema ids, and the vectors use documents
-        # that 0.1 never defined (declaration 1.1, on_error). So they are
-        # validated against the draft (SPEC_DEV_DIR) and against every
-        # released bundle listed in RESOLVABLE_RELEASES, which is empty
-        # until a cut bundle carries the schemas the vectors reference.
-        # Any other released bundle is skipped and named below, never
-        # silently.
+        # that 0.1 never defined (declaration 1.1, on_error, reserved
+        # warnings). So they are validated against the draft (SPEC_DEV_DIR)
+        # and against every released bundle listed in RESOLVABLE_RELEASES,
+        # which is empty until a cut bundle carries the schemas the
+        # grammar references. Any other released bundle is skipped and
+        # named below, never silently.
         env:
           RESOLVABLE_RELEASES: ""
         run: |
@@ -370,31 +370,25 @@ jobs:
         run: npm run check:schema
         working-directory: sdk/typescript
       - name: Released schema bundles match their TypeScript source
-        # The same check for every spec/<MAJOR.MINOR>/ bundle that carries
-        # schema source: the frozen source must still generate the frozen
-        # output. A bundle without schema/src/ (0.1 predates the source
-        # split) is frozen as committed and is named, not checked.
+        # The same check for every spec/<MAJOR.MINOR>/ bundle: the frozen
+        # source must still generate the frozen output.
         run: |
           set -eu
           version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
-          found=0
+          checked=0
           for dir in ../../spec/*/; do
             version=$(basename "$dir")
             [[ $version =~ $version_pattern ]] || continue
-            found=$((found + 1))
-            if [ ! -d "${dir}schema/src" ]; then
-              echo "spec/$version has no schema/src; its schemas are frozen as committed"
-              continue
-            fi
             echo "Checking spec/$version/schema"
             npx tsc -p "${dir}schema/src/tsconfig.json"
             npx tsx scripts/generate-schemas.mts --check --spec "$version"
+            checked=$((checked + 1))
           done
-          if [ "$found" -eq 0 ]; then
+          if [ "$checked" -eq 0 ]; then
             echo "::error::no released spec/<MAJOR.MINOR>/ folder found"
             exit 1
           fi
-          echo "looked at $found released bundle(s)"
+          echo "checked $checked released bundle(s)"
         working-directory: sdk/typescript
       - name: Source files carry the standard file header
         run: python3 scripts/check-file-headers.py
