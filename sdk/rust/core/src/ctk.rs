@@ -30,7 +30,9 @@ use crate::types::{
 use crate::AgentContextBuilder;
 use crate::SpecVersion;
 pub use async_trait::async_trait;
+use serde::Serialize;
 use serde_json::{json, Map, Value};
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -1011,6 +1013,78 @@ pub async fn run_vector(harness: &mut dyn Harness, vector: &Value) -> VectorResu
     assert_vector(vector, &recorded, &rr)
 }
 
+/// One part of a conformance report (§13.1): the vectors that carry
+/// one `part` tag, with their counts. A vector without a tag sits
+/// under the empty part.
+#[derive(Debug, Clone, Serialize)]
+pub struct PartReport {
+    pub part: String,
+    pub passed: usize,
+    pub failed: usize,
+    pub skipped: usize,
+    pub vectors: Vec<VectorResult>,
+}
+
+/// The conformance report a claim attaches (§13.1, §13.3): the results
+/// grouped by `part`, under the specification version the claim names.
+#[derive(Debug, Clone, Serialize)]
+pub struct ConformanceReport {
+    /// The wire string of the version the claim names.
+    pub spec: &'static str,
+    /// Parts in name order; each keeps its vectors in run order.
+    pub parts: Vec<PartReport>,
+    pub passed: usize,
+    pub failed: usize,
+    pub skipped: usize,
+}
+
+/// The one line every runner answers a report that names the draft.
+pub const DRAFT_NOT_CLAIMABLE: &str = "a conformance report cannot name agent-hooks/draft; the draft is never claimed: run the vectors for development and report a released version";
+
+/// Group `results` by `part` into the report a claim attaches, under
+/// `spec`, the released version the claim names. The vectors under
+/// `conformance/` are the working test set for the next version,
+/// carried under `agent-hooks/draft` because they exercise behaviour
+/// no released version has; running them is fine, but a report that
+/// names the draft is refused with [`DRAFT_NOT_CLAIMABLE`], since no
+/// claim names it.
+pub fn conformance_report(
+    spec: SpecVersion,
+    results: &[VectorResult],
+) -> Result<ConformanceReport, String> {
+    if spec == SpecVersion::Draft {
+        return Err(DRAFT_NOT_CLAIMABLE.to_owned());
+    }
+    let mut parts: BTreeMap<String, PartReport> = BTreeMap::new();
+    for result in results {
+        let part = parts
+            .entry(result.part.clone())
+            .or_insert_with(|| PartReport {
+                part: result.part.clone(),
+                passed: 0,
+                failed: 0,
+                skipped: 0,
+                vectors: Vec::new(),
+            });
+        match result.status {
+            "pass" => part.passed += 1,
+            "skip" => part.skipped += 1,
+            _ => part.failed += 1,
+        }
+        part.vectors.push(result.clone());
+    }
+    let (passed, failed, skipped) = parts.values().fold((0, 0, 0), |(p, f, s), part| {
+        (p + part.passed, f + part.failed, s + part.skipped)
+    });
+    Ok(ConformanceReport {
+        spec: spec.wire(),
+        parts: parts.into_values().collect(),
+        passed,
+        failed,
+        skipped,
+    })
+}
+
 // ---- reference harness ------------------------------------------------------
 
 /// Minimal conformant in-memory agent loop; the CTK self-test target.
@@ -1076,7 +1150,8 @@ impl ReferenceHarness {
             .expect("host messages poisoned")
             .clear();
         self.session_counter += 1;
-        // The vectors are the draft corpus: the harness builds its
+        // The vectors are the working test set for the next version,
+        // carried under agent-hooks/draft: the harness builds its
         // contexts under the draft, the version every vector document
         // and the reference document name.
         self.emitter = Some(emitter);

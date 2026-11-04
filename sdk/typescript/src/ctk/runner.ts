@@ -36,8 +36,10 @@ import {
   ManagedInterceptorOutcome,
   OnError,
   ResolvedDeclaration,
+  SPEC_VERSION_DRAFT,
   Verdict,
   canonicalDeclaration,
+  requireSpecVersion,
 } from "../index";
 import { resolveDeclaration, resolveSurfaceOnly } from "../declaration";
 import { native } from "../native";
@@ -50,6 +52,60 @@ export interface VectorResult {
   status: "pass" | "fail" | "skip";
   detail: string;
   failures: string[];
+}
+
+/** One part of a conformance report (§13.1): the vectors that carry one
+ * `part` tag, with their counts. A vector without a tag sits under the
+ * empty part. */
+export interface PartReport {
+  part: string;
+  passed: number;
+  failed: number;
+  skipped: number;
+  vectors: VectorResult[];
+}
+
+/** The conformance report a claim attaches (§13.1, §13.3): the results
+ * grouped by `part`, under the specification version the claim names.
+ * Parts are in name order; each keeps its vectors in run order. */
+export interface ConformanceReport {
+  spec: string;
+  parts: PartReport[];
+  passed: number;
+  failed: number;
+  skipped: number;
+}
+
+/** The one line every runner answers a report that names the draft. */
+export const DRAFT_NOT_CLAIMABLE =
+  "a conformance report cannot name agent-hooks/draft; the draft is never claimed: run the vectors for development and report a released version";
+
+/** Group `results` by `part` into the report a claim attaches, under
+ * `spec`, the released version the claim names (a wire string). The
+ * vectors under `conformance/` are the working test set for the next
+ * version, carried under `agent-hooks/draft` because they exercise
+ * behaviour no released version has; running them is fine, but a report
+ * that names the draft throws a `RangeError` with
+ * {@link DRAFT_NOT_CLAIMABLE}, since no claim names it. */
+export function conformanceReport(spec: string, results: readonly VectorResult[]): ConformanceReport {
+  const wire = requireSpecVersion(spec);
+  if (wire === SPEC_VERSION_DRAFT) throw new RangeError(DRAFT_NOT_CLAIMABLE);
+  const parts = new Map<string, PartReport>();
+  for (const result of results) {
+    const name = result.part ?? "";
+    let part = parts.get(name);
+    if (part === undefined) {
+      part = { part: name, passed: 0, failed: 0, skipped: 0, vectors: [] };
+      parts.set(name, part);
+    }
+    if (result.status === "pass") part.passed++;
+    else if (result.status === "skip") part.skipped++;
+    else part.failed++;
+    part.vectors.push(result);
+  }
+  const ordered = [...parts.values()].sort((a, b) => (a.part < b.part ? -1 : a.part > b.part ? 1 : 0));
+  const total = (key: "passed" | "failed" | "skipped") => ordered.reduce((n, p) => n + p[key], 0);
+  return { spec: wire, parts: ordered, passed: total("passed"), failed: total("failed"), skipped: total("skipped") };
 }
 
 export function loadVectors(dir: string): JsonValue[] {

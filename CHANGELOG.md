@@ -38,6 +38,13 @@ under the draft). An unknown version is refused as before.
   `NewInterceptionEmitter(spec, mode, resolver)`. The declaration
   builder takes the version too and fills the contract version from it
   (1.0 under 0.1, 1.1 under the draft).
+- Every CTK runner has the per-part conformance report as a function
+  (`conformance_report` in Rust and Python, `conformanceReport` in
+  TypeScript, `Runner.Report` in .NET, `Report` in Go). It takes the
+  specification version the claim names and refuses `agent-hooks/draft`
+  with one line: the vectors under `conformance/` are the working test
+  set for the next version, and no claim names the draft. The Python
+  and .NET vector results gain `part`.
 - `SPEC_VERSION` and the FFI's `ah_spec_version()` are gone; the FFI
   gates take the version first (`ah_validate_verdict(spec, json)`,
   `ah_normalize_interceptor_response`, `ah_compose_aggregate`,

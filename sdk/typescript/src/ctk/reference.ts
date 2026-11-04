@@ -85,7 +85,8 @@ export class ReferenceHarness implements Harness {
     this.toolLog = [];
     this.hostMessages = [];
     this.emitter = emitter;
-    // The vectors are the draft corpus: the harness builds its contexts
+    // The vectors are the working test set for the next version,
+    // carried under agent-hooks/draft: the harness builds its contexts
     // under the draft, the version every vector document and the
     // reference document name.
     this.builder = new AgentContextBuilder({

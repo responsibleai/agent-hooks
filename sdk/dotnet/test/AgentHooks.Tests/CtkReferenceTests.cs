@@ -59,6 +59,31 @@ public sealed class CtkReferenceTests
     }
 
     [Fact]
+    public async Task AReportNamesAReleasedVersionNeverTheDraft()
+    {
+        // Running the working test set is development; the report a
+        // claim attaches names a released version, and the runner
+        // refuses the draft.
+        var results = new List<VectorResult>();
+        foreach (var v in Runner.LoadVectors(VectorsDir()))
+            results.Add(await Runner.RunVectorAsync(new ReferenceHarness(), v));
+        var refused = Assert.Throws<ArgumentException>(() => Runner.Report(Spec.Draft, results));
+        Assert.StartsWith(Runner.DraftNotClaimable, refused.Message);
+        Assert.Throws<ArgumentException>(() => Runner.Report("agent-hooks/9.9", results));
+        var report = Runner.Report(Spec.V01, results);
+        Assert.Equal(Spec.V01, report.Spec);
+        Assert.Equal(0, report.Failed);
+        Assert.Equal(ExpectedSkips.Count, report.Skipped);
+        Assert.Equal(results.Count, report.Passed + report.Skipped);
+        var names = report.Parts.Select(p => p.Part).ToList();
+        Assert.Equal(names.OrderBy(n => n, StringComparer.Ordinal), names);
+        Assert.All(report.Parts, p => Assert.Equal(p.Vectors.Count, p.Passed + p.Failed + p.Skipped));
+        var streaming = report.Parts.Single(p => p.Part == "streaming/incremental");
+        Assert.Equal(4, streaming.Skipped);
+        Assert.True(ExpectedSkips.SetEquals(streaming.Vectors.Select(v => v.Id)));
+    }
+
+    [Fact]
     public async Task SkipSetMatchesManifest()
     {
         var skipped = new HashSet<string>();

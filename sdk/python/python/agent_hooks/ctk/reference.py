@@ -159,9 +159,10 @@ class ReferenceHarness:
         self._tool_log = []
         self._host_messages = []
         self._emitter = emitter
-        # The vectors are the draft corpus: the harness builds its
-        # contexts under the draft, the version every vector document and
-        # the reference document name.
+        # The vectors are the working test set for the next version,
+        # carried under agent-hooks/draft: the harness builds its contexts
+        # under the draft, the version every vector document and the
+        # reference document name.
         self._builder = AgentContextBuilder(
             spec=SPEC_VERSION_DRAFT,
             agent_id="ref-agent",
