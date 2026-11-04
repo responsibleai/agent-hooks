@@ -6,14 +6,45 @@ release (one per root tag). Versioning rules: [VERSIONING.md](VERSIONING.md).
 
 ## Unreleased SDK (next tag v0.1.0-beta.4)
 
-Spec: 0.1. The SDKs write `agent-hooks/0.1` and accept 0.1 contexts;
-they already implement what the draft holds since 0.1 (next section).
+Spec: 0.1 and draft. The SDKs support both specification versions
+side by side: `SUPPORTED_SPEC_VERSIONS` is `["0.1", "draft"]` in every
+core (`Spec.SupportedVersions` in .NET, `SupportedSpecVersions` in Go),
+with the wire strings `SPEC_VERSION_0_1` (`agent-hooks/0.1`) and
+`SPEC_VERSION_DRAFT` (`agent-hooks/draft`; `Spec.V01` and `Spec.Draft`,
+`SpecVersion01` and `SpecVersionDraft`). The version a context or a
+document names selects the rules it is checked by: the envelope, the
+strict per-point check, the identity rules, the reserved reasons
+(`host_warning:*` under the draft only), the declaration errors and the
+declaration contracts a loader accepts (1.0 under 0.1; 1.0 and 1.1
+under the draft). An unknown version is refused as before.
 
-- Every SDK exports the specification versions whose contexts it
-  accepts, beside the wire string it writes: `SUPPORTED_SPEC_VERSIONS`
-  in Rust, Python and TypeScript, `SupportedSpecVersions` in Go and
-  `Spec.SupportedVersions` in .NET, all `["0.1"]`. The Rust core's
-  `declaration_versions()` JSON gains `spec` and `spec_supported`, which
+- Breaking SDK API change: the context builder requires the spec
+  version; hosts pass `agent-hooks/0.1` or `agent-hooks/draft`. The
+  emitter takes the same required first argument, or runs the version
+  its host declaration names (the document's `spec` member is now
+  required). There is no default. A context of another version than
+  the emitter's is refused as `host_error:context_invalid`;
+  `on_error: continue` is accepted only under the draft. Signatures:
+  Rust `AgentContextBuilder::new(spec, agent_id, framework, session_id)`
+  and `InterceptionEmitter::new(spec, mode, resolver)` with a
+  `SpecVersion`; TypeScript
+  `new AgentContextBuilder({ spec, agentId, framework, sessionId })` and
+  `new InterceptionEmitter(spec, mode?, resolver?, timeoutMs?)`; Python
+  `AgentContextBuilder(spec=..., agent_id=..., framework=..., session_id=...)`
+  and `InterceptionEmitter(spec=..., ...)`; .NET
+  `new AgentContextBuilder(spec, agentId, framework, sessionId)` and
+  `new InterceptionEmitter(spec, mode, resolver, timeout)`; Go
+  `NewAgentContextBuilder(spec, agentID, framework, sessionID)` and
+  `NewInterceptionEmitter(spec, mode, resolver)`. The declaration
+  builder takes the version too and fills the contract version from it
+  (1.0 under 0.1, 1.1 under the draft).
+- `SPEC_VERSION` and the FFI's `ah_spec_version()` are gone; the FFI
+  gates take the version first (`ah_validate_verdict(spec, json)`,
+  `ah_normalize_interceptor_response`, `ah_compose_aggregate`,
+  `ah_managed_outcome`), and the wrappers' verdict, response and
+  aggregate functions take it as their last argument. The Rust core's
+  `declaration_versions()` JSON gains `spec_supported` and `by_spec`
+  (the contract versions each specification version accepts), which
   the wrapper tests pin their constants to.
 - Windows x64 FFI/NuGet builds use a pinned nightly Rust compiler and rebuild
   the standard library with strong stack protection. CI and release builds
@@ -47,11 +78,19 @@ they already implement what the draft holds since 0.1 (next section).
 ## Unreleased specification
 
 The draft, `spec/draft/AGENT-HOOKS-DRAFT.md`, holds these changes since
-0.1. They ship as specification 0.2 when it is cut; until then the
-draft keeps the wire string `agent-hooks/0.1`, the released version it
-is compatible with. The SDKs already implement them and still write
-`agent-hooks/0.1`.
+0.1. They ship as specification 0.2 when it is cut. The draft is the
+version `draft`, wire string `agent-hooks/draft`; it changes without
+notice and is never claimed. The SDKs implement it beside 0.1, and a
+host reaches it by naming `agent-hooks/draft`.
 
+- The draft's wire string is `agent-hooks/draft` (§4.1): the context
+  schema pins `spec` to that constant, and every draft example, the
+  conformance vectors, the golden fixtures and the reference
+  declarations carry it. The host declaration's `spec` member is
+  REQUIRED (§7.7.2, §7.7.3): a document names the specification
+  version it is written for, and the loader reads it by that version's
+  rules and accepted contract set (1.0 under 0.1; 1.0 and 1.1 under the
+  draft); a missing or unknown value is `declaration_error:spec_unsupported`.
 - Spec §7.7.4 (draft) states that `incremental_output` requires both
   model points and `model_calls`, not only `buffered_output: false`:
   incremental mediation happens at `post_model_call` (§12.1). The §7.7.6

@@ -2,19 +2,20 @@
 
 A specification version is `MAJOR.MINOR`, the same number as the wire
 string `agent-hooks/MAJOR.MINOR`. Released versions live in
-`spec/<MAJOR.MINOR>/`; the working text lives in [`draft/`](draft/).
+`spec/<MAJOR.MINOR>/`; the working text lives in [`draft/`](draft/) and
+is the version `draft`, wire string `agent-hooks/draft`.
 
 | Version | Status | Wire version | Specification | Schemas |
 | --- | --- | --- | --- | --- |
 | [0.1](0.1/) | Released 2026-10-22 | `agent-hooks/0.1` | [AGENT-HOOKS-0.1.md](0.1/AGENT-HOOKS-0.1.md) | [schema/](0.1/schema/) |
-| [draft](draft/) | Draft | `agent-hooks/0.1` | [AGENT-HOOKS-DRAFT.md](draft/AGENT-HOOKS-DRAFT.md) | [schema/](draft/schema/) |
+| [draft](draft/) | Draft | `agent-hooks/draft` | [AGENT-HOOKS-DRAFT.md](draft/AGENT-HOOKS-DRAFT.md) | [schema/](draft/schema/) |
 
 0.1 is the text the SDKs shipped against at the `v0.1.0-beta.3` tag,
-read in unchanged except for its header line. The draft carries the
-last released wire string until the first breaking change lands in it;
-that pull request moves the draft's wire string to the version the cut
-will be named, and from then until the cut the draft announces the
-coming version ([VERSIONING.md](../VERSIONING.md)).
+read in unchanged except for its header line. The draft is the version
+`draft`. It changes without notice and is never claimed. A cut copies
+it to a numbered version and the numbered copy gets its own wire
+string. The SDKs support 0.1 and the draft side by side; a host selects
+one by its wire string ([VERSIONING.md](../VERSIONING.md)).
 
 Each folder is a complete specification bundle with the same layout:
 

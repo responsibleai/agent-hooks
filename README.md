@@ -1,10 +1,12 @@
 # agent-hooks
 
-> Status: Beta. Spec: [AGENT-HOOKS-0.1](spec/0.1/AGENT-HOOKS-0.1.md), the
-> released specification, wire version `agent-hooks/0.1`; the working text
-> is the [draft](spec/draft/AGENT-HOOKS-DRAFT.md). Host declaration
-> contract: `agent-hooks-declaration/1.1` (1.0 still accepted)
-> ([version table](spec/draft/DECLARATION-VERSIONS.md)).
+> Status: Beta. Spec: the SDKs support two specification versions,
+> [0.1](spec/0.1/AGENT-HOOKS-0.1.md), the released specification, wire
+> string `agent-hooks/0.1`, and the [draft](spec/draft/AGENT-HOOKS-DRAFT.md),
+> wire string `agent-hooks/draft`, which changes without notice and is
+> never claimed. A host names the version it emits; there is no default.
+> Host declaration contract: `agent-hooks-declaration/1.1` under the draft,
+> `1.0` under 0.1 ([version table](spec/draft/DECLARATION-VERSIONS.md)).
 
 Agent Hooks is the interception contract between an agent host and the
 controls that govern it. It fixes eight points in the agent loop, the
@@ -223,16 +225,22 @@ version. See [RELEASING.md](RELEASING.md).
 
 The spec is versioned `MAJOR.MINOR`, the declaration contract
 `MAJOR.MINOR`, and the packages by semver, each on its own axis. Every
-SDK exports the spec version its contexts carry (`SPEC_VERSION`), the
-released versions it supports (`SUPPORTED_SPEC_VERSIONS`), the current
-declaration version and the accepted set:
-`SPEC_VERSION`, `SUPPORTED_SPEC_VERSIONS`, `DECLARATION_VERSION` and
-`SUPPORTED_DECLARATION_VERSIONS` in Rust, Python and TypeScript;
-`SpecVersion`, `SupportedSpecVersions`, `DeclarationVersion` and
-`SupportedDeclarationVersions` in Go; `Spec.Version`,
-`Spec.SupportedVersions`, `Declaration.Version` and
-`Declaration.SupportedVersions` in .NET. See
-[VERSIONING.md](VERSIONING.md) and
+SDK supports two specification versions, 0.1 and the draft, and exports
+their wire strings and the supported set: `SPEC_VERSION_0_1`,
+`SPEC_VERSION_DRAFT` and `SUPPORTED_SPEC_VERSIONS` (`["0.1", "draft"]`)
+in Rust, Python and TypeScript; `SpecVersion01`, `SpecVersionDraft` and
+`SupportedSpecVersions` in Go; `Spec.V01`, `Spec.Draft` and
+`Spec.SupportedVersions` in .NET; beside the current declaration version
+and the accepted set (`DECLARATION_VERSION` and
+`SUPPORTED_DECLARATION_VERSIONS`, `DeclarationVersion` and
+`SupportedDeclarationVersions`, `Declaration.Version` and
+`Declaration.SupportedVersions`). A host names the version when it
+builds its emitter and its context builder, or in its host
+declaration's `spec` member; there is no default, and an emitter
+refuses a context of another version. The version named selects the
+rules: `host_warning:*` is reserved, declaration 1.1 is accepted and
+`on_error: continue` exists under the draft only. The draft is never
+claimed. See [VERSIONING.md](VERSIONING.md) and
 [spec/draft/DECLARATION-VERSIONS.md](spec/draft/DECLARATION-VERSIONS.md).
 
 ## Read next
@@ -242,7 +250,8 @@ declaration version and the accepted set:
   [`spec/0.1/AGENT-HOOKS-0.1.md`](spec/0.1/AGENT-HOOKS-0.1.md), the text
   the SDKs shipped against at `v0.1.0-beta.3`. The draft,
   [`spec/draft/AGENT-HOOKS-DRAFT.md`](spec/draft/AGENT-HOOKS-DRAFT.md), is
-  the working text; its [`schema/`](spec/draft/schema/) separates the
+  the working text and the version `draft` (`agent-hooks/draft`); its
+  [`schema/`](spec/draft/schema/) separates the
   TypeScript source from the generated JSON Schemas in
   [`generated/`](spec/draft/schema/generated/).
 - [`docs/IMPLEMENTING.md`](docs/IMPLEMENTING.md): what it means to

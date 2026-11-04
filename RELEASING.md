@@ -17,10 +17,11 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
 
 1. Run the cut script. It copies `spec/draft/` to `spec/X.Y/`, renames
    the text to `AGENT-HOOKS-X.Y.md`, sets the title and the header line
-   to Released, `X.Y` and the date, drops the draft banner, sets the
-   wire string to `agent-hooks/X.Y` in the copy and in the draft, and
-   rewrites the copy's `spec/draft/` self-references. It prints what
-   remains.
+   to Released, `X.Y` and the date, drops the draft banner, rewrites the
+   draft wire string `agent-hooks/draft` to `agent-hooks/X.Y` in every
+   text file of the copy, and rewrites the copy's `spec/draft/`
+   self-references. The draft itself does not change; it keeps
+   `agent-hooks/draft`. The script prints what remains.
 
    ```bash
    python3 scripts/cut-spec-version.py X.Y
@@ -149,11 +150,13 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    The draft's header says Status Draft and Version DRAFT with the date
    of its last change; no SDK tag edits it.
 
-   An SDK release does not cut a specification version. Set
-   `SUPPORTED_SPEC_VERSIONS` in the five cores to the `spec/<X.Y>/`
-   folders whose contexts the SDK accepts, with `SPEC_VERSION` the
-   highest of them; when the SDK needs text that no released version
-   holds, release the specification first (above).
+   An SDK release does not cut a specification version.
+   `SUPPORTED_SPEC_VERSIONS` in the five cores names the `spec/<entry>/`
+   folders whose contexts the SDK accepts, released versions and the
+   draft (`["0.1", "draft"]` today). The draft entry is how an SDK
+   carries text no released version holds; a host that wants it names
+   `agent-hooks/draft`. Add or drop an entry in all five cores together,
+   with its rules in the Rust core's `SpecVersion`.
 
    Regenerate `sdk/typescript/binding.js` after the bump (`npm run
    build:native` in `sdk/typescript`); the napi version strings it
@@ -166,20 +169,19 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    Run `python3 scripts/check-version-consistency.py`; the CI `lint`
    job runs the same check, and the first job of the release workflow
    reruns it on the tag and on every dry run. It fails when the five
-   SDKs disagree, when a supported specification version has no
-   `spec/<X.Y>/` folder, when `SPEC_VERSION` is not the highest
-   supported or says DRAFT, when no table row accepts the current
-   declaration version, or when the row for the current SDK version
-   lists other specification versions than the cores do, and, with
-   `--require-spec-tags`, when a supported version has no `spec/<X.Y>`
-   tag on an ancestor of the tagged commit. So `spec/0.1` must be
-   pushed before the next SDK tag; it goes on the commit that merges
-   the 0.1 folder. That job
-   also validates the conformance vectors. It runs them against the
-   draft schemas, because the vector grammar references the draft's
-   schema ids and the vectors use documents 0.1 never defined; once 0.2
-   is cut from the draft, that bundle's schemas are the released set
-   the job reads, and the vectors move with them.
+   SDKs disagree, when a supported entry is neither a `spec/<X.Y>/`
+   folder nor the draft, when no entry is released, when no table row
+   accepts the current declaration version, or when the row for the
+   current SDK version lists other entries than the cores do, and, with
+   `--require-spec-tags`, when a released entry has no `spec/<X.Y>` tag
+   on an ancestor of the tagged commit. So `spec/0.1` must be pushed
+   before the next SDK tag; it goes on the commit that merges the 0.1
+   folder. That job also validates the conformance vectors against the
+   draft schemas (the vectors are the draft's corpus: the grammar
+   references the draft's schema ids, the documents carry
+   `agent-hooks/draft`, and the vectors use documents 0.1 never
+   defined) and the examples of every bundle against that bundle's own
+   schemas, because a release ships against 0.1 and the draft.
 2. Run the bench suite and compare against the latency budget in
    [ARCHITECTURE.md](ARCHITECTURE.md#latency-budget). CI does not gate
    on it; this step is the regression check.

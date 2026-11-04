@@ -25,14 +25,16 @@
   the `drift` check regenerates the draft schemas and the vendored copies
   and fails on any difference. Released folders such as `spec/0.1/`
   are immutable; see [spec/README.md](spec/README.md).
-- **SDK development tracks `spec/draft/`.** The machine consumers (the
-  `drift` mirror copy, the Rust tests and
-  `scripts/check-version-consistency.py`) read the draft, named once as
-  `SPEC_DEV_DIR` in the workflows and in the Rust tests, so a breaking
-  draft change has somewhere to be implemented; CI steps that check
-  schemas and vectors loop over every bundle. An SDK release names the
-  specification versions it supports. Prose links cite the released
-  text, `spec/0.1/`, and the draft for what 0.1 does not define.
+- **The SDKs support 0.1 and the draft side by side.**
+  `SUPPORTED_SPEC_VERSIONS` is `["0.1", "draft"]` in every core; the
+  Rust tests, the `drift` mirror copy and
+  `scripts/check-version-consistency.py` read every supported bundle,
+  and CI steps that check schemas and vectors loop over every bundle. A
+  breaking draft change is implemented under the draft's rules
+  (`SpecVersion::Draft` in the Rust core) and leaves 0.1 alone; a host
+  reaches it by naming `agent-hooks/draft`. Prose links cite the
+  released text, `spec/0.1/`, and the draft for what 0.1 does not
+  define.
 - **All five SDKs.** A contract change is not done until Rust core,
   Python, TypeScript, .NET, and Go agree; the Rust core is the single
   source of truth and the wrappers delegate to it.
@@ -77,12 +79,13 @@ npm run check:schema         # type-check the source, then fail on any drift
 npm run check:schema:equivalence -- --old origin/main   # differential validation against another revision
 ```
 
-After a change, regenerate. The Python mirror follows the draft
-schemas: refresh it the way the `drift` workflow does (copy
-`spec/draft/schema/generated/*.schema.json` into
-`sdk/python/python/agent_hooks/schema/` and `generated/strict-contexts/*.schema.json`
-into its existing `agent-context/` subdirectory), and commit the
-source, the JSON and the mirror together. When a shape changes, also run
+After a change, regenerate. The Python mirror holds one folder per
+supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`
+and `schema/draft/`), each with that bundle's generated schemas and the
+per-point context schemas under `agent-context/`: refresh it the way the
+`drift` workflow does (the "Refresh the vendored copies" step in
+`.github/workflows/schema-drift.yml`), and commit the source, the JSON
+and the mirror together. When a shape changes, also run
 the `schema-lint` steps from `.github/workflows/ci.yml` (ajv compiles
 every schema and validates the vectors) and the equivalence script
 against `origin/main` to see which instances change verdict.

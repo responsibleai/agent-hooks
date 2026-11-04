@@ -79,6 +79,12 @@ Equivalent interfaces ship in `sdk/typescript/src/ctk/index.ts`,
 `sdk/dotnet/src/AgentHooks.Conformance/IHarness.cs`,
 `sdk/go/conformance/harness.go`, and `sdk/rust/core/src/ctk.rs (`ctk` feature)`.
 
+The vectors are the draft's corpus: a vector's host declaration names
+`agent-hooks/draft`, and the reference harnesses build their emitter
+and their context builder under the draft (`SPEC_VERSION_DRAFT` in
+Python; each SDK has the same constant). A harness over an SDK names
+the draft the same way; the SDKs have no default version.
+
 ## Mock model
 
 `scenario.model_script` is an ordered list of responses. The Nth

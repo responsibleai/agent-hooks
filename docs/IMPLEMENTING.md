@@ -37,8 +37,10 @@ the right moments, and obeying the result.
 
 The wire contract is what crosses between host and interceptor: the
 `AgentContext` (§4), the `Verdict` (§5) and the `InterceptionRecord`
-(§10.3). Its version is `agent-hooks/0.1`, stamped in every context's
-`spec` member. Interceptors depend on it and nothing else.
+(§10.3). Its version is the specification version the host names when
+it builds its emitter and contexts, `agent-hooks/0.1` or
+`agent-hooks/draft`, stamped in every context's `spec` member; the SDKs
+have no default. Interceptors depend on it and nothing else.
 
 Host configuration is everything the host decides about how
 interceptors run: composition profile and knobs (§7.2), enforcement

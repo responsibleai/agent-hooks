@@ -14,7 +14,7 @@ Two more core functions serve the host declaration parts (§7.7.9):
 
 | Function | Purpose |
 | --- | --- |
-| `declaration_versions()` | `{current, supported}`: the contract versions the core writes and accepts |
+| `declaration_versions()` | `{current, supported, spec_supported, by_spec}`: the contract versions the core writes and accepts, overall and per specification version (`by_spec["0.1"]`, `by_spec["draft"]`) |
 | `declaration_resolve(document, host)` | Steps 2 to 10 of §7.7.6 against `{surface, identity_providers, approval_resolvers, approval_redactors, kinds}`; returns the resolved declaration or a `declaration_error:*` code with JSON findings |
 
 A per-language runner is the ~60 lines below. Only steps 3 and 5 touch

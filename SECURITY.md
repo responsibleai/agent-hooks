@@ -38,5 +38,7 @@ security fixes. One root tag releases every SDK; see
 | `0.1.0-alpha.1` / `0.1.0a1` (crates.io and PyPI only, never tagged) | Not supported. Yanked on crates.io and PyPI. Implements a **superseded draft** of the spec that predates the three-verdict model, composition profiles, and the identity-provider seam. Do not build on it. |
 | `main` | Fixes land here first and ship with the next tag. |
 
-Each SDK reports the spec revision it implements via its `SPEC_VERSION`
-constant / `ah_spec_version()`.
+Each SDK reports the specification versions it supports in
+`SUPPORTED_SPEC_VERSIONS` (`0.1` and `draft`; `Spec.SupportedVersions`
+in .NET, `SupportedSpecVersions` in Go), and every context it emits
+names its version in `spec`.

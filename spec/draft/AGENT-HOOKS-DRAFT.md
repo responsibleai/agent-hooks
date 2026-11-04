@@ -7,7 +7,7 @@
 > claimed. A cut copies it to a numbered version and the numbered copy
 > gets its own wire string.
 
-> **Status:** Draft · **Version:** `DRAFT` · **Date:** 2026-11-03
+> **Status:** Draft · **Version:** `DRAFT` · **Date:** 2026-11-04
 > **Editors:** Responsible AI / Agent Governance Toolkit
 >
 > This document defines a framework-neutral contract for **lifecycle hooks** in
@@ -1128,8 +1128,10 @@ two SDK minor releases; its accepted set says which. A host MUST re-run
 the CTK after migrating a document.
 
 An SDK that implements the loader exports the current version and the
-accepted set next to its `SPEC_VERSION` (`DECLARATION_VERSION` and
-`SUPPORTED_DECLARATION_VERSIONS` in the Rust core).
+accepted set of each specification version it supports next to
+`SUPPORTED_SPEC_VERSIONS` (`DECLARATION_VERSION`,
+`SUPPORTED_DECLARATION_VERSIONS` and `SpecVersion::declaration_versions()`
+in the Rust core).
 `spec/draft/DECLARATION-VERSIONS.md` maps each contract version to its schema
 file and each SDK release to the versions it accepts.
 

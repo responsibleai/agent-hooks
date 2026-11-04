@@ -2,12 +2,15 @@
 
 The host declaration document (spec §7.7) is a contract with its own
 version, `agent-hooks-declaration/<major>.<minor>`. It is independent
-of the wire version (`agent-hooks/X.Y`, the `spec` member of every
-context) and of the package version (`vX.Y.Z[-pre.N]`, one tag for all
-SDKs). This file records the contract versions and the migration
-steps between them; `VERSIONING.md` records which SDK release accepts
-which. The Rust core publishes the same facts as `DECLARATION_VERSION`
-and `SUPPORTED_DECLARATION_VERSIONS` next to `SPEC_VERSION`, and
+of the wire version (`agent-hooks/X.Y` or `agent-hooks/draft`, the
+`spec` member of every context) and of the package version
+(`vX.Y.Z[-pre.N]`, one tag for all SDKs). This file records the
+contract versions and the migration steps between them;
+`VERSIONING.md` records which SDK release accepts which. The Rust core
+publishes the same facts as `DECLARATION_VERSION` and
+`SUPPORTED_DECLARATION_VERSIONS` next to `SUPPORTED_SPEC_VERSIONS`, per
+specification version in `SpecVersion::declaration_versions()` (1.0
+under 0.1; 1.0 and 1.1 under the draft), and
 `scripts/check-version-consistency.py` checks that the current version
 appears in both places.
 
