@@ -579,7 +579,7 @@ A Deny Verdict is when `decision == "deny"`. Deny Verdicts MAY contain the follo
 ##### 5.1.2.4 Transform Verdict
 A Transform Verdict is when `decision == "transform"`. Transform Verdicts MUST contain the following per interception point payload:
 
-| Hook | `transform` payload | Whole request member replaced |
+| interception point | `transform` payload | Whole request member replaced |
 | --- | --- | --- |
 | `input` | `{ "input": <Input> }` | `input`, including `content` and `role` |
 | `pre_model_call` | `{ "messages": <Message[]> }` | the complete `messages` array |
@@ -587,6 +587,8 @@ A Transform Verdict is when `decision == "transform"`. Transform Verdicts MUST c
 | `pre_tool_call` | `{ "args": <object> }` | `tool_call.args` |
 | `post_tool_call` | `{ "value": <any JSON> }` | `tool_result.value` |
 | `output` | `{ "output": <Output> }` | `output`, including `content` |
+
+A Transform Verdict MUST NOT be returned for the `interception points` `agent_startup` and `agent_shutdown`.
 
 The replacement types are the corresponding request member types in §4. For
 example, this is a complete `pre_tool_call` response:
@@ -602,9 +604,7 @@ example, this is a complete `pre_tool_call` response:
   objects, append messages, interpret paths, or treat omitted nested properties
   as instructions to preserve existing values.
 - Shape/type failures at the response gate yield `host_error:verdict_invalid`
-  per §6.3. A schema-valid replacement the host cannot apply yields
-  `host_error:transform_invalid`. A lifecycle transform is forbidden per §4.3;
-  that prohibition remains fail closed regardless of `on_error` (§6.3.1).
+  per §6.3. 
 
 **Legacy history (informative):** Earlier draft and released artifacts used
 `{path, value?}` transforms with `$target` / `$policy_target` roots and the
