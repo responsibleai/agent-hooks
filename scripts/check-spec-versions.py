@@ -51,9 +51,7 @@ def check_bundle(folder: Path) -> list[str]:
         if not (folder / name).is_file():
             errors.append(f"{rel}/{name} is missing")
     response_schemas = (
-        DRAFT_RESPONSE_SCHEMAS
-        if folder.name == "draft"
-        else RELEASED_RESPONSE_SCHEMAS
+        DRAFT_RESPONSE_SCHEMAS if folder.name == "draft" else RELEASED_RESPONSE_SCHEMAS
     )
     for name in response_schemas:
         if not (folder / name).is_file():
