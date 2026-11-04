@@ -600,7 +600,6 @@ interface Target {
 
 const BASE_TARGETS: Target[] = [
   { name: "interception-point", file: "interception-point.schema.json", shape: "point", pointer: "" },
-  { name: "verdict", file: "verdict.schema.json", shape: "verdict", pointer: "" },
   { name: "approval request", file: "approval.schema.json", shape: "request", pointer: "#/$defs/request" },
   { name: "approval resolution", file: "approval.schema.json", shape: "resolution", pointer: "#/$defs/resolution" },
   { name: "agent-context", file: "agent-context.schema.json", shape: "context", pointer: "" },
@@ -634,21 +633,29 @@ const HOOK_RESPONSE_TARGETS: Target[] = POINTS.map((point) => ({
 }));
 
 function targetsFor(oldSet: SchemaSet, newSet: SchemaSet): Target[] {
-  const hookResponseTargets = HOOK_RESPONSE_TARGETS.filter((target) => {
+  function commonOnly(target: Target): boolean {
     const oldHas = oldSet.has(target.file);
     const newHas = newSet.has(target.file);
     if (oldHas !== newHas) {
-      throw new Error(`cannot compare schema sets with different hook-response layouts (${target.file})`);
+      console.log(
+        `skipping ${target.name}: schema exists only in ${oldHas ? "old" : "new"} bundle`,
+      );
     }
-    return oldHas;
-  });
-  const oldHasLegacy = oldSet.has(LEGACY_RESPONSE_TARGET.file);
-  const newHasLegacy = newSet.has(LEGACY_RESPONSE_TARGET.file);
-  if (oldHasLegacy !== newHasLegacy) {
-    throw new Error("cannot compare legacy interceptor-response schema against the flat hook-response layout");
+    return oldHas && newHas;
   }
-  const responseTargets = oldHasLegacy ? [LEGACY_RESPONSE_TARGET] : [];
-  return [...BASE_TARGETS, ...responseTargets, ...hookResponseTargets];
+  const verdictTarget: Target[] = commonOnly({
+    name: "generic verdict",
+    file: "verdict.schema.json",
+    shape: "verdict",
+    pointer: "",
+  })
+    ? [{ name: "verdict", file: "verdict.schema.json", shape: "verdict", pointer: "" }]
+    : [];
+  const hookResponseTargets = HOOK_RESPONSE_TARGETS.filter((target) => {
+    return commonOnly(target);
+  });
+  const responseTargets = commonOnly(LEGACY_RESPONSE_TARGET) ? [LEGACY_RESPONSE_TARGET] : [];
+  return [...BASE_TARGETS, ...verdictTarget, ...responseTargets, ...hookResponseTargets];
 }
 
 function pointerSchema(set: SchemaSet, file: string, pointer: string): Obj {

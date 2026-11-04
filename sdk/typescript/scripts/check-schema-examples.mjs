@@ -14,6 +14,7 @@ export const releaseSchemaRoot = fileURLToPath(
 );
 export const schemaMapping = {
   AgentContext: "agent-context.schema.json",
+  // The generic verdict root is retained only in the released 0.1.0 bundle.
   Verdict: "verdict.schema.json",
   InterceptorResponse: "interceptor-response.schema.json#/$defs/ResponseEnvelope",
   ApprovalRequest: "approval.schema.json#/$defs/request",
@@ -40,6 +41,14 @@ const hookResponseSchemas = [
   "output-hook-response.schema.json",
   "agent-shutdown-hook-response.schema.json",
 ];
+const transformHookResponseSchema = {
+  input: "input-hook-response.schema.json",
+  messages: "pre-model-hook-response.schema.json",
+  response: "post-model-hook-response.schema.json",
+  args: "pre-tool-hook-response.schema.json",
+  value: "post-tool-hook-response.schema.json",
+  output: "output-hook-response.schema.json",
+};
 
 async function jsonFiles(directory) {
   const files = [];
@@ -97,10 +106,24 @@ export async function validateExamples(root = schemaRoot) {
     if (parts.length !== 2) {
       throw new Error(`${filename}: no schema mapping for example`);
     }
-    const reference = schemaMapping[parts[0]];
-    if (!reference) throw new Error(`${filename}: no schema mapping for example`);
     const instance = await readJson(filename);
-    validate(instance, filename, reference);
+    let references;
+    if (parts[0] === "Verdict" && !schemas.has("verdict.schema.json")) {
+      if (instance.decision === "transform") {
+        const transformMembers = Object.keys(instance.transform ?? {});
+        if (transformMembers.length !== 1 || !transformHookResponseSchema[transformMembers[0]]) {
+          throw new Error(`${filename}: no hook response schema for transform payload`);
+        }
+        references = [transformHookResponseSchema[transformMembers[0]]];
+      } else {
+        references = hookResponseSchemas;
+      }
+    } else {
+      const reference = schemaMapping[parts[0]];
+      if (!reference) throw new Error(`${filename}: no schema mapping for example`);
+      references = [reference];
+    }
+    for (const reference of references) validate(instance, filename, reference);
     if (parts[0] === "AgentContext") {
       validate(instance, filename, `strict-contexts/${instance.interception_point}.schema.json`);
     }
@@ -172,33 +195,6 @@ export async function validateExamples(root = schemaRoot) {
           );
         }
       }
-    }
-    assertSchemaProbe(
-      "verdict.schema.json",
-      { decision: "allow", extensions: { policy: {} } },
-      false,
-      "shared verdict excludes response metadata",
-    );
-    assertSchemaProbe(
-      "verdict.schema.json",
-      { decision: "transform", transform: { path: "$target.args" } },
-      false,
-      "shared verdict rejects legacy path transform",
-    );
-    for (const [label, transform] of [
-      ["input", { input: { content: "x", role: "user" } }],
-      ["pre-model", { messages: [{ role: "user", content: "x" }] }],
-      ["post-model", { response: { content: "x", tool_calls: [], finish_reason: "stop" } }],
-      ["pre-tool", { args: {} }],
-      ["post-tool", { value: "x" }],
-      ["output", { output: { content: "x" } }],
-    ]) {
-      assertSchemaProbe(
-        "verdict.schema.json",
-        { decision: "transform", transform },
-        true,
-        `${label} transform in any-hook verdict`,
-      );
     }
     for (const schemaFile of hookResponseSchemas) {
       assertSchemaProbe(schemaFile, { decision: "allow" }, true, "bare allow");

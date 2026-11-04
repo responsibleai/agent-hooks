@@ -88,56 +88,67 @@ function allowFractionalJsonNumbers(schema: Schema): void {
 
 const ROOTS: Root[] = [
   { file: "interception-point.schema.json", source: "interception-point.ts", type: "InterceptionPoint" },
-  { file: "verdict.schema.json", source: "hook-responses.ts", type: "AnyHookVerdict" },
+  ...(SPEC === "draft"
+    ? []
+    : [{ file: "verdict.schema.json", source: "verdict.ts", type: "Verdict" }]),
   { file: "agent-context.schema.json", source: "agent-context.ts", type: "AgentContext" },
-  {
-    file: "agent-startup-hook-response.schema.json",
-    source: "hook-responses.ts",
-    type: "AgentStartupHookResponse",
-    title: "Agent Hooks — agent_startup response",
-  },
-  {
-    file: "input-hook-response.schema.json",
-    source: "hook-responses.ts",
-    type: "InputHookResponse",
-    title: "Agent Hooks — input response",
-  },
-  {
-    file: "pre-model-hook-response.schema.json",
-    source: "hook-responses.ts",
-    type: "PreModelHookResponse",
-    title: "Agent Hooks — pre_model_call response",
-  },
-  {
-    file: "post-model-hook-response.schema.json",
-    source: "hook-responses.ts",
-    type: "PostModelHookResponse",
-    title: "Agent Hooks — post_model_call response",
-  },
-  {
-    file: "pre-tool-hook-response.schema.json",
-    source: "hook-responses.ts",
-    type: "PreToolHookResponse",
-    title: "Agent Hooks — pre_tool_call response",
-  },
-  {
-    file: "post-tool-hook-response.schema.json",
-    source: "hook-responses.ts",
-    type: "PostToolHookResponse",
-    title: "Agent Hooks — post_tool_call response",
-  },
-  {
-    file: "output-hook-response.schema.json",
-    source: "hook-responses.ts",
-    type: "OutputHookResponse",
-    title: "Agent Hooks — output response",
-  },
-  {
-    file: "agent-shutdown-hook-response.schema.json",
-    source: "hook-responses.ts",
-    type: "AgentShutdownHookResponse",
-    title: "Agent Hooks — agent_shutdown response",
-  },
+  ...(SPEC === "draft"
+    ? [
+        {
+          file: "agent-startup-hook-response.schema.json",
+          source: "hook-responses.ts",
+          type: "AgentStartupHookResponse",
+          title: "Agent Hooks — agent_startup response",
+        },
+        {
+          file: "input-hook-response.schema.json",
+          source: "hook-responses.ts",
+          type: "InputHookResponse",
+          title: "Agent Hooks — input response",
+        },
+        {
+          file: "pre-model-hook-response.schema.json",
+          source: "hook-responses.ts",
+          type: "PreModelHookResponse",
+          title: "Agent Hooks — pre_model_call response",
+        },
+        {
+          file: "post-model-hook-response.schema.json",
+          source: "hook-responses.ts",
+          type: "PostModelHookResponse",
+          title: "Agent Hooks — post_model_call response",
+        },
+        {
+          file: "pre-tool-hook-response.schema.json",
+          source: "hook-responses.ts",
+          type: "PreToolHookResponse",
+          title: "Agent Hooks — pre_tool_call response",
+        },
+        {
+          file: "post-tool-hook-response.schema.json",
+          source: "hook-responses.ts",
+          type: "PostToolHookResponse",
+          title: "Agent Hooks — post_tool_call response",
+        },
+        {
+          file: "output-hook-response.schema.json",
+          source: "hook-responses.ts",
+          type: "OutputHookResponse",
+          title: "Agent Hooks — output response",
+        },
+        {
+          file: "agent-shutdown-hook-response.schema.json",
+          source: "hook-responses.ts",
+          type: "AgentShutdownHookResponse",
+          title: "Agent Hooks — agent_shutdown response",
+        },
+      ]
+    : [{
+        file: "interceptor-response.schema.json",
+        source: "interceptor-response.ts",
+        type: "InterceptorResponse",
+        title: "Agent Hooks — interceptor response",
+      }]),
   {
     file: "approval.schema.json",
     source: "approval.ts",
@@ -196,13 +207,9 @@ function generateRoot(root: Root): Schema {
   // 3: the draft-07 meaning of $ref, which ignores its siblings.
   stripRefSiblings(schema);
   if (root.source === "hook-responses.ts") materializeHookResponseMetadata(schema);
-  // Decision objects remain closed except within hook responses, where the
-  // response-level extension member is evaluated by the composed schema.
-  if (
-    (root.type === "AnyHookVerdict" || root.file === "approval.schema.json") &&
-    schema.$defs &&
-    typeof schema.$defs === "object"
-  ) {
+  // Approval definitions remain closed; hook response definitions are closed
+  // by their response-level unevaluatedProperties constraint below.
+  if (root.file === "approval.schema.json" && schema.$defs && typeof schema.$defs === "object") {
     for (const name of ["AllowVerdict", "DenyVerdict"]) {
       const definition = (schema.$defs as Record<string, Json>)[name];
       if (definition && typeof definition === "object" && !Array.isArray(definition)) {
@@ -301,7 +308,7 @@ function perPointSchemas(master: Schema): Map<string, Schema> {
         $schema: DRAFT_2020_12,
         title: `Agent Hooks — agent context (${point})`,
         description:
-          `Required+conditional schema for interception_point=${point} ` +
+          `${SPEC === "draft" ? "Required" : "Closed required"}+conditional schema for interception_point=${point} ` +
           "(AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
         type: variant.type,
         properties: variant.properties,

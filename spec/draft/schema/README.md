@@ -12,6 +12,10 @@ The TypeScript files in `src/` are the editable schema source.
 - `generated/strict-contexts/*.schema.json` contains the per-interception-point
   request schemas. Each interception point is explicitly defined by its
   `HookRequest` and `HookResponse` pair below.
+- Draft response validation uses the eight hook-specific response schemas;
+  there is no generic draft verdict schema because transform payloads depend
+  on the interception point. The released `0.1.0` bundle retains its
+  `verdict.schema.json`.
 - `src/host-declaration.ts` generates both supported declaration schemas.
 - `path-grammar.abnf` remains a hand-maintained grammar, not generated output.
 

@@ -57,19 +57,6 @@ export interface OutputHookTransform {
   output: OutputRequest["output"];
 }
 
-/**
- * A verdict whose transform payload is valid for at least one hook.
- * @title Agent Hooks — verdict
- */
-export type AnyHookVerdict = Verdict<
-  | InputHookTransform
-  | PreModelHookTransform
-  | PostModelHookTransform
-  | PreToolHookTransform
-  | PostToolHookTransform
-  | OutputHookTransform
->;
-
 /** Shared transport metadata on a hook response, separate from its verdict. */
 export interface HooksResponseMetadata {
   extensions?: Extensions;
