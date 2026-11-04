@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Created:** 2026-11-03
 - **Author(s):** Caitie McCaffrey `<caitiem20@github.com>` (@CaitieM20)
-- **PR:** https://github.com/agent-hooks/pull/183
+- **PR:** (https://github.com/responsibleai/agent-hooks/pull/183)
 
 ## Abstract
 
