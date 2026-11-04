@@ -24,7 +24,9 @@ The rest of the repository must not name a folder or file that is
 gone: a spec/<X.Y.Z> path, or an AGENT-HOOKS-<X.Y>.md whose folder does
 not exist. Released folders are frozen and are not scanned, and neither
 are the script tests under scripts/, whose fixtures name old layouts on
-purpose. A placeholder such as AGENT-HOOKS-<X.Y>.md is not a reference.
+purpose, nor the proposals under docs/proposals/, which record a design
+at a point in time and are not kept current. A placeholder such as
+AGENT-HOOKS-<X.Y>.md is not a reference.
 
 Usage: check-spec-versions.py [<repository-root>]
 """
@@ -213,7 +215,9 @@ def check_references(root: Path, released: set[str]) -> list[str]:
         dirnames[:] = sorted(
             d
             for d in dirnames
-            if d not in SKIP_DIRS and not (here == spec and d in released)
+            if d not in SKIP_DIRS
+            and not (here == spec and d in released)
+            and not (here == root / "docs" and d == "proposals")
         )
         for name in sorted(filenames):
             path = here / name

@@ -319,6 +319,13 @@ class CheckTest(unittest.TestCase):
             all(e.startswith("scripts/helper.py:1") for e in errors), errors
         )
 
+    def test_proposals_are_not_scanned(self) -> None:
+        (self.root / "docs/proposals").mkdir()
+        (self.root / "docs/proposals/P-001-x.md").write_text(
+            "spec/0.1.0/AGENT-HOOKS-0.1.md\n"
+        )
+        self.assertEqual(versions.check(self.root), [])
+
     def test_frozen_folders_and_build_output_are_not_scanned(self) -> None:
         (self.root / "spec/0.1/notes.md").write_text("spec/0.1.0 was the old name\n")
         (self.root / "node_modules").mkdir()
