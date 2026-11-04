@@ -1,12 +1,9 @@
-# P-XXX: Hook-specific type contracts from existing context schemas
+# P-183: Hook-specific type contracts from existing context schemas
 
 - **Status:** Draft
-- **Created:** 2026-10-30
+- **Created:** 2026-11-03
 - **Author(s):** Caitie McCaffrey `<caitiem20@github.com>` (@CaitieM20)
-- **PR:** https://github.com/CaitieM20/agent-hooks/pull/3
-
-See the [proposal process](README.md) for scope, lifecycle, decision
-authority, and review window.
+- **PR:** https://github.com/agent-hooks/pull/183
 
 ## Abstract
 
