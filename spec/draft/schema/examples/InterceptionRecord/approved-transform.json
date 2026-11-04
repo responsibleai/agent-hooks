@@ -2,7 +2,7 @@
   "interception_point": "pre_tool_call",
   "mode": "enforce",
   "verdict": {
-    "decision": "transform",
+    "decision": "allow",
     "reason": "operator_limited_scope"
   },
   "input_identity": null,
