@@ -622,83 +622,117 @@ This section defines the hook-specific response shapes by interception point, no
 
 #### 5.2.2 `input`
 
-`InputHookResponse` is a `HooksResponse<InputHookTransform>`.
-For `decision: "transform"`, it MUST include `transform.input`, which replaces
-the complete request `input` member, including both `content` and `role`:
+An `input` response is a JSON object with the common verdict members in
+§5.1.2. When `decision` is `transform`, it MUST include `transform.input`
+with the complete replacement for the request's `input` member, including
+both `content` and `role`.
 
 ```json
 {
   "decision": "transform",
-  "transform": { "input": { "content": "sanitized", "role": "user" } }
+  "transform": {
+    "input": {
+      "content": "Find the public retention policy.",
+      "role": "user"
+    }
+  }
 }
 ```
 
 #### 5.2.3 `pre_model_call`
 
-`PreModelHookResponse` is a `HooksResponse<PreModelHookTransform>`.
-For `decision: "transform"`, it MUST include `transform.messages`, replacing
-the complete `messages` array sent to the model. The replacement MUST conform
-to the `messages` request shape in §4.2.
+A `pre_model_call` response is a JSON object with the common verdict members
+in §5.1.2. When `decision` is `transform`, it MUST include
+`transform.messages` with the complete replacement for the request's
+`messages` array.
 
 ```json
 {
   "decision": "transform",
-  "transform": { "messages": [ ... ] }
+  "transform": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Find the public retention policy."
+      }
+    ]
+  }
 }
 ```
 
 #### 5.2.4 `post_model_call`
 
-`PostModelHookResponse` is a `HooksResponse<PostModelHookTransform>`.
-For `decision: "transform"`, it MUST include `transform.response`, replacing
-the complete model `response`, including `content`, `tool_calls`, and
-`finish_reason`, with a value conforming to §4.2.
+A `post_model_call` response is a JSON object with the common verdict members
+in §5.1.2. When `decision` is `transform`, it MUST include
+`transform.response` with the complete replacement for the request's
+`response`, including `content`, `tool_calls`, and `finish_reason`.
 
 ```json
 {
   "decision": "transform",
-  "transform": { "response": { ... } }
+  "transform": {
+    "response": {
+      "content": "The public retention period is 30 days.",
+      "tool_calls": [],
+      "finish_reason": "stop"
+    }
+  }
 }
 ```
 
 #### 5.2.5 `pre_tool_call`
 
-`PreToolHookResponse` is a `HooksResponse<PreToolHookTransform>`.
-For `decision: "transform"`, it MUST include `transform.args`, an object that
-replaces only `tool_call.args`. It does not replace the complete
-`tool_call` object.
+A `pre_tool_call` response is a JSON object with the common verdict members
+in §5.1.2. When `decision` is `transform`, it MUST include `transform.args`
+with the complete replacement for `tool_call.args`; it does not replace the
+complete `tool_call` object.
 
 ```json
 {
   "decision": "transform",
-  "transform": { "args": { ... } }
+  "transform": {
+    "args": {
+      "query": "document retention policy",
+      "collection": "public"
+    }
+  }
 }
 ```
 
 #### 5.2.6 `post_tool_call`
 
-`PostToolHookResponse` is a `HooksResponse<PostToolHookTransform>`.
-For `decision: "transform"`, it MUST include `transform.value`, any JSON value
-that replaces only `tool_result.value`. It does not replace `tool_result` or
-the `tool_call`.
+A `post_tool_call` response is a JSON object with the common verdict members
+in §5.1.2. When `decision` is `transform`, it MUST include `transform.value`
+with the complete replacement for `tool_result.value`; it does not replace
+`tool_result` or `tool_call`.
 
 ```json
 {
   "decision": "transform",
-  "transform": { "value": ... }
+  "transform": {
+    "value": {
+      "title": "Public document retention policy",
+      "text": "Public documents are retained for 30 days."
+    }
+  }
 }
 ```
 
 #### 5.2.7 `output`
 
-`OutputHookResponse` is a `HooksResponse<OutputHookTransform>`.
-For `decision: "transform"`, it MUST include `transform.output`, replacing
-the complete request `output` member, including its `content`.
+A `output` response is a JSON object with the common verdict members in
+§5.1.2. When `decision` is `transform`, it MUST include `transform.output`
+with the complete replacement for the request's `output` member, including
+its `content`.
 
 ```json
 {
   "decision": "transform",
-  "transform": { "output": { ... } }
+  "transform": {
+    "output": {
+      "content": "Public documents are retained for 30 days."
+    }
+  }
 }
 ```
 
