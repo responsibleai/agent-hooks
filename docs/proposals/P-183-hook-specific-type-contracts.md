@@ -60,7 +60,7 @@ populate or pass unrelated optional data to every interceptor.
 - Non-goals are redesigning specific hooks, follow on proposals can do that as necessary.
 
 ## Specification
-
+See specification for details on the existing context schemas and how they map to the hook-specific types.
 
 
 ### Schema
@@ -104,17 +104,21 @@ export type PreToolHookHandler = HookHandler<PreToolCallRequest, PreToolHookResp
 ```
 
 ## Rationale
+The rationale for introducing hook-specific types is to provide clearer and safer contracts for interceptors, reducing the reliance on developers to manually check and interpret the broad `AgentContext`. By defining explicit types for each hook, we make the required fields and expected behavior explicit, enabling better tooling support, compile-time checks, and improved developer experience. This approach also allows harnesses to expose only the necessary data for each hook, maintaining encapsulation and minimizing the risk of accidental reliance on internal state.
 
+Maintaining the existing schema & specification without introducing hook-specific types is a blocker for adoption by major harnesses.
 
 ## Security and privacy
-
+No new security or privacy risks are introduced by defining hook-specific types, as they only formalize the existing contracts and do not expose additional internal state beyond what the harness already provides.
 
 ## Backward compatibility
-
-
+This is a breaking change because existing interceptors that rely on the broad `AgentContext` will need to be updated to use the new hook-specific types. Additionally optional requests that used to be valid on the broad context may no longer be available, requiring interceptors to adapt to the more specific hook contracts.
 
 ## SDK surface and implementation impact
-
+The SDKs will need to be updated to support the new hook-specific types, ensuring that interceptors can correctly handle the typed requests and responses for each hook. This may involve generating new type definitions, updating method signatures, and providing utilities to facilitate the transition from the broad `AgentContext` to the specific hook contracts.
 
 ## Conformance and tests
+Interceptors should be tested against the new hook-specific types to ensure they correctly handle the typed requests and responses. This includes verifying that interceptors properly check the `interception_point`, access the expected fields, and return the appropriate verdicts. Test suites should be updated to reflect the new types and to catch any regressions caused by the transition from the broad `AgentContext` to the specific hook contracts.
+
+Conformance tests will also need to be updated to support multiple spec versions. 
 
