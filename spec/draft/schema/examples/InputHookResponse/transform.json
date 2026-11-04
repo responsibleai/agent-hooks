@@ -1,9 +1,11 @@
 {
-  "decision": "transform",
-  "transform": {
-    "input": {
-      "content": "Find the public retention policy.",
-      "role": "user"
+  "verdict": {
+    "decision": "transform",
+    "transform": {
+      "input": {
+        "content": "Find the public retention policy.",
+        "role": "user"
+      }
     }
   }
 }

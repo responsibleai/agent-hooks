@@ -1,3 +1,5 @@
 {
-  "decision": "allow"
+  "verdict": {
+    "decision": "allow"
+  }
 }

@@ -206,9 +206,7 @@ function generateRoot(root: Root): Schema {
   }
   // 3: the draft-07 meaning of $ref, which ignores its siblings.
   stripRefSiblings(schema);
-  if (root.source === "hook-responses.ts") materializeHookResponseMetadata(schema);
-  // Approval definitions remain closed; hook response definitions are closed
-  // by their response-level unevaluatedProperties constraint below.
+  // Approval definitions remain closed.
   if (root.file === "approval.schema.json" && schema.$defs && typeof schema.$defs === "object") {
     for (const name of ["AllowVerdict", "DenyVerdict"]) {
       const definition = (schema.$defs as Record<string, Json>)[name];
@@ -225,25 +223,6 @@ function generateRoot(root: Root): Schema {
   if (root.title !== undefined) schema.title = root.title;
   if (root.description !== undefined) schema.description = root.description;
   return ordered(schema);
-}
-
-function materializeHookResponseMetadata(schema: Schema): void {
-  const defs = schema.$defs as Record<string, Schema> | undefined;
-  if (!defs) throw new Error("hook response schema has no definitions");
-  let decisionTypes = 0;
-  for (const [name, definition] of Object.entries(defs)) {
-    if (
-      (name === "AllowVerdict" || name === "DenyVerdict" || name.startsWith("TransformVerdict<")) &&
-      definition.additionalProperties === false
-    ) {
-      delete definition.additionalProperties;
-      decisionTypes++;
-    }
-  }
-  if (decisionTypes === 0) throw new Error("hook response schema has no closed verdict definitions");
-  // The response-level metadata is declared by HooksResponseMetadata; defer
-  // closure until all verdict branches and that shared field are evaluated.
-  schema.unevaluatedProperties = false;
 }
 
 function stripRefSiblings(node: Json): void {

@@ -1,4 +1,6 @@
 {
-  "decision": "deny",
-  "reason": "shutdown_policy_violation"
+  "verdict": {
+    "decision": "deny",
+    "reason": "shutdown_policy_violation"
+  }
 }

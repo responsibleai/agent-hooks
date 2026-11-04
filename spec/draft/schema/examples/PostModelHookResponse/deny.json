@@ -1,4 +1,6 @@
 {
-  "decision": "deny",
-  "reason": "unexpected_model_output"
+  "verdict": {
+    "decision": "deny",
+    "reason": "unexpected_model_output"
+  }
 }

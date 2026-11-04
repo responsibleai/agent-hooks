@@ -1,4 +1,6 @@
 {
-  "decision": "deny",
-  "reason": "sensitive_output"
+  "verdict": {
+    "decision": "deny",
+    "reason": "sensitive_output"
+  }
 }

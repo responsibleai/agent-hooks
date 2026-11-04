@@ -275,9 +275,16 @@ function handWritten(): void {
   );
   seed(
     "response",
+    ...(seeds.get("verdict") ?? []).map((verdict) => ({ verdict })),
     { decision: "allow", extensions: { policy: {} } },
     { decision: "transform", transform: { args: { limit: 20 } }, extensions: { policy: {} } },
     { verdict: { decision: "allow" } },
+    { verdict: { decision: "allow" }, extensions: { policy: {} } },
+    { verdict: { decision: "deny", approval: {} }, extensions: { policy: {} } },
+    { verdict: { decision: "transform", transform: { args: { limit: 20 } } }, extensions: { policy: {} } },
+    { verdict: { decision: "allow" }, extensions: { "Bad-Key": true } },
+    { verdict: { decision: "allow", extensions: { policy: {} } } },
+    { verdict: { verdict: { decision: "allow" } } },
     { decision: "allow", verdict: { decision: "allow" } },
   );
   seed(

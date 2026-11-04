@@ -1,9 +1,11 @@
 {
-  "decision": "transform",
-  "transform": {
-    "value": {
-      "title": "Public document retention policy",
-      "text": "Public documents are retained for 30 days."
+  "verdict": {
+    "decision": "transform",
+    "transform": {
+      "value": {
+        "title": "Public document retention policy",
+        "text": "Public documents are retained for 30 days."
+      }
     }
   }
 }

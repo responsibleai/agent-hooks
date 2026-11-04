@@ -61,12 +61,11 @@ lattices are out of scope and are defined by interceptor specifications such
 as the Agent Control Specification (ACS).
 
 This specification is a control plane, not a telemetry plane. It does NOT
-define a passive observation, tracing, or metrics interface. Every
-registered interceptor MUST compute a `Verdict` and return it as part of the `HooksResponse`; an
-interceptor that has no control decision to make returns `allow`. Section 5.5
-defines optional metadata on that flat response, not a nested verdict envelope.
-A host MAY surface `HooksRequest`
-to its own telemetry, but that is outside this contract.
+define a passive observation, tracing, or metrics interface. 
+
+Every registered interceptor MUST compute a `Verdict` and return it as part of the `HooksResponse`. An interceptor that has no control decision to make returns
+`{"verdict":{"decision":"allow"}}`.
+
 
 ### 1.2 Key words
 
@@ -142,8 +141,8 @@ not a security certification.
 | **Interceptor** | A component registered with the host that receives a `HooksRequest` and returns its matching `HooksResponse`. |
 | **Interception point** | One of the eight named lifecycle positions in §3. |
 | **`HooksRequest`** | The JSON payload the host constructs at an interception point per §4. |
-| **`HooksResponse`** | The JSON object an interceptor returns per §5, containing decision fields and optional root `extensions`. |
-| **Verdict** | The decision content of a `HooksResponse`: `allow`, `deny`, or (where permitted) `transform`, with its decision metadata. |
+| **`HooksResponse`** | The JSON object an interceptor returns per §5, containing required `verdict` and optional `extensions`. |
+| **Verdict** | The decision content of a `HooksResponse`: `allow`, `deny`, or (where permitted) `transform`, with its decision metadata |
 | **Action** | The host operation immediately following a `pre_*` interception point or immediately preceding a `post_*` interception point (a model call, a tool invocation, emitting output). |
 | **Permit verdict** | A verdict whose `decision` is `allow` or `transform`. |
 | **Block verdict** | A verdict whose `decision` is `deny` (with or without an `approval` block). |
@@ -463,12 +462,21 @@ does not enforce them.
 [Pure Specification]
 
 An interceptor MUST return a `HooksResponse` conforming to the response schema
-for the request's `interception_point`. Each `HooksResponse` MUST contain the required `Verdict` fields and MAY contain optional `Verdict` fields as well.
+for the request's `interception_point`. The response MUST be a JSON object
+containing a required `verdict` and OPTIONAL `extensions` (§5.5), with no
+other root members. The nested `verdict` MUST satisfy §5.1 and the
+hook-specific constraints in §5.2.
 
-```jsonc
+```json
 {
-  "decision": "allow",
-  "extensions": { ...}  
+  "verdict": {
+    "decision": "allow"
+  },
+  "extensions": {
+    "example_provider": {
+      "request_id": "request-123"
+    }
+  }
 }
 ```
 
@@ -485,7 +493,10 @@ for the request's `interception_point`. Each `HooksResponse` MUST contain the re
 
 
 ### 5.1 Verdict
-Every `HooksResponse` contains a set of `Verdict` fields, which define whether the Action is allowed to proceed as defined by the `decision`. The `decision` MUST be one of `allow`, `deny`, or `transform`.
+Every `HooksResponse` contains a `verdict` object whose `decision` defines
+whether the action is allowed to proceed. The `decision` MUST be one of
+`allow`, `deny`, or `transform`, subject to §5.2. The verdict object is closed:
+only members defined in §5.1–§5.4 for its decision are permitted.
 
 #### 5.1.1 Decision semantics
 
@@ -595,8 +606,10 @@ example, this is a complete `pre_tool_call` response:
 
 ```json
 {
-  "decision": "transform",
-  "transform": { "args": { "query": "redacted" } }
+  "verdict": {
+    "decision": "transform",
+    "transform": { "args": { "query": "redacted" } }
+  }
 }
 ```
 
@@ -621,7 +634,9 @@ not a transform format for these responses. No automatic path-to-whole-value
 conversion is defined.
 
 ### 5.2 Hook-specific response shapes
-This section defines the hook-specific response shapes by interception point, notably the transform payload required for each transform-capable hook.
+Every response in this section uses the envelope in §5. The hook-specific
+constraints apply to its nested `verdict`; `extensions` remains optional
+response metadata. The examples below are complete responses.
 
 #### 5.2.1 `agent_startup`
 
@@ -629,18 +644,19 @@ This section defines the hook-specific response shapes by interception point, no
 
 #### 5.2.2 `input`
 
-An `input` response is a JSON object with the common verdict members in
-§5.1.2. When `decision` is `transform`, it MUST include `transform.input`
+An `input` response contains a `Verdict` object as defined in §5.1.2. When `verdict.decision` is `transform`, it MUST include `verdict.transform.input`
 with the complete replacement for the request's `input` member, including
 both `content` and `role`.
 
 ```json
 {
-  "decision": "transform",
-  "transform": {
-    "input": {
-      "content": "Find the public retention policy.",
-      "role": "user"
+  "verdict": {
+    "decision": "transform",
+    "transform": {
+      "input": {
+        "content": "Find the public retention policy.",
+        "role": "user"
+      }
     }
   }
 }
@@ -648,40 +664,42 @@ both `content` and `role`.
 
 #### 5.2.3 `pre_model_call`
 
-A `pre_model_call` response is a JSON object with the common verdict members
-in §5.1.2. When `decision` is `transform`, it MUST include
-`transform.messages` with the complete replacement for the request's
+A `pre_model_call` response contains a `Verdict` object as defined in §5.1.2. When `verdict.decision` is `transform`, it MUST include
+`verdict.transform.messages` with the complete replacement for the request's
 `messages` array.
 
 ```json
 {
-  "decision": "transform",
-  "transform": {
-    "messages": [
-      {
-        "role": "user",
-        "content": "Find the public retention policy."
-      }
-    ]
+  "verdict": {
+    "decision": "transform",
+    "transform": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Find the public retention policy."
+        }
+      ]
+    }
   }
 }
 ```
 
 #### 5.2.4 `post_model_call`
 
-A `post_model_call` response is a JSON object with the common verdict members
-in §5.1.2. When `decision` is `transform`, it MUST include
-`transform.response` with the complete replacement for the request's
+A `post_model_call` response contains a `Verdict` object as defined in §5.1.2. When `verdict.decision` is `transform`, it MUST include
+`verdict.transform.response` with the complete replacement for the request's
 `response`, including `content`, `tool_calls`, and `finish_reason`.
 
 ```json
 {
-  "decision": "transform",
-  "transform": {
-    "response": {
-      "content": "The public retention period is 30 days.",
-      "tool_calls": [],
-      "finish_reason": "stop"
+  "verdict": {
+    "decision": "transform",
+    "transform": {
+      "response": {
+        "content": "The public retention period is 30 days.",
+        "tool_calls": [],
+        "finish_reason": "stop"
+      }
     }
   }
 }
@@ -689,18 +707,19 @@ in §5.1.2. When `decision` is `transform`, it MUST include
 
 #### 5.2.5 `pre_tool_call`
 
-A `pre_tool_call` response is a JSON object with the common verdict members
-in §5.1.2. When `decision` is `transform`, it MUST include `transform.args`
+A `pre_tool_call` response contains a `Verdict` object as defined in §5.1.2. When `verdict.decision` is `transform`, it MUST include `verdict.transform.args`
 with the complete replacement for `tool_call.args`; it does not replace the
 complete `tool_call` object.
 
 ```json
 {
-  "decision": "transform",
-  "transform": {
-    "args": {
-      "query": "document retention policy",
-      "collection": "public"
+  "verdict": {
+    "decision": "transform",
+    "transform": {
+      "args": {
+        "query": "document retention policy",
+        "collection": "public"
+      }
     }
   }
 }
@@ -708,18 +727,19 @@ complete `tool_call` object.
 
 #### 5.2.6 `post_tool_call`
 
-A `post_tool_call` response is a JSON object with the common verdict members
-in §5.1.2. When `decision` is `transform`, it MUST include `transform.value`
+A `post_tool_call` response contains a `Verdict` object as defined in §5.1.2. When `verdict.decision` is `transform`, it MUST include `verdict.transform.value`
 with the complete replacement for `tool_result.value`; it does not replace
 `tool_result` or `tool_call`.
 
 ```json
 {
-  "decision": "transform",
-  "transform": {
-    "value": {
-      "title": "Public document retention policy",
-      "text": "Public documents are retained for 30 days."
+  "verdict": {
+    "decision": "transform",
+    "transform": {
+      "value": {
+        "title": "Public document retention policy",
+        "text": "Public documents are retained for 30 days."
+      }
     }
   }
 }
@@ -727,17 +747,18 @@ with the complete replacement for `tool_result.value`; it does not replace
 
 #### 5.2.7 `output`
 
-A `output` response is a JSON object with the common verdict members in
-§5.1.2. When `decision` is `transform`, it MUST include `transform.output`
+An `output` response contains a `Verdict` object as defined in §5.1.2. When `verdict.decision` is `transform`, it MUST include `verdict.transform.output`
 with the complete replacement for the request's `output` member, including
 its `content`.
 
 ```json
 {
-  "decision": "transform",
-  "transform": {
-    "output": {
-      "content": "Public documents are retained for 30 days."
+  "verdict": {
+    "decision": "transform",
+    "transform": {
+      "output": {
+        "content": "Public documents are retained for 30 days."
+      }
     }
   }
 }
@@ -772,13 +793,13 @@ action that did not proceed (a `deny` that was not lifted).
 
 ### 5.5 Response Extensions
 
-Each `HooksResponse` schema permits an optional `extensions` object. It appears 
-alongside `decision` and any other applicable verdict members; it MUST NOT be
-nested under a `verdict` or `transform` member.
+Each `HooksResponse` schema permits an optional `extensions` object.
 
 ```jsonc
 {
-  "decision": "allow",
+  "verdict": {
+    "decision": "allow"
+  },
   "extensions": {
     "example_namespace": {
       "example_key": "example_value"
@@ -871,7 +892,7 @@ dispatching to any interceptor. Interceptor failures map one-to-one:
 | --- | --- |
 | The interceptor raises (or panics) | `deny` `host_error:interceptor_failed` |
 | The interceptor exceeds the host's timeout | `deny` `host_error:interceptor_timeout` |
-| The returned value fails its per-hook response schema or the semantic rules in §5, including §5.5 | `deny` `host_error:verdict_invalid` |
+| The returned value fails its per-hook response schema or the semantic rules in §5, including §5.5  | `deny` `host_error:verdict_invalid` |
 
 The substituted deny takes the failing interceptor's **slot**: it
 occupies that interceptor's position in the profile's composition
@@ -906,19 +927,17 @@ following stay fail closed with no knob, whatever `on_error` says:
   cancelled outcome of a managed interceptor, §7, which the host
   treats as `host_error:interceptor_failed` and never substitutes);
 - a transform the host cannot apply (`host_error:transform_invalid`,
-  `host_error:transform_target_forbidden`, §5.2) and a transform
+  §5.2) and a transform
   conflict (§7.5);
 - every approval seam failure, including a resolver that raises or
   times out (`host_error:approval_resolver_failed`, §9);
 - an emission with nothing bound (`host_error:no_interceptor`, §7);
 - an explicit `deny` an interceptor returned, liftable or not.
 
-The lifecycle transform prohibition in §4.3 takes precedence over the generic
-invalid-response substitution: a returned `decision: "transform"` at startup or
-shutdown yields `host_error:transform_target_forbidden` and never continues.
-Other wrong-hook or malformed replacement payloads fail the response gate as
-`host_error:verdict_invalid`; application failures after that gate remain
-non-substitutable `host_error:transform_invalid`.
+A returned `verdict.decision: "transform"` at startup or shutdown fails the
+per-hook response schema (§5.2), as do other wrong-hook or malformed replacement
+payloads. These failures yield `host_error:verdict_invalid` and follow the
+registration's `on_error` policy. 
 
 Under `on_error: continue`, when one of the three covered failures
 occurs, the host MUST substitute the following verdict in the failing
@@ -1127,7 +1146,7 @@ Aggregation selects **one winning verdict** and unions the metadata:
 
 Interceptors are invoked in registration order. When an interceptor
 returns `transform` in `enforce` mode, the host MUST replace the hook's
-transformable member (per §5.2 and §4.3) **before** invoking
+transformable member (per §5.1.2.4 and §5.2) **before** invoking
 the next interceptor, so each interceptor observes the context as
 already transformed by its predecessors. In `evaluate_only` mode the
 transform is validated but not applied (§8), so later interceptors
@@ -1717,7 +1736,7 @@ composition profile in effect says to (§7.4–§7.6), and never at
   report the same reason for the same malformed resolution. The generated
   approval schema enforces these outcome-specific allow/deny shapes. Response
   `extensions` are not copied into an approval verdict merely because the
-  response carries them.
+  response carries them. 
 
 The `context_identity` presented in the request is computed by the
 identity provider from the context **as presented to the resolver** —
@@ -1974,9 +1993,8 @@ projection failure). An interceptor MUST NOT emit a
 | `host_error:context_invalid` | The host could not construct a schema-valid `HooksRequest`, or the `jcs-sha256` provider rejected its value domain (§10.2). |
 | `host_error:interceptor_failed` | An interceptor raised or returned a non-JSON value. |
 | `host_error:interceptor_timeout` | An interceptor exceeded the host's timeout. |
-| `host_error:verdict_invalid` | An interceptor returned a value that fails the matching hook response schema or §5 semantic rules, including flat response metadata (§5.5). |
+| `host_error:verdict_invalid` | An interceptor returned a value that fails the matching hook response schema defined in §5|
 | `host_error:transform_invalid` | A validated whole-member replacement could not be applied (§5.2). |
-| `host_error:transform_target_forbidden` | The interception point forbids transform (§4.3). |
 | `host_error:transform_conflict` | Two or more transforms against the same snapshot in a parallel profile (§7.5). |
 | `host_error:composition_disagreement` | Non-unanimous outcome under `parallel/unanimous` (§7.5). |
 | `host_error:approval_resolver_failed` | The resolver raised or timed out. |

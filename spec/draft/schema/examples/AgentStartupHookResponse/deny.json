@@ -1,4 +1,6 @@
 {
-  "decision": "deny",
-  "reason": "approval_required"
+  "verdict": {
+    "decision": "deny",
+    "reason": "approval_required"
+  }
 }

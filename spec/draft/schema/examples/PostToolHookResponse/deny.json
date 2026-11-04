@@ -1,4 +1,6 @@
 {
-  "decision": "deny",
-  "reason": "untrusted_tool_result"
+  "verdict": {
+    "decision": "deny",
+    "reason": "untrusted_tool_result"
+  }
 }

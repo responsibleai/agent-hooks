@@ -1,4 +1,6 @@
 {
-  "decision": "deny",
-  "reason": "unsafe_model_request"
+  "verdict": {
+    "decision": "deny",
+    "reason": "unsafe_model_request"
+  }
 }

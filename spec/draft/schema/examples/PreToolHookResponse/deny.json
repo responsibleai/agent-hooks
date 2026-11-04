@@ -1,4 +1,6 @@
 {
-  "decision": "deny",
-  "reason": "internal_collection_forbidden"
+  "verdict": {
+    "decision": "deny",
+    "reason": "internal_collection_forbidden"
+  }
 }

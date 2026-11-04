@@ -1,5 +1,7 @@
 {
-  "decision": "allow",
+  "verdict": {
+    "decision": "allow"
+  },
   "extensions": {
     "example_policy": {
       "receipt": "policy-check-001"

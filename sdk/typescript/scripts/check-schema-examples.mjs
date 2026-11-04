@@ -123,7 +123,10 @@ export async function validateExamples(root = schemaRoot) {
       if (!reference) throw new Error(`${filename}: no schema mapping for example`);
       references = [reference];
     }
-    for (const reference of references) validate(instance, filename, reference);
+    const responseInstance = parts[0] === "Verdict" && !schemas.has("verdict.schema.json")
+      ? { verdict: instance }
+      : instance;
+    for (const reference of references) validate(responseInstance, filename, reference);
     if (parts[0] === "AgentContext") {
       validate(instance, filename, `strict-contexts/${instance.interception_point}.schema.json`);
     }
@@ -197,31 +200,52 @@ export async function validateExamples(root = schemaRoot) {
       }
     }
     for (const schemaFile of hookResponseSchemas) {
-      assertSchemaProbe(schemaFile, { decision: "allow" }, true, "bare allow");
+      assertSchemaProbe(schemaFile, { decision: "allow" }, false, "bare allow");
+      assertSchemaProbe(schemaFile, { verdict: { decision: "allow" } }, true, "enveloped allow");
       assertSchemaProbe(
         schemaFile,
         { decision: "allow", extensions: { policy: { receipt: "r" } } },
-        true,
+        false,
         "flat allow with extensions",
+      );
+      assertSchemaProbe(
+        schemaFile,
+        { verdict: { decision: "allow" }, extensions: { policy: { receipt: "r" } } },
+        true,
+        "enveloped allow with extensions",
       );
       assertSchemaProbe(
         schemaFile,
         { verdict: { decision: "allow" }, extra: true },
         false,
-        "obsolete envelope",
+        "unknown envelope member",
       );
       assertSchemaProbe(
         schemaFile,
-        { decision: "allow", extensions: { "Bad-Key": true } },
+        { verdict: { decision: "allow" }, extensions: { "Bad-Key": true } },
         false,
         "invalid extensions namespace",
       );
       assertSchemaProbe(
         schemaFile,
-        { decision: "allow", unrecognized: true },
+        { verdict: { decision: "allow", unrecognized: true } },
         false,
         "closed verdict",
       );
+      for (const instance of [
+        {},
+        { extensions: {} },
+        { verdict: null },
+        { verdict: { decision: "invalid" } },
+        { verdict: { verdict: { decision: "allow" } } },
+        { verdict: { decision: "allow", extensions: { policy: {} } } },
+        { verdict: { decision: "allow" }, decision: "deny" },
+        { verdict: { decision: "allow" }, extensions: null },
+        { verdict: { decision: "allow" }, extensions: [] },
+        { verdict: { decision: "allow" }, extensions: "invalid" },
+      ]) {
+        assertSchemaProbe(schemaFile, instance, false, "invalid response envelope");
+      }
     }
     const transformCases = [
       ["input-hook-response.schema.json", { input: { content: "x", role: "user" } }],
@@ -234,26 +258,34 @@ export async function validateExamples(root = schemaRoot) {
     for (const [schemaFile, transform] of transformCases) {
       assertSchemaProbe(
         schemaFile,
-        { decision: "transform", transform },
+        { verdict: { decision: "transform", transform } },
         true,
         "hook transform",
       );
       assertSchemaProbe(
         schemaFile,
-        { decision: "transform", transform: { ...transform, unexpected: true } },
+        { verdict: { decision: "transform", transform: { ...transform, unexpected: true } } },
         false,
         "closed transform wrapper",
       );
+      for (const otherSchemaFile of hookResponseSchemas.filter((file) => file !== schemaFile)) {
+        assertSchemaProbe(
+          otherSchemaFile,
+          { verdict: { decision: "transform", transform } },
+          false,
+          "wrong-hook transform",
+        );
+      }
     }
     assertSchemaProbe(
       "pre-tool-hook-response.schema.json",
-      { decision: "transform", transform: { args: { limit: 20 } }, extensions: { policy: {} } },
+      { verdict: { decision: "transform", transform: { args: { limit: 20 } } }, extensions: { policy: {} } },
       true,
       "pre-tool transform",
     );
     assertSchemaProbe(
       "pre-tool-hook-response.schema.json",
-      { decision: "transform", transform: { args: {}, value: "unexpected" } },
+      { verdict: { decision: "transform", transform: { args: {}, value: "unexpected" } } },
       false,
       "pre-tool transform rejects post-tool payload",
     );
@@ -269,8 +301,10 @@ export async function validateExamples(root = schemaRoot) {
     assertSchemaProbe(
       "input-hook-response.schema.json",
       {
-        decision: "transform",
-        transform: { input: { content: "x", role: "user", extra: true } },
+        verdict: {
+          decision: "transform",
+          transform: { input: { content: "x", role: "user", extra: true } },
+        },
       },
       true,
       "nested replacement remains open at response gate",
@@ -289,13 +323,13 @@ export async function validateExamples(root = schemaRoot) {
     );
     assertSchemaProbe(
       "input-hook-response.schema.json",
-      { decision: "deny", approval: {}, extensions: { policy: {} } },
+      { verdict: { decision: "deny", approval: {} }, extensions: { policy: {} } },
       true,
       "deny with response metadata",
     );
     assertSchemaProbe(
       "input-hook-response.schema.json",
-      { decision: "transform", transform: { args: { limit: 20 } } },
+      { verdict: { decision: "transform", transform: { args: { limit: 20 } } } },
       false,
       "wrong-hook pre-tool transform",
     );
@@ -305,7 +339,7 @@ export async function validateExamples(root = schemaRoot) {
     ]) {
       assertSchemaProbe(
         schemaFile,
-        { decision: "transform", transform: { args: { limit: 20 } } },
+        { verdict: { decision: "transform", transform: { args: { limit: 20 } } } },
         false,
         "lifecycle transform",
       );

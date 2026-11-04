@@ -3,42 +3,39 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — input response",
   "description": "input response.",
-  "anyOf": [
-    {
-      "allOf": [
+  "additionalProperties": false,
+  "type": "object",
+  "properties": {
+    "verdict": {
+      "$ref": "#/$defs/Verdict%3CInputHookTransform%3E"
+    },
+    "extensions": {
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "$ref": "#/$defs/Extensions"
+    }
+  },
+  "required": [
+    "verdict"
+  ],
+  "$defs": {
+    "Verdict<InputHookTransform>": {
+      "description": "Interceptor return value (AGENT-HOOKS-0.1 §5). Three decisions: allow (absorbs\nwarn via warnings[]), deny (absorbs escalate via the approval block), transform.\nA verdict carries decision content only; composition is host configuration\n(§7.1).",
+      "title": "Agent Hooks — verdict",
+      "anyOf": [
         {
           "$ref": "#/$defs/AllowVerdict"
         },
         {
-          "$ref": "#/$defs/HooksResponseMetadata"
-        }
-      ]
-    },
-    {
-      "allOf": [
-        {
           "$ref": "#/$defs/DenyVerdict"
         },
         {
-          "$ref": "#/$defs/HooksResponseMetadata"
+          "$ref": "#/$defs/TransformVerdict%3CInputHookTransform%3E"
         }
       ]
     },
-    {
-      "allOf": [
-        {
-          "$ref": "#/$defs/TransformVerdict%3CInputHookTransform%3E"
-        },
-        {
-          "$ref": "#/$defs/HooksResponseMetadata"
-        }
-      ]
-    }
-  ],
-  "unevaluatedProperties": false,
-  "$defs": {
     "AllowVerdict": {
       "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -143,26 +140,9 @@
         "type": "string"
       }
     },
-    "HooksResponseMetadata": {
-      "description": "Shared transport metadata on a hook response, separate from its verdict.",
-      "type": "object",
-      "properties": {
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
-        }
-      }
-    },
-    "Extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "propertyNames": {
-        "pattern": "^[a-z][a-z0-9_]*$"
-      },
-      "type": "object",
-      "additionalProperties": {}
-    },
     "DenyVerdict": {
       "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -229,6 +209,7 @@
     },
     "TransformVerdict<InputHookTransform>": {
       "description": "transform: proceed with the hook-specific replacement payload.",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -326,6 +307,14 @@
         "system",
         "external"
       ]
+    },
+    "Extensions": {
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "type": "object",
+      "additionalProperties": {}
     }
   }
 }

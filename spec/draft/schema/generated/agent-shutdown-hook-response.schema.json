@@ -2,33 +2,36 @@
   "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/agent-shutdown-hook-response.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — agent_shutdown response",
-  "description": "Lifecycle response metadata without enabling transforms.",
-  "anyOf": [
-    {
-      "allOf": [
+  "description": "Responses for hooks that forbid transforms.",
+  "additionalProperties": false,
+  "type": "object",
+  "properties": {
+    "verdict": {
+      "$ref": "#/$defs/NonTransformVerdict"
+    },
+    "extensions": {
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "$ref": "#/$defs/Extensions"
+    }
+  },
+  "required": [
+    "verdict"
+  ],
+  "$defs": {
+    "NonTransformVerdict": {
+      "description": "Verdict choices for hooks that do not support transforms.",
+      "anyOf": [
         {
           "$ref": "#/$defs/AllowVerdict"
         },
         {
-          "$ref": "#/$defs/HooksResponseMetadata"
+          "$ref": "#/$defs/DenyVerdict"
         }
       ]
     },
-    {
-      "allOf": [
-        {
-          "$ref": "#/$defs/DenyVerdict"
-        },
-        {
-          "$ref": "#/$defs/HooksResponseMetadata"
-        }
-      ]
-    }
-  ],
-  "unevaluatedProperties": false,
-  "$defs": {
     "AllowVerdict": {
       "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -133,26 +136,9 @@
         "type": "string"
       }
     },
-    "HooksResponseMetadata": {
-      "description": "Shared transport metadata on a hook response, separate from its verdict.",
-      "type": "object",
-      "properties": {
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
-        }
-      }
-    },
-    "Extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "propertyNames": {
-        "pattern": "^[a-z][a-z0-9_]*$"
-      },
-      "type": "object",
-      "additionalProperties": {}
-    },
     "DenyVerdict": {
       "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "decision": {
@@ -216,6 +202,14 @@
       "required": [
         "decision"
       ]
+    },
+    "Extensions": {
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "type": "object",
+      "additionalProperties": {}
     }
   }
 }

@@ -71,12 +71,20 @@ export interface HooksRequest extends ContextMetadata {
   interception_point: InterceptionPoint;
 }
 
-export type HooksResponse<TTransform> = Verdict<TTransform>;
+export interface HookResponse<TVerdict> {
+  verdict: TVerdict;
+  extensions?: Extensions;
+}
+
+export type HooksResponseNoTransform = HookResponse<NonTransformVerdict>;
+
+export type HooksResponseTransformSupported<TTransform> =
+  HookResponse<Verdict<TTransform>>;
 ```
 
-Notably we will define a TransforVerdict type, which each hook will have to specify.
+Notably we will define a TransformVerdict type, which each hook will have to specify.
 ```ts
-export interface TransformVerdict<TTransform = Transform> extends VerdictBase {
+export interface TransformVerdict<TTransform> extends VerdictBase {
   decision: Decision.Transform;
   transform: TTransform;
 }
@@ -89,58 +97,103 @@ export type HookHandler<TRequest, TResponse> = (request: TRequest) => TResponse;
 
 For the PreTool Hook the specific types would look as follows:
 ```ts
-export interface PreToolRequest extends HooksRequest {
+export interface PreToolCallRequest extends HooksRequest {
   interception_point: "pre_tool_call";
   tool_call: ToolCall;
 }
 
 export interface PreToolHookTransform {
-  args: PreToolCallRequest["tool_call"]["args"];
+  args: PreToolRequest["tool_call"]["args"];
 }
 
-export type PreToolHookResponse = HooksResponse<PreToolHookTransform>;
+export type PreToolHookResponse = HooksResponseTransformSupported<PreToolHookTransform>;
 
-export type PreToolHookHandler = HookHandler<PreToolCallRequest, PreToolHookResponse>;
+export type PreToolHookHandler = HookHandler<PreToolRequest, PreToolHookResponse>;
 ```
+
+### Response envelope
+
+The proposed `HooksResponse` retains the envelope adopted in
+[P-006](P-006-interceptor-response-envelope.md):
+
+```json
+{
+  "verdict": {
+    "decision": "allow"
+  },
+  "extensions": {
+    "example_provider": {
+      "request_id": "request-123"
+    }
+  }
+}
+```
+
+For every `HooksResponse`, `verdict` MUST be present and MUST satisfy the verdict contract
+for that request's interception point. The response root MUST contain only
+`verdict` and optional `extensions`; 
+
+All transports MUST use this same response data layer. The proposed
+hook handler returns the envelope for in-process calls as well, so adapters
+do not introduce a second hook-response representation.
 
 ## Rationale
 The rationale for introducing hook-specific types is to provide clearer and safer contracts for interceptors, reducing the reliance on developers to manually check and interpret the broad `AgentContext`. By defining explicit types for each hook, we make the required fields and expected behavior explicit, enabling better tooling support, compile-time checks, and improved developer experience. This approach also allows harnesses to expose only the necessary data for each hook, maintaining encapsulation and minimizing the risk of accidental reliance on internal state.
 
 Maintaining the existing schema & specification without introducing hook-specific types is a blocker for adoption by major harnesses.
 
+### Response representation options
+
+Hook-specific verdict types do not require flattening the response. Keeping
+the decision inside `verdict` separates the closed control contract from
+optional, non-authoritative metadata, as P-006 intended.
+
+| Option | Benefits | Trade-offs |
+| --- | --- | --- |
+| A. Retain P-006 unchanged: accept both bare verdicts and envelopes, with bare verdicts for in-process calls | Preserves current parser and callable compatibility; avoids wrapping responses without metadata | Two valid response representations require normalization and separate parser/serializer cases; in-process and remote boundaries can expose different data shapes |
+| B. Require envelopes remotely but retain bare verdicts for in-process hook handlers | Gives every remote transport the same wire shape while preserving the existing in-process callable | Still has two hook-response contracts; adapters must wrap or unwrap based on the boundary, and moving an interceptor between boundaries changes its response interface |
+| C. Require `{ verdict, extensions? }` for every hook response, including in-process calls (recommended) | One response data layer regardless of transport; one outer parser/serializer contract with hook-specific validation of the nested verdict; preserves the metadata boundary | Breaking change for bare-verdict producers, consumers, and in-process callables; even responses without extensions require a small wrapper |
+| D. Flatten verdict fields and extensions into one response object | Avoids nesting and exposes the decision directly | Abandons P-006's separate envelope; makes metadata and control members share a boundary and requires care to keep metadata out of verdict composition |
+
+**Working recommendation: option C.** A protocol should have one canonical
+response representation rather than two interchangeable ways to express the
+same result. Uniform transport data makes validation, documentation, generated clients, and transport changes easier to reason about. 
+
+
 ## Security and privacy
-No new security or privacy risks are introduced by defining hook-specific types, as they only formalize the existing contracts and do not expose additional internal state beyond what the harness already provides.
+The response envelope preserves P-006's separation between canonical control
+data and opaque provider metadata. Hosts must validate the whole envelope
+before using its nested verdict, enforce extension namespace and size limits,
+and keep extensions out of enforcement and canonical records. Receipts are not
+trusted merely because they appear in an envelope; authentication, signatures,
+and receipt retention remain provider/host concerns. Removing bare-response
+acceptance avoids ambiguous normalization paths but does not replace these
+validation requirements.
 
 ## Backward compatibility
 This is a breaking change because existing interceptors that rely on the broad `AgentContext` will need to be updated to use the new hook-specific types. Additionally optional requests that used to be valid on the broad context may no longer be available, requiring interceptors to adapt to the more specific hook contracts.
 
-This will require a Major Spec Version bump to indicate the breaking change introduced by the new hook-specific types, when draft is released.
+
+
+The envelope shape itself is retained from P-006. Requiring it everywhere is
+a breaking change: P-006 accepts bare verdict responses and keeps
+in-process interceptors returning `Verdict`. Existing bare-verdict producers
+must wrap the value in `verdict`; response consumers must require and extract
+that member. Transport serializers must stop preferring bare output when
+extensions are absent. Standalone verdict parsing remains available for
+internal values, not as an alternate response gate. Released contracts and
+SDK behavior remain unchanged until the new contract is accepted and released.
 
 ## SDK surface and implementation impact
 The SDKs will need to be updated to support the new hook-specific types, ensuring that interceptors can correctly handle the typed requests and responses for each hook. This may involve generating new type definitions, updating method signatures, and providing utilities to facilitate the transition from the broad `AgentContext` to the specific hook contracts.
+
+The proposed SDK response surface is `HookResponse<TVerdict>`, specialized as
+`HooksResponseNoTransform` or `HooksResponseTransformSupported<TTransform>`, with required
+`verdict` and optional `extensions`. SDKs MAY provide utilities to facilitate the transition from bare verdicts to the new envelope format, ensuring that existing interceptors and response consumers can adapt to the new hook-specific types without breaking existing functionality.
+
+This will require a Major Spec Version bump to indicate the breaking change introduced by the new hook-specific types, when draft is released.
 
 ## Conformance and tests
 Interceptors should be tested against the new hook-specific types to ensure they correctly handle the typed requests and responses. This includes verifying that interceptors properly check the `interception_point`, access the expected fields, and return the appropriate verdicts. Test suites should be updated to reflect the new types and to catch any regressions caused by the transition from the broad `AgentContext` to the specific hook contracts.
 
 Conformance tests will also need to be updated to support multiple spec versions. 
-
-### Draft coverage plan
-
-The checked-in CTK, harness APIs, and golden vectors remain on the released
-contract; passing them does not by itself establish conformance to this
-hook-contract proposal. Draft response validation must dispatch by
-`interception_point` to the eight roots in §5, not the generic verdict or the
-removed transport envelope. Coverage must exercise all six whole-member
-replacements, required replacement members (including explicit null versus
-absent result value), wrong-hook transforms, both lifecycle prohibitions, flat
-response extensions and their non-enforcement semantics, namespace
-reservations, byte caps, duplicate-member rejection, and nested envelope
-rejection. Sequential fold-through, parallel conflict handling,
-`evaluate_only`, and identity projection must be tested using these payloads.
-
-The existing draft schema-example checker covers several shape cases, but
-schema tests do not prove host application, semantic metadata rules, or CTK
-coverage. Approval vectors must verify that `approve` accepts only `allow` and
-rejects transforms; record vectors must verify that transform decisions remain
-visible while transform payloads are omitted. No new conformance claim or SDK
-migration is made by this prose update.

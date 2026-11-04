@@ -1,4 +1,6 @@
 {
-  "decision": "deny",
-  "reason": "unsupported_request"
+  "verdict": {
+    "decision": "deny",
+    "reason": "unsupported_request"
+  }
 }

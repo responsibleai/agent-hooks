@@ -1,9 +1,11 @@
 {
-  "decision": "transform",
-  "transform": {
-    "args": {
-      "query": "document retention policy",
-      "collection": "public"
+  "verdict": {
+    "decision": "transform",
+    "transform": {
+      "args": {
+        "query": "document retention policy",
+        "collection": "public"
+      }
     }
   }
 }
