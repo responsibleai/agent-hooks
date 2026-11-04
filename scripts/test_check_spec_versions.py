@@ -5,11 +5,13 @@
 
 Each case builds a minimal repository tree in a temporary directory: a
 released 0.1 bundle in the flat schema layout, a draft in the generated
-layout, and a docs folder for the reference scan.
+layout, a conformance corpus and a docs folder for the reference scan.
 """
 
 import importlib.util
+import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -53,14 +55,60 @@ def bundle(root: Path, name: str, layout: str) -> Path:
             "{}\n" if relative.endswith(".json") else "# x\n"
         )
     base = ID_ORIGIN + ("draft/" if name == "draft" else f"v{name}/")
-    for schema in ("agent-context.schema.json", "verdict.schema.json"):
-        (schemas / schema).write_text(
-            f'{{"$id": "{base}{schema}"}}\n', encoding="utf-8"
+    # The draft pins `spec` to its own string; a release admits its own.
+    spec = (
+        {"type": "string", "const": "agent-hooks/draft"}
+        if name == "draft"
+        else {"type": "string", "pattern": "^agent-hooks/\\d+\\.\\d+$"}
+    )
+    (schemas / "agent-context.schema.json").write_text(
+        json.dumps(
+            {"$id": f"{base}agent-context.schema.json", "properties": {"spec": spec}}
         )
+        + "\n",
+        encoding="utf-8",
+    )
+    (schemas / "verdict.schema.json").write_text(
+        f'{{"$id": "{base}verdict.schema.json"}}\n', encoding="utf-8"
+    )
     (points / "input.schema.json").write_text(
         f'{{"$id": "{base}agent-context/input.schema.json"}}\n', encoding="utf-8"
     )
     return folder
+
+
+def conformance(root: Path) -> None:
+    """A conformance corpus: one valid vector document, one invalid on
+    purpose, and the two golden files that carry documents and contexts."""
+    (root / "conformance/vectors").mkdir(parents=True)
+    (root / "conformance/golden").mkdir()
+    write = lambda relative, value: (root / relative).write_text(  # noqa: E731
+        json.dumps(value) + "\n", encoding="utf-8"
+    )
+    write(
+        "conformance/vectors/AH-CTK-001.json",
+        {"id": "AH-CTK-001", "host_declaration": {"spec": "agent-hooks/draft"}},
+    )
+    write(
+        "conformance/vectors/AH-CTK-002.json",
+        {
+            "id": "AH-CTK-002",
+            "host_declaration_invalid": True,
+            "host_declaration": {"spec": "agent-hooks/9.0"},
+        },
+    )
+    write("conformance/vectors/AH-CTK-003.json", {"id": "AH-CTK-003"})
+    write(
+        "conformance/golden/declaration.json",
+        {"fixtures": [{"id": "d1", "document": {"spec": "agent-hooks/draft"}}]},
+    )
+    write(
+        "conformance/golden/identity.json",
+        {
+            "spec": "agent-hooks/draft",
+            "fixtures": [{"id": "i1", "ctx": {"spec": "agent-hooks/draft"}}],
+        },
+    )
 
 
 class CheckTest(unittest.TestCase):
@@ -72,6 +120,7 @@ class CheckTest(unittest.TestCase):
         (self.root / "spec/README.md").write_text(README, encoding="utf-8")
         bundle(self.root, "0.1", "flat")
         bundle(self.root, "draft", "generated")
+        conformance(self.root)
         (self.root / "docs").mkdir()
         (self.root / "docs/guide.md").write_text(
             "See [the spec](../spec/0.1/AGENT-HOOKS-0.1.md) and the draft "
@@ -251,23 +300,126 @@ class CheckTest(unittest.TestCase):
             errors,
         )
 
-    def test_released_bundle_carries_its_own_wire_string_only(self) -> None:
+    def test_a_bundle_carries_its_own_wire_string_only(self) -> None:
         (self.root / "spec/0.1/AGENT-HOOKS-0.1.md").write_text(
             header("Released", "0.1")
-            + "Contexts carry `agent-hooks/0.1`; see also `agent-hooks/0.2`.\n",
+            + "Contexts carry `agent-hooks/0.1`; see also `agent-hooks/0.2` "
+            "and `agent-hooks/draft`.\n",
             encoding="utf-8",
         )
         (self.root / "spec/draft/AGENT-HOOKS-DRAFT.md").write_text(
-            header("Draft", "DRAFT") + "The draft keeps `agent-hooks/0.1`.\n",
+            header("Draft", "DRAFT")
+            + "The draft carries `agent-hooks/draft`, never `agent-hooks/0.1`.\n",
             encoding="utf-8",
         )
         self.assertEqual(
             versions.check(self.root),
             [
                 "spec/0.1/AGENT-HOOKS-0.1.md carries the wire string of another version "
-                "(agent-hooks/0.2); a released bundle carries agent-hooks/0.1 only"
+                "(agent-hooks/0.2, agent-hooks/draft); spec/0.1/ carries agent-hooks/0.1 only",
+                "spec/draft/AGENT-HOOKS-DRAFT.md carries the wire string of another version "
+                "(agent-hooks/0.1); spec/draft/ carries agent-hooks/draft only",
             ],
         )
+
+    def test_spec_member_schemas_name_the_bundles_own_wire_string(self) -> None:
+        # The draft pins the member to a constant; a pattern is not enough.
+        draft = self.root / "spec/draft/schema/generated/agent-context.schema.json"
+        draft.write_text(
+            json.dumps(
+                {
+                    "$id": f"{ID_ORIGIN}draft/agent-context.schema.json",
+                    "$defs": {
+                        "InputContext": {
+                            "properties": {
+                                "spec": {"type": "string", "pattern": "^agent-hooks/"}
+                            }
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        # A release admits its own string by const, enum or pattern.
+        release = self.root / "spec/0.1/schema/agent-context.schema.json"
+        release.write_text(
+            json.dumps(
+                {
+                    "$id": f"{ID_ORIGIN}v0.1/agent-context.schema.json",
+                    "properties": {
+                        "spec": {"type": "string", "const": "agent-hooks/0.2"}
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        errors = versions.check(self.root)
+        self.assertIn(
+            "spec/draft/schema/generated/agent-context.schema.json "
+            "$.$defs.InputContext.properties.spec does not pin spec to the constant "
+            "agent-hooks/draft; a draft instance carries that string only",
+            errors,
+        )
+        self.assertIn(
+            "spec/0.1/schema/agent-context.schema.json $.properties.spec does not "
+            "admit agent-hooks/0.1, the bundle's own wire string",
+            errors,
+        )
+        self.assertIn(
+            "spec/0.1/schema/agent-context.schema.json carries the wire string of "
+            "another version (agent-hooks/0.2); spec/0.1/ carries agent-hooks/0.1 only",
+            errors,
+        )
+        self.assertEqual(len(errors), 3, errors)
+        for admitted in (
+            {"enum": ["agent-hooks/0.1", "agent-hooks/0.2"]},
+            {"pattern": "^agent-hooks/0\\.1$"},
+            {"type": "string"},
+        ):
+            self.assertTrue(versions.admits(admitted, "agent-hooks/0.1"), admitted)
+        self.assertFalse(
+            versions.admits({"const": "agent-hooks/draft"}, "agent-hooks/0.1")
+        )
+        self.assertFalse(versions.admits({"pattern": "("}, "agent-hooks/0.1"))
+
+    def test_the_conformance_corpus_is_the_drafts(self) -> None:
+        self.assertEqual(versions.check(self.root), [])
+        (self.root / "conformance/vectors/AH-CTK-001.json").write_text(
+            json.dumps(
+                {"id": "AH-CTK-001", "host_declaration": {"spec": "agent-hooks/0.1"}}
+            ),
+            encoding="utf-8",
+        )
+        identity = json.loads(
+            (self.root / "conformance/golden/identity.json").read_text(encoding="utf-8")
+        )
+        identity["fixtures"][0]["ctx"]["spec"] = "agent-hooks/0.1"
+        (self.root / "conformance/golden/identity.json").write_text(
+            json.dumps(identity), encoding="utf-8"
+        )
+        (self.root / "conformance/golden/declaration.json").write_text(
+            json.dumps({"fixtures": [{"id": "d1", "document": {}}]}), encoding="utf-8"
+        )
+        errors = versions.check(self.root)
+        self.assertEqual(
+            errors,
+            [
+                "conformance/vectors/AH-CTK-001.json: host_declaration.spec is "
+                "'agent-hooks/0.1'; the conformance corpus is the draft's and carries "
+                "agent-hooks/draft",
+                "conformance/golden/declaration.json: fixtures[0].document.spec is "
+                "None; the conformance corpus is the draft's and carries agent-hooks/draft",
+                "conformance/golden/identity.json: fixtures[0].ctx.spec is "
+                "'agent-hooks/0.1'; the conformance corpus is the draft's and carries "
+                "agent-hooks/draft",
+            ],
+        )
+        (self.root / "conformance/golden/identity.json").unlink()
+        self.assertIn(
+            "conformance/golden/identity.json is missing", versions.check(self.root)
+        )
+        shutil.rmtree(self.root / "conformance/vectors")
+        self.assertIn("conformance/vectors/ is missing", versions.check(self.root))
 
     def test_stale_references_fail(self) -> None:
         (self.root / "docs/old.md").write_text(

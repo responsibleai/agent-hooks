@@ -63,14 +63,14 @@ permissions:
 
 env:
   DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-  # The specification bundle SDK development tracks (VERSIONING.md).
-  SPEC_DEV_DIR: spec/draft
 
 jobs:
   # Runs first, on the tag and on every dry run: the SDKs' version
-  # surfaces agree, every supported specification version has a frozen
-  # spec/<X.Y>/ folder, and the conformance vectors validate. Every
-  # build job depends on it.
+  # surfaces agree, every supported specification version has a
+  # spec/<version>/ folder and every released one its tag, the
+  # conformance vectors validate against the draft, and the examples of
+  # every bundle validate against that bundle's schemas. Every build job
+  # depends on it.
   spec-gate:
     name: Specification gate
     runs-on: ubuntu-latest
@@ -88,21 +88,21 @@ jobs:
       # the gate fetches it from npm by version.
       - run: npm install -g ajv-cli@5.0.0 ajv-formats@3.0.1
       - name: SDK version surfaces, supported specification versions and their tags agree
-        # Every supported version must carry the tag spec/<X.Y> on an
-        # ancestor of this commit, so an SDK tag cannot claim a
-        # specification version that was never released.
+        # Every released version the SDKs support must carry the tag
+        # spec/<X.Y> on an ancestor of this commit, so an SDK tag cannot
+        # claim a specification version that was never released. The
+        # draft is supported too and has no tag.
         run: python3 scripts/check-version-consistency.py --require-spec-tags
       - name: Specification folders are complete and references current
         run: python3 scripts/check-spec-versions.py
-      - name: Conformance vectors validate against the development bundle
-        # The vector grammar references the draft's schema ids and the
-        # vectors use documents 0.1 never defined, so this gate reads the
-        # draft. Once 0.2 is cut from the draft, that bundle's schemas are
-        # the released set this step reads, and the vectors move with it.
+      - name: Conformance vectors validate against the draft
+        # The vectors are the draft's corpus: the grammar references the
+        # draft's schema ids, the documents carry agent-hooks/draft, and
+        # the vectors use documents 0.1 never defined. So this gate reads
+        # spec/draft and no released bundle.
         run: |
           set -e
-          root="$SPEC_DEV_DIR/schema/generated"
-          [ -d "$root" ] || root="$SPEC_DEV_DIR/schema"
+          root=spec/draft/schema/generated
           mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
           if [ "${#refs[@]}" -eq 0 ]; then
             echo "::error::$root holds no *.schema.json files"
@@ -111,6 +111,17 @@ jobs:
           ajv validate --spec=draft2020 -c ajv-formats \
             -s conformance/vectors.schema.json "${refs[@]}" \
             -d 'conformance/vectors/*.json'
+      - name: Schema examples of every bundle validate against their own schemas
+        # The SDKs accept 0.1 contexts and documents beside the draft's,
+        # so a release ships against two bundles. The vectors above prove
+        # the draft; the 0.1 examples, which carry agent-hooks/0.1, are
+        # the instances that prove the frozen 0.1 schemas still validate
+        # with the validator this release pins. The draft's examples run
+        # here too, as in ci.yml.
+        run: |
+          npm ci
+          node scripts/check-schema-examples.mjs
+        working-directory: sdk/typescript
 
   python-wheels:
     name: Python wheel (${{ matrix.platform }})

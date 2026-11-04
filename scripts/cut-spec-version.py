@@ -8,14 +8,14 @@ AGENT-HOOKS-<MAJOR.MINOR>.md, sets its title and header to Released,
 the version and the date, and drops the draft banner. In every text
 file of the copy it rewrites the spec/draft/ self-references to the new
 folder, the schema id base from schema/draft/ to schema/v<MAJOR.MINOR>/
-(schemas and inventories alike) and the wire string to
-agent-hooks/<MAJOR.MINOR>. In the draft it sets the wire string in
-every text file (the text, the examples, the schema source and its
-generated output), so the draft follows the version it just released.
-It then prints what remains by
-hand: confirm the copy's schemas, point the draft banner at the new
-version, add the spec/README.md row and the CHANGELOG section, and tag
-after merge. RELEASING.md has the full procedure.
+(schemas and inventories alike) and the draft wire string
+agent-hooks/draft to agent-hooks/<MAJOR.MINOR>, so the copy is a
+version of its own. The draft itself does not change: it keeps its own
+wire string, agent-hooks/draft, before and after the cut. The script
+then prints what remains by hand: confirm the copy's schemas, point the
+draft banner at the new version, add the spec/README.md row and the
+CHANGELOG section, and tag after merge. RELEASING.md has the full
+procedure.
 
 Usage: cut-spec-version.py <MAJOR.MINOR> [--date YYYY-MM-DD] [--root <repository-root>]
 """
@@ -37,7 +37,7 @@ HEADER = re.compile(
     r"^> \*\*Status:\*\* Draft · \*\*Version:\*\* `DRAFT` · \*\*Date:\*\* [0-9]{4}-[0-9]{2}-[0-9]{2}\s*$",
     re.M,
 )
-WIRE = re.compile(r"agent-hooks/(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+DRAFT_WIRE = "agent-hooks/draft"
 ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"
 TEXT_SUFFIXES = {".md", ".json", ".ts", ".abnf", ".txt"}
 
@@ -59,7 +59,7 @@ def released_text(draft_text: str, version: str, date: str) -> str:
     text, count = HEADER.subn(header, text, count=1)
     if count != 1:
         raise SystemExit("the draft has no Status Draft / Version DRAFT header line")
-    return WIRE.sub(f"agent-hooks/{version}", text)
+    return text.replace(DRAFT_WIRE, f"agent-hooks/{version}")
 
 
 def cut(root: Path, version: str, date: str) -> list[str]:
@@ -86,16 +86,7 @@ def cut(root: Path, version: str, date: str) -> list[str]:
             text = path.read_text(encoding="utf-8")
             updated = text.replace("spec/draft/", f"spec/{version}/")
             updated = updated.replace(f"{ID_ORIGIN}draft/", f"{ID_ORIGIN}v{version}/")
-            updated = WIRE.sub(wire, updated)
-            if updated != text:
-                path.write_text(updated, encoding="utf-8")
-    # The draft now describes the next version and carries the wire
-    # string of the one just released, in every text file: the text, the
-    # examples, and the schema source with its generated output.
-    for path in sorted(draft.rglob("*")):
-        if path.is_file() and not path.is_symlink() and path.suffix in TEXT_SUFFIXES:
-            text = path.read_text(encoding="utf-8")
-            updated = WIRE.sub(wire, text)
+            updated = updated.replace(DRAFT_WIRE, wire)
             if updated != text:
                 path.write_text(updated, encoding="utf-8")
     return [

@@ -17,62 +17,65 @@ PEP 440 spells SemVer pre-releases differently (0.1.0-alpha.2 ->
 
 The script also checks the host declaration contract version (spec
 section 7.7.2): the Rust DECLARATION_VERSION must be the current row
-of the contract table in the development bundle's
-DECLARATION-VERSIONS.md, some row of the SDK release table in
-VERSIONING.md must accept it, and the bundle must carry its schema.
-The development bundle is spec/draft unless the SPEC_DEV_DIR
-environment variable names another folder, as the CI workflows do.
+of the contract table in the draft bundle's DECLARATION-VERSIONS.md
+(spec/draft is the development bundle, and its contract is the
+newest), some row of the SDK release table in VERSIONING.md must
+accept it, and the draft bundle must carry its schema.
 
 It also checks the specification versions the SDKs support
-(VERSIONING.md): the five cores carry the same SPEC_VERSION and
-SUPPORTED_SPEC_VERSIONS, every supported version has a spec/<X.Y>/
-folder, none says DRAFT, SPEC_VERSION is the highest supported, and the
-VERSIONING.md row for the current SDK version lists the same versions.
+(VERSIONING.md): the five cores carry the same SUPPORTED_SPEC_VERSIONS,
+every entry is a released MAJOR.MINOR version or draft and has a
+spec/<entry>/ folder, at least one entry is released, and the
+VERSIONING.md row for the current SDK version lists the same entries.
 With --require-spec-tags, as the release workflow runs it, every
-supported version must also carry the tag spec/<X.Y> on an ancestor of
+released entry must also carry the tag spec/<X.Y> on an ancestor of
 HEAD, so an SDK tag cannot claim a specification version that was
-never released.
-Finally, sdk/typescript/package.json must not commit platform pins.
+never released; the draft is cut, never tagged. With --print-supported
+the script prints the entries one per line, for workflows that loop
+over them. Finally, sdk/typescript/package.json must not commit
+platform pins.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-# The specification bundle SDK development tracks (VERSIONING.md). The
-# CI workflows export the same name.
-SPEC_DEV_DIR = os.environ.get("SPEC_DEV_DIR", "spec/draft")
+# The development bundle. The draft is a supported specification version
+# of its own (VERSIONING.md); its contract table names the newest host
+# declaration contract version.
+DRAFT_BUNDLE = "spec/draft"
+DRAFT = "draft"
 VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
-# Where each core states the wire string it writes and the
-# specification versions it accepts.
-SPEC_CONSTANTS = {
+# Where each core states the specification versions it supports, as
+# spec/<entry>/ folder names.
+SUPPORTED_CONSTANTS = {
     "sdk/rust/core/src/types.rs": (
-        r'pub const SPEC_VERSION: &str = "([^"]+)"',
-        r"pub const SUPPORTED_SPEC_VERSIONS: &\[&str\] = &\[([^\]]*)\]",
+        r"pub const SUPPORTED_SPEC_VERSIONS: &\[&str\] = &\[([^\]]*)\]"
     ),
     "sdk/typescript/src/index.ts": (
-        r'export const SPEC_VERSION = "([^"]+)"',
-        r"export const SUPPORTED_SPEC_VERSIONS: readonly string\[\] = Object\.freeze\(\[([^\]]*)\]\)",
+        r"export const SUPPORTED_SPEC_VERSIONS: readonly string\[\] = "
+        r"Object\.freeze\(\[([^\]]*)\]\)"
     ),
     "sdk/python/python/agent_hooks/_types.py": (
-        r'SPEC_VERSION: Final\[str\] = "([^"]+)"',
-        r"SUPPORTED_SPEC_VERSIONS: Final\[tuple\[str, \.\.\.\]\] = \(([^)]*)\)",
+        r"SUPPORTED_SPEC_VERSIONS: Final\[tuple\[str, \.\.\.\]\] = \(([^)]*)\)"
     ),
     "sdk/dotnet/src/AgentHooks/Types.cs": (
-        r'public const string Version = "(agent-hooks/[^"]+)"',
-        r"public static readonly IReadOnlyList<string> SupportedVersions = \[([^\]]*)\];",
+        r"public static readonly IReadOnlyList<string> SupportedVersions = \[([^\]]*)\];"
     ),
     "sdk/go/agenthooks/types.go": (
-        r'const SpecVersion = "([^"]+)"',
-        r"var SupportedSpecVersions = \[\]string\{([^}]*)\}",
+        r"var SupportedSpecVersions = \[\]string\{([^}]*)\}"
     ),
 }
+
+
+def is_released(version: str) -> bool:
+    """A released specification version is MAJOR.MINOR; the draft is not."""
+    return VERSION.fullmatch(version) is not None
 
 
 def escape_data(value: str) -> str:
@@ -116,14 +119,12 @@ def read_versions(root: Path = ROOT) -> dict[str, str]:
     return versions
 
 
-def check_declaration_versions(
-    root: Path = ROOT, spec_dev_dir: str = SPEC_DEV_DIR
-) -> int:
+def check_declaration_versions(root: Path = ROOT) -> int:
     """The host declaration contract version (spec section 7.7.2): the
     Rust constant must be the current row of the contract table in the
-    development bundle's DECLARATION-VERSIONS.md, some SDK release row
-    in VERSIONING.md must accept it, the supported set must list it,
-    and the development bundle must carry its schema."""
+    draft bundle's DECLARATION-VERSIONS.md, some SDK release row in
+    VERSIONING.md must accept it, the supported set must list it, and
+    the draft bundle must carry its schema."""
     types_rs = (root / "sdk/rust/core/src/types.rs").read_text(encoding="utf-8")
     m = re.search(r'pub const DECLARATION_VERSION: &str = "([^"]+)"', types_rs)
     assert m, "no DECLARATION_VERSION in sdk/rust/core/src/types.rs"
@@ -135,7 +136,7 @@ def check_declaration_versions(
     if "DECLARATION_VERSION" not in m.group(1) and f'"{current}"' not in m.group(1):
         error(f"SUPPORTED_DECLARATION_VERSIONS does not list {current}")
         return 1
-    contract_table = f"{spec_dev_dir}/DECLARATION-VERSIONS.md"
+    contract_table = f"{DRAFT_BUNDLE}/DECLARATION-VERSIONS.md"
     release_table = "VERSIONING.md"
 
     def rows(path: str) -> list[str]:
@@ -156,7 +157,7 @@ def check_declaration_versions(
         return 1
     schema = (
         root
-        / spec_dev_dir
+        / DRAFT_BUNDLE
         / "schema/generated"
         / f"host-declaration-{current.split('/')[1]}.schema.json"
     )
@@ -169,45 +170,40 @@ def check_declaration_versions(
 
 def check_spec_versions(root: Path = ROOT, sdk_version: str | None = None) -> int:
     """The specification versions the SDKs support (VERSIONING.md): the
-    five cores agree, every supported version has a spec/<X.Y>/ folder,
-    none says DRAFT, SPEC_VERSION is the highest supported, and the
-    VERSIONING.md row for the current SDK version lists the same
-    versions. `sdk_version` defaults to the Rust manifest's version."""
-    constants: dict[str, tuple[str, tuple[str, ...]]] = {}
-    for path, (version_pattern, supported_pattern) in SPEC_CONSTANTS.items():
-        text = (root / path).read_text(encoding="utf-8")
-        version = re.search(version_pattern, text)
-        supported = re.search(supported_pattern, text)
-        assert version and supported, (
-            f"no SPEC_VERSION or SUPPORTED_SPEC_VERSIONS in {path}"
-        )
-        constants[path] = (
-            version.group(1),
-            tuple(re.findall(r'"([^"]+)"', supported.group(1))),
-        )
-    if len(set(constants.values())) != 1:
-        error("the SDKs disagree on SPEC_VERSION or SUPPORTED_SPEC_VERSIONS:")
-        for path, (version, supported) in constants.items():
-            print(f"  {path}: {escape_data(version)}, supported {list(supported)}")
+    five cores agree, every entry is a released MAJOR.MINOR version or
+    draft and has a spec/<entry>/ folder, at least one entry is
+    released, and the VERSIONING.md row for the current SDK version
+    lists the same entries. `sdk_version` defaults to the Rust
+    manifest's version."""
+    supported_by: dict[str, tuple[str, ...]] = {}
+    for path, pattern in SUPPORTED_CONSTANTS.items():
+        match = re.search(pattern, (root / path).read_text(encoding="utf-8"))
+        assert match, f"no SUPPORTED_SPEC_VERSIONS in {path}"
+        supported_by[path] = tuple(re.findall(r'"([^"]+)"', match.group(1)))
+    if len(set(supported_by.values())) != 1:
+        error("the SDKs disagree on SUPPORTED_SPEC_VERSIONS:")
+        for path, entries in supported_by.items():
+            print(f"  {path}: {escape_data(', '.join(entries))}")
         return 1
-    ((spec_version, supported),) = set(constants.values())
+    (supported,) = set(supported_by.values())
     if not supported:
         error("SUPPORTED_SPEC_VERSIONS is empty")
         return 1
     for version in supported:
-        if not VERSION.fullmatch(version):
-            error(f"SUPPORTED_SPEC_VERSIONS names {version}, not a MAJOR.MINOR version")
+        if version != DRAFT and not is_released(version):
+            error(
+                f"SUPPORTED_SPEC_VERSIONS names {version}, not a MAJOR.MINOR version or draft"
+            )
             return 1
         if not (root / "spec" / version).is_dir():
             error(
                 f"SUPPORTED_SPEC_VERSIONS names {version}, but spec/{version}/ does not exist"
             )
             return 1
-    highest = max(supported, key=lambda v: tuple(int(x) for x in v.split(".")))
-    if spec_version != f"agent-hooks/{highest}":
+    if not any(is_released(v) for v in supported):
         error(
-            f"SPEC_VERSION is {spec_version}; the highest supported version "
-            f"is {highest}, so it must be agent-hooks/{highest}"
+            "SUPPORTED_SPEC_VERSIONS names no released version; an SDK supports "
+            "at least one spec/<MAJOR.MINOR>/ beside the draft"
         )
         return 1
     if sdk_version is None:
@@ -234,16 +230,14 @@ def check_spec_versions(root: Path = ROOT, sdk_version: str | None = None) -> in
             f"{list(listed)}; the SDKs support {list(supported)}"
         )
         return 1
-    print(
-        f"specification versions agree: {spec_version}, supported {', '.join(supported)}"
-    )
+    print(f"specification versions agree: {', '.join(supported)}")
     return 0
 
 
 def supported_spec_versions(root: Path = ROOT) -> tuple[str, ...]:
     """The Rust core's SUPPORTED_SPEC_VERSIONS; check_spec_versions
     proves the other cores agree."""
-    pattern = SPEC_CONSTANTS["sdk/rust/core/src/types.rs"][1]
+    pattern = SUPPORTED_CONSTANTS["sdk/rust/core/src/types.rs"]
     match = re.search(
         pattern, (root / "sdk/rust/core/src/types.rs").read_text(encoding="utf-8")
     )
@@ -252,11 +246,14 @@ def supported_spec_versions(root: Path = ROOT) -> tuple[str, ...]:
 
 
 def check_spec_tags(root: Path = ROOT) -> int:
-    """Every supported specification version carries the tag spec/<X.Y>
-    on an ancestor of HEAD (RELEASING.md): the tag marks the commit that
-    merged the frozen folder and is pushed before any SDK tag that
-    supports the version."""
+    """Every released specification version the SDKs support carries
+    the tag spec/<X.Y> on an ancestor of HEAD (RELEASING.md): the tag
+    marks the commit that merged the frozen folder and is pushed before
+    any SDK tag that supports the version. The draft has no tag."""
     for version in supported_spec_versions(root):
+        if not is_released(version):
+            print(f"{version} is not a released version and carries no tag")
+            continue
         tag = f"spec/{version}"
         resolved = subprocess.run(
             [
@@ -316,11 +313,16 @@ def check_no_committed_platform_pins(
 
 def main(argv: list[str] | None = None) -> int:
     argv = [] if argv is None else argv
-    if argv not in ([], ["--require-spec-tags"]):
+    if argv not in ([], ["--require-spec-tags"], ["--print-supported"]):
         print(
-            "usage: check-version-consistency.py [--require-spec-tags]", file=sys.stderr
+            "usage: check-version-consistency.py [--require-spec-tags | --print-supported]",
+            file=sys.stderr,
         )
         return 2
+    if argv == ["--print-supported"]:
+        for version in supported_spec_versions():
+            print(version)
+        return 0
     if check_no_committed_platform_pins() != 0:
         return 1
     if check_declaration_versions() != 0:

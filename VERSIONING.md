@@ -142,7 +142,7 @@ to the specification and contract versions they support.
 | --- | --- | --- | --- |
 | `v0.1.0-beta.2` (2026-10-13) | `0.1` | `agent-hooks-declaration/1.0` | `agent-hooks-declaration/1.0` |
 | `v0.1.0-beta.3` (2026-10-22) | `0.1` | `agent-hooks-declaration/1.0` | `agent-hooks-declaration/1.0` |
-| `v0.1.0-beta.4` | `0.1` | `agent-hooks-declaration/1.0`, `agent-hooks-declaration/1.1` | `agent-hooks-declaration/1.1` |
+| `v0.1.0-beta.4` | `0.1`, `draft` | `agent-hooks-declaration/1.0`, `agent-hooks-declaration/1.1` | `agent-hooks-declaration/1.1` |
 
 `v0.1.0-beta.2` is the first tag that accepts a host declaration;
 `v0.1.0-beta.1` and earlier accept none. `v0.1.0-beta.3` is the last

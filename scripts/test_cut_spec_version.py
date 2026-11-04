@@ -20,14 +20,20 @@ DRAFT = """# Agent Hooks Specification — Draft
 
 > **Draft:** This is the working text for the next specification version.
 > It is not a released specification. The latest released version is
-> [0.1](../0.1/AGENT-HOOKS-0.1.md).
+> [0.1](../0.1/AGENT-HOOKS-0.1.md). The draft is the version `draft`,
+> wire string `agent-hooks/draft`. It changes without notice and is never
+> claimed. A cut copies it to a numbered version and the numbered copy
+> gets its own wire string.
 
 > **Status:** Draft · **Version:** `DRAFT` · **Date:** 2026-11-03
 > **Editors:** Someone
 
-Every context carries `agent-hooks/0.1`. The schema is
+Every context carries `agent-hooks/draft`. The schema is
 `spec/draft/schema/generated/agent-context.schema.json`.
 """
+SOURCE = "/** The wire version agent-hooks/draft (§4.1). */\n"
+EXAMPLE = '{"spec": "agent-hooks/draft", "interception_point": "input"}\n'
+GENERATED = '{"$id": "https://responsibleai.github.io/agent-hooks/schema/draft/x.schema.json"}\n'
 
 
 class CutTest(unittest.TestCase):
@@ -43,25 +49,21 @@ class CutTest(unittest.TestCase):
             encoding="utf-8",
         )
         (draft / "schema/generated/x.schema.json").write_text(
-            '{"$id": "https://responsibleai.github.io/agent-hooks/schema/draft/x.schema.json"}\n',
-            encoding="utf-8",
+            GENERATED, encoding="utf-8"
         )
         (draft / "reserved-reasons.json").write_text(
             '{"$id": "https://responsibleai.github.io/agent-hooks/schema/draft/reserved-reasons.json"}\n',
             encoding="utf-8",
         )
         (draft / "schema/src").mkdir()
-        (draft / "schema/src/agent-context.ts").write_text(
-            "/** The wire version agent-hooks/0.1 (§4.1). */\n", encoding="utf-8"
-        )
+        (draft / "schema/src/agent-context.ts").write_text(SOURCE, encoding="utf-8")
         (draft / "schema/examples/AgentContext").mkdir(parents=True)
         (draft / "schema/examples/AgentContext/input.json").write_text(
-            '{"spec": "agent-hooks/0.1", "interception_point": "input"}\n',
-            encoding="utf-8",
+            EXAMPLE, encoding="utf-8"
         )
         (self.root / "spec/0.1").mkdir()
 
-    def test_cut_writes_the_released_copy_and_updates_the_draft(self) -> None:
+    def test_cut_writes_the_released_copy_and_leaves_the_draft(self) -> None:
         follow_ups = cut.cut(self.root, "0.2", "2026-12-01")
         released = (self.root / "spec/0.2/AGENT-HOOKS-0.2.md").read_text(
             encoding="utf-8"
@@ -94,36 +96,38 @@ Every context carries `agent-hooks/0.2`. The schema is
             (self.root / "spec/0.2/reserved-reasons.json").read_text(encoding="utf-8"),
             '{"$id": "https://responsibleai.github.io/agent-hooks/schema/v0.2/reserved-reasons.json"}\n',
         )
-        for folder in ("0.2", "draft"):
-            self.assertEqual(
-                (
-                    self.root
-                    / "spec"
-                    / folder
-                    / "schema/examples/AgentContext/input.json"
-                ).read_text(encoding="utf-8"),
-                '{"spec": "agent-hooks/0.2", "interception_point": "input"}\n',
-                folder,
-            )
-            self.assertEqual(
-                (self.root / "spec" / folder / "schema/src/agent-context.ts").read_text(
-                    encoding="utf-8"
-                ),
-                "/** The wire version agent-hooks/0.2 (§4.1). */\n",
-                folder,
-            )
+        # The copy carries its own wire string in every text file.
         self.assertEqual(
-            (self.root / "spec/draft/schema/generated/x.schema.json").read_text(
+            (self.root / "spec/0.2/schema/examples/AgentContext/input.json").read_text(
                 encoding="utf-8"
             ),
-            '{"$id": "https://responsibleai.github.io/agent-hooks/schema/draft/x.schema.json"}\n',
+            '{"spec": "agent-hooks/0.2", "interception_point": "input"}\n',
         )
-        draft = (self.root / "spec/draft/AGENT-HOOKS-DRAFT.md").read_text(
-            encoding="utf-8"
+        self.assertEqual(
+            (self.root / "spec/0.2/schema/src/agent-context.ts").read_text(
+                encoding="utf-8"
+            ),
+            "/** The wire version agent-hooks/0.2 (§4.1). */\n",
         )
-        self.assertIn("`agent-hooks/0.2`", draft)
-        self.assertIn("**Version:** `DRAFT`", draft)
-        self.assertIn("spec/draft/schema/generated", draft)
+        # The draft is byte for byte what it was: its own version, its
+        # own wire string.
+        draft = self.root / "spec/draft"
+        self.assertEqual(
+            (draft / "AGENT-HOOKS-DRAFT.md").read_text(encoding="utf-8"), DRAFT
+        )
+        self.assertEqual(
+            (draft / "schema/examples/AgentContext/input.json").read_text(
+                encoding="utf-8"
+            ),
+            EXAMPLE,
+        )
+        self.assertEqual(
+            (draft / "schema/src/agent-context.ts").read_text(encoding="utf-8"), SOURCE
+        )
+        self.assertEqual(
+            (draft / "schema/generated/x.schema.json").read_text(encoding="utf-8"),
+            GENERATED,
+        )
         self.assertTrue(any("--check --spec 0.2" in step for step in follow_ups))
         self.assertTrue(
             any("spec/0.2" in step and "tag" in step for step in follow_ups)

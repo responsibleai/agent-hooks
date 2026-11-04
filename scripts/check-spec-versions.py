@@ -12,8 +12,15 @@ examples/; which files a bundle's generator produces is the bundle's
 own business, so no other file name is required here. spec/README.md
 links every folder. Every $id in a bundle sits under that bundle's
 published path, schema/v<MAJOR.MINOR>/ for a release and schema/draft/
-for the draft, and no file in a released bundle carries another
-version's wire string.
+for the draft. Each bundle is a specification version of its own with
+its own wire string, agent-hooks/<MAJOR.MINOR> or agent-hooks/draft:
+no file in a bundle carries another bundle's wire string, and every
+`spec` member schema in a bundle's schemas admits the bundle's own
+string, the draft's as a constant. The conformance corpus is the
+draft's: every host declaration a vector offers as valid and every
+golden document and context carries agent-hooks/draft (a vector whose
+document is invalid on purpose, host_declaration_invalid: true, may
+carry any string).
 
 Every entry under spec/ is a regular file or directory whose name does
 not start with a dot: a symbolic link, a device or pipe, and a hidden
@@ -47,7 +54,8 @@ HEADER = re.compile(
     re.M,
 )
 ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"
-WIRE = re.compile(r"agent-hooks/((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))")
+WIRE = re.compile(r"agent-hooks/((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)|draft)")
+DRAFT_WIRE = "agent-hooks/draft"
 TEXT_SUFFIXES = {".md", ".json", ".ts", ".abnf", ".txt"}
 # Folders under schema/ that hold no schema: TypeScript source and instances.
 NOT_SCHEMAS = ("src", "examples")
@@ -157,15 +165,47 @@ def check_text(root: Path, folder: Path) -> list[str]:
     return errors
 
 
+def spec_member_schemas(node: object, path: str = "$"):
+    """Every schema of a member named `spec`, with its JSON path."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            here = f"{path}.{key}"
+            if key == "properties" and isinstance(value, dict):
+                member = value.get("spec")
+                if isinstance(member, dict):
+                    yield f"{here}.spec", member
+            yield from spec_member_schemas(value, here)
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            yield from spec_member_schemas(value, f"{path}[{index}]")
+
+
+def admits(schema: dict, wire: str) -> bool:
+    """Whether a `spec` member schema accepts `wire`, by its const, enum
+    or pattern; a schema with none of them accepts any string."""
+    if "const" in schema:
+        return schema["const"] == wire
+    if isinstance(schema.get("enum"), list):
+        return wire in schema["enum"]
+    pattern = schema.get("pattern")
+    if isinstance(pattern, str):
+        try:
+            return re.search(pattern, wire) is not None
+        except re.error:
+            return False
+    return True
+
+
 def check_bundle(root: Path, folder: Path) -> list[str]:
     errors: list[str] = []
     rel = folder.relative_to(root).as_posix()
     errors.extend(check_text(root, folder))
     schema_dir = folder / "schema"
+    schemas: set[Path] = set()
     if not schema_dir.is_dir():
         errors.append(f"{rel}/schema/ is missing")
     else:
-        schemas = [
+        schemas = {
             p
             for p in walk(schema_dir)
             if p.name.endswith(".schema.json")
@@ -173,12 +213,13 @@ def check_bundle(root: Path, folder: Path) -> list[str]:
             and not any(
                 part in NOT_SCHEMAS for part in p.relative_to(schema_dir).parts[:-1]
             )
-        ]
+        }
         if not schemas:
             errors.append(
                 f"{rel}/schema has no *.schema.json files outside src/ and examples/"
             )
     id_base = ID_ORIGIN + ("draft/" if folder.name == "draft" else f"v{folder.name}/")
+    wire = f"agent-hooks/{folder.name}"
     for path in walk(folder):
         if path.is_symlink() or not path.is_file() or path.suffix not in TEXT_SUFFIXES:
             continue
@@ -195,14 +236,85 @@ def check_bundle(root: Path, folder: Path) -> list[str]:
                 errors.append(
                     f"{rel_path} has $id {escape_data(identity)}; expected one under {id_base}"
                 )
-        if folder.name != "draft":
-            foreign = sorted({m for m in WIRE.findall(text) if m != folder.name})
-            if foreign:
-                errors.append(
-                    f"{rel_path} carries the wire string of another version "
-                    f"({', '.join('agent-hooks/' + v for v in foreign)}); a released "
-                    f"bundle carries agent-hooks/{folder.name} only"
-                )
+            if path in schemas:
+                for pointer, member in spec_member_schemas(document):
+                    if folder.name == "draft":
+                        if member.get("const") != wire:
+                            errors.append(
+                                f"{rel_path} {pointer} does not pin spec to the "
+                                f"constant {wire}; a draft instance carries that "
+                                "string only"
+                            )
+                    elif not admits(member, wire):
+                        errors.append(
+                            f"{rel_path} {pointer} does not admit {wire}, the "
+                            "bundle's own wire string"
+                        )
+        foreign = sorted({m for m in WIRE.findall(text) if m != folder.name})
+        if foreign:
+            errors.append(
+                f"{rel_path} carries the wire string of another version "
+                f"({', '.join('agent-hooks/' + v for v in foreign)}); "
+                f"spec/{folder.name}/ carries {wire} only"
+            )
+    return errors
+
+
+def check_conformance(root: Path) -> list[str]:
+    """The conformance corpus is the draft's: every host declaration a
+    vector offers as valid, every golden document and every golden
+    context names the draft wire string. A vector whose document is
+    invalid on purpose (host_declaration_invalid: true) may name any."""
+    errors: list[str] = []
+    conformance = root / "conformance"
+
+    def load(path: Path) -> object:
+        rel = path.relative_to(root).as_posix()
+        if not path.is_file():
+            errors.append(f"{rel} is missing")
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            errors.append(f"{rel} is invalid JSON: {exc}")
+            return None
+
+    def expect_draft(rel: str, where: str, value: object) -> None:
+        if value != DRAFT_WIRE:
+            errors.append(
+                f"{rel}: {where} is {value!r}; the conformance corpus is the "
+                f"draft's and carries {DRAFT_WIRE}"
+            )
+
+    vectors = conformance / "vectors"
+    if not vectors.is_dir():
+        return ["conformance/vectors/ is missing"]
+    for path in sorted(vectors.glob("*.json")):
+        vector = load(path)
+        if not isinstance(vector, dict):
+            continue
+        document = vector.get("host_declaration")
+        if (
+            isinstance(document, dict)
+            and vector.get("host_declaration_invalid") is not True
+        ):
+            expect_draft(
+                path.relative_to(root).as_posix(),
+                "host_declaration.spec",
+                document.get("spec"),
+            )
+    for name, member in (("declaration.json", "document"), ("identity.json", "ctx")):
+        path = conformance / "golden" / name
+        golden = load(path)
+        if not isinstance(golden, dict):
+            continue
+        rel = path.relative_to(root).as_posix()
+        if "spec" in golden:
+            expect_draft(rel, "spec", golden["spec"])
+        for index, fixture in enumerate(golden.get("fixtures") or []):
+            inner = fixture.get(member) if isinstance(fixture, dict) else None
+            if isinstance(inner, dict):
+                expect_draft(rel, f"fixtures[{index}].{member}.spec", inner.get("spec"))
     return errors
 
 
@@ -309,6 +421,7 @@ def check(root: Path) -> list[str]:
         if path.name != "README.md":
             errors.append(f"spec/{path.name} must live in a version folder")
 
+    errors.extend(check_conformance(root))
     errors.extend(check_references(root, {p.name for p in versions}))
     return errors
 

@@ -7,6 +7,7 @@
 //
 //   tsx scripts/schema-equivalence.mts --old <git-ref|dir> [--new <dir>]
 //       [--random <mutants per seed>] [--seed <n>] [--examples <n>] [--structural-diff]
+//       [--wire-old <string> --wire-new <string>]
 //
 // --old takes a git ref (the schemas are read with git show) or a directory
 // containing either layout's generated files (or a schema/ folder with generated/).
@@ -15,6 +16,16 @@
 // versioned ref is read from spec/draft/. Sets are keyed by published identity
 // below each set's own id base (schema/vX.Y/ or schema/draft/), not disk path,
 // so a released set and the draft compare file by file.
+//
+// Two sets that are two specification versions differ by the wire string
+// their `spec` member names (agent-hooks/0.1, agent-hooks/draft). With
+// --wire-old and --wire-new, each side reads a `spec` member that carries
+// either string as its own, so the sets compare by shape and not by the
+// version they name; the instances the two sides judge differently for the
+// `spec` member alone are reported on their own line ("spec-only") and are
+// not disagreements. The structural diff likewise treats a `spec` member
+// schema that admits its own side's string and not the other's as the same
+// on both sides. Without the two flags nothing is rewritten.
 //
 // The corpus for every validation target is the seeds of every shape (the
 // conformance vectors, the golden files and hand-written instances), plus
@@ -65,9 +76,48 @@ const RANDOM = Number(arg("--random", "150"));
 const EXAMPLES = Number(arg("--examples", "20"));
 const SEED = Number(arg("--seed", "1"));
 const STRUCTURAL = process.argv.includes("--structural-diff");
-if (!OLD) {
-  console.error("usage: schema-equivalence.mts --old <git-ref|dir> [--new <dir>] [--structural-diff]");
+const WIRE_OLD = arg("--wire-old");
+const WIRE_NEW = arg("--wire-new");
+if (!OLD || (WIRE_OLD === undefined) !== (WIRE_NEW === undefined)) {
+  console.error(
+    "usage: schema-equivalence.mts --old <git-ref|dir> [--new <dir>] [--structural-diff] [--wire-old <string> --wire-new <string>]",
+  );
   process.exit(2);
+}
+const WIRES = WIRE_OLD !== undefined && WIRE_NEW !== undefined;
+
+/** The instance as one side reads it: every member named `spec` that
+ *  carries either wire string carries that side's. The same object when
+ *  nothing changes, so a caller can skip a second validation. */
+function asSide(value: Json, wire: string): Json {
+  if (Array.isArray(value)) {
+    let changed = false;
+    const out = value.map((item) => {
+      const seen = asSide(item, wire);
+      if (seen !== item) changed = true;
+      return seen;
+    });
+    return changed ? out : value;
+  }
+  if (value === null || typeof value !== "object") return value;
+  let out: Obj | undefined;
+  for (const [key, member] of Object.entries(value)) {
+    const seen = key === "spec" && (member === WIRE_OLD || member === WIRE_NEW) ? wire : asSide(member, wire);
+    if (seen !== member) {
+      out ??= { ...value };
+      out[key] = seen;
+    }
+  }
+  return out ?? value;
+}
+
+/** Whether a `spec` member schema accepts `wire` by const, enum or pattern;
+ *  a schema with none of them accepts any string. */
+function admits(schema: Obj, wire: string): boolean {
+  if (schema.const !== undefined) return schema.const === wire;
+  if (Array.isArray(schema.enum)) return (schema.enum as Json[]).includes(wire);
+  if (typeof schema.pattern === "string") return new RegExp(schema.pattern).test(wire);
+  return true;
 }
 
 // ---- schema sets ------------------------------------------------------------
@@ -652,10 +702,24 @@ function pointerSchema(set: SchemaSet, file: string, pointer: string): Obj {
 
 const ANNOTATIONS = new Set(["title", "description", "$id", "$schema", "$comment", "examples", "default"]);
 
-function normalize(set: SchemaSet, file: string, node: Json, depth = 0): Json {
+/** The member schemas of an object schema as one side sees them: with the
+ *  wire strings given, a `spec` member that admits this side's string and
+ *  not the other's is the same placeholder on both sides. */
+function ownProperties(set: SchemaSet, file: string, properties: Obj, wire: string | undefined): Obj {
+  const spec = properties.spec;
+  if (wire === undefined || spec === undefined || spec === null || typeof spec !== "object" || Array.isArray(spec)) {
+    return properties;
+  }
+  const other = wire === WIRE_OLD ? WIRE_NEW! : WIRE_OLD!;
+  const schema = deref(set, file, spec).node;
+  if (!admits(schema, wire) || admits(schema, other)) return properties;
+  return { ...properties, spec: { $wire: "this side's own string" } };
+}
+
+function normalize(set: SchemaSet, file: string, node: Json, wire: string | undefined, depth = 0): Json {
   if (node === true) return {};
   if (node === null || typeof node !== "object") return node;
-  if (Array.isArray(node)) return node.map((n) => normalize(set, file, n, depth + 1));
+  if (Array.isArray(node)) return node.map((n) => normalize(set, file, n, wire, depth + 1));
   if (depth > 40) return "<depth>";
   let obj = node as Obj;
   if (typeof obj.$ref === "string") {
@@ -668,7 +732,12 @@ function normalize(set: SchemaSet, file: string, node: Json, depth = 0): Json {
   const out: Obj = {};
   for (const key of Object.keys(obj).sort()) {
     if (ANNOTATIONS.has(key) || key === "$defs") continue;
-    let v = normalize(set, file, obj[key], depth + 1);
+    const member = obj[key];
+    const seen =
+      key === "properties" && member !== null && typeof member === "object" && !Array.isArray(member)
+        ? ownProperties(set, file, member as Obj, wire)
+        : member;
+    let v = normalize(set, file, seen, wire, depth + 1);
     if ((key === "type" || key === "enum" || key === "required") && Array.isArray(v)) {
       v = [...v].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
     }
@@ -742,8 +811,8 @@ function main(): number {
         console.log(`== ${t.name}: 1 differing path(s): the file exists only in the ${side} set`);
         continue;
       }
-      const a = normalize(oldSet, t.file, pointerSchema(oldSet, t.file, t.pointer));
-      const b = normalize(newSet, t.file, pointerSchema(newSet, t.file, t.pointer));
+      const a = normalize(oldSet, t.file, pointerSchema(oldSet, t.file, t.pointer), WIRE_OLD);
+      const b = normalize(newSet, t.file, pointerSchema(newSet, t.file, t.pointer), WIRE_NEW);
       const lines: string[] = [];
       diff(a, b, "", lines);
       total += lines.length;
@@ -752,6 +821,9 @@ function main(): number {
       if (lines.length > 12) console.log(`  ... ${lines.length - 12} more`);
     }
     console.log(`structural diff: ${total} differing path(s) after normalization`);
+    if (WIRES) {
+      console.log(`spec member: a schema that admits its own side's string only (old ${WIRE_OLD}, new ${WIRE_NEW}) is the same on both sides`);
+    }
     return 0;
   }
   const oldAjv = makeAjv(oldSet);
@@ -762,9 +834,12 @@ function main(): number {
   const random = rng(SEED);
   let totalInstances = 0;
   let totalDisagreements = 0;
-  // Instances the old set accepts and the new set rejects: a new set
-  // that carries the old wire string should narrow nothing.
+  // Instances the old set accepts and the new set rejects: what a host
+  // of the old version changes when it moves to the new one.
   let narrowed = 0;
+  // Instances the two sides judge differently for the `spec` member
+  // alone, with the wire strings given: reported, not disagreements.
+  let specOnly = 0;
   const examples: string[] = [];
   console.log("target                        instances  valid(old)  valid(new)  disagree");
   let missingTargets = 0;
@@ -801,8 +876,17 @@ function main(): number {
     let validNew = 0;
     let disagree = 0;
     for (const instance of corpus.values()) {
-      const a = validateOld(instance) === true;
-      const b = validateNew(instance) === true;
+      let a = validateOld(instance) === true;
+      let b = validateNew(instance) === true;
+      if (WIRES) {
+        const oldView = asSide(instance, WIRE_OLD!);
+        const newView = asSide(instance, WIRE_NEW!);
+        const ownA = oldView === instance ? a : validateOld(oldView) === true;
+        const ownB = newView === instance ? b : validateNew(newView) === true;
+        if (a !== b && ownA === ownB) specOnly++;
+        a = ownA;
+        b = ownB;
+      }
       if (a) validOld++;
       if (b) validNew++;
       if (a !== b) {
@@ -821,6 +905,9 @@ function main(): number {
   }
   console.log(`total: ${totalInstances} instances across ${TARGETS.length} targets, ${totalDisagreements} disagreements (seed ${SEED}, ${RANDOM} random mutants per seed${missingTargets ? `; ${missingTargets} target(s) exist on one side only, counted once each` : ""})`);
   console.log(`narrowed: ${narrowed} instance(s) the old set accepts and the new set rejects`);
+  if (WIRES) {
+    console.log(`spec-only: ${specOnly} instance(s) the two sides judge differently for the spec member alone (old ${WIRE_OLD}, new ${WIRE_NEW}), not counted above`);
+  }
   for (const e of examples) console.log(`  ${e}`);
   return totalDisagreements ? 1 : 0;
 }

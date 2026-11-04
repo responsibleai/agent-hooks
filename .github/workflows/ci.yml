@@ -9,11 +9,9 @@ on:
 permissions:
   contents: read
 
-# The specification bundle SDK development tracks (VERSIONING.md).
-# scripts/check-version-consistency.py reads it; steps that cover every
-# bundle loop over spec/*/ instead.
-env:
-  SPEC_DEV_DIR: spec/draft
+# The SDKs support two specification versions, the released 0.1 and the
+# draft (VERSIONING.md). Steps that cover every bundle loop over spec/*/;
+# the draft is spec/draft, named where a step reads it alone.
 
 jobs:
   schema-lint:
@@ -40,7 +38,7 @@ jobs:
               echo "::error::$root holds no *.schema.json files"
               exit 1
             fi
-            [ "$spec_dir" = "$SPEC_DEV_DIR/" ] && schemas+=(conformance/vectors.schema.json)
+            [ "$spec_dir" = spec/draft/ ] && schemas+=(conformance/vectors.schema.json)
             echo "Validating ${#schemas[@]} schemas under $root"
             for f in "${schemas[@]}"; do
               # -r must not include the file under -s (ajv rejects duplicate $id)
@@ -58,14 +56,15 @@ jobs:
           fi
           echo "schemas validated for $validated bundle(s)"
       - name: Validate vectors against vectors.schema.json
-        # The vectors live once and track the draft: the grammar's $ref
-        # values name the draft schema ids, and the vectors use documents
-        # that 0.1 never defined (declaration 1.1, on_error, reserved
-        # warnings). So they are validated against the draft (SPEC_DEV_DIR)
-        # and against every released bundle listed in RESOLVABLE_RELEASES,
-        # which is empty until a cut bundle carries the schemas the
-        # grammar references. Any other released bundle is skipped and
-        # named below, never silently.
+        # The vectors live once and are the draft's corpus: the grammar's
+        # $ref values name the draft schema ids, the documents carry the
+        # draft wire string agent-hooks/draft, and the vectors use
+        # documents that 0.1 never defined (declaration 1.1, on_error,
+        # reserved warnings). So they are validated against the draft
+        # (spec/draft) and against every released bundle listed in
+        # RESOLVABLE_RELEASES, which is empty until a cut bundle carries
+        # the schemas the grammar references. Any other released bundle
+        # is skipped and named below, never silently.
         env:
           RESOLVABLE_RELEASES: ""
         run: |
@@ -76,7 +75,7 @@ jobs:
             root="${spec_dir}schema/generated"
             [ -d "$root" ] || root="${spec_dir}schema"
             [ -d "$root" ] || continue
-            if [ "$spec_dir" != "$SPEC_DEV_DIR/" ] && ! tr ' ' '\n' <<< "$RESOLVABLE_RELEASES" | grep -qx "$name"; then
+            if [ "$spec_dir" != spec/draft/ ] && ! tr ' ' '\n' <<< "$RESOLVABLE_RELEASES" | grep -qx "$name"; then
               echo "skipping spec/$name: the vector grammar references the draft schema ids and schemas this bundle does not publish"
               continue
             fi
@@ -131,11 +130,16 @@ jobs:
         # Differential validation (the tool exits 1 when the two sets
         # judge an instance differently) and a structural diff of the
         # newest spec/<MAJOR.MINOR>/ schema set (schema/generated/ when
-        # present, else schema/) against the draft, as two runs. This
-        # step gates the tool's health only: it
-        # fails when no release folder exists, when a run crashes, or
-        # when a report lacks its summary line. The drift verdict itself
-        # is the next step's, which may fail without failing the job.
+        # present, else schema/) against the draft, as two runs. The two
+        # sets are two specification versions with their own wire
+        # strings, so each side reads a `spec` member as its own
+        # (--wire-old, --wire-new): the instances that differ by that
+        # member alone are reported on their own line, not counted as
+        # disagreements or narrowing. This step gates the tool's health
+        # only: it fails when no release folder exists, when a run
+        # crashes, or when a report lacks its summary lines. The drift
+        # verdict itself is the next step's, which may fail without
+        # failing the job.
         id: drift
         run: |
           set -u
@@ -148,20 +152,22 @@ jobs:
           # The tool reads schema/generated/ when a bundle has it, else schema/.
           old="../../spec/$version/schema"
           new="../../spec/draft/schema/generated"
+          wires=(--wire-old "agent-hooks/$version" --wire-new agent-hooks/draft)
           validation="$RUNNER_TEMP/schema-drift-validation.txt"
           structure="$RUNNER_TEMP/schema-drift-structure.txt"
           validation_status=0
-          npm run --silent check:schema:equivalence -- --old "$old" --new "$new" \
+          npm run --silent check:schema:equivalence -- --old "$old" --new "$new" "${wires[@]}" \
             > "$validation" 2>&1 || validation_status=$?
           structure_status=0
-          npm run --silent check:schema:equivalence -- --old "$old" --new "$new" --structural-diff \
+          npm run --silent check:schema:equivalence -- --old "$old" --new "$new" "${wires[@]}" --structural-diff \
             > "$structure" 2>&1 || structure_status=$?
           cat "$validation" "$structure"
           disagreements=$(sed -nE 's/^total: .* ([0-9]+) disagreements .*$/\1/p' "$validation" | tail -1)
           narrowed=$(sed -nE 's/^narrowed: ([0-9]+) instance.*$/\1/p' "$validation" | tail -1)
+          spec_only=$(sed -nE 's/^spec-only: ([0-9]+) instance.*$/\1/p' "$validation" | tail -1)
           differing=$(sed -nE 's/^structural diff: ([0-9]+) differing path\(s\).*$/\1/p' "$structure" | tail -1)
           healthy=true
-          [ -n "$disagreements" ] && [ -n "$differing" ] && [ -n "$narrowed" ] || healthy=false
+          [ -n "$disagreements" ] && [ -n "$differing" ] && [ -n "$narrowed" ] && [ -n "$spec_only" ] || healthy=false
           [ "$structure_status" -eq 0 ] || healthy=false
           case "$validation_status" in
             0) [ "${disagreements:-1}" -eq 0 ] || healthy=false ;;
@@ -177,13 +183,15 @@ jobs:
             echo "disagreements=$disagreements"
             echo "differing=$differing"
             echo "narrowed=$narrowed"
+            echo "spec_only=$spec_only"
           } >> "$GITHUB_OUTPUT"
           {
             echo "## Schema drift between the \`$version\` release and the draft"
+            echo "Each side reads a \`spec\` member as its own wire string (\`agent-hooks/$version\`, \`agent-hooks/draft\`); $spec_only instance(s) differ by that member alone and are not counted below."
             if [ "$disagreements" -eq 0 ] && [ "$differing" -eq 0 ]; then
               echo "No drift: the draft schemas accept and reject the same instances as the release, and no path differs after normalization."
             else
-              echo "Drift: $disagreements instance(s) judged differently, $narrowed of them accepted by the release and rejected by the draft, and $differing differing path(s). A draft that keeps the released wire string should narrow nothing (VERSIONING.md). This is a report, not a gate."
+              echo "Drift: $disagreements instance(s) judged differently, $narrowed of them accepted by the release and rejected by the draft, and $differing differing path(s). The draft is a version of its own; what it narrows is what a $version host changes when it moves to the draft (VERSIONING.md). This is a report, not a gate."
             fi
             echo '```'
             cat "$validation" "$structure"
@@ -200,11 +208,12 @@ jobs:
           DISAGREEMENTS: ${{ steps.drift.outputs.disagreements }}
           DIFFERING: ${{ steps.drift.outputs.differing }}
           NARROWED: ${{ steps.drift.outputs.narrowed }}
+          SPEC_ONLY: ${{ steps.drift.outputs.spec_only }}
         run: |
           if [ "$DISAGREEMENTS" -eq 0 ] && [ "$DIFFERING" -eq 0 ]; then
-            echo "no drift between the $VERSION release and the draft"
+            echo "no drift between the $VERSION release and the draft beyond the wire string ($SPEC_ONLY instance(s) differ by the spec member alone)"
           else
-            echo "::warning::the draft schemas drift from the $VERSION release: $DISAGREEMENTS instance(s) judged differently ($NARROWED narrowed), $DIFFERING differing path(s); see the job summary"
+            echo "::warning::the draft schemas drift from the $VERSION release: $DISAGREEMENTS instance(s) judged differently ($NARROWED narrowed; $SPEC_ONLY more by the spec member alone, not counted), $DIFFERING differing path(s); see the job summary"
             exit 1
           fi
       - run: cargo fetch --locked

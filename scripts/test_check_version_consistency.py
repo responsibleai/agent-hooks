@@ -143,39 +143,16 @@ class DeclarationTablesTest(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertIn("host-declaration-1.1.schema.json is missing", output)
 
-    def test_other_development_bundle(self):
-        root = self.build(CONTRACT_ROW, RELEASE_ROW)
-        shutil.move(root / "spec/draft", root / "spec/0.2")
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            result = check_version_consistency.check_declaration_versions(
-                root, "spec/0.2"
-            )
-        self.assertEqual(result, 0, output.getvalue())
 
-
-RUST_TYPES = (
-    'pub const SPEC_VERSION: &str = "agent-hooks/{spec}";\n'
-    "pub const SUPPORTED_SPEC_VERSIONS: &[&str] = &[{supported}];\n"
-)
-TS_INDEX = (
-    'export const SPEC_VERSION = "agent-hooks/{spec}";\n'
-    "export const SUPPORTED_SPEC_VERSIONS: readonly string[] = Object.freeze([{supported}]);\n"
-)
-PY_TYPES = (
-    'SPEC_VERSION: Final[str] = "agent-hooks/{spec}"\n'
-    "SUPPORTED_SPEC_VERSIONS: Final[tuple[str, ...]] = ({supported},)\n"
-)
+RUST_TYPES = "pub const SUPPORTED_SPEC_VERSIONS: &[&str] = &[{supported}];\n"
+TS_INDEX = "export const SUPPORTED_SPEC_VERSIONS: readonly string[] = Object.freeze([{supported}]);\n"
+PY_TYPES = "SUPPORTED_SPEC_VERSIONS: Final[tuple[str, ...]] = ({supported},)\n"
 CS_TYPES = (
     "public static class Spec\n{{\n"
-    '    public const string Version = "agent-hooks/{spec}";\n'
     "    public static readonly IReadOnlyList<string> SupportedVersions = [{supported}];\n}}\n"
     'public static class Declaration\n{{\n    public const string Version = "agent-hooks-declaration/1.1";\n}}\n'
 )
-GO_TYPES = (
-    'const SpecVersion = "agent-hooks/{spec}"\n'
-    "var SupportedSpecVersions = []string{{{supported}}}\n"
-)
+GO_TYPES = "var SupportedSpecVersions = []string{{{supported}}}\n"
 CORES = {
     "sdk/rust/core/src/types.rs": RUST_TYPES,
     "sdk/typescript/src/index.ts": TS_INDEX,
@@ -187,12 +164,11 @@ CORES = {
 
 class SpecVersionsTest(unittest.TestCase):
     """The five cores name the same supported specification versions,
-    each with a folder, SPEC_VERSION the highest, and the VERSIONING.md
-    row for the SDK version agrees."""
+    released ones and the draft, each with a folder, at least one
+    released, and the VERSIONING.md row for the SDK version agrees."""
 
     def build(
         self,
-        spec="0.1",
         supported=("0.1",),
         folders=("0.1",),
         row="`0.1`",
@@ -202,9 +178,7 @@ class SpecVersionsTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, root)
         quoted = ", ".join(f'"{v}"' for v in supported)
         for path, template in CORES.items():
-            text = (overrides or {}).get(path) or template.format(
-                spec=spec, supported=quoted
-            )
+            text = (overrides or {}).get(path) or template.format(supported=quoted)
             (root / path).parent.mkdir(parents=True, exist_ok=True)
             (root / path).write_text(text, encoding="utf-8")
         for folder in folders:
@@ -225,52 +199,49 @@ class SpecVersionsTest(unittest.TestCase):
     def test_agreeing_cores_pass(self):
         result, output = self.run_check(self.build())
         self.assertEqual(result, 0, output)
-        self.assertIn(
-            "specification versions agree: agent-hooks/0.1, supported 0.1", output
-        )
+        self.assertIn("specification versions agree: 0.1", output)
 
-    def test_two_supported_versions_pass_when_spec_version_is_the_highest(self):
+    def test_released_versions_and_the_draft_pass_together(self):
         root = self.build(
-            spec="0.2",
-            supported=("0.1", "0.2"),
-            folders=("0.1", "0.2"),
-            row="`0.1`, `0.2`",
+            supported=("0.1", "0.2", "draft"),
+            folders=("0.1", "0.2", "draft"),
+            row="`0.1`, `0.2`, `draft`",
         )
-        self.assertEqual(self.run_check(root)[0], 0)
+        result, output = self.run_check(root)
+        self.assertEqual(result, 0, output)
+        self.assertIn("specification versions agree: 0.1, 0.2, draft", output)
 
     def test_disagreeing_core_fails(self):
         overrides = {
-            "sdk/go/agenthooks/types.go": GO_TYPES.format(
-                spec="0.1", supported='"0.1", "0.2"'
-            )
+            "sdk/go/agenthooks/types.go": GO_TYPES.format(supported='"0.1", "draft"')
         }
         result, output = self.run_check(self.build(overrides=overrides))
         self.assertEqual(result, 1)
         self.assertIn("the SDKs disagree", output)
-        self.assertIn("sdk/go/agenthooks/types.go", output)
+        self.assertIn("sdk/go/agenthooks/types.go: 0.1, draft", output)
 
-    def test_draft_and_missing_folder_fail(self):
+    def test_entries_are_released_versions_or_the_draft_with_a_folder(self):
         result, output = self.run_check(
             self.build(supported=("0.1", "DRAFT"), row="`0.1`, `DRAFT`")
         )
         self.assertEqual(result, 1)
-        self.assertIn("names DRAFT, not a MAJOR.MINOR version", output)
+        self.assertIn("names DRAFT, not a MAJOR.MINOR version or draft", output)
         result, output = self.run_check(
-            self.build(spec="0.2", supported=("0.1", "0.2"), row="`0.1`, `0.2`")
+            self.build(supported=("0.1", "0.2"), row="`0.1`, `0.2`")
         )
         self.assertEqual(result, 1)
         self.assertIn("spec/0.2/ does not exist", output)
-
-    def test_spec_version_must_be_the_highest_supported(self):
-        root = self.build(
-            spec="0.1",
-            supported=("0.1", "0.2"),
-            folders=("0.1", "0.2"),
-            row="`0.1`, `0.2`",
+        result, output = self.run_check(
+            self.build(supported=("0.1", "draft"), row="`0.1`, `draft`")
         )
+        self.assertEqual(result, 1)
+        self.assertIn("spec/draft/ does not exist", output)
+
+    def test_at_least_one_released_version(self):
+        root = self.build(supported=("draft",), folders=("draft",), row="`draft`")
         result, output = self.run_check(root)
         self.assertEqual(result, 1)
-        self.assertIn("must be agent-hooks/0.2", output)
+        self.assertIn("names no released version", output)
 
     def test_error_lines_are_encoded(self):
         # The same line break in every core, so the check reaches the
@@ -280,8 +251,17 @@ class SpecVersionsTest(unittest.TestCase):
         result, output = self.run_check(root)
         self.assertEqual(result, 1)
         self.assertIn(
-            "names 0.1%0A::error::injected, not a MAJOR.MINOR version", output
+            "names 0.1%0A::error::injected, not a MAJOR.MINOR version or draft",
+            output,
         )
+        self.assertNotIn("\n::error::injected", output)
+        # A disagreement lists each core's entries, encoded the same way.
+        overrides = {
+            "sdk/go/agenthooks/types.go": GO_TYPES.format(supported=f'"{injected}"')
+        }
+        result, output = self.run_check(self.build(overrides=overrides))
+        self.assertEqual(result, 1)
+        self.assertIn("sdk/go/agenthooks/types.go: 0.1%0A::error::injected", output)
         self.assertNotIn("\n::error::injected", output)
 
     def test_versioning_row_must_match(self):
@@ -309,8 +289,8 @@ GIT_ENV = {
 
 
 class SpecTagsTest(unittest.TestCase):
-    """Every supported specification version carries the tag spec/<X.Y>
-    on an ancestor of HEAD."""
+    """Every released specification version the SDKs support carries
+    the tag spec/<X.Y> on an ancestor of HEAD; the draft needs none."""
 
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
@@ -318,7 +298,7 @@ class SpecTagsTest(unittest.TestCase):
         types = self.root / "sdk/rust/core/src/types.rs"
         types.parent.mkdir(parents=True)
         types.write_text(
-            RUST_TYPES.format(spec="0.1", supported='"0.1"'), encoding="utf-8"
+            RUST_TYPES.format(supported='"0.1", "draft"'), encoding="utf-8"
         )
         self.git("init", "-q", "-b", "main")
         self.git("add", "-A")
@@ -352,6 +332,8 @@ class SpecTagsTest(unittest.TestCase):
         result, output = self.run_check()
         self.assertEqual(result, 0, output)
         self.assertIn("tag spec/0.1 is on this history", output)
+        self.assertIn("draft is not a released version and carries no tag", output)
+        self.assertNotIn("spec/draft", output)
 
     def test_tag_off_the_history_fails(self):
         self.git("checkout", "-q", "--orphan", "elsewhere")
@@ -364,8 +346,32 @@ class SpecTagsTest(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertIn("tag spec/0.1 is not an ancestor of HEAD", output)
 
-    def test_main_accepts_the_flag_only(self):
+    def test_main_accepts_the_flags_only(self):
         self.assertEqual(check_version_consistency.main(["--something"]), 2)
+        self.assertEqual(
+            check_version_consistency.main(
+                ["--require-spec-tags", "--print-supported"]
+            ),
+            2,
+        )
+
+    def test_print_supported_lists_the_entries_and_checks_nothing(self):
+        output = io.StringIO()
+        with (
+            patch.object(
+                check_version_consistency,
+                "supported_spec_versions",
+                return_value=("0.1", "draft"),
+            ),
+            patch.object(
+                check_version_consistency, "check_no_committed_platform_pins"
+            ) as pins,
+            contextlib.redirect_stdout(output),
+        ):
+            result = check_version_consistency.main(["--print-supported"])
+        self.assertEqual(result, 0)
+        self.assertEqual(output.getvalue(), "0.1\ndraft\n")
+        pins.assert_not_called()
 
 
 if __name__ == "__main__":
