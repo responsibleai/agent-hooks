@@ -1,16 +1,16 @@
 {
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/agent-context/output.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/agent-context/pre_tool_call.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Agent Hooks — agent context (output)",
-  "description": "Closed required+conditional schema for interception_point=output (AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
+  "title": "Agent Hooks — agent context (pre_tool_call)",
+  "description": "Closed required+conditional schema for interception_point=pre_tool_call (AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
   "type": "object",
   "properties": {
     "interception_point": {
       "type": "string",
-      "const": "output"
+      "const": "pre_tool_call"
     },
-    "output": {
-      "$ref": "#/$defs/Output"
+    "tool_call": {
+      "$ref": "#/$defs/ToolCall"
     },
     "spec": {
       "pattern": "^agent-hooks/\\d+\\.\\d+$",
@@ -97,10 +97,6 @@
       "description": "Token usage of a model call (§4.3).",
       "$ref": "#/$defs/Usage"
     },
-    "tool_call": {
-      "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
-      "$ref": "#/$defs/ToolCall"
-    },
     "tool_result": {
       "description": "Conditional payload of post_tool_call (§4.2).",
       "$ref": "#/$defs/ToolResult"
@@ -110,6 +106,10 @@
       "items": {
         "$ref": "#/$defs/ToolDecl"
       }
+    },
+    "output": {
+      "description": "Conditional payload of output (§4.2).",
+      "$ref": "#/$defs/Output"
     },
     "summary": {
       "description": "Conditional payload of agent_shutdown (§4.2).",
@@ -179,12 +179,12 @@
   "required": [
     "agent",
     "interception_point",
-    "output",
     "sequence",
     "session",
     "spec",
     "target",
-    "timestamp"
+    "timestamp",
+    "tool_call"
   ],
   "$defs": {
     "AgentInit": {
@@ -275,8 +275,7 @@
       },
       "required": [
         "content"
-      ],
-      "additionalProperties": false
+      ]
     },
     "Response": {
       "description": "Conditional payload of post_model_call (§4.2).",
@@ -358,7 +357,8 @@
         "args",
         "id",
         "name"
-      ]
+      ],
+      "additionalProperties": false
     },
     "ToolCallRequest": {
       "description": "One tool call the model asked for (§4.2).",

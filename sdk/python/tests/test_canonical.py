@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from agent_hooks import canonical_json, context_identity
+from agent_hooks import SPEC_VERSION_DRAFT, canonical_json, context_identity
 from agent_hooks.context import AgentContextBuilder
 
 
@@ -28,7 +28,7 @@ def test_canonical_nested_determinism() -> None:
 
 
 def test_identity_strips_l2_and_extensions() -> None:
-    b = AgentContextBuilder(agent_id="a", framework="ref", session_id="s")
+    b = AgentContextBuilder(spec=SPEC_VERSION_DRAFT, agent_id="a", framework="ref", session_id="s")
     ctx = b.input(content="hi", role="user")
     base = context_identity(ctx)
     ctx["trace"] = {"trace_id": "t"}
@@ -38,9 +38,9 @@ def test_identity_strips_l2_and_extensions() -> None:
 
 
 def test_identity_changes_with_target() -> None:
-    b = AgentContextBuilder(agent_id="a", framework="ref", session_id="s")
+    b = AgentContextBuilder(spec=SPEC_VERSION_DRAFT, agent_id="a", framework="ref", session_id="s")
     ctx1 = b.input(content="hi", role="user")
-    b2 = AgentContextBuilder(agent_id="a", framework="ref", session_id="s")
+    b2 = AgentContextBuilder(spec=SPEC_VERSION_DRAFT, agent_id="a", framework="ref", session_id="s")
     ctx2 = b2.input(content="bye", role="user")
     # sequence and timestamp differ; normalize for the assertion
     ctx2["sequence"] = ctx1["sequence"]
@@ -49,7 +49,7 @@ def test_identity_changes_with_target() -> None:
 
 
 def test_identity_format() -> None:
-    b = AgentContextBuilder(agent_id="a", framework="ref", session_id="s")
+    b = AgentContextBuilder(spec=SPEC_VERSION_DRAFT, agent_id="a", framework="ref", session_id="s")
     ctx = b.agent_startup(tools_registered=[])
     cid = context_identity(ctx)
     assert cid.startswith("sha256:")

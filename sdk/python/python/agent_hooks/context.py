@@ -14,7 +14,7 @@ import itertools
 from datetime import datetime, timezone
 from typing import Any, TypeAlias
 
-from agent_hooks._types import SPEC_VERSION, InterceptionPoint
+from agent_hooks._types import InterceptionPoint, require_spec_version
 
 #: A agent context is wire-shaped JSON: ``dict[str, Any]`` validated against
 #: ``spec/draft/schema/generated/agent-context.schema.json``.
@@ -32,7 +32,7 @@ class AgentContextBuilder:
     code never has to thread them. One instance per session.
     """
 
-    __slots__ = ("_agent", "_l2", "_seq", "_session")
+    __slots__ = ("_agent", "_l2", "_seq", "_session", "_spec")
 
     # §12.2.3: sequence assignment MUST be atomic under concurrent
     # emissions. itertools.count consumes one value per __next__ under a
@@ -41,6 +41,7 @@ class AgentContextBuilder:
     def __init__(
         self,
         *,
+        spec: str,
         agent_id: str,
         framework: str,
         session_id: str,
@@ -48,6 +49,12 @@ class AgentContextBuilder:
         agent_version: str | None = None,
         session_started_at: str | None = None,
     ) -> None:
+        """``spec`` is required: there is no default version. Pass
+        :data:`~agent_hooks.SPEC_VERSION_0_1` or
+        :data:`~agent_hooks.SPEC_VERSION_DRAFT`, the version the emitter
+        runs under; any other value is a :class:`ValueError` naming
+        :data:`~agent_hooks.SUPPORTED_SPEC_VERSIONS`."""
+        self._spec = require_spec_version(spec, "AgentContextBuilder spec")
         self._agent: dict[str, Any] = {"id": agent_id, "framework": framework}
         if agent_name:
             self._agent["name"] = agent_name
@@ -59,6 +66,11 @@ class AgentContextBuilder:
         self._seq = itertools.count()
         self._l2: dict[str, Any] = {}
 
+    @property
+    def spec(self) -> str:
+        """The specification version every context names (§4.1)."""
+        return self._spec
+
     def with_l2(self, **fields: Any) -> AgentContextBuilder:
         """Attach L2 fields (``trace``, ``tenant``, ``budgets``, ``actor``…)
         to every subsequent context."""
@@ -67,7 +79,7 @@ class AgentContextBuilder:
 
     def _envelope(self, hp: InterceptionPoint, target: Any) -> AgentContext:
         ctx: AgentContext = {
-            "spec": SPEC_VERSION,
+            "spec": self._spec,
             "interception_point": hp.value,
             "timestamp": _now(),
             "sequence": next(self._seq),

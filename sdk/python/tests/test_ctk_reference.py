@@ -8,6 +8,7 @@ import asyncio
 import pathlib
 
 import pytest
+from agent_hooks import SPEC_VERSION_DRAFT
 from agent_hooks.ctk import load_vectors, run_vector
 from agent_hooks.ctk.reference import ReferenceHarness
 
@@ -129,6 +130,7 @@ def test_prove_paths_keeps_a_null_binding_config() -> None:
     )
     doc = {
         "declaration": "agent-hooks-declaration/1.0",
+        "spec": SPEC_VERSION_DRAFT,
         "bindings": [{"id": "a", "kind": "com.example.x", "config": None}],
     }
     assert prove_paths(doc, reg, "test") == (True, "")

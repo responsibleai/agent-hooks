@@ -7,12 +7,12 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from agent_hooks import InterceptionEmitter
+from agent_hooks import SPEC_VERSION_DRAFT, InterceptionEmitter
 from agent_hooks.context import AgentContextBuilder
 
 
 def _ctx() -> dict[str, Any]:
-    b = AgentContextBuilder(agent_id="a", framework="test", session_id="s")
+    b = AgentContextBuilder(spec=SPEC_VERSION_DRAFT, agent_id="a", framework="test", session_id="s")
     return b.input(content="hi", role="user")
 
 
@@ -40,7 +40,7 @@ class SlowResolver:
 
 
 def test_slow_interceptor_times_out() -> None:
-    em = InterceptionEmitter(timeout=0.05).register(SlowInterceptor())
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, timeout=0.05).register(SlowInterceptor())
     record = asyncio.run(em.emit_unchecked(_ctx()))
     assert record.verdict.reason == "host_error:interceptor_timeout"
     assert not record.proceeds
@@ -50,16 +50,16 @@ def test_slow_interceptor_times_out() -> None:
 
 
 def test_fast_interceptor_passes_within_timeout() -> None:
-    em = InterceptionEmitter(timeout=0.05).register(FastInterceptor())
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, timeout=0.05).register(FastInterceptor())
     record = asyncio.run(em.emit_unchecked(_ctx()))
     assert record.proceeds
     assert record.verdict.reason is None
 
 
 def test_slow_resolver_times_out() -> None:
-    em = InterceptionEmitter(timeout=0.05, resolver=SlowResolver()).register(
-        EscalatingInterceptor()
-    )
+    em = InterceptionEmitter(
+        spec=SPEC_VERSION_DRAFT, timeout=0.05, resolver=SlowResolver()
+    ).register(EscalatingInterceptor())
     record = asyncio.run(em.emit_unchecked(_ctx()))
     assert record.verdict.reason == "host_error:approval_resolver_failed"
     assert record.verdict.message == "timeout"
@@ -72,6 +72,6 @@ def test_timeout_none_disables_enforcement() -> None:
             await asyncio.sleep(0.06)
             return {"decision": "allow"}
 
-    em = InterceptionEmitter(timeout=None).register(Sleep60ms())
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, timeout=None).register(Sleep60ms())
     record = asyncio.run(em.emit_unchecked(_ctx()))
     assert record.proceeds

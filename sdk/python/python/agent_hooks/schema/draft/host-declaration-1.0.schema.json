@@ -2,7 +2,7 @@
   "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration-1.0.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — host declaration document (agent-hooks-declaration/1.0)",
-  "description": "A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that\nfixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface\n(§13.1) and its interceptor bindings. The document is a versioned contract of\nits own, separate from the wire version agent-hooks/0.1 and from package\nversions; this file describes agent-hooks-declaration/1.0. Every object is\nclosed except bindings[].config and the values under extensions. This schema\nis self-contained so a settings validator can use it alone. Rules it cannot\nexpress (knob consistency, the §3.2 floor, surface against the host's code,\nregistered names) live in the loader (§7.7.6).",
+  "description": "A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that\nfixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface\n(§13.1) and its interceptor bindings. The document is a versioned contract of\nits own, separate from the wire version agent-hooks/draft and from package\nversions; this file describes agent-hooks-declaration/1.0. Every object is\nclosed except bindings[].config and the values under extensions. This schema\nis self-contained so a settings validator can use it alone. Rules it cannot\nexpress (knob consistency, the §3.2 floor, surface against the host's code,\nregistered names) live in the loader (§7.7.6).",
   "additionalProperties": false,
   "type": "object",
   "properties": {
@@ -28,9 +28,9 @@
       "type": "string"
     },
     "spec": {
-      "description": "OPTIONAL. The wire version the document was written for; the loader's\nmajor, and a minor no greater than the loader's. Defaults to the loader's\nSPEC_VERSION.",
-      "pattern": "^agent-hooks/[0-9]+\\.[0-9]+$",
-      "type": "string"
+      "description": "REQUIRED. The specification version the document is written for\n(§7.7.2): this version's wire string. A document written for a\nreleased version names that version's own string instead, and is\nread by that version's rules.",
+      "type": "string",
+      "const": "agent-hooks/draft"
     },
     "id": {
       "description": "OPTIONAL. An operator label for logs. Never stamped on records.",
@@ -59,7 +59,8 @@
   },
   "required": [
     "bindings",
-    "declaration"
+    "declaration",
+    "spec"
   ],
   "$defs": {
     "Configuration10": {

@@ -10,6 +10,7 @@
   ],
   "host_declaration": {
     "declaration": "agent-hooks-declaration/1.0",
+    "spec": "agent-hooks/draft",
     "configuration": {
       "records": {
         "max_buffered": 9007199254740991

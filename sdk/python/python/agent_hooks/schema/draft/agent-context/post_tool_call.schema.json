@@ -1,20 +1,24 @@
 {
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/agent-context/input.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/agent-context/post_tool_call.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Agent Hooks — agent context (input)",
-  "description": "Closed required+conditional schema for interception_point=input (AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
+  "title": "Agent Hooks — agent context (post_tool_call)",
+  "description": "Closed required+conditional schema for interception_point=post_tool_call (AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
   "type": "object",
   "properties": {
     "interception_point": {
       "type": "string",
-      "const": "input"
+      "const": "post_tool_call"
     },
-    "input": {
-      "$ref": "#/$defs/Input"
+    "tool_call": {
+      "$ref": "#/$defs/ToolCall"
+    },
+    "tool_result": {
+      "$ref": "#/$defs/ToolResult"
     },
     "spec": {
-      "pattern": "^agent-hooks/\\d+\\.\\d+$",
-      "type": "string"
+      "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+      "type": "string",
+      "const": "agent-hooks/draft"
     },
     "timestamp": {
       "format": "date-time",
@@ -72,6 +76,10 @@
       "description": "Conditional payload of agent_startup (§4.2).",
       "$ref": "#/$defs/AgentInit"
     },
+    "input": {
+      "description": "Conditional payload of input (§4.2).",
+      "$ref": "#/$defs/Input"
+    },
     "model": {
       "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
       "$ref": "#/$defs/Model"
@@ -92,14 +100,6 @@
     "usage": {
       "description": "Token usage of a model call (§4.3).",
       "$ref": "#/$defs/Usage"
-    },
-    "tool_call": {
-      "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
-      "$ref": "#/$defs/ToolCall"
-    },
-    "tool_result": {
-      "description": "Conditional payload of post_tool_call (§4.2).",
-      "$ref": "#/$defs/ToolResult"
     },
     "tools": {
       "type": "array",
@@ -178,13 +178,14 @@
   },
   "required": [
     "agent",
-    "input",
     "interception_point",
     "sequence",
     "session",
     "spec",
     "target",
-    "timestamp"
+    "timestamp",
+    "tool_call",
+    "tool_result"
   ],
   "$defs": {
     "AgentInit": {
@@ -222,8 +223,7 @@
       "required": [
         "content",
         "role"
-      ],
-      "additionalProperties": false
+      ]
     },
     "InputRole": {
       "description": "Who produced an input (§4.2).",
@@ -358,7 +358,8 @@
         "args",
         "id",
         "name"
-      ]
+      ],
+      "additionalProperties": false
     },
     "ToolCallRequest": {
       "description": "One tool call the model asked for (§4.2).",
@@ -417,7 +418,8 @@
       "required": [
         "is_error",
         "value"
-      ]
+      ],
+      "additionalProperties": false
     },
     "Usage": {
       "description": "Token usage of a model call (§4.3).",

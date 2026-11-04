@@ -49,5 +49,6 @@
       "outcome": "refused",
       "class": "declaration_error:spec_unsupported"
     }
-  }
+  },
+  "host_declaration_invalid": true
 }
