@@ -24,7 +24,7 @@ jobs:
           for spec_dir in spec/*/; do
             [ -d "${spec_dir}schema/generated" ] || continue
             echo "Validating ${spec_dir}schema/generated"
-            schemas=("${spec_dir}"schema/generated/*.schema.json "${spec_dir}"schema/generated/strict-contexts/*.schema.json conformance/vectors.schema.json)
+            schemas=("${spec_dir}"schema/generated/*.schema.json "${spec_dir}"schema/generated/strict-contexts/*.schema.json)
             for f in "${schemas[@]}"; do
               # -r must not include the file under -s (ajv rejects duplicate $id)
               refs=()

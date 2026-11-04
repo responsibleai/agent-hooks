@@ -24,7 +24,20 @@ REQUIRED_FILES = (
     "reserved-reasons.json",
     "reserved-warnings.json",
     "schema/generated/agent-context.schema.json",
-    "schema/generated/verdict.schema.json",
+)
+RELEASED_RESPONSE_SCHEMAS = ("schema/generated/verdict.schema.json",)
+DRAFT_RESPONSE_SCHEMAS = tuple(
+    f"schema/generated/{hook}-hook-response.schema.json"
+    for hook in (
+        "agent-startup",
+        "input",
+        "pre-model",
+        "post-model",
+        "pre-tool",
+        "post-tool",
+        "output",
+        "agent-shutdown",
+    )
 )
 REQUIRED_DIRS = ("schema/src", "schema/generated/strict-contexts")
 
@@ -35,6 +48,14 @@ def check_bundle(folder: Path) -> list[str]:
     if len(list(folder.glob("AGENT-HOOKS-*.md"))) != 1:
         errors.append(f"{rel} must contain exactly one AGENT-HOOKS-*.md file")
     for name in REQUIRED_FILES:
+        if not (folder / name).is_file():
+            errors.append(f"{rel}/{name} is missing")
+    response_schemas = (
+        DRAFT_RESPONSE_SCHEMAS
+        if folder.name == "draft"
+        else RELEASED_RESPONSE_SCHEMAS
+    )
+    for name in response_schemas:
         if not (folder / name).is_file():
             errors.append(f"{rel}/{name} is missing")
     for name in REQUIRED_DIRS:
