@@ -36,7 +36,7 @@ public sealed class EmitterSeamTests
 
     private static AgentContext Ctx() => new((JsonObject)JsonNode.Parse("""
         {
-          "spec": "agent-hooks/0.1",
+          "spec": "agent-hooks/draft",
           "interception_point": "pre_tool_call",
           "timestamp": "2026-01-01T00:00:00Z",
           "sequence": 0,
@@ -51,7 +51,7 @@ public sealed class EmitterSeamTests
     public async Task RedactorBindsIdentityToPresentedContext()
     {
         var approver = new CapturingApprover();
-        var e = new InterceptionEmitter(EnforcementMode.Enforce, approver);
+        var e = new InterceptionEmitter(Spec.Draft, EnforcementMode.Enforce, approver);
         e.Register(new Scripted(Verdict.Escalate("check")));
         e.SetApprovalRedactor(ctx =>
             new AgentContext(Canonical.ApplyTransformCtx(ctx, "$target.secret", "[redacted]")));
@@ -67,7 +67,7 @@ public sealed class EmitterSeamTests
     [Fact]
     public async Task ThrowingRedactorFailsClosed()
     {
-        var e = new InterceptionEmitter(EnforcementMode.Enforce, new CapturingApprover());
+        var e = new InterceptionEmitter(Spec.Draft, EnforcementMode.Enforce, new CapturingApprover());
         e.Register(new Scripted(Verdict.Escalate("check")));
         e.SetApprovalRedactor(_ => throw new InvalidOperationException("SECRET must not leak"));
 
@@ -81,7 +81,7 @@ public sealed class EmitterSeamTests
     public async Task RecordSinkAndRingBuffer()
     {
         var seen = 0;
-        var e = new InterceptionEmitter(EnforcementMode.Enforce, null);
+        var e = new InterceptionEmitter(Spec.Draft, EnforcementMode.Enforce, null);
         e.Register(new Scripted(Verdict.Allow));
         e.SetRecordSink(_ => seen++);
         e.SetMaxRecords(2);
@@ -96,7 +96,7 @@ public sealed class EmitterSeamTests
     [Fact]
     public async Task SinkExceptionIsSwallowed()
     {
-        var e = new InterceptionEmitter(EnforcementMode.Enforce, null);
+        var e = new InterceptionEmitter(Spec.Draft, EnforcementMode.Enforce, null);
         e.Register(new Scripted(Verdict.Allow));
         e.SetRecordSink(_ => throw new InvalidOperationException("sink down"));
         var r = await e.EmitUncheckedAsync(Ctx());
@@ -106,7 +106,7 @@ public sealed class EmitterSeamTests
     [Fact]
     public async Task EmitReturnsEffectiveTarget()
     {
-        var e = new InterceptionEmitter(EnforcementMode.Enforce, null);
+        var e = new InterceptionEmitter(Spec.Draft, EnforcementMode.Enforce, null);
         e.Register(new Scripted(Verdict.FromWire((JsonObject)JsonNode.Parse("""
             {"decision": "transform",
              "transform": {"path": "$target.secret", "value": "clean"}}

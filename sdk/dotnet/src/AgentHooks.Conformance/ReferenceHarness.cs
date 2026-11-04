@@ -161,7 +161,11 @@ public sealed class ReferenceHarness : IHarness
         _toolLog.Clear();
         lock (_hostMessagesLock) _hostMessages.Clear();
         _emitter = emitter;
+        // The vectors are the draft corpus: the harness builds its contexts
+        // under the draft, the version every vector document and the
+        // reference document name.
         _builder = new AgentContextBuilder(
+            spec: Spec.Draft,
             agentId: "ref-agent",
             framework: "reference-agent",
             sessionId: Guid.NewGuid().ToString());

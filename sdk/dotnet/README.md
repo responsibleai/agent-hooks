@@ -28,9 +28,11 @@ dotnet build sdk/dotnet
 ```csharp
 using AgentHooks;
 
-var emitter = new InterceptionEmitter(EnforcementMode.Enforce, resolver: null)
+// The host names the specification version it runs under, here 0.1;
+// Spec.Draft selects the draft. There is no default.
+var emitter = new InterceptionEmitter(Spec.V01, EnforcementMode.Enforce, resolver: null)
     .Register(new MyPolicy());
-var builder = new AgentContextBuilder("my-agent", "my-fw", "s-1");
+var builder = new AgentContextBuilder(Spec.V01, "my-agent", "my-fw", "s-1");
 
 var ctx = builder.PreToolCall("tc-1", "http_get", new JsonObject { ["url"] = url });
 var record = await emitter.EmitUncheckedAsync(ctx);
@@ -68,10 +70,12 @@ outcome is never a timeout and never continues.
 A host can load its configuration, declared surface and interceptor
 bindings from a host declaration document (spec §7.7) instead of
 calling the setters. The document is a versioned contract of its own,
-`agent-hooks-declaration/1.1` (`Declaration.Version`,
-`Declaration.SupportedVersions`, which also lists `1.0`), separate from
-the wire version `Spec.Version`; `Spec.SupportedVersions` lists the
-specification versions whose contexts the SDK accepts. 1.1 adds two
+`agent-hooks-declaration/1.1` under the draft and 1.0 under 0.1
+(`Declaration.Version`, `Declaration.SupportedVersions`,
+`Declaration.CurrentVersionFor(spec)`), separate from the wire version
+the document names in its required `spec` member; `Spec.SupportedVersions`
+lists the specification versions the SDK supports, with the wire strings
+`Spec.V01` and `Spec.Draft`. 1.1 adds two
 optional members,
 `configuration.failure.on_error` and `bindings[].on_error`
 (`DeclarationBuilder.FailureOnError`, `BindWith(.., new BindOptions(OnError: ..))`);
@@ -96,7 +100,7 @@ var registry = new HostRegistry(surface)
 var emitter = InterceptionEmitter.FromDeclarationPath("agent-hooks.declaration.json", registry);
 // or: FromDeclarationJson(text, registry), FromDeclarationNode(jsonObject, registry),
 // or the code path:
-var declaration = HostDeclaration.Builder()
+var declaration = HostDeclaration.Builder(Spec.V01)
     .Composition(CompositionConfig.RunAll())
     .ApprovalResolver("operator-queue")
     .Bind("egress", "com.example.egress", new JsonObject { ["allow_hosts"] = new JsonArray("internal.example") },

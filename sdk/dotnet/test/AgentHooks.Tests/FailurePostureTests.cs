@@ -103,7 +103,7 @@ public sealed class FailurePostureTests
     {
         var o = (JsonObject)JsonNode.Parse($$"""
             {
-              "spec": "agent-hooks/0.1",
+              "spec": "agent-hooks/draft",
               "interception_point": "{{point}}",
               "timestamp": "2026-01-01T00:00:00Z",
               "sequence": {{sequence}},
@@ -132,7 +132,7 @@ public sealed class FailurePostureTests
         EnforcementMode mode = EnforcementMode.Enforce, IApprovalResolver? resolver = null)
     {
         var notices = new List<ControlFailureNotice>();
-        var e = new InterceptionEmitter(mode, resolver);
+        var e = new InterceptionEmitter(Spec.Draft, mode, resolver);
         e.SetControlFailureNotifier(notices.Add);
         return (e, notices);
     }
@@ -203,7 +203,7 @@ public sealed class FailurePostureTests
     public async Task ContinueSubstitutesAllowForATimeout()
     {
         var notices = new List<ControlFailureNotice>();
-        var e = new InterceptionEmitter(timeout: TimeSpan.FromMilliseconds(20));
+        var e = new InterceptionEmitter(Spec.Draft, timeout: TimeSpan.FromMilliseconds(20));
         e.SetControlFailureNotifier(notices.Add);
         e.RegisterWithOptions(new Slow(TimeSpan.FromSeconds(5)), BestEffort("defender"));
         e.Register(new Scripted(Verdict.Allow));
@@ -217,7 +217,7 @@ public sealed class FailurePostureTests
     [Fact]
     public async Task CooperativeInterceptorThatHonoursTheTimerIsATimeoutNotARaise()
     {
-        var e = new InterceptionEmitter(timeout: TimeSpan.FromMilliseconds(20));
+        var e = new InterceptionEmitter(Spec.Draft, timeout: TimeSpan.FromMilliseconds(20));
         e.Register(new Cooperative());
         var r = await e.EmitUncheckedAsync(Ctx());
         Assert.Equal(HostError.InterceptorTimeout, r.Verdict.Reason);
@@ -228,7 +228,7 @@ public sealed class FailurePostureTests
     {
         for (var i = 0; i < 25; i++)
         {
-            var e = new InterceptionEmitter(timeout: TimeSpan.FromMilliseconds(10));
+            var e = new InterceptionEmitter(Spec.Draft, timeout: TimeSpan.FromMilliseconds(10));
             e.Register(new AllowsOnCancel());
             var r = await e.EmitUncheckedAsync(Ctx());
             Assert.False(r.Proceeds);
@@ -282,14 +282,14 @@ public sealed class FailurePostureTests
         Assert.False(r.ToWire()["verdicts"]![0]!.AsObject().ContainsKey("substituted_for"));
 
         Assert.Equal(OnError.Deny, new RegistrationOptions().OnError);
-        e = new InterceptionEmitter();
+        e = new InterceptionEmitter(Spec.Draft);
         e.RegisterWithOptions(new Scripted(new Verdict(Decision.Transform)), new RegistrationOptions());
         r = await e.EmitUncheckedAsync(Ctx());
         Assert.False(r.Proceeds);
         Assert.Equal(HostError.VerdictInvalid, r.Verdict.Reason);
         Assert.Null(r.Verdicts[0].SubstitutedFor);
 
-        e = new InterceptionEmitter(timeout: TimeSpan.FromMilliseconds(20));
+        e = new InterceptionEmitter(Spec.Draft, timeout: TimeSpan.FromMilliseconds(20));
         e.RegisterWithOptions(new Slow(TimeSpan.FromSeconds(5)), new RegistrationOptions("slow"));
         r = await e.EmitUncheckedAsync(Ctx());
         Assert.Equal(HostError.InterceptorTimeout, r.Verdict.Reason);
@@ -301,7 +301,7 @@ public sealed class FailurePostureTests
     [Fact]
     public async Task ContinueWithoutANotifierIsRefusedAtRegistration()
     {
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         var err = Assert.Throws<RegistrationException>(
             () => e.RegisterWithOptions(new Scripted(Verdict.Allow), BestEffort("x")));
         Assert.Contains("control failure notifier", err.Detail);
@@ -327,7 +327,7 @@ public sealed class FailurePostureTests
     {
         // A principal that could not be told means the deny stands:
         // silent continuation is not reachable through a broken channel.
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.SetControlFailureNotifier(_ => throw new IOException("channel down"));
         e.RegisterWithOptions(new Throws(), BestEffort("defender"));
         var r = await e.EmitUncheckedAsync(Ctx());
@@ -343,7 +343,7 @@ public sealed class FailurePostureTests
     public void NotifierMayBeSetOnASealedEmitter()
     {
         var em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.1",
+            {"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft",
              "bindings": [{"id": "allow", "kind": "com.example.allow"}]}
             """, Registry());
         // A host channel, not declared configuration (like the record sink).
@@ -490,11 +490,17 @@ public sealed class FailurePostureTests
     public async Task AnInterceptorCannotEmitTheReservedWarning()
     {
         var spoof = Verdict.Warn(HostWarning.ControlFailed, "looks substituted");
-        Assert.Throws<ArgumentException>(spoof.Validate);
-        Assert.Throws<ArgumentException>(() => Verdict.Warn("host_error:x").Validate());
-        Verdict.Warn("host_warnings").Validate();
+        Assert.Throws<ArgumentException>(() => spoof.Validate(Spec.Draft));
+        Assert.Throws<ArgumentException>(() => Verdict.Warn("host_error:x").Validate(Spec.Draft));
+        Verdict.Warn("host_warnings").Validate(Spec.Draft);
+        // 0.1 reserves host_error:* only: the same warning is a valid 0.1
+        // verdict, in the local check and at the core's gate.
+        spoof.Validate(Spec.V01);
+        Canonical.ValidateVerdict(spoof.ToWire(), Spec.V01);
+        Assert.Throws<AgentHooksCoreException>(() => Canonical.ValidateVerdict(spoof.ToWire(), Spec.Draft));
+        Assert.Throws<ArgumentException>(() => Verdict.Warn("host_error:x").Validate(Spec.V01));
 
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.Register(new Scripted(spoof));
         var r = await e.EmitUncheckedAsync(Ctx());
         Assert.False(r.Proceeds);
@@ -521,8 +527,10 @@ public sealed class FailurePostureTests
         Assert.True(v.IsControlFailureSubstitute);
         Assert.False(Verdict.Allow.IsControlFailureSubstitute);
         Assert.False((v with { ResultLabels = ["l"] }).IsControlFailureSubstitute);
-        // The host shape is reserved: an interceptor returning it fails the gate.
-        Assert.Throws<ArgumentException>(v.Validate);
+        // The host shape is reserved under the draft: an interceptor returning
+        // it fails the gate. 0.1 reserves host_error:* only.
+        Assert.Throws<ArgumentException>(() => v.Validate(Spec.Draft));
+        v.Validate(Spec.V01);
         Assert.Throws<ArgumentException>(
             () => Verdict.ControlFailureSubstitute("egress", HostError.ApprovalResolverFailed));
         Assert.True(HostError.IsControlFailure(HostError.InterceptorFailed));
@@ -574,7 +582,7 @@ public sealed class FailurePostureTests
         // Deny: a typed timeout is the §6.3 timeout deny; the interceptor
         // saw the emitter-wide bound.
         var m = new Managed(ManagedInterceptorOutcome.Timeout);
-        var e = new InterceptionEmitter(timeout: TimeSpan.FromMilliseconds(1234));
+        var e = new InterceptionEmitter(Spec.Draft, timeout: TimeSpan.FromMilliseconds(1234));
         e.RegisterManaged(m, new RegistrationOptions("scanner"));
         var r = await e.EmitUncheckedAsync(Ctx());
         Assert.True(m.Cleaned, "cleanup ran before the outcome");
@@ -586,7 +594,7 @@ public sealed class FailurePostureTests
 
         // Unbounded emitter: the managed interceptor sees null.
         m = new Managed(ManagedInterceptorOutcome.Timeout);
-        e = new InterceptionEmitter(timeout: Timeout.InfiniteTimeSpan);
+        e = new InterceptionEmitter(Spec.Draft, timeout: Timeout.InfiniteTimeSpan);
         e.RegisterManaged(m);
         await e.EmitUncheckedAsync(Ctx());
         Assert.True(m.BoundReceived);
@@ -603,7 +611,7 @@ public sealed class FailurePostureTests
         Assert.Single(notices);
 
         // Failed carries its payload-free detail.
-        e = new InterceptionEmitter();
+        e = new InterceptionEmitter(Spec.Draft);
         e.RegisterManaged(new Managed(ManagedInterceptorOutcome.Failed("IOException")));
         r = await e.EmitUncheckedAsync(Ctx());
         Assert.Equal(HostError.InterceptorFailed, r.Verdict.Reason);
@@ -614,12 +622,12 @@ public sealed class FailurePostureTests
         AssertSubstituted(r, 0, "scanner", HostError.InterceptorFailed);
 
         // A managed verdict crosses the §5 gate like any other.
-        e = new InterceptionEmitter();
+        e = new InterceptionEmitter(Spec.Draft);
         e.RegisterManaged(new Managed(ManagedInterceptorOutcome.FromVerdict(
             Verdict.Allow with { Reason = "host_error:forged" })));
         r = await e.EmitUncheckedAsync(Ctx());
         Assert.Equal(HostError.VerdictInvalid, r.Verdict.Reason);
-        e = new InterceptionEmitter();
+        e = new InterceptionEmitter(Spec.Draft);
         e.RegisterManaged(new Managed(ManagedInterceptorOutcome.FromVerdict(Verdict.Warn("scanned"))));
         r = await e.EmitUncheckedAsync(Ctx());
         Assert.True(r.Proceeds);
@@ -627,7 +635,7 @@ public sealed class FailurePostureTests
 
         // A managed interceptor that throws is a failure, not a crash,
         // and leaks nothing.
-        e = new InterceptionEmitter();
+        e = new InterceptionEmitter(Spec.Draft);
         e.RegisterManaged(new ThrowingManaged());
         r = await e.EmitUncheckedAsync(Ctx());
         Assert.Equal(HostError.InterceptorFailed, r.Verdict.Reason);
@@ -672,7 +680,7 @@ public sealed class FailurePostureTests
     {
         var notices = new List<ControlFailureNotice>();
         var em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.1",
+            {"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft",
              "bindings": [{"id": "flaky", "kind": "com.example.throws", "on_error": "continue"},
                           {"id": "slow", "kind": "com.example.slow", "timeout_ms": 50, "on_error": "continue"},
                           {"id": "second", "kind": "com.example.allow"}]}
@@ -703,7 +711,7 @@ public sealed class FailurePostureTests
     {
         var notices = new List<ControlFailureNotice>();
         var inherited = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.1",
+            {"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft",
              "configuration": {"failure": {"on_error": "continue"}},
              "bindings": [{"id": "flaky", "kind": "com.example.throws"}]}
             """, Registry(notices));
@@ -714,7 +722,7 @@ public sealed class FailurePostureTests
         AssertSubstituted(r, 0, "flaky", HostError.InterceptorFailed);
 
         var toDeny = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.1",
+            {"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft",
              "configuration": {"failure": {"on_error": "continue"}},
              "bindings": [{"id": "flaky", "kind": "com.example.throws", "on_error": "deny"}]}
             """, Registry(notices));
@@ -725,7 +733,7 @@ public sealed class FailurePostureTests
         Assert.Null(r.Verdicts[0].SubstitutedFor);
 
         var toContinue = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.1",
+            {"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft",
              "configuration": {"failure": {"on_error": "deny"}},
              "bindings": [{"id": "flaky", "kind": "com.example.throws", "on_error": "continue"}]}
             """, Registry(notices));
@@ -739,7 +747,7 @@ public sealed class FailurePostureTests
     public async Task OneZeroDocumentLoadsUnchanged()
     {
         var em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "configuration": {"composition": {"profile": "sequential/run_all"}},
              "bindings": [{"id": "flaky", "kind": "com.example.throws"},
                           {"id": "second", "kind": "com.example.allow"}]}
@@ -763,36 +771,36 @@ public sealed class FailurePostureTests
     [
         // A 1.0 loader's answer to a 1.1 document, seen here as the next minor.
         [
-            """{"declaration": "agent-hooks-declaration/1.2", "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.2", "spec": "agent-hooks/draft", "bindings": []}""",
             DeclarationErrorClass.VersionUnsupported, "/declaration",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.1", "bindings": [{"id": "a", "kind": "com.example.allow", "on_error": "ignore"}]}""",
+            """{"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft", "bindings": [{"id": "a", "kind": "com.example.allow", "on_error": "ignore"}]}""",
             DeclarationErrorClass.InvalidField, "/bindings/0/on_error",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.1", "configuration": {"failure": {"on_error": "allow"}}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft", "configuration": {"failure": {"on_error": "allow"}}, "bindings": []}""",
             DeclarationErrorClass.InvalidField, "/configuration/failure/on_error",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.1", "configuration": {"failure": {"on_timeout": "deny"}}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft", "configuration": {"failure": {"on_timeout": "deny"}}, "bindings": []}""",
             DeclarationErrorClass.UnknownField, "/configuration/failure/on_timeout",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "bindings": [{"id": "a", "kind": "com.example.allow", "on_error": "continue"}]}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "bindings": [{"id": "a", "kind": "com.example.allow", "on_error": "continue"}]}""",
             DeclarationErrorClass.UnknownField, "/bindings/0/on_error",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "configuration": {"failure": {"on_error": "deny"}}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "configuration": {"failure": {"on_error": "deny"}}, "bindings": []}""",
             DeclarationErrorClass.UnknownField, "/configuration/failure",
         ],
         // continue without a principal channel: refused at the member that set it.
         [
-            """{"declaration": "agent-hooks-declaration/1.1", "bindings": [{"id": "a", "kind": "com.example.allow", "on_error": "continue"}]}""",
+            """{"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft", "bindings": [{"id": "a", "kind": "com.example.allow", "on_error": "continue"}]}""",
             DeclarationErrorClass.BindingRejected, "/bindings/0/on_error",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.1", "configuration": {"failure": {"on_error": "continue"}}, "bindings": [{"id": "a", "kind": "com.example.allow"}]}""",
+            """{"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft", "configuration": {"failure": {"on_error": "continue"}}, "bindings": [{"id": "a", "kind": "com.example.allow"}]}""",
             DeclarationErrorClass.BindingRejected, "/configuration/failure/on_error",
         ],
     ];
@@ -833,7 +841,7 @@ public sealed class FailurePostureTests
         };
         var reg = new HostRegistry(legacy).Kind("com.example.allow", (_, _) => new Scripted(Verdict.Allow));
         var refused = Assert.Throws<DeclarationException>(() => InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.1", "bindings": [{"id": "a", "kind": "com.example.allow"}]}
+            {"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft", "bindings": [{"id": "a", "kind": "com.example.allow"}]}
             """, reg));
         Assert.Equal(DeclarationErrorClass.VersionUnsupported, refused.Class);
         Assert.Equal(["agent-hooks-declaration/1.0"], refused.Accepted);
@@ -851,7 +859,7 @@ public sealed class FailurePostureTests
             return managed;
         });
         var em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.1",
+            {"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft",
              "bindings": [{"id": "scanner", "kind": "com.example.watch", "timeout_ms": 250}]}
             """, reg);
         Assert.Equal(TimeSpan.FromMilliseconds(250), seen!.Timeout);
@@ -864,7 +872,7 @@ public sealed class FailurePostureTests
         // Unbounded binding: the managed interceptor sees null.
         managed = new Managed(ManagedInterceptorOutcome.FromVerdict(Verdict.Allow));
         em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.1",
+            {"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft",
              "bindings": [{"id": "scanner", "kind": "com.example.managed", "timeout_ms": null}]}
             """, Registry(managed: managed));
         r = await em.EmitUncheckedAsync(Ctx());
@@ -875,7 +883,7 @@ public sealed class FailurePostureTests
         // Cancelled through a declared continue binding still denies.
         var notices = new List<ControlFailureNotice>();
         em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.1",
+            {"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft",
              "bindings": [{"id": "scanner", "kind": "com.example.managed", "on_error": "continue"}]}
             """, Registry(notices, new Managed(ManagedInterceptorOutcome.Cancelled)));
         r = await em.EmitUncheckedAsync(Ctx());
@@ -906,7 +914,7 @@ public sealed class FailurePostureTests
     public void BuilderWritesTheOnErrorMembersAndMatchesTheTextPath()
     {
         var doc = (JsonObject)JsonNode.Parse("""
-            {"declaration": "agent-hooks-declaration/1.1",
+            {"declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft",
              "configuration": {"failure": {"on_error": "continue"}},
              "bindings": [
                {"id": "flaky", "kind": "com.example.throws", "on_error": "deny"},
@@ -914,7 +922,7 @@ public sealed class FailurePostureTests
                {"id": "second", "kind": "com.example.allow", "at": ["pre_tool_call"]}
              ]}
             """)!;
-        var built = HostDeclaration.Builder()
+        var built = HostDeclaration.Builder(Spec.Draft)
             .FailureOnError(OnError.Continue)
             .BindWith("flaky", "com.example.throws", new BindOptions(OnError: OnError.Deny))
             .BindWith("slow", "com.example.slow", config: null, new BindOptions(TimeoutMs: 50, OnError: OnError.Continue))
@@ -925,7 +933,66 @@ public sealed class FailurePostureTests
             HostDeclaration.FromNode(doc).Resolve(reg).CanonicalJson(),
             built.Build().Resolve(reg).CanonicalJson());
         // The old Bind overloads write no on_error member at all.
-        var plain = HostDeclaration.Builder().Bind("a", "com.example.allow").ToNode();
+        var plain = HostDeclaration.Builder(Spec.Draft).Bind("a", "com.example.allow").ToNode();
         Assert.False(plain["bindings"]![0]!.AsObject().ContainsKey("on_error"));
+    }
+
+    // ---- two specification versions side by side (VERSIONING.md) ---------------
+
+    [Fact]
+    public async Task EachEmitterRunsOneVersionAndItsGateFollows()
+    {
+        var warning = Verdict.Warn("host_warning:x");
+        var under01 = new InterceptionEmitter(Spec.V01);
+        under01.Register(new Scripted(warning));
+        var r = await under01.EmitUncheckedAsync(CtxUnder(Spec.V01));
+        Assert.True(r.Proceeds);
+        Assert.Equal("host_warning:x", r.Verdict.Warnings![0].Reason);
+        var draft = new InterceptionEmitter(Spec.Draft);
+        draft.Register(new Scripted(warning));
+        var d = await draft.EmitUncheckedAsync(CtxUnder(Spec.Draft));
+        Assert.Equal(HostError.VerdictInvalid, d.Verdict.Reason);
+    }
+
+    [Fact]
+    public async Task AContextOfAnotherVersionThanTheEmittersIsRefused()
+    {
+        var e = new InterceptionEmitter(Spec.Draft);
+        e.Register(new Scripted(Verdict.Allow));
+        var r = await e.EmitUncheckedAsync(CtxUnder(Spec.V01));
+        Assert.Equal(HostError.ContextInvalid, r.Verdict.Reason);
+        Assert.Contains("agent-hooks/draft", r.Verdict.Message);
+        Assert.True((await e.EmitUncheckedAsync(CtxUnder(Spec.Draft))).Proceeds);
+        foreach (var spec in new[] { Spec.V01, Spec.Draft })
+        {
+            var em = new InterceptionEmitter(spec);
+            em.Register(new Scripted(Verdict.Allow));
+            var b = new AgentContextBuilder(spec, "a", "x", "s");
+            var c = b.PreToolCall("tc", "t", new JsonObject());
+            Assert.Equal(spec, (string?)c.Json["spec"]);
+            Assert.True((await em.EmitUncheckedAsync(c)).Proceeds);
+        }
+    }
+
+    [Fact]
+    public async Task ContinueNeedsAnEmitterUnderTheDraft()
+    {
+        var e = new InterceptionEmitter(Spec.V01);
+        e.SetControlFailureNotifier(_ => { });
+        var err = Assert.Throws<RegistrationException>(
+            () => e.RegisterWithOptions(new Throws(), new RegistrationOptions("x", null, OnError.Continue)));
+        Assert.Contains("agent-hooks/0.1 does not define", err.Message);
+        Assert.Contains("agent-hooks/draft", err.Message);
+        e.RegisterWithOptions(new Scripted(Verdict.Allow), new RegistrationOptions("y", null, OnError.Deny));
+        var r = await e.EmitUncheckedAsync(CtxUnder(Spec.V01));
+        Assert.True(r.Proceeds);
+        Assert.Equal(1, r.InterceptorsRegistered);
+    }
+
+    private static AgentContext CtxUnder(string spec)
+    {
+        var ctx = Ctx();
+        ctx.Json["spec"] = spec;
+        return ctx;
     }
 }
