@@ -731,22 +731,20 @@ action that did not proceed (a `deny` that was not lifted).
 
 ### 5.5 Response Extensions
 
-Each hook response schema permits an optional `extensions` object at the
-response root. It appears alongside `decision` and any other applicable
-verdict members; it MUST NOT be nested under a `verdict` or `transform`
-member. The root is a flat `HooksResponse`, not an `InterceptorResponse`
-envelope.
+Each `HooksResponse` schema permits an optional `extensions` object. It appears 
+alongside `decision` and any other applicable verdict members; it MUST NOT be
+nested under a `verdict` or `transform` member.
 
-| Interception point | Response schema | `extensions` location |
-| --- | --- | --- |
-| `agent_startup` | `agent-startup-hook-response.schema.json` | Optional root member |
-| `input` | `input-hook-response.schema.json` | Optional root member |
-| `pre_model_call` | `pre-model-hook-response.schema.json` | Optional root member |
-| `post_model_call` | `post-model-hook-response.schema.json` | Optional root member |
-| `pre_tool_call` | `pre-tool-hook-response.schema.json` | Optional root member |
-| `post_tool_call` | `post-tool-hook-response.schema.json` | Optional root member |
-| `output` | `output-hook-response.schema.json` | Optional root member |
-| `agent_shutdown` | `agent-shutdown-hook-response.schema.json` | Optional root member |
+```jsonc
+{
+  "decision": "allow",
+  "extensions": {
+    "example_namespace": {
+      "example_key": "example_value"
+    }
+  }
+}
+```
 
 When present, `extensions` MUST be an object. Each namespace key MUST match
 `^[a-z][a-z0-9_]*$`; `acs`, `ctk`, and `agent_hooks` are reserved and MUST NOT
