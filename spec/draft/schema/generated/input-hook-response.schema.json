@@ -293,6 +293,7 @@
     },
     "InputHookTransform": {
       "description": "Replaces the complete input payload.",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "input": {

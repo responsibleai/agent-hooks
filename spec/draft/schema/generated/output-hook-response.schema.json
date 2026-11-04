@@ -293,6 +293,7 @@
     },
     "OutputHookTransform": {
       "description": "Replaces the complete output payload.",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "output": {

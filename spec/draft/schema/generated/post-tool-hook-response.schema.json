@@ -293,6 +293,7 @@
     },
     "PostToolHookTransform": {
       "description": "Replaces only the value of the tool result.",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "value": {}

@@ -223,11 +223,69 @@ export async function validateExamples(root = schemaRoot) {
         "closed verdict",
       );
     }
+    const transformCases = [
+      ["input-hook-response.schema.json", { input: { content: "x", role: "user" } }],
+      ["pre-model-hook-response.schema.json", { messages: [{ role: "user", content: "x" }] }],
+      ["post-model-hook-response.schema.json", { response: { content: "x", tool_calls: [], finish_reason: "stop" } }],
+      ["pre-tool-hook-response.schema.json", { args: {} }],
+      ["post-tool-hook-response.schema.json", { value: null }],
+      ["output-hook-response.schema.json", { output: { content: "x" } }],
+    ];
+    for (const [schemaFile, transform] of transformCases) {
+      assertSchemaProbe(
+        schemaFile,
+        { decision: "transform", transform },
+        true,
+        "hook transform",
+      );
+      assertSchemaProbe(
+        schemaFile,
+        { decision: "transform", transform: { ...transform, unexpected: true } },
+        false,
+        "closed transform wrapper",
+      );
+    }
     assertSchemaProbe(
       "pre-tool-hook-response.schema.json",
       { decision: "transform", transform: { args: { limit: 20 } }, extensions: { policy: {} } },
       true,
       "pre-tool transform",
+    );
+    assertSchemaProbe(
+      "pre-tool-hook-response.schema.json",
+      { decision: "transform", transform: { args: {}, value: "unexpected" } },
+      false,
+      "pre-tool transform rejects post-tool payload",
+    );
+    const inputRequest = {
+      spec: "agent-hooks/0.1",
+      timestamp: "2026-01-01T00:00:00Z",
+      sequence: 0,
+      agent: { id: "a", framework: "test" },
+      session: { id: "s" },
+      interception_point: "input",
+      input: { content: "x", role: "user" },
+    };
+    assertSchemaProbe(
+      "input-hook-response.schema.json",
+      {
+        decision: "transform",
+        transform: { input: { content: "x", role: "user", extra: true } },
+      },
+      true,
+      "nested replacement remains open at response gate",
+    );
+    assertSchemaProbe(
+      "strict-contexts/input.schema.json",
+      inputRequest,
+      true,
+      "valid input replacement candidate",
+    );
+    assertSchemaProbe(
+      "strict-contexts/input.schema.json",
+      { ...inputRequest, input: { content: "x", role: "user", extra: true } },
+      false,
+      "strict request rejects nested replacement member",
     );
     assertSchemaProbe(
       "input-hook-response.schema.json",

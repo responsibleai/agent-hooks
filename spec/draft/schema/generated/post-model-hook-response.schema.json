@@ -293,6 +293,7 @@
     },
     "PostModelHookTransform": {
       "description": "Replaces the complete model response payload.",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "response": {

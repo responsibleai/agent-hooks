@@ -603,6 +603,13 @@ example, this is a complete `pre_tool_call` response:
 - A host MUST replace the entire indicated member atomically. It MUST NOT merge
   objects, append messages, interpret paths, or treat omitted nested properties
   as instructions to preserve existing values.
+- Before applying a transform, the host MUST construct a candidate request
+  using the complete replacement and validate that candidate against the strict
+  request shape for its `interception_point` in §4.2. The host MUST commit the
+  candidate only after validation succeeds; it MUST leave the original request
+  unchanged if validation fails. A response that passes its response schema
+  but whose replacement makes the candidate request invalid fails with
+  `host_error:transform_invalid` (§11), not `host_error:verdict_invalid`.
 - Shape/type failures at the response gate yield `host_error:verdict_invalid`
   per §6.3. 
 

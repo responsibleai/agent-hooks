@@ -17,6 +17,7 @@ import { NonTransformVerdict, Verdict } from "./verdict";
 
 /**
  * Replaces the complete input payload.
+ * @additionalProperties false
  */
 export interface InputHookTransform {
   input: InputRequest["input"];
@@ -24,6 +25,7 @@ export interface InputHookTransform {
 
 /**
  * Replaces the complete model-message array.
+ * @additionalProperties false
  */
 export interface PreModelHookTransform {
   messages: PreModelCallRequest["messages"];
@@ -31,6 +33,7 @@ export interface PreModelHookTransform {
 
 /**
  * Replaces the complete model response payload.
+ * @additionalProperties false
  */
 export interface PostModelHookTransform {
   response: PostModelCallRequest["response"];
@@ -38,6 +41,7 @@ export interface PostModelHookTransform {
 
 /**
  * Replaces the complete tool args for the pre-tool hook.
+ * @additionalProperties false
  */
 export interface PreToolHookTransform {
   args: PreToolCallRequest["tool_call"]["args"];
@@ -45,6 +49,7 @@ export interface PreToolHookTransform {
 
 /**
  * Replaces only the value of the tool result.
+ * @additionalProperties false
  */
 export interface PostToolHookTransform {
   value: PostToolCallRequest["tool_result"]["value"];
@@ -52,6 +57,7 @@ export interface PostToolHookTransform {
 
 /**
  * Replaces the complete output payload.
+ * @additionalProperties false
  */
 export interface OutputHookTransform {
   output: OutputRequest["output"];

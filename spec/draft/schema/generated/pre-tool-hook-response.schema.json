@@ -293,6 +293,7 @@
     },
     "PreToolHookTransform": {
       "description": "Replaces the complete tool args for the pre-tool hook.",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
         "args": {
