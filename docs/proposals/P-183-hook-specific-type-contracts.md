@@ -114,6 +114,8 @@ No new security or privacy risks are introduced by defining hook-specific types,
 ## Backward compatibility
 This is a breaking change because existing interceptors that rely on the broad `AgentContext` will need to be updated to use the new hook-specific types. Additionally optional requests that used to be valid on the broad context may no longer be available, requiring interceptors to adapt to the more specific hook contracts.
 
+This will require a Major Spec Version bump to indicate the breaking change introduced by the new hook-specific types, when draft is released.
+
 ## SDK surface and implementation impact
 The SDKs will need to be updated to support the new hook-specific types, ensuring that interceptors can correctly handle the typed requests and responses for each hook. This may involve generating new type definitions, updating method signatures, and providing utilities to facilitate the transition from the broad `AgentContext` to the specific hook contracts.
 
