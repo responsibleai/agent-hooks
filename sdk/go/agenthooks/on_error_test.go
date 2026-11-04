@@ -28,7 +28,7 @@ func (n *notices) notifier() ControlFailureNotifier {
 // withNotifier returns an emitter with a principal channel installed.
 func withNotifier(mode EnforcementMode) (*InterceptionEmitter, *notices) {
 	n := &notices{}
-	e := NewInterceptionEmitter(mode, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, mode, nil)
 	e.SetControlFailureNotifier(n.notifier())
 	return e, n
 }
@@ -241,7 +241,7 @@ func TestCancellationNeverContinues(t *testing.T) {
 
 func TestApprovalFailureNeverContinues(t *testing.T) {
 	n := &notices{}
-	e := NewInterceptionEmitter(Enforce, panickyResolver{})
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, panickyResolver{})
 	e.SetControlFailureNotifier(n.notifier())
 	mustRegister(t, e.RegisterWithOptions(scripted{Escalate("check", "")}, bestEffort("gate")))
 	rec := emit(t, e, testCtx())
@@ -295,7 +295,7 @@ func TestExplicitDenyAndNoInterceptorNeverContinue(t *testing.T) {
 // ---- notifier semantics ------------------------------------------------------
 
 func TestContinueRequiresANotifierAtRegistration(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	err := e.RegisterWithOptions(panicker{}, bestEffort("flaky"))
 	if !errors.Is(err, ErrControlFailureNotifierMissing) {
 		t.Fatalf("err = %v, want ErrControlFailureNotifierMissing", err)
@@ -343,7 +343,7 @@ func TestClearingTheNotifierWithContinueRegistrationsPanics(t *testing.T) {
 		t.Errorf("verdict = %+v, notices = %+v; want the swapped channel to carry the notice", rec.Verdict, swapped.got)
 	}
 	// Managed registrations hold the channel the same way.
-	m := NewInterceptionEmitter(Enforce, nil)
+	m := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	m.SetControlFailureNotifier(func(ControlFailureNotice) {})
 	mustRegister(t, m.RegisterManaged(managedScript{outcome: ManagedTimeout()}, bestEffort("slow")))
 	func() {
@@ -374,7 +374,7 @@ func TestNotifierClearedAfterRegistrationKeepsTheDeny(t *testing.T) {
 }
 
 func TestPanickingNotifierKeepsTheDeny(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.SetControlFailureNotifier(func(ControlFailureNotice) { panic("channel down") })
 	mustRegister(t, e.RegisterWithOptions(failing{}, bestEffort("flaky")))
 	rec := emit(t, e, testCtx())
@@ -388,7 +388,7 @@ func TestPanickingNotifierKeepsTheDeny(t *testing.T) {
 
 func TestNotifierRunsBeforeTheSubstitutionTakesEffect(t *testing.T) {
 	var order []string
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.SetControlFailureNotifier(func(ControlFailureNotice) { order = append(order, "notified") })
 	mustRegister(t, e.RegisterWithOptions(failing{}, bestEffort("flaky")))
 	e.Register(witness{func() { order = append(order, "second ran") }})
@@ -566,7 +566,7 @@ func TestManagedOutcomesUnderDeny(t *testing.T) {
 		"forged":    {ManagedVerdict(Verdict{Decision: Allow, Reason: "host_error:x"}), ErrVerdictInvalid},
 	}
 	for name, c := range cases {
-		e := NewInterceptionEmitter(Enforce, nil)
+		e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 		mustRegister(t, e.RegisterManaged(managedScript{outcome: c.outcome}, RegistrationOptions{Name: "m"}))
 		rec := emit(t, e, testCtx())
 		if rec.Verdict.Decision != Deny || rec.Verdict.Reason != string(c.reason) {
@@ -576,12 +576,12 @@ func TestManagedOutcomesUnderDeny(t *testing.T) {
 			t.Errorf("%s: attribution %v %+v", name, rec.DecidedBy, rec.Verdicts)
 		}
 	}
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	mustRegister(t, e.RegisterManaged(managedScript{outcome: ManagedFailed("IOError")}, RegistrationOptions{}))
 	if rec := emit(t, e, testCtx()); rec.Verdict.Message != "IOError" {
 		t.Errorf("failed detail = %q, want the type name", rec.Verdict.Message)
 	}
-	e = NewInterceptionEmitter(Enforce, nil)
+	e = NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	mustRegister(t, e.RegisterManaged(managedPanics{}, RegistrationOptions{}))
 	rec := emit(t, e, testCtx())
 	if rec.Verdict.Reason != string(ErrInterceptorFailed) || strings.Contains(rec.Verdict.Message, "managed bug") {
@@ -628,7 +628,7 @@ func TestManagedInterceptorReceivesTheResolvedBoundAndNoSecondTimer(t *testing.T
 	// unbounded.
 	for _, want := range []time.Duration{DefaultTimeout, 250 * time.Millisecond, 0} {
 		var got time.Duration
-		e := NewInterceptionEmitter(Enforce, nil)
+		e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 		e.Timeout = want
 		mustRegister(t, e.RegisterManaged(managedScript{outcome: ManagedVerdict(AllowVerdict), bound: &got}, RegistrationOptions{}))
 		if rec := emit(t, e, testCtx()); rec.Verdict.Decision != Allow {
@@ -640,7 +640,7 @@ func TestManagedInterceptorReceivesTheResolvedBoundAndNoSecondTimer(t *testing.T
 	}
 	// The emitter does not wrap a managed interceptor in its own timer:
 	// a managed call that outlives Timeout still returns its verdict.
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.Timeout = 10 * time.Millisecond
 	mustRegister(t, e.RegisterManaged(slowManaged{60 * time.Millisecond}, RegistrationOptions{}))
 	if rec := emit(t, e, testCtx()); rec.Verdict.Decision != Allow {
@@ -656,7 +656,7 @@ func TestManagedInterceptorReceivesTheResolvedBoundAndNoSecondTimer(t *testing.T
 		return managedScript{outcome: ManagedVerdict(AllowVerdict), bound: &got}, nil
 	}))
 	em, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
-		"declaration":   DeclarationVersion,
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 		"configuration": map[string]any{"timeouts": map[string]any{"interceptor_ms": 60000}},
 		"bindings":      []any{map[string]any{"id": "m", "kind": "com.example.managed", "timeout_ms": 1500}},
 	}, reg)
@@ -680,18 +680,27 @@ func (s slowManaged) InterceptManaged(context.Context, AgentContext, time.Durati
 // ---- the section 5 gate on reserved warnings ---------------------------------
 
 func TestInterceptorsMayNotEmitHostWarnings(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.Register(scripted{Warn(HostWarningControlFailed, "forged")})
 	rec := emit(t, e, testCtx())
 	if rec.Verdict.Reason != string(ErrVerdictInvalid) {
 		t.Errorf("verdict = %+v, want verdict_invalid", rec.Verdict)
 	}
-	// The pure-Go mirror agrees.
-	if Warn("host_warning:other", "").Validate() == nil || Warn("host_error:x", "").Validate() == nil {
+	// The pure-Go mirror agrees, and 0.1 reserves host_error:* only.
+	if Warn("host_warning:other", "").Validate(SpecVersionDraft) == nil || Warn("host_error:x", "").Validate(SpecVersionDraft) == nil {
 		t.Error("Validate accepts a reserved warning reason")
 	}
-	if Warn("policy:slow", "").Validate() != nil {
+	if Warn("policy:slow", "").Validate(SpecVersionDraft) != nil {
 		t.Error("Validate refuses an ordinary warning")
+	}
+	if Warn("host_warning:other", "").Validate(SpecVersion01) != nil || Warn("host_error:x", "").Validate(SpecVersion01) == nil {
+		t.Error("0.1 reserves host_error:* only")
+	}
+	if err := ValidateVerdict(Warn("host_warning:other", ""), SpecVersion01); err != nil {
+		t.Errorf("core gate under 0.1: %v", err)
+	}
+	if ValidateVerdict(Warn("host_warning:other", ""), SpecVersionDraft) == nil {
+		t.Error("core gate under the draft accepts the reserved warning")
 	}
 	for _, e := range []HostError{ErrInterceptorFailed, ErrInterceptorTimeout, ErrVerdictInvalid} {
 		if !e.IsControlFailure() {
@@ -754,8 +763,8 @@ func TestDeclaredOnErrorContinueAndDeny(t *testing.T) {
 		n := &notices{}
 		reg := onErrorRegistry(t, n)
 		doc := map[string]any{
-			"declaration": DeclarationVersion,
-			"bindings":    []any{c.binding, map[string]any{"id": "second", "kind": "com.example.allow"}},
+			"declaration": DeclarationVersion, "spec": SpecVersionDraft,
+			"bindings": []any{c.binding, map[string]any{"id": "second", "kind": "com.example.allow"}},
 		}
 		if c.configuration != nil {
 			doc["configuration"] = c.configuration
@@ -804,8 +813,8 @@ func TestResolvedFormCarriesTheFailurePostureForEveryVersion(t *testing.T) {
 	reg := onErrorRegistry(t, nil)
 	for _, version := range SupportedDeclarationVersions {
 		em, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
-			"declaration": version,
-			"bindings":    []any{map[string]any{"id": "a", "kind": "com.example.allow"}},
+			"declaration": version, "spec": SpecVersionDraft,
+			"bindings": []any{map[string]any{"id": "a", "kind": "com.example.allow"}},
 		}, reg)
 		if err != nil {
 			t.Fatalf("%s: %v", version, err)
@@ -828,7 +837,7 @@ func TestADeclaration10LoadsUnchanged(t *testing.T) {
 	n := &notices{}
 	reg := onErrorRegistry(t, n)
 	em, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
-		"declaration":   DeclarationVersion10,
+		"declaration": DeclarationVersion10, "spec": SpecVersionDraft,
 		"configuration": map[string]any{"composition": map[string]any{"profile": "sequential/run_all"}},
 		"bindings": []any{
 			map[string]any{"id": "flaky", "kind": "com.example.raise"},
@@ -867,21 +876,21 @@ func TestOnErrorDeclarationRefusals(t *testing.T) {
 		class   DeclarationErrorClass
 		pointer string
 	}{
-		"higher minor": {map[string]any{"declaration": "agent-hooks-declaration/1.2", "bindings": binding(nil)},
+		"higher minor": {map[string]any{"declaration": "agent-hooks-declaration/1.2", "spec": SpecVersionDraft, "bindings": binding(nil)},
 			DeclarationVersionUnsupported, "/declaration"},
-		"on_error outside the set": {map[string]any{"declaration": DeclarationVersion, "bindings": binding(map[string]any{"on_error": "ignore"})},
+		"on_error outside the set": {map[string]any{"declaration": DeclarationVersion, "spec": SpecVersionDraft, "bindings": binding(map[string]any{"on_error": "ignore"})},
 			DeclarationInvalidField, "/bindings/0/on_error"},
-		"on_error not a string": {map[string]any{"declaration": DeclarationVersion, "bindings": binding(map[string]any{"on_error": true})},
+		"on_error not a string": {map[string]any{"declaration": DeclarationVersion, "spec": SpecVersionDraft, "bindings": binding(map[string]any{"on_error": true})},
 			DeclarationInvalidField, "/bindings/0/on_error"},
-		"failure.on_error outside the set": {map[string]any{"declaration": DeclarationVersion,
+		"failure.on_error outside the set": {map[string]any{"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 			"configuration": map[string]any{"failure": map[string]any{"on_error": "retry"}}, "bindings": binding(nil)},
 			DeclarationInvalidField, "/configuration/failure/on_error"},
-		"unknown member under failure": {map[string]any{"declaration": DeclarationVersion,
+		"unknown member under failure": {map[string]any{"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 			"configuration": map[string]any{"failure": map[string]any{"on_error": "deny", "retries": 3}}, "bindings": binding(nil)},
 			DeclarationUnknownField, "/configuration/failure/retries"},
-		"on_error under 1.0": {map[string]any{"declaration": DeclarationVersion10, "bindings": binding(map[string]any{"on_error": "continue"})},
+		"on_error under 1.0": {map[string]any{"declaration": DeclarationVersion10, "spec": SpecVersionDraft, "bindings": binding(map[string]any{"on_error": "continue"})},
 			DeclarationUnknownField, "/bindings/0/on_error"},
-		"failure under 1.0": {map[string]any{"declaration": DeclarationVersion10,
+		"failure under 1.0": {map[string]any{"declaration": DeclarationVersion10, "spec": SpecVersionDraft,
 			"configuration": map[string]any{"failure": map[string]any{"on_error": "deny"}}, "bindings": binding(nil)},
 			DeclarationUnknownField, "/configuration/failure"},
 	}
@@ -911,8 +920,8 @@ func TestAOneZeroLoaderRefusesAOneOneDocument(t *testing.T) {
 		return scripted{AllowVerdict}, nil
 	}))
 	_, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
-		"declaration": DeclarationVersion,
-		"bindings":    []any{map[string]any{"id": "a", "kind": "com.example.allow", "on_error": "deny"}},
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
+		"bindings": []any{map[string]any{"id": "a", "kind": "com.example.allow", "on_error": "deny"}},
 	}, reg)
 	de := declErr(t, err)
 	if de.Class != DeclarationVersionUnsupported || !equalStrings(de.Accepted, []string{DeclarationVersion10}) {
@@ -920,8 +929,8 @@ func TestAOneZeroLoaderRefusesAOneOneDocument(t *testing.T) {
 	}
 	// The same surface still loads a 1.0 document.
 	if _, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
-		"declaration": DeclarationVersion10,
-		"bindings":    []any{map[string]any{"id": "a", "kind": "com.example.allow"}},
+		"declaration": DeclarationVersion10, "spec": SpecVersionDraft,
+		"bindings": []any{map[string]any{"id": "a", "kind": "com.example.allow"}},
 	}, reg); err != nil {
 		t.Errorf("1.0 under a 1.0-only surface: %v", err)
 	}
@@ -933,10 +942,10 @@ func TestContinueWithoutARegistryNotifierIsRefusedAtConstruction(t *testing.T) {
 		doc     map[string]any
 		pointer string
 	}{
-		"binding": {map[string]any{"declaration": DeclarationVersion,
+		"binding": {map[string]any{"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 			"bindings": []any{map[string]any{"id": "flaky", "kind": "com.example.raise", "on_error": "continue"}}},
 			"/bindings/0/on_error"},
-		"inherited": {map[string]any{"declaration": DeclarationVersion,
+		"inherited": {map[string]any{"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 			"configuration": map[string]any{"failure": map[string]any{"on_error": "continue"}},
 			"bindings":      []any{map[string]any{"id": "flaky", "kind": "com.example.raise"}}},
 			"/configuration/failure/on_error"},
@@ -962,7 +971,7 @@ func TestContinueWithoutARegistryNotifierIsRefusedAtConstruction(t *testing.T) {
 	}
 	// A deny-only document loads without a notifier.
 	if _, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
-		"declaration":   DeclarationVersion,
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 		"configuration": map[string]any{"failure": map[string]any{"on_error": "deny"}},
 		"bindings":      []any{map[string]any{"id": "a", "kind": "com.example.allow", "on_error": "deny"}},
 	}, reg); err != nil {
@@ -1009,8 +1018,8 @@ func TestManagedKindRegistryRules(t *testing.T) {
 	}))
 	for _, kind := range []string{"com.example.nothing", "com.example.panics"} {
 		_, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
-			"declaration": DeclarationVersion,
-			"bindings":    []any{map[string]any{"id": "x", "kind": kind}},
+			"declaration": DeclarationVersion, "spec": SpecVersionDraft,
+			"bindings": []any{map[string]any{"id": "x", "kind": kind}},
 		}, reg)
 		if de := declErr(t, err); de.Class != DeclarationBindingRejected || de.Findings[0].Pointer != "/bindings/0" {
 			t.Errorf("%s: %v", kind, err)
@@ -1026,8 +1035,8 @@ func TestManagedKindRegistryRules(t *testing.T) {
 		return managedScript{outcome: ManagedCancelled()}, nil
 	}))
 	em, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
-		"declaration": DeclarationVersion,
-		"bindings":    []any{map[string]any{"id": "slow", "kind": "com.example.timesout", "on_error": "continue"}},
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
+		"bindings": []any{map[string]any{"id": "slow", "kind": "com.example.timesout", "on_error": "continue"}},
 	}, reg)
 	if err != nil {
 		t.Fatal(err)
@@ -1039,8 +1048,8 @@ func TestManagedKindRegistryRules(t *testing.T) {
 	assertSubstituted(t, rec, 0, "slow", ErrInterceptorTimeout)
 	assertNotified(t, n, 0, "slow", ErrInterceptorTimeout, PreToolCall)
 	em, err = NewInterceptionEmitterFromDeclarationValue(map[string]any{
-		"declaration": DeclarationVersion,
-		"bindings":    []any{map[string]any{"id": "managed", "kind": "com.example.cancelled", "on_error": "continue"}},
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
+		"bindings": []any{map[string]any{"id": "managed", "kind": "com.example.cancelled", "on_error": "continue"}},
 	}, reg)
 	if err != nil {
 		t.Fatal(err)
@@ -1053,7 +1062,7 @@ func TestManagedKindRegistryRules(t *testing.T) {
 
 func TestBuilderWritesTheFailurePosture(t *testing.T) {
 	reg := onErrorRegistry(t, &notices{})
-	built, err := NewDeclarationBuilder().
+	built, err := NewDeclarationBuilder(SpecVersionDraft).
 		FailureOnError(OnErrorContinue).
 		Bind("flaky", "com.example.raise", nil, BindOnError(OnErrorDeny)).
 		Bind("second", "com.example.allow", nil).
@@ -1062,7 +1071,7 @@ func TestBuilderWritesTheFailurePosture(t *testing.T) {
 		t.Fatal(err)
 	}
 	fromValue, err := DeclarationFromValue(map[string]any{
-		"declaration":   DeclarationVersion,
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 		"configuration": map[string]any{"failure": map[string]any{"on_error": "continue"}},
 		"bindings": []any{
 			map[string]any{"id": "flaky", "kind": "com.example.raise", "on_error": "deny"},
@@ -1088,7 +1097,7 @@ func TestBuilderWritesTheFailurePosture(t *testing.T) {
 	if a.Configuration.Failure.OnError != OnErrorContinue || a.Bindings[0].OnError != OnErrorDeny || a.Bindings[1].OnError != OnErrorContinue {
 		t.Errorf("resolved postures: %+v %+v", a.Configuration.Failure, a.Bindings)
 	}
-	if NewDeclarationBuilder().Value()["declaration"] != DeclarationVersion {
+	if NewDeclarationBuilder(SpecVersionDraft).Value()["declaration"] != DeclarationVersion {
 		t.Error("the builder must write the current version")
 	}
 }
@@ -1112,4 +1121,65 @@ func equalStrings(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// ---- two specification versions side by side (VERSIONING.md) ---------------
+
+func TestEachEmitterRunsOneVersionAndItsGateFollows(t *testing.T) {
+	warning := Warn("host_warning:x", "")
+	under01 := NewInterceptionEmitter(SpecVersion01, Enforce, nil)
+	under01.Register(scripted{warning})
+	ctx01 := testCtx()
+	ctx01["spec"] = SpecVersion01
+	rec := emit(t, under01, ctx01)
+	if !rec.Proceeds() || rec.Verdict.Warnings[0].Reason != "host_warning:x" {
+		t.Errorf("0.1 emitter: %+v", rec.Verdict)
+	}
+	draft := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
+	draft.Register(scripted{warning})
+	if rec := emit(t, draft, testCtx()); rec.Verdict.Reason != string(ErrVerdictInvalid) {
+		t.Errorf("draft emitter: %+v", rec.Verdict)
+	}
+}
+
+func TestAContextOfAnotherVersionThanTheEmittersIsRefused(t *testing.T) {
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
+	e.Register(scripted{AllowVerdict})
+	ctx01 := testCtx()
+	ctx01["spec"] = SpecVersion01
+	rec := emit(t, e, ctx01)
+	if rec.Verdict.Reason != string(ErrContextInvalid) || !strings.Contains(rec.Verdict.Message, SpecVersionDraft) {
+		t.Errorf("mismatch: %+v", rec.Verdict)
+	}
+	if rec := emit(t, e, testCtx()); !rec.Proceeds() {
+		t.Errorf("draft context: %+v", rec.Verdict)
+	}
+	for _, spec := range []string{SpecVersion01, SpecVersionDraft} {
+		em := NewInterceptionEmitter(spec, Enforce, nil)
+		em.Register(scripted{AllowVerdict})
+		c := NewAgentContextBuilder(spec, "a", "x", "s").PreToolCall("tc", "t", map[string]any{})
+		if c["spec"] != spec {
+			t.Errorf("%s: builder stamped %v", spec, c["spec"])
+		}
+		if rec := emit(t, em, c); !rec.Proceeds() {
+			t.Errorf("%s: %+v", spec, rec.Verdict)
+		}
+	}
+}
+
+func TestContinueNeedsAnEmitterUnderTheDraft(t *testing.T) {
+	e := NewInterceptionEmitter(SpecVersion01, Enforce, nil)
+	e.SetControlFailureNotifier(func(ControlFailureNotice) {})
+	err := e.RegisterWithOptions(scripted{AllowVerdict}, RegistrationOptions{Name: "x", OnError: OnErrorContinue})
+	if !errors.Is(err, ErrContinueNeedsDraft) || !strings.Contains(err.Error(), SpecVersion01) || !strings.Contains(err.Error(), SpecVersionDraft) {
+		t.Fatalf("continue under 0.1: %v", err)
+	}
+	if err := e.RegisterWithOptions(scripted{AllowVerdict}, RegistrationOptions{Name: "y", OnError: OnErrorDeny}); err != nil {
+		t.Fatal(err)
+	}
+	ctx01 := testCtx()
+	ctx01["spec"] = SpecVersion01
+	if rec := emit(t, e, ctx01); !rec.Proceeds() || rec.InterceptorsRegistered != 1 {
+		t.Errorf("deny registration under 0.1: %+v", rec)
+	}
 }

@@ -189,6 +189,21 @@ func (e *HostRegistryError) Error() string { return "host registry: " + e.Detail
 // reconfigured (section 7.7.7).
 var ErrEmitterSealed = errors.New("this emitter was built from a host declaration and is sealed (see spec 7.7.7)")
 
+// DeclarationVersionsFor reports what the specification version spec (a
+// wire string) defines (section 7.7.2): the newest contract version,
+// what NewDeclarationBuilder writes when the document says nothing
+// else, and the accepted set. 0.1 defines 1.0; the draft defines 1.0 and
+// 1.1. A test pins it to the core's declaration_versions().by_spec.
+func DeclarationVersionsFor(spec string) (current string, accepted []string, err error) {
+	if err := RequireSpecVersion(spec); err != nil {
+		return "", nil, err
+	}
+	if spec == SpecVersionDraft {
+		return DeclarationVersion, append([]string(nil), SupportedDeclarationVersions...), nil
+	}
+	return DeclarationVersion10, []string{DeclarationVersion10}, nil
+}
+
 // DeclarationVersions reports the contract versions compiled into the
 // Rust core: the current one and the accepted set (section 7.7.2).
 func DeclarationVersions() (current string, supported []string, err error) {
@@ -961,22 +976,41 @@ func (r *ResolvedDeclaration) Version() string { return r.Declaration }
 // record bound.
 type DeclarationBuilder struct {
 	doc map[string]any
+	// defaults: whether an absent `declaration` is filled at build time
+	// with the newest contract version the document's `spec` defines.
+	defaults bool
 }
 
-// NewDeclarationBuilder returns a builder with `declaration` set to
-// DeclarationVersion and `bindings` empty.
-func NewDeclarationBuilder() *DeclarationBuilder {
+// NewDeclarationBuilder returns a builder for a document written for the
+// specification version spec (a wire string, SpecVersion01 or
+// SpecVersionDraft): `spec` set, `bindings` empty, and `declaration`
+// filled at build time with the version DeclarationVersionsFor reports
+// unless Version names one. Any other spec panics with a message naming
+// SupportedSpecVersions.
+func NewDeclarationBuilder(spec string) *DeclarationBuilder {
 	return &DeclarationBuilder{doc: map[string]any{
-		"declaration": DeclarationVersion,
-		"bindings":    []any{},
-	}}
+		"spec":     mustSpecVersion("NewDeclarationBuilder", spec),
+		"bindings": []any{},
+	}, defaults: true}
 }
 
 // NewEmptyDeclarationBuilder returns a builder with no member set at
-// all, not even `declaration` or `bindings`. For harnesses that must
-// express an incomplete document; a host wants NewDeclarationBuilder.
+// all, not even `spec`, `declaration` or `bindings`. For harnesses that
+// must express an incomplete document; a host wants NewDeclarationBuilder.
 func NewEmptyDeclarationBuilder() *DeclarationBuilder {
 	return &DeclarationBuilder{doc: map[string]any{}}
+}
+
+// finished returns the document with the build-time default applied.
+func (b *DeclarationBuilder) finished() map[string]any {
+	doc := cloneJSON(b.doc)
+	if spec, ok := doc["spec"].(string); b.defaults && ok && IsSupportedSpecVersion(spec) {
+		if _, set := doc["declaration"]; !set {
+			current, _, _ := DeclarationVersionsFor(spec)
+			doc["declaration"] = current
+		}
+	}
+	return doc
 }
 
 func (b *DeclarationBuilder) object(key string) map[string]any {
@@ -1002,13 +1036,16 @@ func (b *DeclarationBuilder) configurationSub(key string) map[string]any {
 
 func (b *DeclarationBuilder) surface() map[string]any { return b.object("surface") }
 
-// Version sets `declaration`.
+// Version sets `declaration`. Unset, the builder writes the newest
+// contract version its `spec` defines: 1.0 under 0.1, 1.1 under the draft.
 func (b *DeclarationBuilder) Version(v string) *DeclarationBuilder {
 	b.doc["declaration"] = v
 	return b
 }
 
-// Spec sets `spec`.
+// Spec sets `spec`, the specification version the document is written
+// for (section 7.7.2); NewDeclarationBuilder sets it. A document without
+// it is refused.
 func (b *DeclarationBuilder) Spec(v string) *DeclarationBuilder {
 	b.doc["spec"] = v
 	return b
@@ -1210,12 +1247,12 @@ func (b *DeclarationBuilder) Raw(key string, value any) *DeclarationBuilder {
 
 // Value returns the document as built, before validation.
 func (b *DeclarationBuilder) Value() map[string]any {
-	return cloneJSON(b.doc)
+	return b.finished()
 }
 
 // Build hands the document to DeclarationFromValue.
 func (b *DeclarationBuilder) Build() (HostDeclaration, error) {
-	return DeclarationFromValue(b.doc)
+	return DeclarationFromValue(b.finished())
 }
 
 func nullableString(s string) any {
@@ -1419,6 +1456,9 @@ func emitterFromResolved(resolved *ResolvedDeclaration, reg *HostRegistry) (*Int
 		notifier:         reg.notifier,
 		sealed:           true,
 		declaration:      resolved,
+		// The loader accepted the document's `spec` (section 7.7.6 step
+		// 4), so it names a supported version; the emitter runs under it.
+		spec: resolved.Spec,
 	}
 	if cfg.Timeouts.InterceptorMs != nil {
 		em.Timeout = time.Duration(*cfg.Timeouts.InterceptorMs) * time.Millisecond

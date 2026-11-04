@@ -103,8 +103,11 @@ func (h *ReferenceHarness) startSession(scenario Scenario, em *agenthooks.Interc
 	h.hostMessages = nil
 	h.emitter = em
 	h.sess++
+	// The vectors are the draft corpus: the harness builds its contexts
+	// under the draft, the version every vector document and the
+	// reference document name.
 	h.builder = agenthooks.NewAgentContextBuilder(
-		"ref-agent", "reference-agent", fmt.Sprintf("sess-%d", h.sess),
+		agenthooks.SpecVersionDraft, "ref-agent", "reference-agent", fmt.Sprintf("sess-%d", h.sess),
 	)
 }
 
