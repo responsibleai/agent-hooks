@@ -122,10 +122,14 @@ is compatible with. The SDKs already implement them and still write
   at the `v0.1.0-beta.3` tag, read into `spec/0.1/AGENT-HOOKS-0.1.md`
   unchanged except for its header line, which says Released, version
   `0.1`, 2026-10-22. Wire string `agent-hooks/0.1`; host declaration
-  contract `agent-hooks-declaration/1.0`; schemas flat under
-  `spec/0.1/schema/` with `$id` values under `schema/v0.1/`. The tag
-  `spec/0.1` marks the commit that merged the folder. The folder is
-  frozen; later changes are in the draft.
+  contract `agent-hooks-declaration/1.0`. The bundle has the draft's
+  layout: `schema/src/` is the draft source with everything after 0.1
+  removed, `schema/generated/` is generated from it with `$id` values
+  under `schema/v0.1/` and is instance-equivalent to the tag's
+  hand-written schemas (0 disagreements over 316,605 instances), and
+  `schema/examples/` holds the 34 draft examples that validate against
+  it. The tag `spec/0.1` marks the commit that merged the folder. The
+  folder is frozen; later changes are in the draft.
 
 ## 0.1.0-beta.3 — 2026-10-22 — tag `v0.1.0-beta.3`
 

@@ -86,10 +86,12 @@ test("every bundle with examples validates them against its own schemas", async 
   assert.ok(checked > 0, "no bundle with examples");
 });
 
-test("a bundle without an examples folder is reported as such, not validated", async () => {
-  const [release] = await releasedBundles();
-  assert.equal(await hasExamples(bundleSchemaRoot(release)), false, `${release} gained examples`);
-  assert.equal(await hasExamples(schemaRoot), true);
+test("a bundle without an examples folder is reported as such, not validated", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "schema-examples-none-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await cp(path.join(schemaRoot, "generated"), path.join(root, "generated"), { recursive: true });
+  assert.equal(await hasExamples(root), false);
+  for (const name of await bundles()) assert.equal(await hasExamples(bundleSchemaRoot(name)), true, name);
 });
 
 test("the flat schema layout validates the same examples", async (t) => {

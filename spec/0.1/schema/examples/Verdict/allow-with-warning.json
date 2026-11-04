@@ -1,0 +1,10 @@
+{
+  "decision": "allow",
+  "warnings": [
+    {
+      "reason": "public_sources_only",
+      "message": "The answer is limited to public documents."
+    }
+  ],
+  "result_labels": ["public-source"]
+}

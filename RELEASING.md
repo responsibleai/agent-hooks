@@ -92,12 +92,31 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    diff -r /tmp/cut-check/spec/X.Y spec/X.Y && echo reproducible
    ```
 
-   0.1 was not cut from the draft but read from the last SDK tag that
-   touched the text; its proof is one file, one line:
+   0.1 was not cut from the draft but built from the last SDK tag that
+   touched the text, so its proof has three parts. The text is the
+   tag's except its header line:
 
    ```bash
-   git diff --stat v0.1.0-beta.3:spec HEAD:spec/0.1
+   git diff --stat v0.1.0-beta.3:spec/AGENT-HOOKS-0.1.md HEAD:spec/0.1/AGENT-HOOKS-0.1.md
    ```
+
+   The schemas are generated from `spec/0.1/schema/src/`, the draft
+   source with everything after 0.1 removed, and are instance-equivalent
+   to the tag's hand-written schemas: the equivalence tool reports 0
+   disagreements for every schema both sides have, and
+   host-declaration-1.1 on neither side.
+
+   ```bash
+   mkdir -p /tmp/beta3/agent-context
+   for f in $(git ls-tree -r --name-only v0.1.0-beta.3 spec/schema | grep '\.schema\.json$'); do
+     git show "v0.1.0-beta.3:$f" > "/tmp/beta3/${f#spec/schema/}"
+   done
+   cd sdk/typescript && npm run check:schema:equivalence -- --old /tmp/beta3 --new ../../spec/0.1/schema/generated
+   ```
+
+   The examples are the draft's that validate against those schemas
+   (`node scripts/check-schema-examples.mjs 0.1`). From 0.2 on, the
+   byte proof above is the only one.
 
 9. After the merge, tag the merge commit. The tag starts no workflow;
    Pages publishes on the push to `main`. Only repository admins and

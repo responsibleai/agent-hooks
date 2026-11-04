@@ -1,0 +1,5 @@
+{
+  "decision": "deny",
+  "reason": "collection_not_permitted",
+  "message": "This session cannot search the internal collection."
+}

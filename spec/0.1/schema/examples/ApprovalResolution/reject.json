@@ -1,0 +1,9 @@
+{
+  "context_identity": null,
+  "outcome": "reject",
+  "verdict": {
+    "decision": "deny",
+    "reason": "operator_rejected",
+    "message": "Internal collection access was not approved."
+  }
+}
