@@ -729,6 +729,52 @@ them as `extensions.<interceptor-namespace>.source_labels` on later hooks whose
 payload derives from that data. A host MUST NOT persist `result_labels` for an
 action that did not proceed (a `deny` that was not lifted).
 
+### 5.5 Response Extensions
+
+Each hook response schema permits an optional `extensions` object at the
+response root. It appears alongside `decision` and any other applicable
+verdict members; it MUST NOT be nested under a `verdict` or `transform`
+member. The root is a flat `HooksResponse`, not an `InterceptorResponse`
+envelope.
+
+| Interception point | Response schema | `extensions` location |
+| --- | --- | --- |
+| `agent_startup` | `agent-startup-hook-response.schema.json` | Optional root member |
+| `input` | `input-hook-response.schema.json` | Optional root member |
+| `pre_model_call` | `pre-model-hook-response.schema.json` | Optional root member |
+| `post_model_call` | `post-model-hook-response.schema.json` | Optional root member |
+| `pre_tool_call` | `pre-tool-hook-response.schema.json` | Optional root member |
+| `post_tool_call` | `post-tool-hook-response.schema.json` | Optional root member |
+| `output` | `output-hook-response.schema.json` | Optional root member |
+| `agent_shutdown` | `agent-shutdown-hook-response.schema.json` | Optional root member |
+
+When present, `extensions` MUST be an object. Each namespace key MUST match
+`^[a-z][a-z0-9_]*$`; `acs`, `ctk`, and `agent_hooks` are reserved and MUST NOT
+be used for provider-specific data (§4.4). Values are opaque provider-defined
+data and MUST satisfy the I-JSON value domain (§4.3). Integer literals outside
+±(2^53−1), non-finite numbers, and lone Unicode surrogates MUST be rejected,
+not rounded, normalized, or silently rewritten. Larger integers MUST be
+encoded as strings.
+
+When a response is received as JSON text, a duplicate member at any object
+level in that response MUST be rejected, including in `extensions` values.
+A parser that has already collapsed duplicate members cannot detect this
+condition; rejection MUST occur before that information is lost.
+
+The UTF-8 byte length of the RFC 8785 canonical serialization of the complete
+`extensions` object MUST NOT exceed 65,536 bytes, including namespace keys and
+all values across providers. An absent `extensions` member contributes zero
+bytes; an explicitly present empty object contributes two. This bound is
+independent of the 10,240-byte `evidence` limit in §5.3. JSON Schema cannot
+express the canonical-byte limit. SDKs MUST enforce it and serialize accepted
+extension data as I-JSON; they do not preserve transport bytes or number
+spellings.
+
+Response extensions are metadata only. They MUST NOT affect enforcement,
+verdict composition, or approval resolution; a host MUST NOT merge them into
+the combined verdict or copy them into an interception record (§10.3). A
+response that violates this section fails the response gate as
+`deny host_error:verdict_invalid` (§6.3).
 
 ## 6. Host obligations
 
