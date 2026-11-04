@@ -324,12 +324,12 @@ interface HostDeclarationBase {
   /** Ignored by the loader; kept for editors. */
   $schema?: string;
   /**
-   * OPTIONAL. The specification version the document is written for
-   * (§7.7.2): this version's wire string. Absent means the loader's
-   * SPEC_VERSION, the newest released version it supports, under which a
-   * 1.1 document is refused.
+   * REQUIRED. The specification version the document is written for
+   * (§7.7.2): this version's wire string. A document written for a
+   * released version names that version's own string instead, and is
+   * read by that version's rules.
    */
-  spec?: "agent-hooks/draft";
+  spec: "agent-hooks/draft";
   /**
    * OPTIONAL. An operator label for logs. Never stamped on records.
    * @pattern ^[a-z0-9][a-z0-9._-]{0,63}$

@@ -57,7 +57,11 @@ pub struct AgentContextBuilder {
 }
 
 impl AgentContextBuilder {
-    pub fn new(agent_id: &str, framework: &str, session_id: &str) -> Self {
+    /// A builder for one session under the specification version
+    /// `spec`, which every context it builds names in `spec` (§4.1).
+    /// There is no default: a host passes [`SpecVersion::V0_1`] or
+    /// [`SpecVersion::Draft`], the version its emitter runs under.
+    pub fn new(spec: SpecVersion, agent_id: &str, framework: &str, session_id: &str) -> Self {
         let mut agent = Map::new();
         agent.insert("id".into(), json!(agent_id));
         agent.insert("framework".into(), json!(framework));
@@ -69,18 +73,8 @@ impl AgentContextBuilder {
             seq: 0,
             optional: Map::new(),
             now: Box::new(rfc3339_now),
-            spec: SpecVersion::DEFAULT,
+            spec,
         }
-    }
-
-    /// The specification version every subsequent context names in
-    /// `spec` (§4.1). The default is [`SpecVersion::DEFAULT`], the
-    /// newest released version; a host that follows the draft selects
-    /// [`SpecVersion::Draft`] here and runs its emitter under the same
-    /// version.
-    pub fn with_spec(mut self, spec: SpecVersion) -> Self {
-        self.spec = spec;
-        self
     }
 
     /// The specification version this builder stamps.
@@ -219,7 +213,7 @@ mod tests {
 
     #[test]
     fn sequence_monotonic_and_required_complete() {
-        let mut b = AgentContextBuilder::new("a", "test", "s")
+        let mut b = AgentContextBuilder::new(SpecVersion::Draft, "a", "test", "s")
             .with_timestamp_provider(|| "2026-01-01T00:00:00.000Z".into());
         let c0 = b.agent_startup(vec!["t".into()]);
         let c1 = b.input(serde_json::json!("hi"), "user");
@@ -240,14 +234,14 @@ mod tests {
     }
 
     #[test]
-    fn spec_defaults_to_the_released_version_and_can_select_the_draft() {
-        let mut b = AgentContextBuilder::new("a", "test", "s");
-        assert_eq!(b.spec(), SpecVersion::DEFAULT);
+    fn every_context_names_the_version_the_builder_was_given() {
+        let mut b = AgentContextBuilder::new(SpecVersion::V0_1, "a", "test", "s");
+        assert_eq!(b.spec(), SpecVersion::V0_1);
         assert_eq!(
             b.input(serde_json::json!("hi"), "user")["spec"],
-            crate::SPEC_VERSION
+            crate::SPEC_VERSION_0_1
         );
-        let mut d = AgentContextBuilder::new("a", "test", "s").with_spec(SpecVersion::Draft);
+        let mut d = AgentContextBuilder::new(SpecVersion::Draft, "a", "test", "s");
         assert_eq!(d.spec(), SpecVersion::Draft);
         assert_eq!(
             d.output(serde_json::json!("x"))["spec"],

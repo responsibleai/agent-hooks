@@ -135,14 +135,6 @@ pub unsafe extern "C" fn ah_free_result(r: *mut AhResult) {
     }
 }
 
-/// Return the spec version string. Caller must NOT free the returned
-/// pointer (it is static).
-#[no_mangle]
-pub extern "C" fn ah_spec_version() -> *const c_char {
-    static V: &str = concat!("agent-hooks/0.1", "\0");
-    V.as_ptr() as *const c_char
-}
-
 /// §10.1
 ///
 /// # Safety
@@ -521,7 +513,7 @@ mod tests {
             let v = CStr::from_ptr((*r).value).to_str().unwrap();
             assert_eq!(
                 v,
-                r#"{"by_spec":{"0.1":{"current":"agent-hooks-declaration/1.0","supported":["agent-hooks-declaration/1.0"]},"draft":{"current":"agent-hooks-declaration/1.1","supported":["agent-hooks-declaration/1.0","agent-hooks-declaration/1.1"]}},"current":"agent-hooks-declaration/1.1","spec":"agent-hooks/0.1","spec_supported":["0.1","draft"],"supported":["agent-hooks-declaration/1.0","agent-hooks-declaration/1.1"]}"#
+                r#"{"by_spec":{"0.1":{"current":"agent-hooks-declaration/1.0","supported":["agent-hooks-declaration/1.0"]},"draft":{"current":"agent-hooks-declaration/1.1","supported":["agent-hooks-declaration/1.0","agent-hooks-declaration/1.1"]}},"current":"agent-hooks-declaration/1.1","spec_supported":["0.1","draft"],"supported":["agent-hooks-declaration/1.0","agent-hooks-declaration/1.1"]}"#
             );
             ah_free_result(r);
         }
@@ -564,7 +556,7 @@ mod tests {
             );
 
             // A 1.0 document still loads and resolves to deny.
-            let old = r#"{"declaration": "agent-hooks-declaration/1.0",
+            let old = r#"{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/0.1",
                           "bindings": [{"id": "allow", "kind": "com.example.allow"}]}"#;
             let (ok, value, _) = call2(ah_declaration_resolve, old, HOST);
             assert_eq!(ok, 1, "{value}");
@@ -637,7 +629,7 @@ mod tests {
 
     #[test]
     fn declaration_resolve_accepts_and_refuses_through_c_abi() {
-        let doc = r#"{"declaration": "agent-hooks-declaration/1.0",
+        let doc = r#"{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/0.1",
                       "bindings": [{"id": "allow", "kind": "com.example.allow"}]}"#;
         unsafe {
             let (ok, value, _) = call2(ah_declaration_resolve, doc, HOST);
@@ -649,10 +641,10 @@ mod tests {
                 "{value}"
             );
 
-            // A document that says nothing about its specification
-            // version is a 0.1 document, which defines contract 1.0
-            // alone; under the draft both versions are accepted.
-            let bad = r#"{"declaration": "agent-hooks-declaration/0.1", "bindings": []}"#;
+            // The accepted contract versions are the document's
+            // specification version's: 0.1 defines 1.0 alone; the draft
+            // accepts both. A document without a version is refused.
+            let bad = r#"{"declaration": "agent-hooks-declaration/0.1", "spec": "agent-hooks/0.1", "bindings": []}"#;
             let (ok, detail, code) = call2(ah_declaration_resolve, bad, HOST);
             assert_eq!(ok, 0);
             assert_eq!(code, "declaration_error:version_unsupported");
@@ -660,6 +652,11 @@ mod tests {
                 detail.contains("\"accepted\":[\"agent-hooks-declaration/1.0\"]"),
                 "{detail}"
             );
+            let unversioned = r#"{"declaration": "agent-hooks-declaration/1.0", "bindings": []}"#;
+            let (ok, detail, code) = call2(ah_declaration_resolve, unversioned, HOST);
+            assert_eq!(ok, 0);
+            assert_eq!(code, "declaration_error:spec_unsupported");
+            assert!(detail.contains("spec is missing"), "{detail}");
             let bad = r#"{"declaration": "agent-hooks-declaration/0.1", "spec": "agent-hooks/draft", "bindings": []}"#;
             let (ok, detail, code) = call2(ah_declaration_resolve, bad, HOST);
             assert_eq!(ok, 0);
@@ -672,7 +669,7 @@ mod tests {
             );
             assert!(detail.contains("\"pointer\":\"/declaration\""), "{detail}");
 
-            let unknown_kind = r#"{"declaration": "agent-hooks-declaration/1.0",
+            let unknown_kind = r#"{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/0.1",
                                    "bindings": [{"id": "x", "kind": "com.example.none"}]}"#;
             let (ok, detail, code) = call2(ah_declaration_resolve, unknown_kind, HOST);
             assert_eq!(ok, 0);

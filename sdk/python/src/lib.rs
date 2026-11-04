@@ -27,11 +27,6 @@ fn map_err(py: Python<'_>, e: core::FfiError) -> PyErr {
 }
 
 #[pyfunction]
-fn spec_version() -> &'static str {
-    core::spec_version()
-}
-
-#[pyfunction]
 fn canonical_json(py: Python<'_>, value_json: &str) -> PyResult<String> {
     core::canonical_json(value_json).map_err(|e| map_err(py, e))
 }
@@ -184,9 +179,7 @@ fn ctk_assert(
 
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add("SPEC_VERSION", core::spec_version())?;
     m.add("AgentHooksCoreError", m.py().get_type::<AgentHooksCoreError>())?;
-    m.add_function(wrap_pyfunction!(spec_version, m)?)?;
     m.add_function(wrap_pyfunction!(canonical_json, m)?)?;
     m.add_function(wrap_pyfunction!(context_identity, m)?)?;
     m.add_function(wrap_pyfunction!(validate_verdict, m)?)?;

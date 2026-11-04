@@ -551,11 +551,6 @@ pub fn validate_envelope(ctx_json: &str) -> Result<String, FfiError> {
     Ok(String::new())
 }
 
-/// Version stamp for binding sanity checks.
-pub fn spec_version() -> &'static str {
-    crate::SPEC_VERSION
-}
-
 // ---- host declaration (§7.7) -----------------------------------------------
 
 /// The declaration contract versions this core writes and accepts
@@ -583,7 +578,6 @@ pub fn declaration_versions() -> String {
     serde_json::json!({
         "current": crate::DECLARATION_VERSION,
         "supported": crate::SUPPORTED_DECLARATION_VERSIONS,
-        "spec": crate::SPEC_VERSION,
         "spec_supported": crate::SUPPORTED_SPEC_VERSIONS,
         "by_spec": by_spec,
     })

@@ -113,8 +113,7 @@ fn document() -> Value {
 }
 
 async fn run_session(em: &mut InterceptionEmitter) -> Vec<String> {
-    let mut b = AgentContextBuilder::new("a1", "test-host", "s1")
-        .with_spec(em.spec().unwrap_or_default())
+    let mut b = AgentContextBuilder::new(em.spec(), "a1", "test-host", "s1")
         .with_timestamp_provider(|| "2026-10-09T00:00:00.000Z".to_owned());
     let mut out = Vec::new();
     for mut ctx in [
@@ -153,8 +152,7 @@ async fn three_paths_produce_identical_records() {
     let mut from_value = InterceptionEmitter::from_declaration_value(doc.clone(), &reg).unwrap();
     let mut from_json = InterceptionEmitter::from_declaration_json(&text, &reg).unwrap();
     let mut from_path = InterceptionEmitter::from_declaration_path(&path, &reg).unwrap();
-    let built = HostDeclaration::builder()
-        .spec(DRAFT)
+    let built = HostDeclaration::builder(SpecVersion::Draft)
         .id("test-doc")
         .composition(CompositionConfig::strictest(SynthesisPolicy::Deny))
         .identity_provider(Some("hmac-sha256-k1"))
@@ -224,7 +222,7 @@ async fn three_paths_produce_identical_records() {
 
 #[tokio::test]
 async fn code_path_records_carry_no_declaration_and_unchanged_bytes() {
-    let mut em = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+    let mut em = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
     em.register(Box::new(Scripted(Verdict::allow())));
     let records = run_session(&mut em).await;
     for s in &records {
@@ -242,7 +240,7 @@ async fn code_path_records_carry_no_declaration_and_unchanged_bytes() {
 
 #[tokio::test]
 async fn register_at_filters_points_and_names_verdicts() {
-    let mut em = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+    let mut em = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
     em.register_at(
         Box::new(Scripted(Verdict::deny(Some("x:deny".into()), None))),
         Some("gate".into()),
@@ -420,8 +418,8 @@ fn config_integers_stay_inside_the_canonical_domain() {
 
 #[test]
 fn one_class_per_document_in_pipeline_order() {
-    // A document breaking steps 3, 5, 6, 7 and 10 at once reports the
-    // earliest step only; fixing each in turn walks the pipeline.
+    // A document breaking steps 3, 4, 5, 6, 7 and 10 at once reports
+    // the earliest step only; fixing each in turn walks the pipeline.
     let reg = registry();
     let mut doc = json!({
         "declaration": "agent-hooks-declaration/0.1",
@@ -435,8 +433,9 @@ fn one_class_per_document_in_pipeline_order() {
             .class
     };
     assert_eq!(class(&doc), DeclarationErrorClass::VersionUnsupported);
+    // Step 4: the document names no specification version.
     doc["declaration"] = json!(DECLARATION_VERSION);
-    assert_eq!(class(&doc), DeclarationErrorClass::VersionUnsupported);
+    assert_eq!(class(&doc), DeclarationErrorClass::SpecUnsupported);
     doc["spec"] = json!(DRAFT);
     assert_eq!(class(&doc), DeclarationErrorClass::UnknownField);
     doc.as_object_mut().unwrap().remove("policy");
@@ -496,9 +495,8 @@ async fn declared_timeouts_bound_interceptor_and_resolver() {
         "bindings": [{ "id": "slow", "kind": "com.example.slow" }]
     });
     let mut em = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap();
-    let mut ctx = AgentContextBuilder::new("a", "h", "s")
-        .with_spec(SpecVersion::Draft)
-        .input(json!("hi"), "user");
+    let mut ctx =
+        AgentContextBuilder::new(SpecVersion::Draft, "a", "h", "s").input(json!("hi"), "user");
     let r = em.emit_unchecked(&mut ctx).await;
     assert_eq!(
         r.verdict.reason.as_deref(),
@@ -514,9 +512,8 @@ async fn declared_timeouts_bound_interceptor_and_resolver() {
         "bindings": [{ "id": "esc", "kind": "com.example.escalate" }]
     });
     let mut em = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap();
-    let mut ctx = AgentContextBuilder::new("a", "h", "s")
-        .with_spec(SpecVersion::Draft)
-        .input(json!("hi"), "user");
+    let mut ctx =
+        AgentContextBuilder::new(SpecVersion::Draft, "a", "h", "s").input(json!("hi"), "user");
     let r = em.emit_unchecked(&mut ctx).await;
     assert_eq!(
         r.verdict.reason.as_deref(),
@@ -595,9 +592,11 @@ fn registry_with_notifier(notices: Option<Notices>) -> HostRegistry {
 /// A context under the draft, the version the 1.1 documents of these
 /// tests run under.
 fn pre_tool_ctx() -> AgentContext {
-    AgentContextBuilder::new("a", "h", "s")
-        .with_spec(SpecVersion::Draft)
-        .pre_tool_call("tc", "t", json!({"url": "x"}))
+    AgentContextBuilder::new(SpecVersion::Draft, "a", "h", "s").pre_tool_call(
+        "tc",
+        "t",
+        json!({"url": "x"}),
+    )
 }
 
 #[tokio::test]
@@ -672,6 +671,7 @@ async fn previous_minor_document_keeps_its_meaning() {
     let reg = registry_with_notifier(None);
     let doc = json!({
         "declaration": "agent-hooks-declaration/1.0",
+        "spec": agent_hooks::SPEC_VERSION_0_1,
         "bindings": [{ "id": "f", "kind": "com.example.failing" }]
     });
     let mut em = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap();
@@ -679,12 +679,13 @@ async fn previous_minor_document_keeps_its_meaning() {
         em.declaration().unwrap().bindings()[0].on_error,
         OnError::Deny
     );
-    // A document that names no specification version is a 0.1
-    // document; the emitter runs 0.1 and its contexts say so.
-    assert_eq!(em.spec(), Some(SpecVersion::V0_1));
-    let mut ctx = AgentContextBuilder::new("a", "h", "s")
-        .with_spec(SpecVersion::V0_1)
-        .pre_tool_call("tc", "t", json!({"url": "x"}));
+    // The emitter runs the document's version and its contexts say so.
+    assert_eq!(em.spec(), SpecVersion::V0_1);
+    let mut ctx = AgentContextBuilder::new(SpecVersion::V0_1, "a", "h", "s").pre_tool_call(
+        "tc",
+        "t",
+        json!({"url": "x"}),
+    );
     let r = em.emit_unchecked(&mut ctx).await;
     assert!(!r.proceeds());
     assert_eq!(
@@ -802,8 +803,7 @@ fn continue_without_a_notifier_refuses_the_document() {
 
 #[test]
 fn builder_writes_on_error_like_a_file() {
-    let built = HostDeclaration::builder()
-        .spec(DRAFT)
+    let built = HostDeclaration::builder(SpecVersion::Draft)
         .failure_on_error(OnError::Continue)
         .bind_with(
             "strict",

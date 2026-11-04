@@ -24,7 +24,7 @@
 //! host's code can honour, and [`InterceptionEmitter::from_declaration`]
 //! (or the path, JSON and value forms) builds the emitter. The
 //! document is a versioned contract of its own ([`DECLARATION_VERSION`],
-//! [`SUPPORTED_DECLARATION_VERSIONS`]), independent of [`SPEC_VERSION`].
+//! [`SUPPORTED_DECLARATION_VERSIONS`]), independent of the wire version ([`SpecVersion`]).
 //!
 //! # Trust model
 //!
@@ -99,7 +99,7 @@ pub use types::{
     ControlFailureNotice, ControlFailureNotifier, Decision, EnforcementMode, Evidence, HostError,
     HostWarning, InterceptionPoint, InterceptionRecord, Interceptor, ManagedInterceptor,
     ManagedInterceptorOutcome, OnError, SpecVersion, Transform, Verdict, VerdictSummary, Warning,
-    DECLARATION_1_0, DECLARATION_VERSION, EVIDENCE_MAX_BYTES, JCS_SHA256, SPEC_VERSION,
+    DECLARATION_1_0, DECLARATION_VERSION, EVIDENCE_MAX_BYTES, JCS_SHA256, SPEC_VERSION_0_1,
     SPEC_VERSION_DRAFT, SUPPORTED_DECLARATION_VERSIONS, SUPPORTED_SPEC_VERSIONS,
 };
 pub use verdict::from_wire as verdict_from_wire;

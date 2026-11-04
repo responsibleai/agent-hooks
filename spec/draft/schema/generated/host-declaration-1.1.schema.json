@@ -28,9 +28,9 @@
       "type": "string"
     },
     "spec": {
-      "description": "OPTIONAL. The specification version the document is written for\n(§7.7.2): this version's wire string. Absent means the loader's\nSPEC_VERSION, the newest released version it supports, under which a\n1.1 document is refused.",
-      "const": "agent-hooks/draft",
-      "type": "string"
+      "description": "REQUIRED. The specification version the document is written for\n(§7.7.2): this version's wire string. A document written for a\nreleased version names that version's own string instead, and is\nread by that version's rules.",
+      "type": "string",
+      "const": "agent-hooks/draft"
     },
     "id": {
       "description": "OPTIONAL. An operator label for logs. Never stamped on records.",
@@ -59,7 +59,8 @@
   },
   "required": [
     "bindings",
-    "declaration"
+    "declaration",
+    "spec"
   ],
   "$defs": {
     "Configuration11": {

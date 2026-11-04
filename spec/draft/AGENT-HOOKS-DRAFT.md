@@ -1077,9 +1077,9 @@ and refuses `on_error` under a 1.0 version string as
 `declaration_error:unknown_field`, because the 1.0 schema is closed.
 The accepted set is the specification version's: 0.1 defines 1.0
 alone, this version defines both. A document names its specification
-version in `spec` (§7.7.3); a 1.1 document therefore says
-`agent-hooks/draft`, and a loader that supports several versions
-refuses a 1.1 document written for 0.1 with
+version in the REQUIRED member `spec` (§7.7.3); a 1.1 document
+therefore says `agent-hooks/draft`, and a loader that supports several
+versions refuses a 1.1 document written for 0.1 with
 `declaration_error:version_unsupported`. Major 0 is reserved for the
 conformance kit; no loader accepts it, so a vector can name it and
 get the same refusal on every host.
@@ -1143,7 +1143,7 @@ order carries no meaning are sets; `bindings` is an ordered list.
 | --- | --- | --- | --- |
 | `$schema` | string | no | absent; ignored by the loader |
 | `declaration` | `agent-hooks-declaration/<major>.<minor>` | yes | none |
-| `spec` | `agent-hooks/draft` for this version, `agent-hooks/<major>.<minor>` for a released one | no | the loader's `SPEC_VERSION`, the newest released version it supports |
+| `spec` | `agent-hooks/draft` for this version, `agent-hooks/<major>.<minor>` for a released one | yes | none; a loader that supports several versions cannot guess one |
 | `id` | `^[a-z0-9][a-z0-9._-]{0,63}$` | no | absent; an operator label for logs |
 | `host` | `{name, version?}` | no | absent; informative, never checked |
 | `configuration` | object, below | no | all defaults |
@@ -1327,7 +1327,7 @@ so a given document yields one refusal class on every SDK:
 | 1 | Read (path only): regular file, at most 1 MiB, strict UTF-8, no byte-order mark | `unreadable` |
 | 2 | Parse: one JSON object, no duplicate keys, depth at most 32, at most 1 MiB of text | `malformed` |
 | 3 | `declaration` present and in the accepted set | `version_unsupported` |
-| 4 | `spec`, when present, names a specification version the loader supports | `spec_unsupported` |
+| 4 | `spec` present and naming a specification version the loader supports | `spec_unsupported` |
 | 5 | No unknown member at any closed level | `unknown_field` |
 | 6 | Types, enums, patterns, ranges, required-iff rules | `invalid_field` |
 | 7 | Internal consistency (§7.7.3, §7.7.4, §7.7.5): the floor and pairs, knobs under the consulting profile, the composition inside a stated `surface.profiles`, `incremental_output` with `buffered_output: false` and with `model_calls`, the own version in `declaration_versions`, `at` within the surface, unique binding ids | `inconsistent` |
@@ -1355,7 +1355,7 @@ closed namespace, `declaration_error:<class>`, with eleven classes:
 | `declaration_error:unreadable` | not a regular file, over 1 MiB, not strict UTF-8, byte-order mark, I/O error |
 | `declaration_error:malformed` | not JSON, root not an object, duplicate key, depth over 32, text over 1 MiB, non-finite number from the value path |
 | `declaration_error:version_unsupported` | `declaration` missing, not a string, or not in the accepted set |
-| `declaration_error:spec_unsupported` | `spec` present and naming no specification version the loader supports, or a malformed value |
+| `declaration_error:spec_unsupported` | `spec` missing, naming no specification version the loader supports, or a malformed value |
 | `declaration_error:unknown_field` | an unknown member at any closed level |
 | `declaration_error:invalid_field` | wrong type, enum, pattern, range, a required-iff rule, or an integer token outside the I-JSON safe range anywhere in the document |
 | `declaration_error:inconsistent` | a step 7 rule |

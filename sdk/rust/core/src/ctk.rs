@@ -105,8 +105,10 @@ impl ScriptedInterceptor {
         }
         let wire = scripted_intercept(&self.rules, &ctx_value);
         // The script's verdict is read under the context's own version,
-        // the same rules the emitter's §5 gate applies to it.
-        let spec = SpecVersion::of_context(context).unwrap_or_default();
+        // the same rules the emitter's §5 gate applies to it; a context
+        // without one never reaches an interceptor (the envelope check
+        // ran), so the corpus version stands in.
+        let spec = SpecVersion::of_context(context).unwrap_or(CTK_SPEC);
         match wire.get("__ctk_fault__").and_then(Value::as_str) {
             // §7 isolation fault (TM-05): the trait takes &AgentContext,
             // so in-place mutation is statically impossible in Rust —
@@ -224,7 +226,7 @@ impl ApprovalResolver for ScriptedResolver {
             Some("reject") => crate::ApprovalOutcome::Reject,
             _ => crate::ApprovalOutcome::Unresolved,
         };
-        let spec = SpecVersion::of_context(request.context).unwrap_or_default();
+        let spec = SpecVersion::of_context(request.context).unwrap_or(CTK_SPEC);
         let verdict = out
             .get("verdict")
             .map(|v| crate::verdict_from_wire(v, spec).expect("malformed approval_script verdict"));
@@ -1040,6 +1042,11 @@ type InstanceSlots = Arc<Mutex<Vec<Option<Box<dyn Interceptor>>>>>;
 /// surface a claim can cite.
 pub const REFERENCE_DECLARATION: &str = include_str!("ctk/reference.declaration.json");
 
+/// The specification version the conformance kit runs: the vectors,
+/// the golden files and the reference declaration are the draft
+/// corpus, and a harness builds its contexts under it.
+pub const CTK_SPEC: SpecVersion = SpecVersion::Draft;
+
 impl ReferenceHarness {
     pub fn new() -> Self {
         Self::default()
@@ -1069,19 +1076,16 @@ impl ReferenceHarness {
             .expect("host messages poisoned")
             .clear();
         self.session_counter += 1;
-        // The harness builds its contexts under the version the
-        // emitter runs: the vector document's `spec`, or the reference
-        // document's for a field-based vector.
-        let spec = emitter.spec().unwrap_or_default();
+        // The vectors are the draft corpus: the harness builds its
+        // contexts under the draft, the version every vector document
+        // and the reference document name.
         self.emitter = Some(emitter);
-        self.builder = Some(
-            AgentContextBuilder::new(
-                "ref-agent",
-                "reference-agent",
-                &format!("sess-{}", self.session_counter),
-            )
-            .with_spec(spec),
-        );
+        self.builder = Some(AgentContextBuilder::new(
+            CTK_SPEC,
+            "ref-agent",
+            "reference-agent",
+            &format!("sess-{}", self.session_counter),
+        ));
     }
 
     fn invoke_tool(&self, name: &str, args: &Value) -> (Value, bool) {

@@ -8,12 +8,8 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fmt;
 
-/// The wire string a context carries by default (§4.1 `spec`): the
-/// newest released specification version this crate supports. A host
-/// selects the draft instead through [`SpecVersion::Draft`]
-/// ([`crate::AgentContextBuilder::with_spec`], a declaration's `spec`
-/// member).
-pub const SPEC_VERSION: &str = "agent-hooks/0.1";
+/// The wire string of specification 0.1, `spec/0.1/` (§4.1 `spec`).
+pub const SPEC_VERSION_0_1: &str = "agent-hooks/0.1";
 
 /// The wire string of the draft specification, `spec/draft/`. The
 /// draft changes without notice and is never claimed; a cut copies it
@@ -22,21 +18,20 @@ pub const SPEC_VERSION_DRAFT: &str = "agent-hooks/draft";
 
 /// The specification versions this crate supports, oldest first: each
 /// entry names a `spec/<entry>/` folder, and the last numbered entry
-/// is the version of [`SPEC_VERSION`] (VERSIONING.md). Every entry is
-/// a [`SpecVersion`].
+/// is the newest released version (VERSIONING.md). Every entry is a
+/// [`SpecVersion`]. None of them is a default: a host names the
+/// version it runs under when it builds a context or an emitter, or
+/// in its declaration's `spec` member.
 pub const SUPPORTED_SPEC_VERSIONS: &[&str] = &["0.1", "draft"];
 
 /// One supported specification version. A context's `spec` member and
 /// a declaration's `spec` member name one of these; the version chooses
 /// the rules the core applies: the §5 reserved prefixes, the
 /// declaration contract versions the loader accepts (§7.7.2) and the
-/// failure posture (§6.3.1, draft only).
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
-)]
+/// failure posture (§6.3.1, draft only). There is no default version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum SpecVersion {
     /// Specification 0.1, `spec/0.1/`, wire string `agent-hooks/0.1`.
-    #[default]
     V0_1,
     /// The draft, `spec/draft/`, wire string `agent-hooks/draft`.
     Draft,
@@ -46,10 +41,6 @@ impl SpecVersion {
     /// Every supported version, oldest first; the same order as
     /// [`SUPPORTED_SPEC_VERSIONS`].
     pub const ALL: &'static [SpecVersion] = &[SpecVersion::V0_1, SpecVersion::Draft];
-
-    /// The version [`SPEC_VERSION`] names: what a context carries
-    /// unless the host selects another.
-    pub const DEFAULT: SpecVersion = SpecVersion::V0_1;
 
     /// The entry of [`SUPPORTED_SPEC_VERSIONS`] and the `spec/<name>/`
     /// folder: `0.1` or `draft`.
@@ -63,7 +54,7 @@ impl SpecVersion {
     /// The wire string (§4.1): `agent-hooks/0.1` or `agent-hooks/draft`.
     pub const fn wire(self) -> &'static str {
         match self {
-            Self::V0_1 => SPEC_VERSION,
+            Self::V0_1 => SPEC_VERSION_0_1,
             Self::Draft => SPEC_VERSION_DRAFT,
         }
     }
@@ -149,8 +140,8 @@ impl fmt::Display for SpecVersion {
 pub const JCS_SHA256: &str = "jcs-sha256";
 
 /// The host declaration contract version this crate writes and
-/// accepts (§7.7.2). Independent of [`SPEC_VERSION`] (the wire
-/// contract) and of the package version. 1.1 adds the optional
+/// accepts (§7.7.2). Independent of the wire version ([`SpecVersion`])
+/// and of the package version. 1.1 adds the optional
 /// `on_error` members (§6.3, §7.7.5); a document without them keeps
 /// its 1.0 meaning.
 pub const DECLARATION_VERSION: &str = "agent-hooks-declaration/1.1";
@@ -849,16 +840,11 @@ mod version_constants_tests {
     }
 
     #[test]
-    fn spec_version_is_the_newest_numbered_supported_version() {
+    fn supported_versions_are_numbered_or_the_draft() {
         // VERSIONING.md: SUPPORTED_SPEC_VERSIONS lists spec/<entry>/
-        // folders, oldest first, MAJOR.MINOR or draft, and
-        // SPEC_VERSION is the wire string of the last numbered one.
-        let newest = SUPPORTED_SPEC_VERSIONS
-            .iter()
-            .rev()
-            .find(|v| is_major_minor(v))
-            .expect("at least one numbered supported version");
-        assert_eq!(SPEC_VERSION, format!("agent-hooks/{newest}"));
+        // folders, oldest first, MAJOR.MINOR or draft, with at least
+        // one released (numbered) version among them.
+        assert!(SUPPORTED_SPEC_VERSIONS.iter().any(|v| is_major_minor(v)));
         for v in SUPPORTED_SPEC_VERSIONS {
             assert!(
                 is_major_minor(v) || *v == "draft",
@@ -871,8 +857,7 @@ mod version_constants_tests {
     fn spec_version_enum_mirrors_the_constants() {
         let names: Vec<&str> = SpecVersion::ALL.iter().map(|v| v.name()).collect();
         assert_eq!(names, SUPPORTED_SPEC_VERSIONS);
-        assert_eq!(SpecVersion::DEFAULT, SpecVersion::default());
-        assert_eq!(SpecVersion::DEFAULT.wire(), SPEC_VERSION);
+        assert_eq!(SpecVersion::V0_1.wire(), SPEC_VERSION_0_1);
         assert_eq!(SpecVersion::Draft.wire(), SPEC_VERSION_DRAFT);
         for v in SpecVersion::ALL {
             assert_eq!(SpecVersion::from_wire(v.wire()), Some(*v));

@@ -392,13 +392,6 @@ impl ApprovalResolver for SharedResolver {
     }
 }
 
-/// The specification version an emission runs under. The envelope
-/// check (§4) ran before any caller of this, so the member names a
-/// supported version; the default stands in for the unreachable case.
-fn spec_of(ctx: &AgentContext) -> SpecVersion {
-    SpecVersion::of_context(ctx).unwrap_or_default()
-}
-
 fn point_of(ctx: &AgentContext) -> Option<InterceptionPoint> {
     ctx.get("interception_point")
         .and_then(Value::as_str)
@@ -466,12 +459,12 @@ pub struct InterceptionEmitter {
     records: Vec<InterceptionRecord>,
     /// §7.7.7: a declaration-built emitter refuses reconfiguration.
     sealed: bool,
-    /// The specification version this emitter runs under, when pinned:
-    /// a declaration-built emitter runs its document's `spec`, a code
-    /// emitter the version [`Self::set_spec`] chose. `None` follows
-    /// each context's own `spec`. A `continue` registration (§6.3.1)
-    /// needs the draft pinned, because 0.1 defines no failure posture.
-    spec: Option<SpecVersion>,
+    /// The specification version this emitter runs under: a
+    /// declaration-built emitter runs its document's `spec`, a code
+    /// emitter the version [`Self::new`] was given. Every context must
+    /// name it. A `continue` registration (§6.3.1) needs the draft,
+    /// because 0.1 defines no failure posture.
+    spec: SpecVersion,
     /// The resolved declaration this emitter was built from, if any.
     declaration: Option<ResolvedDeclaration>,
 }
@@ -492,7 +485,15 @@ impl fmt::Debug for InterceptionEmitter {
 }
 
 impl InterceptionEmitter {
-    pub fn new(mode: EnforcementMode, resolver: Option<Box<dyn ApprovalResolver>>) -> Self {
+    /// An emitter configured in code, under the specification version
+    /// `spec`. There is no default: a host passes [`SpecVersion::V0_1`]
+    /// or [`SpecVersion::Draft`], the version its contexts name
+    /// ([`crate::AgentContextBuilder::new`]).
+    pub fn new(
+        spec: SpecVersion,
+        mode: EnforcementMode,
+        resolver: Option<Box<dyn ApprovalResolver>>,
+    ) -> Self {
         Self {
             interceptors: Vec::new(),
             resolver,
@@ -508,7 +509,7 @@ impl InterceptionEmitter {
             records_dropped: 0,
             records: Vec::new(),
             sealed: false,
-            spec: None,
+            spec,
             declaration: None,
         }
     }
@@ -703,7 +704,7 @@ impl InterceptionEmitter {
             sealed: true,
             // The loader accepted the document's `spec` (§7.7.6 step
             // 4), so it names a supported version.
-            spec: Some(SpecVersion::from_wire(&resolved.spec).expect("loader accepted the spec")),
+            spec: SpecVersion::from_wire(&resolved.spec).expect("loader accepted the spec"),
             declaration: Some(resolved),
         })
     }
@@ -801,22 +802,11 @@ impl InterceptionEmitter {
         self
     }
 
-    /// Pin the specification version this emitter runs under. Every
-    /// context must then name it in `spec`; a context naming another
-    /// supported version is denied `host_error:context_invalid`. An
-    /// emitter that is not pinned follows each context's own version.
-    /// Required, with [`SpecVersion::Draft`], before any registration
-    /// with `on_error: continue` (§6.3.1); a declaration-built emitter
-    /// is pinned to its document's `spec` and refuses this call.
-    pub fn set_spec(&mut self, spec: SpecVersion) -> &mut Self {
-        self.unsealed("set_spec");
-        self.spec = Some(spec);
-        self
-    }
-
-    /// The pinned specification version, or `None` when the emitter
-    /// follows each context's own `spec`.
-    pub fn spec(&self) -> Option<SpecVersion> {
+    /// The specification version this emitter runs under: its
+    /// declaration's `spec`, or the version [`Self::new`] was given.
+    /// Every context must name it in `spec`; one naming another
+    /// supported version is denied `host_error:context_invalid`.
+    pub fn spec(&self) -> SpecVersion {
         self.spec
     }
 
@@ -930,13 +920,13 @@ impl InterceptionEmitter {
                 .unwrap_or("unnamed registration")
                 .to_owned()
         };
-        if options.on_error == OnError::Continue
-            && !self.spec.is_some_and(SpecVersion::has_failure_posture)
-        {
+        if options.on_error == OnError::Continue && !self.spec.has_failure_posture() {
             return Err(RegistrationError {
                 detail: format!(
-                    "{}: on_error is continue, which specification 0.1 does not define; pin the emitter to the draft with set_spec(SpecVersion::Draft) first (see spec 6.3.1)",
-                    label()
+                    "{}: on_error is continue, which {} does not define; only an emitter under {} accepts it (see spec 6.3.1)",
+                    label(),
+                    self.spec,
+                    SpecVersion::Draft
                 ),
             });
         }
@@ -1008,20 +998,22 @@ impl InterceptionEmitter {
         // §4/§6.3: an invalid envelope is denied before any interceptor
         // or identity provider sees it — no dispatch, no identities, no
         // plausible record over a partial preimage.
-        let outcome = match (canonical::validate_envelope(ctx), self.spec) {
-            (Err((e, detail)), _) => Some(DispatchOutcome::synthesized(e, Some(detail))),
+        let outcome = match canonical::validate_envelope(ctx) {
+            Err((e, detail)) => Some(DispatchOutcome::synthesized(e, Some(detail))),
             // §4: one specification version per emission. The context
             // names a supported version, but not the one this emitter
-            // runs under (its declaration's `spec`, or `set_spec`).
-            (Ok(()), Some(pinned)) if SpecVersion::of_context(ctx) != Some(pinned) => {
+            // runs under (its declaration's `spec`, or the version it
+            // was built with).
+            Ok(()) if SpecVersion::of_context(ctx) != Some(self.spec) => {
                 Some(DispatchOutcome::synthesized(
                     HostError::ContextInvalid,
                     Some(format!(
-                        "$.spec: this emitter runs {pinned}; the context names another version (see spec §4)"
+                        "$.spec: this emitter runs {}; the context names another version (see spec §4)",
+                        self.spec
                     )),
                 ))
             }
-            _ => None,
+            Ok(()) => None,
         };
         let envelope_invalid = outcome.is_some();
         // §10.3: input identity binds to the context BEFORE dispatch, so
@@ -1209,7 +1201,9 @@ impl InterceptionEmitter {
     /// Call one bound interceptor, run its return through the §5 gate
     /// and apply the registration's `on_error` (§6.3).
     async fn invoke(&self, ctx: &AgentContext, idx: u32, bound: &Bound) -> Settled {
-        let spec = spec_of(ctx);
+        // The emission runs under this emitter's version: the context
+        // named it, or the envelope check denied it before any call.
+        let spec = self.spec;
         let failure = match call_isolated(&bound.interceptor, ctx, self.limit(bound)).await {
             Ok(v) if v.validate(spec).is_err() => {
                 CallFailure::covered(HostError::VerdictInvalid, None)
@@ -1869,7 +1863,7 @@ impl InterceptionEmitter {
         // §9: the resolver's verdict crosses the same §5 gate as an
         // interceptor's, and outcome/decision must agree (approve MUST
         // carry a permit, reject MUST carry a deny).
-        if rv.validate(spec_of(ctx)).is_err() {
+        if rv.validate(self.spec).is_err() {
             return fail(HostError::VerdictInvalid);
         }
         let permitted = match res.outcome {
@@ -1962,7 +1956,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_all_runs_everything_and_strictest_wins() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.set_composition(CompositionConfig::run_all());
         e.register(Box::new(Scripted(deny())));
         e.register(Box::new(Scripted(Verdict::warn(Some("late".into()), None))));
@@ -1978,7 +1972,7 @@ mod tests {
 
     #[tokio::test]
     async fn parallel_strictest_transform_conflict_fails_closed() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.set_composition(CompositionConfig::strictest(SynthesisPolicy::Deny));
         e.register(Box::new(Scripted(transform("$target.url", json!("a")))));
         e.register(Box::new(Scripted(transform("$target.url", json!("b")))));
@@ -1994,7 +1988,7 @@ mod tests {
 
     #[tokio::test]
     async fn parallel_strictest_single_transform_applies() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.set_composition(CompositionConfig::strictest(SynthesisPolicy::Deny));
         e.register(Box::new(Scripted(Verdict::allow())));
         e.register(Box::new(Scripted(transform("$target.url", json!("safe")))));
@@ -2008,7 +2002,7 @@ mod tests {
 
     #[tokio::test]
     async fn unanimous_disagreement_synthesizes() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.set_composition(CompositionConfig::unanimous(
             SynthesisPolicy::Deny,
             SynthesisPolicy::Deny,
@@ -2027,7 +2021,7 @@ mod tests {
 
     #[tokio::test]
     async fn first_deny_no_resolver_deny_stands_without_error() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register(Box::new(Scripted(Verdict::escalate(
             Some("check".into()),
             None,
@@ -2044,6 +2038,7 @@ mod tests {
     #[tokio::test]
     async fn first_deny_stop_truncates_and_records_substitution() {
         let mut e = InterceptionEmitter::new(
+            SpecVersion::Draft,
             EnforcementMode::Enforce,
             Some(Box::new(Approver(
                 ApprovalOutcome::Approve,
@@ -2064,6 +2059,7 @@ mod tests {
     #[tokio::test]
     async fn first_deny_resume_continues_the_fold() {
         let mut e = InterceptionEmitter::new(
+            SpecVersion::Draft,
             EnforcementMode::Enforce,
             Some(Box::new(Approver(
                 ApprovalOutcome::Approve,
@@ -2094,7 +2090,11 @@ mod tests {
                 }
             }
         }
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, Some(Box::new(BadEcho)));
+        let mut e = InterceptionEmitter::new(
+            SpecVersion::Draft,
+            EnforcementMode::Enforce,
+            Some(Box::new(BadEcho)),
+        );
         e.register(Box::new(Scripted(Verdict::escalate(None, None))));
         let mut c = ctx();
         let r = e.emit_unchecked(&mut c).await;
@@ -2106,7 +2106,7 @@ mod tests {
 
     #[tokio::test]
     async fn null_provider_unbound_record() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.set_identity_provider(IdentityProvider::Null).unwrap();
         e.register(Box::new(Scripted(Verdict::allow())));
         let mut c = ctx();
@@ -2118,7 +2118,7 @@ mod tests {
 
     #[tokio::test]
     async fn default_provider_rejects_big_int_before_dispatch() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register(Box::new(Scripted(Verdict::allow())));
         let mut c = ctx();
         c.insert("target".into(), json!({"id": 9_007_199_254_740_993_i64}));
@@ -2139,6 +2139,7 @@ mod tests {
     #[tokio::test]
     async fn shutdown_never_consults() {
         let mut e = InterceptionEmitter::new(
+            SpecVersion::Draft,
             EnforcementMode::Enforce,
             Some(Box::new(Approver(
                 ApprovalOutcome::Approve,
@@ -2170,7 +2171,7 @@ mod tests {
 
     #[tokio::test]
     async fn first_deny_attributes_failure_deny_to_failing_interceptor() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register(Box::new(Scripted(Verdict::allow())));
         e.register(Box::new(Malformed));
         e.register(Box::new(Scripted(Verdict::allow())));
@@ -2196,7 +2197,7 @@ mod tests {
                 panic!("SECRET-PAYLOAD must not leak");
             }
         }
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register(Box::new(Panics));
         let r = e.emit_unchecked(&mut ctx()).await;
         assert!(!r.proceeds());
@@ -2223,7 +2224,7 @@ mod tests {
                 Verdict::allow()
             }
         }
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.set_timeout(std::time::Duration::from_millis(20));
         e.register(Box::new(Slow));
         let r = e.emit_unchecked(&mut ctx()).await;
@@ -2239,7 +2240,7 @@ mod tests {
         // §10.3 host projection failure: the host could not construct
         // a context at all; the synthesized record is the rejection
         // shape with the host's envelope facts.
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register(Box::new(Scripted(Verdict::allow())));
         let r = e.record_host_failure(
             InterceptionPoint::PreToolCall,
@@ -2277,7 +2278,7 @@ mod tests {
 
     #[tokio::test]
     async fn host_failure_defaults_are_the_unknown_values() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         let r = e.record_host_failure(InterceptionPoint::Output, HostFailure::default());
         assert_eq!(r.session_id, "");
         assert_eq!(r.sequence, -1);
@@ -2295,7 +2296,8 @@ mod tests {
         use std::sync::Arc;
         let seen = Arc::new(AtomicUsize::new(0));
         let seen2 = seen.clone();
-        let mut e = InterceptionEmitter::new(EnforcementMode::EvaluateOnly, None);
+        let mut e =
+            InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::EvaluateOnly, None);
         e.set_record_sink(move |_r| {
             seen2.fetch_add(1, Ordering::SeqCst);
         });
@@ -2312,7 +2314,7 @@ mod tests {
     async fn host_failure_detail_is_truncated_by_the_projection() {
         // §10.3: the synthesized verdict crosses the same payload-free
         // projection as every combined verdict.
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         let r = e.record_host_failure(
             InterceptionPoint::PreToolCall,
             HostFailure {
@@ -2330,7 +2332,7 @@ mod tests {
         use std::sync::Arc;
         let seen = Arc::new(AtomicUsize::new(0));
         let seen2 = seen.clone();
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register(Box::new(Scripted(Verdict::allow())));
         e.set_record_sink(move |_r| {
             seen2.fetch_add(1, Ordering::SeqCst);
@@ -2381,6 +2383,7 @@ mod tests {
             }
         }
         let mut e = InterceptionEmitter::new(
+            SpecVersion::Draft,
             EnforcementMode::Enforce,
             Some(Box::new(Shared(captured.clone()))),
         );
@@ -2417,8 +2420,7 @@ mod tests {
     fn with_notifier(mode: EnforcementMode) -> (InterceptionEmitter, Notices) {
         let notices: Notices = Arc::new(Mutex::new(Vec::new()));
         let sink = notices.clone();
-        let mut e = InterceptionEmitter::new(mode, None);
-        e.set_spec(SpecVersion::Draft);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, mode, None);
         e.set_control_failure_notifier(move |n| sink.lock().unwrap().push(n.clone()));
         (e, notices)
     }
@@ -2557,7 +2559,7 @@ mod tests {
         assert_eq!(r.decided_by, Some(0));
         assert!(notices.lock().unwrap().is_empty());
 
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         assert_eq!(RegistrationOptions::default().on_error, OnError::Deny);
         e.register_with_options(Box::new(Malformed), RegistrationOptions::default())
             .unwrap();
@@ -2572,22 +2574,21 @@ mod tests {
 
     #[tokio::test]
     async fn continue_without_a_notifier_is_refused_at_registration() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
-        // An emitter that is not pinned to the draft has no failure
-        // posture to offer; that refusal comes first.
-        let err = e
+        // An emitter under 0.1 has no failure posture to offer; that
+        // refusal comes first and names the version that has one.
+        let mut under_0_1 =
+            InterceptionEmitter::new(SpecVersion::V0_1, EnforcementMode::Enforce, None);
+        under_0_1.set_control_failure_notifier(|_| {});
+        let err = under_0_1
             .register_with_options(Box::new(Scripted(Verdict::allow())), best_effort("x"))
             .unwrap_err();
         assert!(
-            err.detail.contains("specification 0.1 does not define"),
+            err.detail.contains("agent-hooks/0.1 does not define")
+                && err.detail.contains("agent-hooks/draft"),
             "{err}"
         );
-        e.set_spec(SpecVersion::V0_1);
-        let err = e
-            .register_with_options(Box::new(Scripted(Verdict::allow())), best_effort("x"))
-            .unwrap_err();
-        assert!(err.detail.contains("set_spec(SpecVersion::Draft)"), "{err}");
-        e.set_spec(SpecVersion::Draft);
+        assert_eq!(under_0_1.interceptors.len(), 0);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         let err = e
             .register_with_options(Box::new(Scripted(Verdict::allow())), best_effort("x"))
             .unwrap_err();
@@ -2626,8 +2627,7 @@ mod tests {
     async fn notifier_failure_withdraws_the_continuation() {
         // A principal that could not be told means the deny stands:
         // silent continuation is not reachable through a broken channel.
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
-        e.set_spec(SpecVersion::Draft);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.set_control_failure_notifier(|_| panic!("channel down"));
         e.register_with_options(Box::new(Panics), best_effort("defender"))
             .unwrap();
@@ -2681,8 +2681,11 @@ mod tests {
         }
         let notices: Notices = Arc::new(Mutex::new(Vec::new()));
         let sink = notices.clone();
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, Some(Box::new(Raises)));
-        e.set_spec(SpecVersion::Draft);
+        let mut e = InterceptionEmitter::new(
+            SpecVersion::Draft,
+            EnforcementMode::Enforce,
+            Some(Box::new(Raises)),
+        );
         e.set_control_failure_notifier(move |n| sink.lock().unwrap().push(n.clone()));
         e.register_with_options(
             Box::new(Scripted(Verdict::escalate(Some("check".into()), None))),
@@ -2711,8 +2714,11 @@ mod tests {
                 }
             }
         }
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, Some(Box::new(BadEcho)));
-        e.set_spec(SpecVersion::Draft);
+        let mut e = InterceptionEmitter::new(
+            SpecVersion::Draft,
+            EnforcementMode::Enforce,
+            Some(Box::new(BadEcho)),
+        );
         e.set_control_failure_notifier(|_| {});
         e.register_with_options(
             Box::new(Scripted(Verdict::escalate(None, None))),
@@ -2851,7 +2857,7 @@ mod tests {
             Some("host_warning:control_failed".into()),
             Some("looks substituted".into()),
         );
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register(Box::new(Scripted(spoof.clone())));
         let r = e.emit_unchecked(&mut ctx()).await;
         assert!(!r.proceeds());
@@ -2916,7 +2922,7 @@ mod tests {
         // Deny: a typed timeout is the §6.3 timeout deny; the
         // interceptor saw the emitter-wide bound.
         let (m, cleaned, bound_seen) = build(ManagedInterceptorOutcome::Timeout);
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.set_timeout(std::time::Duration::from_millis(1234));
         e.register_managed(
             Box::new(m),
@@ -2961,7 +2967,7 @@ mod tests {
         // Failed carries its payload-free detail; Verdict crosses the
         // §5 gate.
         let (m, _, _) = build(ManagedInterceptorOutcome::Failed(Some("IoError".into())));
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register_managed(Box::new(m), RegistrationOptions::default())
             .unwrap();
         let r = e.emit_unchecked(&mut ctx()).await;
@@ -2974,7 +2980,7 @@ mod tests {
             reason: Some("host_error:forged".into()),
             ..Verdict::allow()
         })));
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register_managed(Box::new(m), RegistrationOptions::default())
             .unwrap();
         let r = e.emit_unchecked(&mut ctx()).await;
@@ -2986,7 +2992,7 @@ mod tests {
             Some("scanned".into()),
             None,
         ))));
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register_managed(Box::new(m), RegistrationOptions::default())
             .unwrap();
         let r = e.emit_unchecked(&mut ctx()).await;
@@ -3007,7 +3013,7 @@ mod tests {
                 panic!("SECRET");
             }
         }
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register_managed(Box::new(Boom), RegistrationOptions::default())
             .unwrap();
         let r = e.emit_unchecked(&mut ctx()).await;
@@ -3032,24 +3038,31 @@ mod tests {
     // ---- two specification versions side by side (VERSIONING.md) ----------
 
     #[tokio::test]
-    async fn an_unpinned_emitter_runs_each_context_under_its_own_version() {
+    async fn each_emitter_runs_one_version_and_its_gate_follows() {
         // 0.1 reserves host_error:* only; the draft also reserves
         // host_warning:* (§11.1). The same interceptor verdict is an
-        // allow under 0.1 and host_error:verdict_invalid under the draft.
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
-        assert_eq!(e.spec(), None);
-        e.register(Box::new(Scripted(Verdict::warn(
-            Some("host_warning:x".into()),
-            None,
-        ))));
-        let r = e.emit_unchecked(&mut ctx_under(SpecVersion::V0_1)).await;
+        // allow under a 0.1 emitter and host_error:verdict_invalid
+        // under a draft one.
+        let warning = || Scripted(Verdict::warn(Some("host_warning:x".into()), None));
+        let mut under_0_1 =
+            InterceptionEmitter::new(SpecVersion::V0_1, EnforcementMode::Enforce, None);
+        assert_eq!(under_0_1.spec(), SpecVersion::V0_1);
+        under_0_1.register(Box::new(warning()));
+        let r = under_0_1
+            .emit_unchecked(&mut ctx_under(SpecVersion::V0_1))
+            .await;
         assert!(r.proceeds());
         assert_eq!(r.verdict.decision, Decision::Allow);
         assert_eq!(
             r.verdict.warnings[0].reason.as_deref(),
             Some("host_warning:x")
         );
-        let r = e.emit_unchecked(&mut ctx_under(SpecVersion::Draft)).await;
+        let mut draft =
+            InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
+        draft.register(Box::new(warning()));
+        let r = draft
+            .emit_unchecked(&mut ctx_under(SpecVersion::Draft))
+            .await;
         assert!(!r.proceeds());
         assert_eq!(
             r.verdict.reason.as_deref(),
@@ -3058,9 +3071,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_pinned_emitter_refuses_a_context_of_another_version() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
-        e.set_spec(SpecVersion::Draft);
+    async fn a_context_of_another_version_is_refused() {
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register(Box::new(Scripted(Verdict::allow())));
         let r = e.emit_unchecked(&mut ctx_under(SpecVersion::V0_1)).await;
         assert!(!r.proceeds());
@@ -3080,7 +3092,8 @@ mod tests {
             .emit_unchecked(&mut ctx_under(SpecVersion::Draft))
             .await
             .proceeds());
-        e.set_spec(SpecVersion::V0_1);
+        let mut e = InterceptionEmitter::new(SpecVersion::V0_1, EnforcementMode::Enforce, None);
+        e.register(Box::new(Scripted(Verdict::allow())));
         assert!(e
             .emit_unchecked(&mut ctx_under(SpecVersion::V0_1))
             .await
@@ -3093,7 +3106,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_unsupported_version_is_refused_before_any_rule_is_chosen() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+        let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register(Box::new(Scripted(Verdict::allow())));
         let mut c = ctx();
         c.insert("spec".into(), json!("agent-hooks/0.2"));
@@ -3106,20 +3119,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn builder_contexts_run_under_the_released_version_by_default() {
-        let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
-        e.register(Box::new(Scripted(Verdict::allow())));
-        let mut b = AgentContextBuilder::new("a", "x", "s");
-        let mut c = b.input(json!("hi"), "user");
-        assert_eq!(c["spec"], crate::SPEC_VERSION);
-        assert!(e.emit_unchecked(&mut c).await.proceeds());
-        // Pinned to the draft, the same builder output is refused and a
-        // draft builder's output is accepted.
-        e.set_spec(SpecVersion::Draft);
-        let mut c = b.input(json!("hi"), "user");
-        assert!(!e.emit_unchecked(&mut c).await.proceeds());
-        let mut d = AgentContextBuilder::new("a", "x", "s").with_spec(SpecVersion::Draft);
-        let mut c = d.input(json!("hi"), "user");
-        assert!(e.emit_unchecked(&mut c).await.proceeds());
+    async fn builder_and_emitter_agree_on_the_version_they_were_given() {
+        for spec in SpecVersion::ALL {
+            let mut e = InterceptionEmitter::new(*spec, EnforcementMode::Enforce, None);
+            e.register(Box::new(Scripted(Verdict::allow())));
+            let mut b = AgentContextBuilder::new(*spec, "a", "x", "s");
+            let mut c = b.input(json!("hi"), "user");
+            assert_eq!(c["spec"], spec.wire());
+            assert!(e.emit_unchecked(&mut c).await.proceeds(), "{spec}");
+        }
     }
 }

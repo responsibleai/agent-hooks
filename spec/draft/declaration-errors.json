@@ -22,7 +22,7 @@
     {
       "id": "declaration_error:spec_unsupported",
       "step": 4,
-      "cause": "spec is present and names no specification version the loader supports, or is a malformed value."
+      "cause": "spec is missing, names no specification version the loader supports, or is a malformed value."
     },
     {
       "id": "declaration_error:unknown_field",

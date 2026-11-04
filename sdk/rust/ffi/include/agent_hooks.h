@@ -27,8 +27,6 @@ typedef struct {
 /* Free an AhResult* returned by any ah_* function. */
 void ah_free_result(AhResult *r);
 
-/* Static string; do NOT free. */
-const char *ah_spec_version(void);
 
 AhResult *ah_canonical_json(const char *value_json);
 AhResult *ah_context_identity(const char *ctx_json);

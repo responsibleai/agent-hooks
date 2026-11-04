@@ -33,11 +33,6 @@ fn map_err(e: core::FfiError) -> Error {
 }
 
 #[napi]
-pub fn spec_version() -> &'static str {
-    core::spec_version()
-}
-
-#[napi]
 pub fn canonical_json(value_json: String) -> Result<String> {
     core::canonical_json(&value_json).map_err(map_err)
 }
