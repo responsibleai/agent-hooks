@@ -216,7 +216,7 @@ capabilities to the CTK per §13.2 and MUST still emit `agent_startup`, `input`,
 
 [Pure Specification]
 
-A `HooksRequest` is a JSON object. Its schema has four field tiers:
+A `HooksRequest` is a JSON object. Its schema has three field tiers:
 
 - **required** fields are REQUIRED at every interception point.
 - **optional** fields are well-known and OPTIONAL.
@@ -464,11 +464,11 @@ does not enforce them.
 [Pure Specification]
 
 An interceptor MUST return a `HooksResponse` conforming to the response schema
-for the request's `interception_point`. Each `HooksResponse` MUST contain a `Verdict`.
+for the request's `interception_point`. Each `HooksResponse` MUST contain the required `Verdict` fields and MAY contain optional `Verdict` fields as well.
 
 ```jsonc
 {
-  "verdict": {...},
+  "decision": "allow",
   "extensions": { ...}  
 }
 ```
@@ -486,7 +486,7 @@ for the request's `interception_point`. Each `HooksResponse` MUST contain a `Ver
 
 
 ### 5.1 Verdict
-Every `HooksResponse` contains a `Verdict`, which defines whether the Action is allowed to proceed as defined by the `decision`. The `decision` MUST be one of `allow`, `deny`, or `transform`.
+Every `HooksResponse` contains a set of `Verdict` fields, which define whether the Action is allowed to proceed as defined by the `decision`. The `decision` MUST be one of `allow`, `deny`, or `transform`.
 
 #### 5.1.1 Decision semantics
 
@@ -558,12 +558,12 @@ An Allow Verdict is when `decision == "allow"`. There are no additional members 
 
 ```jsonc
 {
-  "decision": "approve",
+  "decision": "allow",
 }
 ```
 
 ##### 5.1.2.3 Deny Verdict
-A Deny Verdict is when `decision == "deny"`. Deny Verdicts may contain the following optional members in support of creating a Liftable Deny.
+A Deny Verdict is when `decision == "deny"`. Deny Verdicts MAY contain the following optional members in support of creating a Liftable Deny.
 
 ```jsonc
 {
