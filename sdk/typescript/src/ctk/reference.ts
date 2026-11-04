@@ -26,6 +26,7 @@ import {
   Interceptor,
   InterceptionBlocked,
   JsonValue,
+  SPEC_VERSION_DRAFT,
 } from "../index";
 import { AgentContextBuilder } from "../builder";
 import { InterceptionEmitter } from "../emitter";
@@ -84,7 +85,11 @@ export class ReferenceHarness implements Harness {
     this.toolLog = [];
     this.hostMessages = [];
     this.emitter = emitter;
+    // The vectors are the draft corpus: the harness builds its contexts
+    // under the draft, the version every vector document and the
+    // reference document name.
     this.builder = new AgentContextBuilder({
+      spec: SPEC_VERSION_DRAFT,
       agentId: "ref-agent",
       framework: "reference-agent",
       sessionId: randomUUID(),
