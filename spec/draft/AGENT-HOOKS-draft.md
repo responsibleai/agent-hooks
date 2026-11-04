@@ -2,8 +2,7 @@
 
 > **Draft:** This is the working draft for the next specification release.
 > It is not a released specification.
-
-> **Status:** Beta · **Version:** `draft`
+> **Status:** draft· **Version:** `draft`
 > **Editors:** Responsible AI
 >
 > This document defines a framework-neutral contract for **lifecycle hooks** in
