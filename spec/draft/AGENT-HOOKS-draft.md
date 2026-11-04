@@ -1,4 +1,4 @@
-# Agent Hooks Specification — Version 0.1
+# Agent Hooks Specification — Version Draft
 
 > **Draft:** This is the working draft for the next specification release.
 > It is not a released specification.
