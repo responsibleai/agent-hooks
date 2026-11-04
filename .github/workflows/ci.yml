@@ -158,9 +158,10 @@ jobs:
             > "$structure" 2>&1 || structure_status=$?
           cat "$validation" "$structure"
           disagreements=$(sed -nE 's/^total: .* ([0-9]+) disagreements .*$/\1/p' "$validation" | tail -1)
+          narrowed=$(sed -nE 's/^narrowed: ([0-9]+) instance.*$/\1/p' "$validation" | tail -1)
           differing=$(sed -nE 's/^structural diff: ([0-9]+) differing path\(s\).*$/\1/p' "$structure" | tail -1)
           healthy=true
-          [ -n "$disagreements" ] && [ -n "$differing" ] || healthy=false
+          [ -n "$disagreements" ] && [ -n "$differing" ] && [ -n "$narrowed" ] || healthy=false
           [ "$structure_status" -eq 0 ] || healthy=false
           case "$validation_status" in
             0) [ "${disagreements:-1}" -eq 0 ] || healthy=false ;;
@@ -175,13 +176,14 @@ jobs:
             echo "version=$version"
             echo "disagreements=$disagreements"
             echo "differing=$differing"
+            echo "narrowed=$narrowed"
           } >> "$GITHUB_OUTPUT"
           {
             echo "## Schema drift between the \`$version\` release and the draft"
             if [ "$disagreements" -eq 0 ] && [ "$differing" -eq 0 ]; then
               echo "No drift: the draft schemas accept and reject the same instances as the release, and no path differs after normalization."
             else
-              echo "Drift: $disagreements instance(s) judged differently and $differing differing path(s). This is a report, not a gate."
+              echo "Drift: $disagreements instance(s) judged differently, $narrowed of them accepted by the release and rejected by the draft, and $differing differing path(s). A draft that keeps the released wire string should narrow nothing (VERSIONING.md). This is a report, not a gate."
             fi
             echo '```'
             cat "$validation" "$structure"
@@ -197,11 +199,12 @@ jobs:
           VERSION: ${{ steps.drift.outputs.version }}
           DISAGREEMENTS: ${{ steps.drift.outputs.disagreements }}
           DIFFERING: ${{ steps.drift.outputs.differing }}
+          NARROWED: ${{ steps.drift.outputs.narrowed }}
         run: |
           if [ "$DISAGREEMENTS" -eq 0 ] && [ "$DIFFERING" -eq 0 ]; then
             echo "no drift between the $VERSION release and the draft"
           else
-            echo "::warning::the draft schemas drift from the $VERSION release: $DISAGREEMENTS instance(s) judged differently, $DIFFERING differing path(s); see the job summary"
+            echo "::warning::the draft schemas drift from the $VERSION release: $DISAGREEMENTS instance(s) judged differently ($NARROWED narrowed), $DIFFERING differing path(s); see the job summary"
             exit 1
           fi
       - run: cargo fetch --locked

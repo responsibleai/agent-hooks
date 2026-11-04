@@ -762,6 +762,9 @@ function main(): number {
   const random = rng(SEED);
   let totalInstances = 0;
   let totalDisagreements = 0;
+  // Instances the old set accepts and the new set rejects: a new set
+  // that carries the old wire string should narrow nothing.
+  let narrowed = 0;
   const examples: string[] = [];
   console.log("target                        instances  valid(old)  valid(new)  disagree");
   let missingTargets = 0;
@@ -804,6 +807,7 @@ function main(): number {
       if (b) validNew++;
       if (a !== b) {
         disagree++;
+        if (a && !b) narrowed++;
         if (examples.length < EXAMPLES) {
           examples.push(`${t.name}: old ${a ? "accepts" : "rejects"}, new ${b ? "accepts" : "rejects"}: ${JSON.stringify(instance).slice(0, 4000)}`);
         }
@@ -816,6 +820,7 @@ function main(): number {
     );
   }
   console.log(`total: ${totalInstances} instances across ${TARGETS.length} targets, ${totalDisagreements} disagreements (seed ${SEED}, ${RANDOM} random mutants per seed${missingTargets ? `; ${missingTargets} target(s) exist on one side only, counted once each` : ""})`);
+  console.log(`narrowed: ${narrowed} instance(s) the old set accepts and the new set rejects`);
   for (const e of examples) console.log(`  ${e}`);
   return totalDisagreements ? 1 : 0;
 }
