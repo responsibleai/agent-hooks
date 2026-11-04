@@ -216,10 +216,24 @@ function perPointSchemas(master: Schema): Map<string, Schema> {
   return files;
 }
 
+/** Whether the bundle's source defines the type a root is generated from.
+ *  A released bundle may predate a type, such as declaration 1.1 before 0.2. */
+function defines(root: Root): boolean {
+  if (root.type === "*") return true;
+  const generator = TJS.buildGenerator(programFor(root.source), SETTINGS);
+  return generator !== null && generator.getUserSymbols().includes(root.type);
+}
+
 /** Every output file's text, keyed by its path under spec/<version>/schema/generated/. */
 function render(): Map<string, string> {
   const files = new Map<string, Schema>();
-  for (const root of ROOTS) files.set(root.file, generateRoot(root));
+  for (const root of ROOTS) {
+    if (!defines(root)) {
+      console.log(`${SCHEMA_DIR}/src/${root.source} does not define ${root.type}; ${root.file} is not generated for this bundle`);
+      continue;
+    }
+    files.set(root.file, generateRoot(root));
+  }
   for (const [file, schema] of perPointSchemas(files.get(MASTER)!)) files.set(file, schema);
   return new Map([...files].map(([file, schema]) => [file, JSON.stringify(schema, null, 2) + "\n"]));
 }

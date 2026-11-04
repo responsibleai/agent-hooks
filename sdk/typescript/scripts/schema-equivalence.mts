@@ -6,7 +6,7 @@
 // the same instances as the schemas they replace.
 //
 //   tsx scripts/schema-equivalence.mts --old <git-ref|dir> [--new <dir>]
-//       [--random <mutants per seed>] [--seed <n>] [--structural-diff]
+//       [--random <mutants per seed>] [--seed <n>] [--examples <n>] [--structural-diff]
 //
 // --old takes a git ref (the schemas are read with git show) or a directory
 // containing either layout's generated files (or a schema/ folder with generated/).
@@ -62,6 +62,7 @@ function arg(name: string, fallback?: string): string | undefined {
 const OLD = arg("--old");
 const NEW = arg("--new", join(ROOT, "spec", "draft", "schema", "generated"))!;
 const RANDOM = Number(arg("--random", "150"));
+const EXAMPLES = Number(arg("--examples", "20"));
 const SEED = Number(arg("--seed", "1"));
 const STRUCTURAL = process.argv.includes("--structural-diff");
 if (!OLD) {
@@ -630,13 +631,14 @@ const TARGETS: Target[] = [
   { name: "host-declaration-1.1", file: "host-declaration-1.1.schema.json", shape: "declaration", pointer: "" },
 ];
 
-/** "old" or "new" when the target's file exists in only that set, else undefined. */
-function onlyOneSide(oldSet: SchemaSet, newSet: SchemaSet, t: Target): "old" | "new" | undefined {
+/** "old" or "new" when the target's file exists in only that set, "neither"
+ *  when both lack it (a version that predates the file), else undefined. */
+function onlyOneSide(oldSet: SchemaSet, newSet: SchemaSet, t: Target): "old" | "new" | "neither" | undefined {
   const inOld = oldSet.has(t.file);
   const inNew = newSet.has(t.file);
   if (inOld && !inNew) return "old";
   if (!inOld && inNew) return "new";
-  if (!inOld && !inNew) throw new Error(`${t.name}: ${t.file} is in neither schema set`);
+  if (!inOld && !inNew) return "neither";
   return undefined;
 }
 
@@ -731,6 +733,10 @@ function main(): number {
     let total = 0;
     for (const t of TARGETS) {
       const side = onlyOneSide(oldSet, newSet, t);
+      if (side === "neither") {
+        console.log(`== ${t.name}: 0 differing path(s): neither set has the file`);
+        continue;
+      }
       if (side) {
         total += 1;
         console.log(`== ${t.name}: 1 differing path(s): the file exists only in the ${side} set`);
@@ -761,6 +767,10 @@ function main(): number {
   let missingTargets = 0;
   for (const t of TARGETS) {
     const side = onlyOneSide(oldSet, newSet, t);
+    if (side === "neither") {
+      console.log(`${t.name.padEnd(29)} ${"-".padStart(9)}  ${"-".padStart(10)}  ${"-".padStart(10)}  ${"0".padStart(8)}  (neither set has the file)`);
+      continue;
+    }
     if (side) {
       // Counted as one disagreement: every instance the present side
       // judges has no verdict on the other side.
@@ -794,8 +804,8 @@ function main(): number {
       if (b) validNew++;
       if (a !== b) {
         disagree++;
-        if (examples.length < 20) {
-          examples.push(`${t.name}: old ${a ? "accepts" : "rejects"}, new ${b ? "accepts" : "rejects"}: ${JSON.stringify(instance).slice(0, 300)}`);
+        if (examples.length < EXAMPLES) {
+          examples.push(`${t.name}: old ${a ? "accepts" : "rejects"}, new ${b ? "accepts" : "rejects"}: ${JSON.stringify(instance).slice(0, 4000)}`);
         }
       }
     }
