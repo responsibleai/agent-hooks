@@ -20,7 +20,11 @@ the `v0.1.0-beta.3` tag (2026-10-22), read into `spec/0.1/` unchanged
 except for its header line. What the draft has added since (the
 failure posture `on_error`, declaration contract 1.1, the reserved
 warnings, the generated schema layout and the examples) becomes 0.2
-when it is cut.
+when it is cut. One difference by decision: the SDKs require the
+`spec` member on a host declaration document under 0.1 as well,
+although the 0.1 text made it optional, because they now carry two
+versions and a document must say which one it is written for. The 0.1
+text stays as released.
 
 ### Versioning rules
 

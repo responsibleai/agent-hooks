@@ -38,6 +38,11 @@ under the draft). An unknown version is refused as before.
   `NewInterceptionEmitter(spec, mode, resolver)`. The declaration
   builder takes the version too and fills the contract version from it
   (1.0 under 0.1, 1.1 under the draft).
+- A host declaration document must name its spec version; documents
+  written for 0.1 without `spec` are refused and need one line added
+  (`"spec": "agent-hooks/0.1"`). The 0.1 text made the member
+  optional; the SDKs require it under both versions by decision, since
+  they now carry two versions (VERSIONING.md).
 - Every CTK runner has the per-part conformance report as a function
   (`conformance_report` in Rust and Python, `conformanceReport` in
   TypeScript, `Runner.Report` in .NET, `Report` in Go). It takes the

@@ -82,8 +82,12 @@ host's configuration, its declared surface and its interceptor
 bindings. It is a versioned contract of its own, separate from the wire
 version and from package versions: 0.1 defines
 `agent-hooks-declaration/1.0`, and the SDKs also accept the draft's 1.1,
-which adds the failure posture. Enterprise settings channels can carry
-it unchanged.
+which adds the failure posture. The document names the specification
+version it is written for in `spec` (`agent-hooks/0.1` or
+`agent-hooks/draft`); the SDKs require that member under both
+versions, so a document written for 0.1 without it is refused and
+needs that one line added. Enterprise settings channels can carry it
+unchanged.
 
 ```json
 {

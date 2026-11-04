@@ -75,6 +75,11 @@ The document has its own version, `agent-hooks-declaration/1.1`
 member. It moves independently
 of the wire version and of package versions
 ([spec/draft/DECLARATION-VERSIONS.md](../spec/draft/DECLARATION-VERSIONS.md)).
+The document also names the specification version it is written for
+in `spec` (`agent-hooks/0.1` or `agent-hooks/draft`), and the loader
+reads it by that version's rules. The SDKs require the member under
+both versions: a document written for 0.1 without it is refused and
+needs that one line added.
 
 ### What the host does
 
