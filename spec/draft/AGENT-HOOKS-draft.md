@@ -2209,25 +2209,6 @@ carry the profile/knobs they apply to. The golden identity vectors
 apply only when the declared provider is `jcs-sha256`. Per-language CTK
 runners are provided under `sdk/<lang>/`.
 
-**Draft coverage still required:** The checked-in CTK, harness APIs, and golden
-vectors remain on the released contract; passing them does not by itself
-establish conformance to this hook-contract proposal. Draft response validation
-must dispatch by `interception_point` to the eight roots in §5, not the generic
-verdict or the removed transport envelope. Coverage must exercise all six
-whole-member replacements, required replacement members (including explicit
-null versus absent result value), wrong-hook transforms, both lifecycle
-prohibitions, flat response extensions and their non-enforcement semantics,
-namespace reservations, byte caps, duplicate-member rejection, and nested
-envelope rejection. Sequential fold-through, parallel conflict handling,
-`evaluate_only`, and identity projection must be tested using these payloads.
-
-The existing draft schema-example checker covers several shape cases, but
-schema tests do not prove host application, semantic metadata rules, or CTK
-coverage. Approval vectors must verify that `approve` accepts only `allow` and
-rejects transforms; record vectors must verify that transform decisions remain
-visible while transform payloads are omitted. No new conformance claim or SDK
-migration is made by this prose update.
-
 ### 13.3 Claims
 
 A conformance claim is the tuple
