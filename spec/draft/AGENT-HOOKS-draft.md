@@ -165,7 +165,7 @@ A host MUST emit the following eight interception points. The set is closed;
 a host MUST NOT emit a `HooksRequest` whose `interception_point` is not one of
 these values.
 
-| `interception_point` | Position in the agent loop | Transformable request member (§4.3) | `transform` permitted |
+| `interception_point` | Position in the agent loop | Transformable request member | `transform` permitted |
 | --- | --- | --- | --- |
 | `agent_startup` | Once, before the first `input` of a session. | none | no |
 | `input` | On ingress of each external request into the session. | `input` | yes |
@@ -345,7 +345,7 @@ exposes the data; their absence is conformant.
 returned no tool calls.
 Each model-requested tool call MAY carry an `id`; it is not required in the
 model response. The subsequent tool hooks require nonempty `tool_call.id` and
-`tool_call.name`; the host must construct those before dispatch.
+`tool_call.name`; the host MUST construct those before dispatch.
 
 #### `pre_tool_call`
 
@@ -605,7 +605,7 @@ example, this is a complete `pre_tool_call` response:
   as instructions to preserve existing values.
 - Before applying a transform, the host MUST construct a candidate request
   using the complete replacement and validate that candidate against the strict
-  request shape for its `interception_point` in §4.2. The host MUST commit the
+  request shape for its `interception_point` in §5.1.2.4. The host MUST commit the
   candidate only after validation succeeds; it MUST leave the original request
   unchanged if validation fails. A response that passes its response schema
   but whose replacement makes the candidate request invalid fails with
