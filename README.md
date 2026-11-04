@@ -77,14 +77,16 @@ carries no declaration, is not sealed, and its records are unchanged.
 
 The host declaration (spec §7.7) is one JSON document that states the
 host's configuration, its declared surface and its interceptor
-bindings. It is a versioned contract of its own,
-`agent-hooks-declaration/1.1`, separate from the wire version and from
-package versions. Enterprise settings channels can carry it unchanged.
+bindings. It is a versioned contract of its own, separate from the wire
+version and from package versions: 0.1 defines
+`agent-hooks-declaration/1.0`, and the SDKs also accept the draft's 1.1,
+which adds the failure posture. Enterprise settings channels can carry
+it unchanged.
 
 ```json
 {
-  "$schema": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration-1.1.schema.json",
-  "declaration": "agent-hooks-declaration/1.1",
+  "$schema": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.0.schema.json",
+  "declaration": "agent-hooks-declaration/1.0",
   "spec": "agent-hooks/0.1",
   "id": "prod-eu-strict",
   "host": { "name": "example-runtime", "version": "3.2.0" },
@@ -94,7 +96,6 @@ package versions. Enterprise settings channels can carry it unchanged.
     "identity_provider": "jcs-sha256",
     "approval": { "resolver": "operator-queue", "redactor": "strip-secrets" },
     "posture": { "tool_seam_host_error": "continue" },
-    "failure": { "on_error": "deny" },
     "timeouts": { "interceptor_ms": 5000, "approval_resolver_ms": 30000 },
     "records": { "max_buffered": 10000 }
   },
@@ -154,7 +155,7 @@ emitter = InterceptionEmitter.from_declaration_path("agent-hooks.declaration.jso
 A document that names a point, profile, capability, provider or kind
 the code cannot honour is refused at load, before any emission, with
 one of eleven `declaration_error:*` classes
-([`spec/draft/declaration-errors.json`](spec/draft/declaration-errors.json)).
+([`spec/0.1/declaration-errors.json`](spec/0.1/declaration-errors.json)).
 Nothing is narrowed or applied in part. A loader refuses a version it
 does not accept and names the versions it does. Once built, the emitter
 is sealed, and every record it writes carries the contract version.
@@ -222,8 +223,9 @@ version. See [RELEASING.md](RELEASING.md).
 
 The spec is versioned `MAJOR.MINOR`, the declaration contract
 `MAJOR.MINOR`, and the packages by semver, each on its own axis. Every
-SDK exports the spec version it writes, the specification versions it
-accepts, the current declaration version and the accepted set:
+SDK exports the spec version its contexts carry (`SPEC_VERSION`), the
+released versions it supports (`SUPPORTED_SPEC_VERSIONS`), the current
+declaration version and the accepted set:
 `SPEC_VERSION`, `SUPPORTED_SPEC_VERSIONS`, `DECLARATION_VERSION` and
 `SUPPORTED_DECLARATION_VERSIONS` in Rust, Python and TypeScript;
 `SpecVersion`, `SupportedSpecVersions`, `DeclarationVersion` and

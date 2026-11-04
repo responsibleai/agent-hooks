@@ -21,7 +21,7 @@ failure posture `on_error`, declaration contract 1.1, the reserved
 warnings, the generated schema layout and the examples) becomes 0.2
 when it is cut.
 
-### Bump rules
+### Versioning rules
 
 | Change in the draft | Next version |
 | --- | --- |
@@ -33,23 +33,21 @@ MINOR.
 
 ### The wire string in the draft
 
-No context ever carries `DRAFT`. The wire string in the draft names the
-last released version the draft is compatible with, `agent-hooks/0.1`
-today, and stays there while the draft grows. When a version is cut,
-the cut text's wire string is that version, MINOR for an additive cut
-and MAJOR for a breaking one, and the draft follows it.
+No context ever carries `DRAFT`. The draft carries the last released
+wire string, `agent-hooks/0.1` today, until the first breaking change
+lands in it. The pull request that lands that change moves the draft's
+wire string to the version the cut will be named, the next MAJOR; the
+`change-class` check already requires a `spec:breaking` pull request to
+change a version surface, and this is the one. From then until the cut
+the draft announces the coming version, and a reader tells 0.1 from
+the draft by that string. An additive draft keeps the released wire
+string; the cut then takes the next MINOR, and the draft follows it.
 
 ### Specification folders
 
 Released bundles live in `spec/<MAJOR.MINOR>/` and the working text in
 `spec/draft/`; [spec/README.md](spec/README.md) lists every folder and
-what each holds. Released folders are immutable: the `change-class` CI
-check fails a pull request that changes a version folder that already
-exists on the base branch, with one exception, a new regular `.json`
-file under `spec/<version>/schema/examples/<Type>/`, which illustrates
-a schema without changing it. Modified or deleted files, and any other
-new file, still fail. The check is not yet a required status check, so
-a red result does not block a merge on its own.
+what each holds. Released folders are immutable.
 
 A version is cut by a spec-only pull request
 ([RELEASING.md](RELEASING.md#release-a-specification-version)) and
@@ -84,7 +82,10 @@ in its own spelling:
 
 `scripts/check-version-consistency.py` (CI `lint` job) fails when
 they disagree. SDK versions are not independent per language. An SDK
-MAJOR follows a specification MAJOR or a breaking API change.
+bumps its MAJOR only when its own API breaks; it records the
+specification versions it supports in `SUPPORTED_SPEC_VERSIONS`, and a
+specification MAJOR does not force an SDK MAJOR, because an SDK can
+carry a breaking specification change behind an unchanged API.
 
 ### The specification versions an SDK supports
 

@@ -3,8 +3,8 @@
 > **Draft:** This is the working text for the next specification version.
 > It is not a released specification. The latest released version is
 > [0.1](../0.1/AGENT-HOOKS-0.1.md). The wire string `agent-hooks/0.1` in
-> this text names the released version the draft is compatible with; a
-> breaking change bumps it when the next version is cut.
+> this text is the last released one; the first breaking change to land
+> here moves it to the version the next cut will be named.
 
 > **Status:** Draft · **Version:** `DRAFT` · **Date:** 2026-11-03
 > **Editors:** Responsible AI / Agent Governance Toolkit
