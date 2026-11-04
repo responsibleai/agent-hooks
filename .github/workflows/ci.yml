@@ -56,9 +56,9 @@ jobs:
           fi
           echo "schemas validated for $validated bundle(s)"
       - name: Validate vectors against vectors.schema.json
-        # The vectors live once and are the draft's corpus: the grammar's
-        # $ref values name the draft schema ids, the documents carry the
-        # draft wire string agent-hooks/draft, and the vectors use
+        # The vectors live once and are the working test set for the
+        # next version: the grammar's $ref values name the draft schema
+        # ids, the documents carry agent-hooks/draft, and the vectors use
         # documents that 0.1 never defined (declaration 1.1, on_error,
         # reserved warnings). So they are validated against the draft
         # (spec/draft) and against every released bundle listed in

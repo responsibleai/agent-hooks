@@ -79,11 +79,17 @@ Equivalent interfaces ship in `sdk/typescript/src/ctk/index.ts`,
 `sdk/dotnet/src/AgentHooks.Conformance/IHarness.cs`,
 `sdk/go/conformance/harness.go`, and `sdk/rust/core/src/ctk.rs (`ctk` feature)`.
 
-The vectors are the draft's corpus: a vector's host declaration names
-`agent-hooks/draft`, and the reference harnesses build their emitter
-and their context builder under the draft (`SPEC_VERSION_DRAFT` in
-Python; each SDK has the same constant). A harness over an SDK names
-the draft the same way; the SDKs have no default version.
+The vectors under `conformance/` are the working test set for the next
+specification version. They are carried under `agent-hooks/draft`
+because they exercise behaviour no released version has (`on_error`,
+declaration 1.1, the reserved warnings), so a vector's host declaration
+names `agent-hooks/draft` and the reference harnesses build their
+emitter and context builder with the SDK's draft constant
+(`SPEC_VERSION_DRAFT` in Python; each SDK has one). A harness over an
+SDK names the draft the same way; the SDKs have no default version.
+Running the set is development, not conformance: a claim names a
+released version, and every runner refuses a conformance report that
+names `agent-hooks/draft` ([RUNNER.md](RUNNER.md)).
 
 ## Mock model
 

@@ -16,11 +16,11 @@ for the draft. Each bundle is a specification version of its own with
 its own wire string, agent-hooks/<MAJOR.MINOR> or agent-hooks/draft:
 no file in a bundle carries another bundle's wire string, and every
 `spec` member schema in a bundle's schemas admits the bundle's own
-string, the draft's as a constant. The conformance corpus is the
-draft's: every host declaration a vector offers as valid and every
-golden document and context carries agent-hooks/draft (a vector whose
-document is invalid on purpose, host_declaration_invalid: true, may
-carry any string).
+string, the draft's as a constant. The vectors under conformance/ are
+the working test set for the next version: every host declaration a
+vector offers as valid and every golden document and context carries
+agent-hooks/draft (a vector whose document is invalid on purpose,
+host_declaration_invalid: true, may carry any string).
 
 Every entry under spec/ is a regular file or directory whose name does
 not start with a dot: a symbolic link, a device or pipe, and a hidden
@@ -261,10 +261,11 @@ def check_bundle(root: Path, folder: Path) -> list[str]:
 
 
 def check_conformance(root: Path) -> list[str]:
-    """The conformance corpus is the draft's: every host declaration a
-    vector offers as valid, every golden document and every golden
-    context names the draft wire string. A vector whose document is
-    invalid on purpose (host_declaration_invalid: true) may name any."""
+    """The vectors under conformance/ are the working test set for the
+    next version: every host declaration a vector offers as valid, every
+    golden document and every golden context names the draft wire
+    string. A vector whose document is invalid on purpose
+    (host_declaration_invalid: true) may name any."""
     errors: list[str] = []
     conformance = root / "conformance"
 
@@ -282,8 +283,8 @@ def check_conformance(root: Path) -> list[str]:
     def expect_draft(rel: str, where: str, value: object) -> None:
         if value != DRAFT_WIRE:
             errors.append(
-                f"{rel}: {where} is {value!r}; the conformance corpus is the "
-                f"draft's and carries {DRAFT_WIRE}"
+                f"{rel}: {where} is {value!r}; the vectors are the next "
+                f"version's test set and carry {DRAFT_WIRE}"
             )
 
     vectors = conformance / "vectors"

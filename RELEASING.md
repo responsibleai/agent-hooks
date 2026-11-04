@@ -177,11 +177,12 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    on an ancestor of the tagged commit. So `spec/0.1` must be pushed
    before the next SDK tag; it goes on the commit that merges the 0.1
    folder. That job also validates the conformance vectors against the
-   draft schemas (the vectors are the draft's corpus: the grammar
-   references the draft's schema ids, the documents carry
-   `agent-hooks/draft`, and the vectors use documents 0.1 never
-   defined) and the examples of every bundle against that bundle's own
-   schemas, because a release ships against 0.1 and the draft.
+   draft schemas (the vectors are the working test set for the next
+   version: the grammar references the draft's schema ids, the
+   documents carry `agent-hooks/draft`, and the vectors use documents
+   0.1 never defined) and the examples of every bundle against that
+   bundle's own schemas, because a release ships against 0.1 and the
+   draft.
 2. Run the bench suite and compare against the latency budget in
    [ARCHITECTURE.md](ARCHITECTURE.md#latency-budget). CI does not gate
    on it; this step is the regression check.

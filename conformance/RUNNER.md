@@ -75,6 +75,17 @@ Group the yielded results by each vector's `part` tag
 [`CLAIMS.md`](CLAIMS.md)). Skips must show their reason (a missing
 capability such as `int64_json` is honest surface, not a failure).
 
+Each SDK runner has the grouping as a function that takes the
+specification version the claim names and the results:
+`conformance_report(spec, results)` in Rust and Python,
+`conformanceReport` in TypeScript, `Runner.Report` in .NET, `Report`
+in Go. It returns the parts in name order with their counts and
+totals. It refuses `agent-hooks/draft` with one line: the vectors under
+`conformance/` are the working test set for the next version, carried
+under the draft because they exercise behaviour no released version
+has, so running them is development and the report of such a run is
+not a claim. A claim names a released version.
+
 The `Harness` interface (native, per language) is documented in
 [`HARNESS.md`](HARNESS.md). Each SDK ships this runner under
 `sdk/<lang>/.../ctk/`; the ReferenceHarness in

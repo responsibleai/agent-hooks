@@ -44,6 +44,16 @@ the file whose resolved surface the CTK run used, at the claimed
 commit, and that document carries an explicit `surface`. The claim
 tuple is unchanged; name the file in the Notes column.
 
+A claim names a released specification version. The vectors under
+`conformance/` are the working test set for the next version and run
+under `agent-hooks/draft`, which no claim names; every SDK runner
+refuses a conformance report that does ([RUNNER.md](RUNNER.md)).
+
+The three rows below predate per-version conformance: each ran the kit
+as it stood at the commit it cites, not a test set frozen with a
+specification version. Per-version test sets and claim digests are
+[#184](https://github.com/responsibleai/agent-hooks/issues/184).
+
 | Framework | Adapter version | Spec | Capabilities | Profiles | Identity provider | SDK | Report | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | reference-agent | 0.1.0 | agent-hooks/0.1 | model_calls, tool_calls, int64_json (not typescript), host_declaration | all four (§7.2), all knobs | jcs-sha256 (+ null, vector-scoped) | python, typescript, dotnet, go, rust | (CI: CTK self-test, all parts) | In-tree reference |

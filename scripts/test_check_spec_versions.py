@@ -5,7 +5,7 @@
 
 Each case builds a minimal repository tree in a temporary directory: a
 released 0.1 bundle in the flat schema layout, a draft in the generated
-layout, a conformance corpus and a docs folder for the reference scan.
+layout, a conformance tree and a docs folder for the reference scan.
 """
 
 import importlib.util
@@ -78,7 +78,7 @@ def bundle(root: Path, name: str, layout: str) -> Path:
 
 
 def conformance(root: Path) -> None:
-    """A conformance corpus: one valid vector document, one invalid on
+    """A conformance tree: one valid vector document, one invalid on
     purpose, and the two golden files that carry documents and contexts."""
     (root / "conformance/vectors").mkdir(parents=True)
     (root / "conformance/golden").mkdir()
@@ -405,12 +405,12 @@ class CheckTest(unittest.TestCase):
             errors,
             [
                 "conformance/vectors/AH-CTK-001.json: host_declaration.spec is "
-                "'agent-hooks/0.1'; the conformance corpus is the draft's and carries "
+                "'agent-hooks/0.1'; the vectors are the next version's test set and carry "
                 "agent-hooks/draft",
                 "conformance/golden/declaration.json: fixtures[0].document.spec is "
-                "None; the conformance corpus is the draft's and carries agent-hooks/draft",
+                "None; the vectors are the next version's test set and carry agent-hooks/draft",
                 "conformance/golden/identity.json: fixtures[0].ctx.spec is "
-                "'agent-hooks/0.1'; the conformance corpus is the draft's and carries "
+                "'agent-hooks/0.1'; the vectors are the next version's test set and carry "
                 "agent-hooks/draft",
             ],
         )

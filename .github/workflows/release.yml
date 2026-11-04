@@ -95,11 +95,13 @@ jobs:
         run: python3 scripts/check-version-consistency.py --require-spec-tags
       - name: Specification folders are complete and references current
         run: python3 scripts/check-spec-versions.py
-      - name: Conformance vectors validate against the draft
-        # The vectors are the draft's corpus: the grammar references the
-        # draft's schema ids, the documents carry agent-hooks/draft, and
-        # the vectors use documents 0.1 never defined. So this gate reads
-        # spec/draft and no released bundle.
+      - name: Conformance vectors validate against the draft schemas
+        # The vectors under conformance/ are the working test set for the
+        # next version, carried under agent-hooks/draft because they
+        # exercise behaviour no released version has: the grammar
+        # references the draft's schema ids and the documents carry that
+        # string. So this gate reads spec/draft and no released bundle.
+        # No claim names the draft; a claim names a released version.
         run: |
           set -e
           root=spec/draft/schema/generated
