@@ -852,7 +852,6 @@ module.exports.declarationVersions = nativeBinding.declarationVersions
 module.exports.finalize = nativeBinding.finalize
 module.exports.managedOutcome = nativeBinding.managedOutcome
 module.exports.normalizeInterceptorResponse = nativeBinding.normalizeInterceptorResponse
-module.exports.specVersion = nativeBinding.specVersion
 module.exports.validateEnvelope = nativeBinding.validateEnvelope
 module.exports.validateTransformCtx = nativeBinding.validateTransformCtx
 module.exports.validateVerdict = nativeBinding.validateVerdict

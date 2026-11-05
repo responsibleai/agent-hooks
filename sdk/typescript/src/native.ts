@@ -12,19 +12,18 @@
 // package.json scripts.build:native --js binding.js).
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const binding = require("../binding.js") as {
-  specVersion(): string;
   canonicalJson(valueJson: string): string;
   contextIdentity(ctxJson: string): string;
-  validateVerdict(verdictJson: string): string;
-  normalizeInterceptorResponse(responseJson: string): string;
+  validateVerdict(spec: string, verdictJson: string): string;
+  normalizeInterceptorResponse(spec: string, responseJson: string): string;
   validateEnvelope(ctxJson: string): string;
   applyTransform(targetJson: string, path: string, valueJson: string): string;
   applyTransformCtx(ctxJson: string, path: string, valueJson: string): string;
   validateTransformCtx(ctxJson: string, path: string, valueJson: string): string;
   finalize(ctxJson: string, verdictJson: string, mode: string, optionsJson: string): string;
-  composeAggregate(compositionJson: string, verdictsJson: string): string;
+  composeAggregate(spec: string, compositionJson: string, verdictsJson: string): string;
   controlFailureSubstitute(requestJson: string): string;
-  managedOutcome(outcomeJson: string): string;
+  managedOutcome(spec: string, outcomeJson: string): string;
   ctkScriptedIntercept(rulesJson: string, ctxJson: string): string;
   ctkScriptedResolve(rulesJson: string, ctxJson: string, identity: string): string;
   ctkShouldSkip(vectorJson: string, capsJson: string): string;
@@ -63,7 +62,6 @@ function wrap<A extends unknown[], R>(fn: (...a: A) => R): (...a: A) => R {
 }
 
 export const native = {
-  specVersion: binding.specVersion,
   canonicalJson: wrap(binding.canonicalJson),
   contextIdentity: wrap(binding.contextIdentity),
   validateVerdict: wrap(binding.validateVerdict),

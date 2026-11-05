@@ -1,5 +1,5 @@
 {
-  "spec": "agent-hooks/0.1",
+  "spec": "agent-hooks/draft",
   "interception_point": "post_model_call",
   "timestamp": "2026-10-30T16:00:03Z",
   "sequence": 3,
@@ -9,20 +9,6 @@
   },
   "session": {
     "id": "policy-search-001"
-  },
-  "target": {
-    "content": "",
-    "tool_calls": [
-      {
-        "id": "search-001",
-        "name": "search_documents",
-        "args": {
-          "query": "document retention policy",
-          "collection": "internal"
-        }
-      }
-    ],
-    "finish_reason": "tool_calls"
   },
   "model": {
     "id": "example-model",

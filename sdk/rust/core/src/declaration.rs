@@ -7,7 +7,7 @@
 //! (§7.1, §8, §10.1, §13.1), its declared surface (§13.1) and its
 //! interceptor bindings. The document is a versioned contract of its
 //! own (`agent-hooks-declaration/<major>.<minor>`, §7.7.2), separate
-//! from the wire version [`SPEC_VERSION`] and from the package
+//! from the wire version ([`SpecVersion`]) and from the package
 //! version.
 //!
 //! Loading is a pipeline (§7.7.6). Every step runs only when the one
@@ -31,7 +31,7 @@
 //! Refusals are construction errors ([`DeclarationError`]), never
 //! verdicts: no emitter exists yet, so there is no record to carry a
 //! §11 reason. The eleven classes are inventoried in
-//! `spec/0.1.0/declaration-errors.json`.
+//! `declaration-errors.json` of each specification bundle.
 //!
 //! Nothing in the pipeline drops, clears or defaults a member the
 //! document stated. Defaults fill absent members only, and a document
@@ -43,8 +43,8 @@ use crate::composition::{
 };
 use crate::types::{
     validate_provider_name, AgentContext, ApprovalResolver, ControlFailureNotifier,
-    EnforcementMode, InterceptionPoint, Interceptor, ManagedInterceptor, OnError,
-    DECLARATION_VERSION, JCS_SHA256, SPEC_VERSION, SUPPORTED_DECLARATION_VERSIONS,
+    EnforcementMode, InterceptionPoint, Interceptor, ManagedInterceptor, OnError, SpecVersion,
+    JCS_SHA256, SUPPORTED_DECLARATION_VERSIONS,
 };
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
@@ -650,6 +650,12 @@ impl HostSurface {
                     detail: "host surface names incremental_output but cannot declare buffered_output: false".into(),
                 });
             }
+            if !model_points {
+                findings.push(Finding {
+                    pointer: "/surface/capabilities".into(),
+                    detail: "host surface names incremental_output without both model points; it is mediated at post_model_call (see spec §7.7.4)".into(),
+                });
+            }
             match &self.exposure_bound {
                 None => findings.push(Finding {
                     pointer: "/surface/exposure_bound".into(),
@@ -1139,9 +1145,10 @@ impl HostDeclaration {
         Self::from_json(&text)
     }
 
-    /// A builder for the code path.
-    pub fn builder() -> DeclarationBuilder {
-        DeclarationBuilder::default()
+    /// A builder for the code path, for a document written for the
+    /// specification version `spec` (§7.7.2).
+    pub fn builder(spec: SpecVersion) -> DeclarationBuilder {
+        DeclarationBuilder::new(spec)
     }
 
     /// The document's own `declaration` value.
@@ -1290,46 +1297,76 @@ fn parse_checked(text: &str) -> Result<Value, DeclarationError> {
 
 // ---- step 3 and 4: versions ---------------------------------------------------
 
-fn check_version(doc: &Map<String, Value>) -> Result<(), DeclarationError> {
-    match doc.get("declaration") {
-        None => Err(DeclarationError::version("declaration is missing")),
-        Some(Value::String(v)) if SUPPORTED_DECLARATION_VERSIONS.contains(&v.as_str()) => Ok(()),
-        Some(Value::String(v)) => Err(DeclarationError::version(format!(
-            "declaration {v:?} is not accepted by this loader"
-        ))),
-        Some(_) => Err(DeclarationError::version("declaration is not a string")),
+/// The specification version a document is written for (§7.7.2): its
+/// `spec` member. `None` when the member is absent, not a string or
+/// names no supported version; step 4 refuses that document. There is
+/// no default: a loader that supports several versions cannot guess.
+fn document_spec(doc: &Map<String, Value>) -> Option<SpecVersion> {
+    match doc.get("spec") {
+        Some(Value::String(s)) => SpecVersion::from_wire(s),
+        _ => None,
     }
 }
 
-/// Parse `agent-hooks/<major>.<minor>`.
-fn parse_spec(s: &str) -> Option<(u64, u64)> {
-    let rest = s.strip_prefix("agent-hooks/")?;
-    let (maj, min) = rest.split_once('.')?;
-    let ok = |p: &str| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()) && p.len() <= 9;
-    if !ok(maj) || !ok(min) {
-        return None;
+/// The contract versions a document may carry: the set its
+/// specification version defines, or every supported one while the
+/// `spec` member is still unchecked (step 4 then refuses it).
+fn accepted_declaration_versions(doc: &Map<String, Value>) -> &'static [&'static str] {
+    document_spec(doc).map_or(SUPPORTED_DECLARATION_VERSIONS, |s| s.declaration_versions())
+}
+
+fn check_version(doc: &Map<String, Value>) -> Result<(), DeclarationError> {
+    let accepted = accepted_declaration_versions(doc);
+    let refuse = |detail: String| {
+        DeclarationError::version_accepted(
+            detail,
+            accepted.iter().map(|s| (*s).to_owned()).collect(),
+        )
+    };
+    match doc.get("declaration") {
+        None => Err(refuse("declaration is missing".into())),
+        Some(Value::String(v)) if accepted.contains(&v.as_str()) => Ok(()),
+        Some(Value::String(v)) => {
+            // Name the version that does define the contract, when one
+            // does: a 1.1 document under 0.1 is the common case.
+            let defined_by = SpecVersion::ALL
+                .iter()
+                .find(|s| s.accepts_declaration(v))
+                .map(|s| format!("; {} accepts it", s.wire()))
+                .unwrap_or_default();
+            let under = document_spec(doc)
+                .map_or_else(|| "the document's spec".to_owned(), |s| s.wire().to_owned());
+            Err(refuse(format!(
+                "declaration {v:?} is not accepted under {under}{defined_by}"
+            )))
+        }
+        Some(_) => Err(refuse("declaration is not a string".into())),
     }
-    Some((maj.parse().ok()?, min.parse().ok()?))
 }
 
 fn check_spec(doc: &Map<String, Value>) -> Result<(), DeclarationError> {
-    let Some(spec) = doc.get("spec") else {
-        return Ok(());
-    };
     let unsupported =
         |d: String| DeclarationError::new(DeclarationErrorClass::SpecUnsupported, "/spec", d);
+    let supported = || {
+        SpecVersion::ALL
+            .iter()
+            .map(|v| v.wire())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let Some(spec) = doc.get("spec") else {
+        return Err(unsupported(format!(
+            "spec is missing; a document names the specification version it is written for ({})",
+            supported()
+        )));
+    };
     let Some(s) = spec.as_str() else {
         return Err(unsupported("spec is not a string".into()));
     };
-    let Some((maj, min)) = parse_spec(s) else {
+    if SpecVersion::from_wire(s).is_none() {
         return Err(unsupported(format!(
-            "spec {s:?} is not of the form agent-hooks/<major>.<minor>"
-        )));
-    };
-    let (lmaj, lmin) = parse_spec(SPEC_VERSION).expect("SPEC_VERSION is well-formed");
-    if maj != lmaj || min > lmin {
-        return Err(unsupported(format!(
-            "spec {s:?} is not supported by this loader (it implements {SPEC_VERSION})"
+            "spec {s:?} is not a version this loader supports ({})",
+            supported()
         )));
     }
     Ok(())
@@ -2387,6 +2424,28 @@ fn check_consistency(
                 "incremental_output requires buffered_output: false (see spec §12.1)".into(),
             );
         }
+        // Incremental mediation happens at post_model_call, so the
+        // capability needs the model points, which with the pair rule
+        // means model_calls. When both points are stated the pair rule
+        // above has already reported the missing model_calls. The
+        // draft states this rule (§7.7.4); 0.1 does not, so a 0.1
+        // document is held to the pair rule only.
+        let states_model_calls_rule = document_spec(doc).is_some_and(|s| s.has_failure_posture());
+        if states_model_calls_rule
+            && caps.contains("incremental_output")
+            && !caps.contains("model_calls")
+        {
+            let pair_reported = points.as_ref().is_some_and(|p| {
+                p.contains(&InterceptionPoint::PreModelCall)
+                    && p.contains(&InterceptionPoint::PostModelCall)
+            });
+            if !pair_reported {
+                bad(
+                    "/surface/capabilities",
+                    "incremental_output requires model_calls: it is mediated at post_model_call (see spec §7.7.4)".into(),
+                );
+            }
+        }
     }
 
     // Knobs only under the profile that consults them; the configured
@@ -2795,7 +2854,7 @@ fn fill(doc: &Map<String, Value>, code: &HostSurface) -> ResolvedDeclaration {
         .collect();
     ResolvedDeclaration {
         declaration: get_str(doc, "declaration").unwrap_or_default().to_owned(),
-        spec: get_str(doc, "spec").unwrap_or(SPEC_VERSION).to_owned(),
+        spec: get_str(doc, "spec").unwrap_or_default().to_owned(),
         id: get_str(doc, "id").map(str::to_owned),
         host: get_obj(doc, "host").map(|h| HostInfo {
             name: get_str(h, "name").unwrap_or_default().to_owned(),
@@ -2881,7 +2940,7 @@ pub fn resolve(
 }
 
 /// Bring a document from an older accepted minor to `to` (§7.7.2),
-/// one explicit step per version (`spec/0.1.0/DECLARATION-VERSIONS.md`).
+/// one explicit step per version (`spec/draft/DECLARATION-VERSIONS.md`).
 ///
 /// - 1.0 to 1.1: the `declaration` member changes; nothing else. The
 ///   members 1.1 adds (`configuration.failure.on_error`,
@@ -2914,10 +2973,17 @@ pub fn migrate(doc: Value, to: &str) -> Result<Value, DeclarationError> {
             "no migration step from {from:?} to {to:?}"
         )));
     }
-    // Within major 1 every step so far is the version member alone.
+    // Within major 1 every step so far is the version member alone,
+    // plus the `spec` member when the target contract version exists
+    // only in a newer specification version (1.1 is the draft's).
     let mut doc = doc;
     if let Some(obj) = doc.as_object_mut() {
         obj.insert("declaration".into(), Value::String(to.to_owned()));
+        if !document_spec(obj).is_some_and(|s| s.accepts_declaration(to)) {
+            if let Some(defines) = SpecVersion::ALL.iter().find(|s| s.accepts_declaration(to)) {
+                obj.insert("spec".into(), Value::String(defines.wire().to_owned()));
+            }
+        }
     }
     Ok(doc)
 }
@@ -2944,26 +3010,50 @@ pub struct BindingOptions {
 #[derive(Debug, Clone)]
 pub struct DeclarationBuilder {
     doc: Map<String, Value>,
-}
-
-impl Default for DeclarationBuilder {
-    fn default() -> Self {
-        let mut doc = Map::new();
-        doc.insert(
-            "declaration".into(),
-            Value::String(DECLARATION_VERSION.into()),
-        );
-        doc.insert("bindings".into(), Value::Array(Vec::new()));
-        Self { doc }
-    }
+    /// Whether an absent `declaration` is filled at build time with the
+    /// newest contract version the document's specification version
+    /// defines (§7.7.2): 1.0 under 0.1, 1.1 under the draft.
+    defaults: bool,
 }
 
 impl DeclarationBuilder {
-    /// A builder with no member set at all, not even `declaration` or
-    /// `bindings`. For harnesses that must express an incomplete
-    /// document; a host wants [`Default`].
+    /// A builder for a document written for `spec`: `spec` set to its
+    /// wire string, `bindings` empty, and `declaration` filled at build
+    /// time with the newest contract version that specification
+    /// version defines unless [`Self::version`] names one.
+    pub fn new(spec: SpecVersion) -> Self {
+        let mut doc = Map::new();
+        doc.insert("spec".into(), Value::String(spec.wire().into()));
+        doc.insert("bindings".into(), Value::Array(Vec::new()));
+        Self {
+            doc,
+            defaults: true,
+        }
+    }
+
+    /// A builder with no member set at all, not even `spec`,
+    /// `declaration` or `bindings`. For harnesses that must express an
+    /// incomplete document; a host wants [`Self::new`].
     pub fn empty() -> Self {
-        Self { doc: Map::new() }
+        Self {
+            doc: Map::new(),
+            defaults: false,
+        }
+    }
+
+    /// The document with the build-time default applied: when the
+    /// builder was not created empty, `declaration` is unset and `spec`
+    /// names a supported version, the newest contract version of that
+    /// specification version.
+    fn finished(&self) -> Map<String, Value> {
+        let mut doc = self.doc.clone();
+        if self.defaults && !doc.contains_key("declaration") {
+            if let Some(spec) = document_spec(&doc) {
+                let current = spec.current_declaration_version();
+                doc.insert("declaration".into(), Value::String(current.into()));
+            }
+        }
+        doc
     }
 
     fn configuration(&mut self) -> &mut Map<String, Value> {
@@ -2990,13 +3080,20 @@ impl DeclarationBuilder {
             .expect("surface is an object")
     }
 
-    /// `declaration` (defaults to [`DECLARATION_VERSION`]).
+    /// `declaration`. Unset, a builder made by [`HostDeclaration::builder`]
+    /// writes the newest contract version its `spec` defines
+    /// ([`SpecVersion::current_declaration_version`]): 1.0 under 0.1,
+    /// 1.1 under the draft.
     pub fn version(mut self, v: &str) -> Self {
         self.doc
             .insert("declaration".into(), Value::String(v.into()));
         self
     }
 
+    /// `spec`, the specification version the document is written for
+    /// (§7.7.2); [`Self::new`] sets it. A document without it is
+    /// refused: a host that uses the draft's members (`on_error`,
+    /// contract 1.1) names [`crate::SPEC_VERSION_DRAFT`].
     pub fn spec(mut self, v: &str) -> Self {
         self.doc.insert("spec".into(), Value::String(v.into()));
         self
@@ -3240,19 +3337,27 @@ impl DeclarationBuilder {
 
     /// The document as built, before validation.
     pub fn to_value(&self) -> Value {
-        Value::Object(self.doc.clone())
+        Value::Object(self.finished())
     }
 
     /// Validate (steps 2 to 7) through [`HostDeclaration::from_value`].
     pub fn build(self) -> Result<HostDeclaration, DeclarationError> {
-        HostDeclaration::from_value(Value::Object(self.doc))
+        HostDeclaration::from_value(Value::Object(self.finished()))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::DECLARATION_VERSION;
     use serde_json::json;
+
+    /// Absolute path of a supported specification bundle.
+    fn bundle_path(spec: SpecVersion) -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../..")
+            .join(spec.bundle_dir())
+    }
 
     fn surface() -> HostSurface {
         let mut s = HostSurface::sdk_default()
@@ -3280,9 +3385,11 @@ mod tests {
         }
     }
 
+    /// A 1.1 document, which only the draft defines, so it says so.
     fn minimal() -> Value {
         json!({
             "declaration": DECLARATION_VERSION,
+            "spec": crate::SPEC_VERSION_DRAFT,
             "bindings": [{ "id": "allow", "kind": "com.example.allow" }]
         })
     }
@@ -3291,6 +3398,7 @@ mod tests {
     fn minimal_1_0() -> Value {
         json!({
             "declaration": "agent-hooks-declaration/1.0",
+            "spec": crate::SPEC_VERSION_0_1,
             "bindings": [{ "id": "allow", "kind": "com.example.allow" }]
         })
     }
@@ -3312,7 +3420,7 @@ mod tests {
     fn minimal_document_resolves_to_spec_defaults() {
         let r = load(minimal()).unwrap();
         assert_eq!(r.declaration, DECLARATION_VERSION);
-        assert_eq!(r.spec, SPEC_VERSION);
+        assert_eq!(r.spec, crate::SPEC_VERSION_DRAFT);
         assert_eq!(r.configuration.mode, EnforcementMode::Enforce);
         assert_eq!(r.configuration.composition, CompositionConfig::default());
         assert_eq!(r.identity_provider(), Some(JCS_SHA256));
@@ -3345,7 +3453,20 @@ mod tests {
         assert_eq!(c, DeclarationErrorClass::VersionUnsupported);
         let (c, _) = class_of(json!({"declaration": 1, "bindings": []}));
         assert_eq!(c, DeclarationErrorClass::VersionUnsupported);
-        let e = load(json!({"declaration": "x", "bindings": []})).unwrap_err();
+        // The accepted set is the document's specification version's:
+        // 0.1 (the default) defines 1.0; the draft defines both.
+        let e = load(json!({
+            "declaration": "x", "spec": crate::SPEC_VERSION_0_1, "bindings": []
+        }))
+        .unwrap_err();
+        assert_eq!(e.accepted, vec![crate::DECLARATION_1_0.to_owned()]);
+        assert!(e.findings[0]
+            .detail
+            .contains("accepted: agent-hooks-declaration/1.0"));
+        let e = load(json!({
+            "declaration": "x", "spec": crate::SPEC_VERSION_DRAFT, "bindings": []
+        }))
+        .unwrap_err();
         assert_eq!(
             e.accepted,
             SUPPORTED_DECLARATION_VERSIONS
@@ -3356,6 +3477,127 @@ mod tests {
         assert!(e.findings[0]
             .detail
             .contains("accepted: agent-hooks-declaration/1.0, agent-hooks-declaration/1.1"));
+    }
+
+    #[test]
+    fn contract_version_follows_the_document_spec() {
+        // §7.7.2: a 1.1 document is a draft document. Under 0.1 it is
+        // refused as version_unsupported with the version that does
+        // accept it named; a 1.0 document loads under both. A document
+        // without `spec` names no version and is refused at step 4.
+        let mut v = minimal();
+        v["spec"] = json!(crate::SPEC_VERSION_0_1);
+        let e = load(v.clone()).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::VersionUnsupported);
+        assert_eq!(e.accepted, vec![crate::DECLARATION_1_0.to_owned()]);
+        assert!(
+            e.findings[0].detail.contains("under agent-hooks/0.1")
+                && e.findings[0]
+                    .detail
+                    .contains("agent-hooks/draft accepts it"),
+            "{}",
+            e.findings[0].detail
+        );
+        v.as_object_mut().unwrap().remove("spec");
+        let e = load(v).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::SpecUnsupported);
+        assert_eq!(e.findings[0].pointer, "/spec");
+        assert!(
+            e.findings[0].detail.contains("spec is missing")
+                && e.findings[0]
+                    .detail
+                    .contains("agent-hooks/0.1, agent-hooks/draft"),
+            "{}",
+            e.findings[0].detail
+        );
+        let mut v = minimal_1_0();
+        assert_eq!(load(v.clone()).unwrap().spec, crate::SPEC_VERSION_0_1);
+        v["spec"] = json!(crate::SPEC_VERSION_DRAFT);
+        let r = load(v).unwrap();
+        assert_eq!(r.spec, crate::SPEC_VERSION_DRAFT);
+        assert_eq!(r.declaration, crate::DECLARATION_1_0);
+        // The version check runs before the spec check: an unknown spec
+        // with a known contract version is a spec refusal, and with an
+        // unknown contract version the version refusal lists every
+        // supported contract version.
+        let mut v = minimal_1_0();
+        v["spec"] = json!("agent-hooks/9.0");
+        assert_eq!(class_of(v).0, DeclarationErrorClass::SpecUnsupported);
+        let mut v = minimal();
+        v["spec"] = json!("agent-hooks/9.0");
+        assert_eq!(class_of(v).0, DeclarationErrorClass::SpecUnsupported);
+        let e = load(json!({"declaration": "x", "spec": "agent-hooks/9.0", "bindings": []}))
+            .unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::VersionUnsupported);
+        assert_eq!(e.accepted.len(), SUPPORTED_DECLARATION_VERSIONS.len());
+    }
+
+    #[test]
+    fn builder_defaults_the_contract_version_by_spec() {
+        // The code path names its specification version up front and
+        // writes the newest contract version that version defines, so
+        // a builder with no version set always builds a loadable
+        // document.
+        let built = HostDeclaration::builder(SpecVersion::V0_1).build().unwrap();
+        assert_eq!(built.version(), crate::DECLARATION_1_0);
+        assert_eq!(built.as_value()["spec"], json!(crate::SPEC_VERSION_0_1));
+        let r = resolve(&built, &surface(), &names()).unwrap();
+        assert_eq!(r.spec, crate::SPEC_VERSION_0_1);
+        let built = HostDeclaration::builder(SpecVersion::Draft)
+            .build()
+            .unwrap();
+        assert_eq!(built.version(), DECLARATION_VERSION);
+        assert_eq!(built.as_value()["spec"], json!(crate::SPEC_VERSION_DRAFT));
+        assert_eq!(
+            HostDeclaration::builder(SpecVersion::V0_1).to_value()["declaration"],
+            json!(crate::DECLARATION_1_0)
+        );
+        // An explicit version wins, and is checked like a file's: 1.1
+        // under 0.1 is refused.
+        let e = HostDeclaration::builder(SpecVersion::V0_1)
+            .version(DECLARATION_VERSION)
+            .build()
+            .unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::VersionUnsupported);
+        // A 1.1 member under 0.1 is an unknown member of 1.0.
+        let e = HostDeclaration::builder(SpecVersion::V0_1)
+            .failure_on_error(OnError::Continue)
+            .build()
+            .unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::UnknownField);
+        assert!(HostDeclaration::builder(SpecVersion::Draft)
+            .failure_on_error(OnError::Continue)
+            .build()
+            .is_ok());
+        // `empty()` fills nothing, and a document it builds without
+        // `spec` is refused like a file would be.
+        let empty = DeclarationBuilder::empty().to_value();
+        assert!(empty.get("declaration").is_none() && empty.get("spec").is_none());
+        let e = DeclarationBuilder::empty()
+            .version(crate::DECLARATION_1_0)
+            .build()
+            .unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::SpecUnsupported);
+    }
+
+    #[test]
+    fn the_model_calls_rule_is_the_drafts() {
+        // §7.7.4 of the draft requires model_calls beside
+        // incremental_output; 0.1 states the pair rule only, so the same
+        // document loads as a 0.1 document and is refused as a draft one.
+        let surface_block = json!({
+            "interception_points": ["agent_startup", "input", "output", "agent_shutdown"],
+            "capabilities": ["incremental_output", "host_declaration"],
+            "buffered_output": false,
+            "exposure_bound": "one chunk"
+        });
+        let mut v = minimal_1_0();
+        v["surface"] = surface_block.clone();
+        assert!(HostDeclaration::from_value(v.clone()).is_ok());
+        v["spec"] = json!(crate::SPEC_VERSION_DRAFT);
+        let e = HostDeclaration::from_value(v).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::Inconsistent);
+        assert!(e.findings[0].detail.contains("requires model_calls"));
     }
 
     #[test]
@@ -3459,18 +3701,39 @@ mod tests {
 
     #[test]
     fn spec_unsupported() {
-        let mut v = minimal();
-        v["spec"] = json!("agent-hooks/9.0");
-        let (c, p) = class_of(v.clone());
-        assert_eq!(c, DeclarationErrorClass::SpecUnsupported);
-        assert_eq!(p, ["/spec"]);
-        v["spec"] = json!("agent-hooks/0.0");
-        assert!(
-            load(v.clone()).is_ok(),
-            "lower minor of the same major is accepted"
+        // Step 4 accepts the supported versions and nothing else: no
+        // other major, no other minor (there is no 0.0 specification),
+        // no misspelling of the draft, and no document without one.
+        let mut v = minimal_1_0();
+        for bad in [
+            "agent-hooks/9.0",
+            "agent-hooks/0.0",
+            "agent-hooks/0.2",
+            "agent-hooks/DRAFT",
+            "draft",
+        ] {
+            v["spec"] = json!(bad);
+            let (c, p) = class_of(v.clone());
+            assert_eq!(c, DeclarationErrorClass::SpecUnsupported, "{bad}");
+            assert_eq!(p, ["/spec"]);
+        }
+        v["spec"] = json!(1);
+        assert_eq!(
+            class_of(v.clone()).0,
+            DeclarationErrorClass::SpecUnsupported
         );
-        v["spec"] = json!("agent-hooks/0.1");
-        assert!(load(v).is_ok());
+        v.as_object_mut().unwrap().remove("spec");
+        assert_eq!(
+            class_of(v.clone()),
+            (
+                DeclarationErrorClass::SpecUnsupported,
+                vec!["/spec".to_owned()]
+            )
+        );
+        for spec in SpecVersion::ALL {
+            v["spec"] = json!(spec.wire());
+            assert_eq!(load(v.clone()).unwrap().spec, spec.wire());
+        }
     }
 
     #[test]
@@ -3548,7 +3811,9 @@ mod tests {
         let (c, p) = class_of(v);
         assert_eq!(c, DeclarationErrorClass::InvalidField);
         assert_eq!(p, ["/host/name"]);
-        let (c, _) = class_of(json!({"declaration": "agent-hooks-declaration/1.0"}));
+        let (c, _) = class_of(json!({
+            "declaration": "agent-hooks-declaration/1.0", "spec": crate::SPEC_VERSION_0_1
+        }));
         assert_eq!(c, DeclarationErrorClass::InvalidField);
     }
 
@@ -3588,7 +3853,7 @@ mod tests {
         // Float syntax is a double, never an integer token (the syntax
         // rule of `canonical::scan_raw_integer_domain`): it passes step
         // 6 and canonicalises the way RFC 8785 formats doubles.
-        let text = r#"{"declaration":"agent-hooks-declaration/1.0","bindings":[{"id":"allow","kind":"com.example.allow","config":{"d":9007199254740993.0,"e":1.8446744073709552e19,"n":-1E2}}]}"#;
+        let text = r#"{"declaration":"agent-hooks-declaration/1.0","spec":"agent-hooks/0.1","bindings":[{"id":"allow","kind":"com.example.allow","config":{"d":9007199254740993.0,"e":1.8446744073709552e19,"n":-1E2}}]}"#;
         let d = HostDeclaration::from_json(text).unwrap();
         let c = resolve(&d, &surface(), &names()).unwrap().canonical_json();
         assert!(
@@ -3621,7 +3886,7 @@ mod tests {
         // double, found next to a string that mimics a number and
         // under a key with a JSON escape. The detail never echoes the
         // token.
-        let text = r#"{"declaration":"agent-hooks-declaration/1.0","bindings":[{"id":"allow","kind":"com.example.allow","config":{"s":"9007199254740992 \" {[","k\u00e9y":18446744073709551616,"ok":true}}]}"#;
+        let text = r#"{"declaration":"agent-hooks-declaration/1.0","spec":"agent-hooks/0.1","bindings":[{"id":"allow","kind":"com.example.allow","config":{"s":"9007199254740992 \" {[","k\u00e9y":18446744073709551616,"ok":true}}]}"#;
         let e = HostDeclaration::from_json(text).unwrap_err();
         assert_eq!(e.class, DeclarationErrorClass::InvalidField);
         let pointers: Vec<&str> = e.findings.iter().map(|f| f.pointer.as_str()).collect();
@@ -3634,7 +3899,7 @@ mod tests {
         let (_, p) = class_of(v);
         assert_eq!(p, ["/configuration/records/max_buffered"]);
         let e = HostDeclaration::from_json(
-            r#"{"declaration":"agent-hooks-declaration/1.0","configuration":{"timeouts":{"interceptor_ms":18446744073709551616}},"bindings":[]}"#,
+            r#"{"declaration":"agent-hooks-declaration/1.0","spec":"agent-hooks/0.1","configuration":{"timeouts":{"interceptor_ms":18446744073709551616}},"bindings":[]}"#,
         )
         .unwrap_err();
         assert_eq!(e.class, DeclarationErrorClass::InvalidField);
@@ -3730,6 +3995,114 @@ mod tests {
         let mut v = minimal();
         v["surface"] = json!({"interception_points": ["agent_startup", "input", "output", "agent_shutdown"], "capabilities": ["host_declaration"]});
         assert!(load(v).is_ok());
+    }
+
+    #[test]
+    fn incremental_output_requires_model_calls() {
+        // §7.7.4: incremental mediation happens at post_model_call, so a
+        // surface naming incremental_output also lists model_calls, and
+        // with it both model points.
+        let mut v = minimal();
+        v["surface"] = json!({
+            "interception_points": ["agent_startup", "input", "output", "agent_shutdown"],
+            "capabilities": ["incremental_output", "host_declaration"],
+            "buffered_output": false,
+            "exposure_bound": "one chunk"
+        });
+        let e = HostDeclaration::from_value(v).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::Inconsistent);
+        assert_eq!(e.findings.len(), 1, "{e}");
+        assert_eq!(e.findings[0].pointer, "/surface/capabilities");
+        assert!(
+            e.findings[0].detail.contains("requires model_calls"),
+            "{}",
+            e.findings[0].detail
+        );
+        // With the model points and model_calls the same document loads
+        // on a host that mediates incrementally.
+        let mut v = minimal();
+        v["surface"] = json!({
+            "interception_points": [
+                "agent_startup", "input", "pre_model_call", "post_model_call",
+                "output", "agent_shutdown"
+            ],
+            "capabilities": ["model_calls", "incremental_output", "host_declaration"],
+            "buffered_output": false,
+            "exposure_bound": "one chunk"
+        });
+        let d = HostDeclaration::from_value(v).unwrap();
+        let r = resolve(&d, &incremental_surface(), &names()).unwrap();
+        assert!(!r.surface.buffered_output);
+        // Both model points stated but no model_calls: the pair rule
+        // reports it once; this rule stays quiet.
+        let mut v = minimal();
+        v["surface"] = json!({
+            "interception_points": [
+                "agent_startup", "input", "pre_model_call", "post_model_call",
+                "output", "agent_shutdown"
+            ],
+            "capabilities": ["incremental_output", "host_declaration"],
+            "buffered_output": false,
+            "exposure_bound": "one chunk"
+        });
+        let e = HostDeclaration::from_value(v).unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::Inconsistent);
+        assert_eq!(e.findings.len(), 1, "{e}");
+        assert!(
+            e.findings[0].detail.contains("model_calls is listed iff"),
+            "{}",
+            e.findings[0].detail
+        );
+    }
+
+    #[test]
+    fn host_declaration_examples_of_every_bundle_load() {
+        // Every standalone host declaration example of each supported
+        // bundle passes the document checks (steps 2 to 7) and names its
+        // own bundle's version in `spec`, so the examples and the loader
+        // rules cannot drift apart. 0.1 defines contract 1.0 only.
+        for spec in SpecVersion::ALL {
+            let examples = bundle_path(*spec).join("schema/examples");
+            let folders: &[&str] = if spec.accepts_declaration(DECLARATION_VERSION) {
+                &["HostDeclaration10", "HostDeclaration11"]
+            } else {
+                &["HostDeclaration10"]
+            };
+            assert!(
+                !examples.join("HostDeclaration11").exists()
+                    || spec.accepts_declaration(DECLARATION_VERSION),
+                "{} holds 1.1 examples but defines no 1.1",
+                examples.display()
+            );
+            let mut seen = 0;
+            for folder in folders {
+                let dir = examples.join(folder);
+                let mut entries: Vec<_> = std::fs::read_dir(&dir)
+                    .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+                    .map(|e| e.unwrap().path())
+                    .filter(|p| p.extension().is_some_and(|x| x == "json"))
+                    .collect();
+                entries.sort();
+                for path in entries {
+                    let text = std::fs::read_to_string(&path).unwrap();
+                    let value: Value = serde_json::from_str(&text).unwrap();
+                    assert_eq!(
+                        value.get("spec").and_then(Value::as_str),
+                        Some(spec.wire()),
+                        "{} does not name its bundle's version",
+                        path.display()
+                    );
+                    HostDeclaration::from_value(value)
+                        .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+                    seen += 1;
+                }
+            }
+            assert!(
+                seen >= 1,
+                "no host declaration examples found under {}",
+                examples.display()
+            );
+        }
     }
 
     #[test]
@@ -3978,7 +4351,7 @@ mod tests {
 
     #[test]
     fn builder_equals_json() {
-        let built = HostDeclaration::builder()
+        let built = HostDeclaration::builder(SpecVersion::V0_1)
             .mode(EnforcementMode::EvaluateOnly)
             .composition(CompositionConfig::strictest(SynthesisPolicy::Approval))
             .identity_provider(None)
@@ -3996,7 +4369,8 @@ mod tests {
             .build()
             .unwrap();
         let text = r#"{
-            "declaration": "agent-hooks-declaration/1.1",
+            "declaration": "agent-hooks-declaration/1.0",
+            "spec": "agent-hooks/0.1",
             "configuration": {
                 "mode": "evaluate_only",
                 "composition": {"profile": "parallel/strictest", "on_transform_conflict": "approval"},
@@ -4025,7 +4399,7 @@ mod tests {
 
     #[test]
     fn builder_refuses_like_a_file() {
-        let e = HostDeclaration::builder()
+        let e = HostDeclaration::builder(SpecVersion::V0_1)
             .composition(CompositionConfig {
                 profile: CompositionProfile::SequentialRunAll,
                 on_approval: Some(OnApproval::Resume),
@@ -4035,7 +4409,7 @@ mod tests {
             .build()
             .unwrap_err();
         assert_eq!(e.class, DeclarationErrorClass::Inconsistent);
-        let e = HostDeclaration::builder()
+        let e = HostDeclaration::builder(SpecVersion::V0_1)
             .raw("policy", json!(1))
             .build()
             .unwrap_err();
@@ -4102,12 +4476,18 @@ mod tests {
         old["declaration"] = json!("agent-hooks-declaration/0.9");
         let e = migrate(old, DECLARATION_VERSION).unwrap_err();
         assert_eq!(e.class, DeclarationErrorClass::VersionUnsupported);
-        // 1.0 to 1.1: the version member alone; the migrated document
-        // resolves to the same meaning as the original.
+        // 1.0 to 1.1: the version member, plus `spec`, because 1.1
+        // exists in the draft only; the migrated document resolves to
+        // the same meaning as the original.
         let migrated = migrate(minimal_1_0(), DECLARATION_VERSION).unwrap();
         assert_eq!(migrated["declaration"], json!(DECLARATION_VERSION));
+        assert_eq!(migrated["spec"], json!(crate::SPEC_VERSION_DRAFT));
         assert_eq!(migrated["bindings"], minimal_1_0()["bindings"]);
         assert!(migrated.get("configuration").is_none());
+        let mut stated = minimal_1_0();
+        stated["spec"] = json!(crate::SPEC_VERSION_0_1);
+        let migrated_stated = migrate(stated, DECLARATION_VERSION).unwrap();
+        assert_eq!(migrated_stated["spec"], json!(crate::SPEC_VERSION_DRAFT));
         let a = load(migrated).unwrap();
         let b = load(minimal_1_0()).unwrap();
         assert_eq!(a.configuration, b.configuration);
@@ -4215,6 +4595,28 @@ mod tests {
     }
 
     #[test]
+    fn incremental_host_surface_requires_the_model_points() {
+        let s = HostSurface::from_capabilities(
+            [
+                "incremental_output".to_owned(),
+                "host_declaration".to_owned(),
+            ],
+            ToolSeamPosture::Continue,
+        )
+        .with_exposure_bound("one chunk");
+        let e = s.validate().unwrap_err();
+        assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
+        assert_eq!(e.findings.len(), 1, "{e}");
+        assert_eq!(e.findings[0].pointer, "/surface/capabilities");
+        assert!(
+            e.findings[0].detail.contains("both model points"),
+            "{}",
+            e.findings[0].detail
+        );
+        assert!(incremental_surface().validate().is_ok());
+    }
+
+    #[test]
     fn incremental_host_surface_requires_its_exposure_bound() {
         let mut s = incremental_surface();
         s.exposure_bound = None;
@@ -4288,8 +4690,9 @@ mod tests {
 
     /// The string values a schema node admits: its `enum`, or its one
     /// `const`, following a local `$ref` first. The generated schemas
-    /// (spec/0.1.0/schema/src/) name shared enums as definitions and may list
-    /// an inlined enum in alphabetical order, so callers compare sets.
+    /// (from the bundle's schema/src/) name shared enums as definitions
+    /// and may list an inlined enum in alphabetical order, so callers
+    /// compare sets.
     fn schema_values<'a>(root: &'a Value, node: &'a Value) -> Vec<&'a str> {
         let node = match node["$ref"].as_str() {
             Some(r) => &root["$defs"][r.trim_start_matches("#/$defs/")],
@@ -4311,9 +4714,20 @@ mod tests {
 
     #[test]
     fn mirrored_enums_match_record_schema() {
-        let schema: Value = serde_json::from_str(include_str!(
-            "../../../../spec/0.1.0/schema/generated/interception-record.schema.json"
-        ))
+        for spec in SpecVersion::ALL {
+            mirrored_enums_match_record_schema_of(*spec);
+        }
+    }
+
+    fn mirrored_enums_match_record_schema_of(spec: SpecVersion) {
+        // Read from the bundle of each supported specification version.
+        let spec_dir = bundle_path(spec);
+        let schema: Value = serde_json::from_str(
+            &std::fs::read_to_string(
+                spec_dir.join("schema/generated/interception-record.schema.json"),
+            )
+            .unwrap(),
+        )
         .unwrap();
         let composition = &schema["properties"]["composition"]["properties"];
         assert_eq!(
@@ -4330,15 +4744,19 @@ mod tests {
         // One schema file per contract version. The 1.0 file names
         // 1.0 alone; the file for the current version names it and
         // every version the loader accepts is covered by some file.
-        let schema_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../spec/0.1.0/schema/generated");
+        let schema_dir = spec_dir.join("schema/generated");
         let mut covered: Vec<String> = Vec::new();
         for v in SUPPORTED_DECLARATION_VERSIONS {
             let (maj, min) = parse_declaration_version(v).unwrap();
             let path = schema_dir.join(format!("host-declaration-{maj}.{min}.schema.json"));
             let Ok(text) = std::fs::read_to_string(&path) else {
-                // The schema file for a version is written next to its
-                // spec text; the drift gate for it is schema-lint in CI.
+                // A bundle carries a file per contract version it
+                // defines and none for the others (0.1 has no 1.1).
+                assert!(
+                    !spec.accepts_declaration(v),
+                    "{} is missing for {v}",
+                    path.display()
+                );
                 continue;
             };
             let decl: Value = serde_json::from_str(&text).unwrap();

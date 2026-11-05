@@ -8,21 +8,147 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fmt;
 
-/// Spec version this crate implements (§4.1 `spec` field).
-pub const SPEC_VERSION: &str = "agent-hooks/0.1";
+/// The wire string of specification 0.1, `spec/0.1/` (§4.1 `spec`).
+pub const SPEC_VERSION_0_1: &str = "agent-hooks/0.1";
+
+/// The wire string of the draft specification, `spec/draft/`. The
+/// draft changes without notice and is never claimed; a cut copies it
+/// to a numbered version with a wire string of its own (VERSIONING.md).
+pub const SPEC_VERSION_DRAFT: &str = "agent-hooks/draft";
+
+/// The specification versions this crate supports, oldest first: each
+/// entry names a `spec/<entry>/` folder, and the last numbered entry
+/// is the newest released version (VERSIONING.md). Every entry is a
+/// [`SpecVersion`]. None of them is a default: a host names the
+/// version it runs under when it builds a context or an emitter, or
+/// in its declaration's `spec` member.
+pub const SUPPORTED_SPEC_VERSIONS: &[&str] = &["0.1", "draft"];
+
+/// One supported specification version. A context's `spec` member and
+/// a declaration's `spec` member name one of these; the version chooses
+/// the rules the core applies: the §5 reserved prefixes, the
+/// declaration contract versions the loader accepts (§7.7.2) and the
+/// failure posture (§6.3.1, draft only). There is no default version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum SpecVersion {
+    /// Specification 0.1, `spec/0.1/`, wire string `agent-hooks/0.1`.
+    V0_1,
+    /// The draft, `spec/draft/`, wire string `agent-hooks/draft`.
+    Draft,
+}
+
+impl SpecVersion {
+    /// Every supported version, oldest first; the same order as
+    /// [`SUPPORTED_SPEC_VERSIONS`].
+    pub const ALL: &'static [SpecVersion] = &[SpecVersion::V0_1, SpecVersion::Draft];
+
+    /// The entry of [`SUPPORTED_SPEC_VERSIONS`] and the `spec/<name>/`
+    /// folder: `0.1` or `draft`.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::V0_1 => "0.1",
+            Self::Draft => "draft",
+        }
+    }
+
+    /// The wire string (§4.1): `agent-hooks/0.1` or `agent-hooks/draft`.
+    pub const fn wire(self) -> &'static str {
+        match self {
+            Self::V0_1 => SPEC_VERSION_0_1,
+            Self::Draft => SPEC_VERSION_DRAFT,
+        }
+    }
+
+    /// The repository-relative bundle folder, `spec/0.1` or
+    /// `spec/draft`.
+    pub const fn bundle_dir(self) -> &'static str {
+        match self {
+            Self::V0_1 => "spec/0.1",
+            Self::Draft => "spec/draft",
+        }
+    }
+
+    /// The version a wire string names, or `None` for any other
+    /// string (an unsupported version, a malformed value).
+    pub fn from_wire(wire: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|v| v.wire() == wire)
+    }
+
+    /// The version a [`SUPPORTED_SPEC_VERSIONS`] entry names.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|v| v.name() == name)
+    }
+
+    /// The version a context's `spec` member names, or `None` when the
+    /// member is absent, not a string or not a supported wire string.
+    pub fn of_context(ctx: &AgentContext) -> Option<Self> {
+        ctx.get("spec")
+            .and_then(Value::as_str)
+            .and_then(Self::from_wire)
+    }
+
+    /// Whether `host_warning:*` is reserved for the host in this
+    /// version (§11.1). 0.1 reserves `host_error:*` only; the draft
+    /// reserves both, so an interceptor warning with either prefix
+    /// fails the §5 gate under the draft and only `host_error:*` does
+    /// under 0.1.
+    pub const fn reserves_host_warnings(self) -> bool {
+        matches!(self, Self::Draft)
+    }
+
+    /// Whether this version defines the failure posture `on_error`
+    /// (§6.3.1): declaration contract 1.1 and `continue` registrations
+    /// exist in the draft only.
+    pub const fn has_failure_posture(self) -> bool {
+        matches!(self, Self::Draft)
+    }
+
+    /// The host declaration contract versions a document written for
+    /// this version may carry (§7.7.2), oldest first: 0.1 defines 1.0;
+    /// the draft defines 1.0 and 1.1.
+    pub const fn declaration_versions(self) -> &'static [&'static str] {
+        match self {
+            Self::V0_1 => &[DECLARATION_1_0],
+            Self::Draft => SUPPORTED_DECLARATION_VERSIONS,
+        }
+    }
+
+    /// The newest declaration contract version this specification
+    /// version defines: what [`crate::DeclarationBuilder`] writes when
+    /// the document says nothing else.
+    pub const fn current_declaration_version(self) -> &'static str {
+        match self {
+            Self::V0_1 => DECLARATION_1_0,
+            Self::Draft => DECLARATION_VERSION,
+        }
+    }
+
+    /// Whether this version's loader accepts the declaration contract
+    /// version `declaration`.
+    pub fn accepts_declaration(self, declaration: &str) -> bool {
+        self.declaration_versions().contains(&declaration)
+    }
+}
+
+impl fmt::Display for SpecVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.wire())
+    }
+}
 
 /// Name of the default identity provider (§10.1, §10.2).
 pub const JCS_SHA256: &str = "jcs-sha256";
 
 /// The host declaration contract version this crate writes and
-/// accepts (§7.7.2). Independent of [`SPEC_VERSION`] (the wire
-/// contract) and of the package version. 1.1 adds the optional
+/// accepts (§7.7.2). Independent of the wire version ([`SpecVersion`])
+/// and of the package version. 1.1 adds the optional
 /// `on_error` members (§6.3, §7.7.5); a document without them keeps
 /// its 1.0 meaning.
 pub const DECLARATION_VERSION: &str = "agent-hooks-declaration/1.1";
 
-/// The previous minor, still accepted (§7.7.2).
-const DECLARATION_1_0: &str = "agent-hooks-declaration/1.0";
+/// The previous minor, still accepted (§7.7.2); the only contract
+/// version specification 0.1 defines.
+pub const DECLARATION_1_0: &str = "agent-hooks-declaration/1.0";
 
 /// Every declaration contract version this crate's loader accepts
 /// (§7.7.2), oldest first. A document carrying any other
@@ -208,7 +334,7 @@ impl HostError {
 }
 
 /// Reserved `host_warning:*` reasons a host synthesizes (§6.3,
-/// `spec/0.1.0/reserved-warnings.json`). Interceptors MUST NOT emit them;
+/// `spec/draft/reserved-warnings.json`). Interceptors MUST NOT emit them;
 /// the §5 gate refuses such a verdict as `verdict_invalid`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum HostWarning {
@@ -452,20 +578,22 @@ impl Verdict {
         self.decision == Decision::Deny && self.approval.is_some()
     }
 
-    /// Validate per §5; returns `Err(HostError::VerdictInvalid)` on violation.
-    pub fn validate(&self) -> Result<(), HostError> {
+    /// Validate per §5 of `spec`; returns `Err(HostError::VerdictInvalid)`
+    /// on violation. The specification version chooses the reserved
+    /// warning prefixes: `host_error:*` under every version, and
+    /// `host_warning:*` as well under the draft (§11.1), where an
+    /// interceptor that emits it spoofs a host substitution (§6.3.1).
+    pub fn validate(&self, spec: SpecVersion) -> Result<(), HostError> {
         if let Some(r) = &self.reason {
             if r.starts_with("host_error:") {
                 return Err(HostError::VerdictInvalid);
             }
         }
-        // §6.3: `host_warning:*` is reserved for the host, like
-        // `host_error:*`; an interceptor that emits either spoofs a
-        // host substitution.
         if self.warnings.iter().any(|w| {
-            w.reason
-                .as_deref()
-                .is_some_and(|r| r.starts_with("host_error:") || r.starts_with("host_warning:"))
+            w.reason.as_deref().is_some_and(|r| {
+                r.starts_with("host_error:")
+                    || (spec.reserves_host_warnings() && r.starts_with("host_warning:"))
+            })
         }) {
             return Err(HostError::VerdictInvalid);
         }
@@ -700,6 +828,97 @@ pub trait ApprovalResolver: Send + Sync {
 }
 
 #[cfg(test)]
+mod version_constants_tests {
+    use super::*;
+
+    fn is_major_minor(v: &str) -> bool {
+        let parts: Vec<&str> = v.split('.').collect();
+        parts.len() == 2
+            && parts
+                .iter()
+                .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+    }
+
+    #[test]
+    fn supported_versions_are_numbered_or_the_draft() {
+        // VERSIONING.md: SUPPORTED_SPEC_VERSIONS lists spec/<entry>/
+        // folders, oldest first, MAJOR.MINOR or draft, with at least
+        // one released (numbered) version among them.
+        assert!(SUPPORTED_SPEC_VERSIONS.iter().any(|v| is_major_minor(v)));
+        for v in SUPPORTED_SPEC_VERSIONS {
+            assert!(
+                is_major_minor(v) || *v == "draft",
+                "{v} is neither MAJOR.MINOR nor draft"
+            );
+        }
+    }
+
+    #[test]
+    fn spec_version_enum_mirrors_the_constants() {
+        let names: Vec<&str> = SpecVersion::ALL.iter().map(|v| v.name()).collect();
+        assert_eq!(names, SUPPORTED_SPEC_VERSIONS);
+        assert_eq!(SpecVersion::V0_1.wire(), SPEC_VERSION_0_1);
+        assert_eq!(SpecVersion::Draft.wire(), SPEC_VERSION_DRAFT);
+        for v in SpecVersion::ALL {
+            assert_eq!(SpecVersion::from_wire(v.wire()), Some(*v));
+            assert_eq!(SpecVersion::from_name(v.name()), Some(*v));
+            assert_eq!(v.bundle_dir(), format!("spec/{}", v.name()));
+            assert_eq!(v.to_string(), v.wire());
+            assert!(v.accepts_declaration(v.current_declaration_version()));
+            for d in v.declaration_versions() {
+                assert!(SUPPORTED_DECLARATION_VERSIONS.contains(d), "{d}");
+            }
+        }
+        for s in [
+            "agent-hooks/0.2",
+            "agent-hooks/DRAFT",
+            "agent-hooks/0.1 ",
+            "0.1",
+            "draft",
+            "",
+        ] {
+            assert_eq!(SpecVersion::from_wire(s), None, "{s:?}");
+        }
+        assert_eq!(SpecVersion::from_name("agent-hooks/0.1"), None);
+    }
+
+    #[test]
+    fn the_draft_defines_what_0_1_does_not() {
+        assert!(!SpecVersion::V0_1.reserves_host_warnings());
+        assert!(SpecVersion::Draft.reserves_host_warnings());
+        assert!(!SpecVersion::V0_1.has_failure_posture());
+        assert!(SpecVersion::Draft.has_failure_posture());
+        assert_eq!(SpecVersion::V0_1.declaration_versions(), &[DECLARATION_1_0]);
+        assert_eq!(
+            SpecVersion::Draft.declaration_versions(),
+            SUPPORTED_DECLARATION_VERSIONS
+        );
+        assert!(!SpecVersion::V0_1.accepts_declaration(DECLARATION_VERSION));
+        assert!(SpecVersion::Draft.accepts_declaration(DECLARATION_1_0));
+        assert_eq!(
+            SpecVersion::V0_1.current_declaration_version(),
+            DECLARATION_1_0
+        );
+        assert_eq!(
+            SpecVersion::Draft.current_declaration_version(),
+            DECLARATION_VERSION
+        );
+    }
+
+    #[test]
+    fn of_context_reads_the_spec_member() {
+        let mut ctx: AgentContext = serde_json::Map::new();
+        assert_eq!(SpecVersion::of_context(&ctx), None);
+        ctx.insert("spec".into(), Value::String(SPEC_VERSION_DRAFT.into()));
+        assert_eq!(SpecVersion::of_context(&ctx), Some(SpecVersion::Draft));
+        ctx.insert("spec".into(), Value::String("agent-hooks/0.2".into()));
+        assert_eq!(SpecVersion::of_context(&ctx), None);
+        ctx.insert("spec".into(), Value::from(1));
+        assert_eq!(SpecVersion::of_context(&ctx), None);
+    }
+}
+
+#[cfg(test)]
 mod verdict_validate_tests {
     use super::*;
 
@@ -709,7 +928,10 @@ mod verdict_validate_tests {
             decision: Decision::Transform,
             ..Verdict::allow()
         };
-        assert_eq!(v.validate(), Err(HostError::VerdictInvalid));
+        assert_eq!(
+            v.validate(SpecVersion::Draft),
+            Err(HostError::VerdictInvalid)
+        );
     }
 
     #[test]
@@ -721,7 +943,10 @@ mod verdict_validate_tests {
             }),
             ..Verdict::allow()
         };
-        assert_eq!(v.validate(), Err(HostError::VerdictInvalid));
+        assert_eq!(
+            v.validate(SpecVersion::Draft),
+            Err(HostError::VerdictInvalid)
+        );
     }
 
     #[test]
@@ -730,7 +955,10 @@ mod verdict_validate_tests {
             reason: Some("host_error:x".into()),
             ..Verdict::allow()
         };
-        assert_eq!(v.validate(), Err(HostError::VerdictInvalid));
+        assert_eq!(
+            v.validate(SpecVersion::Draft),
+            Err(HostError::VerdictInvalid)
+        );
     }
 
     #[test]
@@ -739,8 +967,13 @@ mod verdict_validate_tests {
             approval: Some(serde_json::Map::new()),
             ..Verdict::allow()
         };
-        assert_eq!(v.validate(), Err(HostError::VerdictInvalid));
-        assert!(Verdict::escalate(None, None).validate().is_ok());
+        assert_eq!(
+            v.validate(SpecVersion::Draft),
+            Err(HostError::VerdictInvalid)
+        );
+        assert!(Verdict::escalate(None, None)
+            .validate(SpecVersion::Draft)
+            .is_ok());
         assert!(Verdict::escalate(None, None).is_liftable());
     }
 
@@ -752,11 +985,42 @@ mod verdict_validate_tests {
             "host_error:x",
         ] {
             let v = Verdict::warn(Some(reason.into()), None);
-            assert_eq!(v.validate(), Err(HostError::VerdictInvalid), "{reason}");
+            assert_eq!(
+                v.validate(SpecVersion::Draft),
+                Err(HostError::VerdictInvalid),
+                "{reason}"
+            );
         }
         assert!(Verdict::warn(Some("host_warnings".into()), None)
-            .validate()
+            .validate(SpecVersion::Draft)
             .is_ok());
+    }
+
+    #[test]
+    fn warning_prefix_reservation_follows_the_specification_version() {
+        // 0.1 reserves host_error:* only (§5); the draft adds
+        // host_warning:* (§11.1). An interceptor warning with the
+        // draft's prefix is a valid 0.1 verdict and an invalid draft one.
+        let warning = Verdict::warn(Some("host_warning:x".into()), None);
+        assert!(warning.validate(SpecVersion::V0_1).is_ok());
+        assert_eq!(
+            warning.validate(SpecVersion::Draft),
+            Err(HostError::VerdictInvalid)
+        );
+        let error = Verdict::warn(Some("host_error:x".into()), None);
+        for spec in SpecVersion::ALL {
+            assert_eq!(
+                error.validate(*spec),
+                Err(HostError::VerdictInvalid),
+                "{spec}"
+            );
+        }
+        let substitute = Verdict::control_failure_substitute("b", HostError::InterceptorTimeout);
+        assert!(substitute.validate(SpecVersion::V0_1).is_ok());
+        assert_eq!(
+            substitute.validate(SpecVersion::Draft),
+            Err(HostError::VerdictInvalid)
+        );
     }
 
     #[test]
@@ -781,7 +1045,10 @@ mod verdict_validate_tests {
         assert!(!labelled.is_control_failure_substitute());
         // The host shape is reserved: an interceptor returning it fails
         // the gate.
-        assert_eq!(v.validate(), Err(HostError::VerdictInvalid));
+        assert_eq!(
+            v.validate(SpecVersion::Draft),
+            Err(HostError::VerdictInvalid)
+        );
         assert!(HostError::InterceptorFailed.is_control_failure());
         assert!(HostError::InterceptorTimeout.is_control_failure());
         assert!(HostError::VerdictInvalid.is_control_failure());
@@ -802,7 +1069,7 @@ mod verdict_validate_tests {
         let v = Verdict::warn(Some("pii".into()), None);
         assert_eq!(v.decision, Decision::Allow);
         assert_eq!(v.warnings.len(), 1);
-        assert!(v.validate().is_ok());
+        assert!(v.validate(SpecVersion::Draft).is_ok());
     }
 
     #[test]
@@ -812,7 +1079,7 @@ mod verdict_validate_tests {
         assert_eq!(v.reason.as_deref(), Some("policy"));
         assert_eq!(v.message.as_deref(), Some("blocked"));
         assert!(!v.is_liftable());
-        assert!(v.validate().is_ok());
+        assert!(v.validate(SpecVersion::Draft).is_ok());
     }
     #[test]
     fn provider_name_rules() {

@@ -8,7 +8,8 @@ import asyncio
 import pathlib
 
 import pytest
-from agent_hooks.ctk import load_vectors, run_vector
+from agent_hooks import SPEC_VERSION_0_1, SPEC_VERSION_DRAFT
+from agent_hooks.ctk import DRAFT_NOT_CLAIMABLE, conformance_report, load_vectors, run_vector
 from agent_hooks.ctk.reference import ReferenceHarness
 
 _VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vectors"
@@ -49,6 +50,27 @@ def test_skip_set_matches_manifest() -> None:
     assert skipped == set(EXPECTED_SKIPS), (
         "expected-but-not-skipped vectors mean the manifest is stale"
     )
+
+
+def test_a_report_names_a_released_version_never_the_draft() -> None:
+    """Running the working test set is development; the report a claim
+    attaches names a released version, and the runner refuses the draft."""
+    results = [asyncio.run(run_vector(ReferenceHarness(), v)) for v in load_vectors(_VECTORS)]
+    with pytest.raises(ValueError, match="cannot name agent-hooks/draft") as refused:
+        conformance_report(SPEC_VERSION_DRAFT, results)
+    assert str(refused.value) == DRAFT_NOT_CLAIMABLE
+    with pytest.raises(ValueError, match="SUPPORTED_SPEC_VERSIONS"):
+        conformance_report("agent-hooks/9.9", results)
+    report = conformance_report(SPEC_VERSION_0_1, results)
+    assert report.spec == SPEC_VERSION_0_1
+    assert report.failed == 0
+    assert report.skipped == len(EXPECTED_SKIPS)
+    assert report.passed + report.skipped == len(results)
+    names = [p.part for p in report.parts]
+    assert names == sorted(names)
+    assert all(p.passed + p.failed + p.skipped == len(p.vectors) for p in report.parts)
+    streaming = next(p for p in report.parts if p.part == "streaming/incremental")
+    assert streaming.skipped == 4 and {v.id for v in streaming.vectors} == set(EXPECTED_SKIPS)
 
 
 def test_structural_harness_without_setup_declared_fails_the_vector() -> None:
@@ -129,6 +151,7 @@ def test_prove_paths_keeps_a_null_binding_config() -> None:
     )
     doc = {
         "declaration": "agent-hooks-declaration/1.0",
+        "spec": SPEC_VERSION_DRAFT,
         "bindings": [{"id": "a", "kind": "com.example.x", "config": None}],
     }
     assert prove_paths(doc, reg, "test") == (True, "")

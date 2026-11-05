@@ -4,15 +4,7 @@
 
 import { CompositionProfile, ConflictResolution, Mode, OnApproval } from "./common";
 import { InterceptionPoint } from "./interception-point";
-import { Decision } from "./verdict";
-
-/**
- * The transform member of the projection: path only.
- * @additionalProperties false
- */
-export interface TransformProjection {
-  path: string;
-}
+import { Decision, Evidence } from "./verdict";
 
 /**
  * Presence only; members are stripped by the projection.
@@ -21,13 +13,29 @@ export interface TransformProjection {
 export interface ApprovalPresence {}
 
 /**
- * The payload-free projection of the combined verdict (§10.3): transform.value
- * dropped, approval members stripped, messages truncated to 256 UTF-8 bytes.
+ * A payload-free projection of the combined verdict (§10.3): transform
+ * details are omitted, approval members stripped, messages truncated to
+ * 256 UTF-8 bytes.
  * warnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1).
+ * @additionalProperties false
  */
 export interface VerdictProjection {
-  transform?: TransformProjection;
+  decision: Decision;
+  reason?: string | null;
+  message?: string | null;
+  warnings?: WarningProjection[] | null;
+  evidence?: Evidence;
+  result_labels?: string[] | null;
   approval?: ApprovalPresence;
+}
+
+/**
+ * Warning metadata retained in a payload-free record projection.
+ * @additionalProperties false
+ */
+export interface WarningProjection {
+  reason?: string | null;
+  message?: string | null;
 }
 
 /**

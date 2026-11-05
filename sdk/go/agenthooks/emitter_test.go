@@ -46,7 +46,7 @@ func (c countingResolver) Resolve(ctx context.Context, req ApprovalRequest) (App
 
 func testCtx() AgentContext {
 	return AgentContext{
-		"spec":               SpecVersion,
+		"spec":               SpecVersionDraft,
 		"interception_point": "pre_tool_call",
 		"timestamp":          "t",
 		"sequence":           int64(0),
@@ -85,7 +85,7 @@ func emit(t *testing.T, e *InterceptionEmitter, actx AgentContext) InterceptionR
 }
 
 func TestRunAllRunsEverythingAndStrictestWins(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.SetComposition(RunAllComposition())
 	e.Register(scripted{denyVerdict("")})
 	e.Register(scripted{Warn("late", "")})
@@ -110,7 +110,7 @@ func TestRunAllRunsEverythingAndStrictestWins(t *testing.T) {
 }
 
 func TestParallelStrictestTransformConflictFailsClosed(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.SetComposition(StrictestComposition(SynthesizeDeny))
 	e.Register(scripted{transformVerdict("$target.url", "a")})
 	e.Register(scripted{transformVerdict("$target.url", "b")})
@@ -129,7 +129,7 @@ func TestParallelStrictestTransformConflictFailsClosed(t *testing.T) {
 }
 
 func TestParallelTransformConflictApprovalKnobConsultsSeam(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, approver{Approve, AllowVerdict})
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, approver{Approve, AllowVerdict})
 	e.SetComposition(StrictestComposition(SynthesizeApproval))
 	e.Register(scripted{transformVerdict("$target.url", "a")})
 	e.Register(scripted{transformVerdict("$target.url", "b")})
@@ -150,7 +150,7 @@ func TestParallelTransformConflictApprovalKnobConsultsSeam(t *testing.T) {
 }
 
 func TestParallelStrictestSingleTransformApplies(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.SetComposition(StrictestComposition(SynthesizeDeny))
 	e.Register(scripted{AllowVerdict})
 	e.Register(scripted{transformVerdict("$target.url", "safe")})
@@ -174,7 +174,7 @@ func TestParallelStrictestSingleTransformApplies(t *testing.T) {
 }
 
 func TestUnanimousDisagreementSynthesizes(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.SetComposition(UnanimousComposition(SynthesizeDeny, SynthesizeDeny))
 	e.Register(scripted{AllowVerdict})
 	e.Register(scripted{transformVerdict("$target.url", "x")})
@@ -192,7 +192,7 @@ func TestUnanimousDisagreementSynthesizes(t *testing.T) {
 }
 
 func TestFirstDenyNoResolverLiftableDenyStandsWithoutError(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.Register(scripted{Escalate("check", "")})
 	c := testCtx()
 	// §9: no resolver → the liftable deny stands, NOT an error.
@@ -212,7 +212,7 @@ func TestFirstDenyNoResolverLiftableDenyStandsWithoutError(t *testing.T) {
 }
 
 func TestFirstDenyStopTruncatesAndRecordsSubstitution(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, approver{Approve, AllowVerdict})
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, approver{Approve, AllowVerdict})
 	e.SetComposition(FirstDenyComposition(OnApprovalStop))
 	e.Register(scripted{Escalate("", "")})
 	e.Register(scripted{denyVerdict("")}) // must be skipped
@@ -233,7 +233,7 @@ func TestFirstDenyStopTruncatesAndRecordsSubstitution(t *testing.T) {
 }
 
 func TestFirstDenyResumeContinuesTheFold(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, approver{Approve, AllowVerdict})
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, approver{Approve, AllowVerdict})
 	e.SetComposition(FirstDenyComposition(OnApprovalResume))
 	e.Register(scripted{Escalate("", "")})
 	e.Register(scripted{denyVerdict("")}) // now runs — and denies
@@ -256,7 +256,7 @@ func TestFirstDenyResumeContinuesTheFold(t *testing.T) {
 func TestRunAllConsultsAtMostOnceOnlyWhenAllDeniesLiftable(t *testing.T) {
 	// Every deny liftable → one consult lifts the set.
 	calls := 0
-	e := NewInterceptionEmitter(Enforce, countingResolver{&calls, approver{Approve, AllowVerdict}})
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, countingResolver{&calls, approver{Approve, AllowVerdict}})
 	e.SetComposition(RunAllComposition())
 	e.Register(scripted{Escalate("a", "")})
 	e.Register(scripted{Escalate("b", "")})
@@ -273,7 +273,7 @@ func TestRunAllConsultsAtMostOnceOnlyWhenAllDeniesLiftable(t *testing.T) {
 
 	// A single plain deny makes lifting pointless — no consult.
 	calls = 0
-	e = NewInterceptionEmitter(Enforce, countingResolver{&calls, approver{Approve, AllowVerdict}})
+	e = NewInterceptionEmitter(SpecVersionDraft, Enforce, countingResolver{&calls, approver{Approve, AllowVerdict}})
 	e.SetComposition(RunAllComposition())
 	e.Register(scripted{Escalate("a", "")})
 	e.Register(scripted{denyVerdict("hard")})
@@ -290,7 +290,7 @@ func TestRunAllConsultsAtMostOnceOnlyWhenAllDeniesLiftable(t *testing.T) {
 }
 
 func TestEchoRuleViolationFailsClosed(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, badEcho{})
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, badEcho{})
 	e.Register(scripted{Escalate("", "")})
 	rec := emit(t, e, testCtx())
 	if rec.Verdict.Reason != string(ErrApprovalIdentityMismatch) {
@@ -308,7 +308,7 @@ func (badEcho) Resolve(context.Context, ApprovalRequest) (ApprovalResolution, er
 
 func TestApprovalOutcomeVerdictConsistency(t *testing.T) {
 	// approve MUST carry a permit verdict (§9).
-	e := NewInterceptionEmitter(Enforce, approver{Approve, denyVerdict("nope")})
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, approver{Approve, denyVerdict("nope")})
 	e.Register(scripted{Escalate("", "")})
 	rec := emit(t, e, testCtx())
 	if rec.Verdict.Reason != string(ErrVerdictInvalid) {
@@ -316,7 +316,7 @@ func TestApprovalOutcomeVerdictConsistency(t *testing.T) {
 	}
 
 	// reject MUST carry a deny verdict (§9).
-	e = NewInterceptionEmitter(Enforce, approver{Reject, AllowVerdict})
+	e = NewInterceptionEmitter(SpecVersionDraft, Enforce, approver{Reject, AllowVerdict})
 	e.Register(scripted{Escalate("", "")})
 	rec = emit(t, e, testCtx())
 	if rec.Verdict.Reason != string(ErrVerdictInvalid) {
@@ -325,7 +325,7 @@ func TestApprovalOutcomeVerdictConsistency(t *testing.T) {
 }
 
 func TestNullProviderUnboundRecord(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.SetIdentityProvider(nil)
 	e.Register(scripted{AllowVerdict})
 	rec := emit(t, e, testCtx())
@@ -341,7 +341,7 @@ func TestNullProviderUnboundRecord(t *testing.T) {
 }
 
 func TestCustomProviderRecordedVerbatim(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.SetIdentityProvider(&IdentityProvider{
 		Name:    "host-hash",
 		Compute: func(AgentContext) (string, error) { return "host:1", nil },
@@ -360,7 +360,7 @@ func TestCustomProviderRecordedVerbatim(t *testing.T) {
 }
 
 func TestCustomProviderFailureFailsClosed(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.SetIdentityProvider(&IdentityProvider{
 		Name:    "host-hash",
 		Compute: func(AgentContext) (string, error) { return "", errors.New("boom") },
@@ -376,7 +376,7 @@ func TestCustomProviderFailureFailsClosed(t *testing.T) {
 }
 
 func TestDefaultProviderRejectsBigIntBeforeDispatch(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.Register(scripted{AllowVerdict})
 	c := testCtx()
 	c["target"] = map[string]any{"id": int64(9007199254740993)}
@@ -395,7 +395,7 @@ func TestDefaultProviderRejectsBigIntBeforeDispatch(t *testing.T) {
 
 func TestShutdownNeverConsults(t *testing.T) {
 	calls := 0
-	e := NewInterceptionEmitter(Enforce, countingResolver{&calls, approver{Approve, AllowVerdict}})
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, countingResolver{&calls, approver{Approve, AllowVerdict}})
 	e.Register(scripted{Escalate("", "")})
 	c := testCtx()
 	c["interception_point"] = "agent_shutdown"
@@ -415,7 +415,7 @@ func TestShutdownNeverConsults(t *testing.T) {
 
 func TestEvaluateOnlyNeverConsults(t *testing.T) {
 	calls := 0
-	e := NewInterceptionEmitter(EvaluateOnly, countingResolver{&calls, approver{Approve, AllowVerdict}})
+	e := NewInterceptionEmitter(SpecVersionDraft, EvaluateOnly, countingResolver{&calls, approver{Approve, AllowVerdict}})
 	e.Register(scripted{Escalate("check", "")})
 	rec := emit(t, e, testCtx())
 	if calls != 0 {
@@ -446,7 +446,7 @@ func (panickyResolver) Resolve(context.Context, ApprovalRequest) (ApprovalResolu
 
 func TestPanickingInterceptorFailsClosed(t *testing.T) {
 	for _, timeout := range []int64{0, 5000} { // inline and goroutine paths
-		e := NewInterceptionEmitter(Enforce, nil)
+		e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 		if timeout > 0 {
 			e.Timeout = 5000 * 1e6 // 5000 ms in time.Duration units
 		}
@@ -467,7 +467,7 @@ func TestPanickingInterceptorFailsClosed(t *testing.T) {
 }
 
 func TestPanickingResolverFailsClosed(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, panickyResolver{})
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, panickyResolver{})
 	e.Register(scripted{Escalate("check", "")})
 	c := testCtx()
 	rec := emit(t, e, c)
@@ -488,7 +488,7 @@ func (failing) Intercept(context.Context, AgentContext) (Verdict, error) {
 func TestFailureDenyAttributedToFailingInterceptor(t *testing.T) {
 	// §10.3 (D3): a §6.3 failure deny carries the FAILING
 	// interceptor's index, in every profile.
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.Register(scripted{AllowVerdict})
 	e.Register(failing{})
 	e.Register(scripted{AllowVerdict})
@@ -506,7 +506,7 @@ func TestFailureDenyAttributedToFailingInterceptor(t *testing.T) {
 
 func TestRecordCarriesPayloadFreeProjection(t *testing.T) {
 	// §10.3 (D2): transform.path kept, transform.value dropped.
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.Register(scripted{transformVerdict("$target.url", "safe")})
 	c := testCtx()
 	rec := emit(t, e, c)
@@ -537,7 +537,7 @@ func TestOversizedEvidenceFailsVerdictGate(t *testing.T) {
 		Decision: Allow,
 		Evidence: &Evidence{Artefact: strings.Repeat("x", 10300)},
 	}
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.Register(scripted{big})
 	rec := emit(t, e, testCtx())
 	if rec.Verdict.Decision != Deny {
@@ -562,7 +562,7 @@ func (tr tracking) Intercept(context.Context, AgentContext) (Verdict, error) {
 }
 
 func TestEnvelopeMissingConditionalFailsClosedPreDispatch(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	ran := false
 	e.Register(tracking{AllowVerdict, &ran})
 	actx := testCtx()
@@ -583,7 +583,7 @@ func TestEnvelopeMissingConditionalFailsClosedPreDispatch(t *testing.T) {
 }
 
 func TestProviderNameRulesEnforced(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	compute := func(AgentContext) (string, error) { return "x", nil }
 	if _, err := e.SetIdentityProvider(&IdentityProvider{Name: "jcs-fake", Compute: compute}); err == nil {
 		t.Error("jcs-prefixed name accepted")
@@ -600,7 +600,7 @@ func TestProviderNameRulesEnforced(t *testing.T) {
 }
 
 func TestRejectedConsultationRecordsResolvedBy(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, approver{Reject, Verdict{Decision: Deny, Reason: "no"}})
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, approver{Reject, Verdict{Decision: Deny, Reason: "no"}})
 	e.Register(scripted{Escalate("check", "")})
 	rec := emit(t, e, testCtx())
 	if rec.ResolvedBy == nil || *rec.ResolvedBy != ResolvedByRejection {
@@ -612,7 +612,7 @@ func TestRejectedConsultationRecordsResolvedBy(t *testing.T) {
 }
 
 func TestNamesAndCountOnRecord(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.SetComposition(RunAllComposition())
 	e.RegisterNamed(scripted{AllowVerdict}, "pii-scan")
 	e.Register(scripted{AllowVerdict})
@@ -643,7 +643,7 @@ func (c *capturingApprover) Resolve(_ context.Context, req ApprovalRequest) (App
 
 func TestApprovalRedactorBindsIdentityToPresentedContext(t *testing.T) {
 	capr := &capturingApprover{}
-	e := NewInterceptionEmitter(Enforce, capr)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, capr)
 	e.Register(scripted{v: Escalate("check", "")})
 	e.SetApprovalRedactor(func(actx AgentContext) AgentContext {
 		out, err := ApplyTransformToContext(actx, "$target.url", "[redacted]")
@@ -672,7 +672,7 @@ func TestApprovalRedactorBindsIdentityToPresentedContext(t *testing.T) {
 
 func TestPanickingRedactorFailsClosed(t *testing.T) {
 	capr := &capturingApprover{}
-	e := NewInterceptionEmitter(Enforce, capr)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, capr)
 	e.Register(scripted{v: Escalate("check", "")})
 	e.SetApprovalRedactor(func(AgentContext) AgentContext {
 		panic("SECRET must not leak")
@@ -694,7 +694,7 @@ func TestPanickingRedactorFailsClosed(t *testing.T) {
 
 func TestRecordSinkAndRingBuffer(t *testing.T) {
 	seen := 0
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.Register(scripted{v: Verdict{Decision: Allow}})
 	e.SetRecordSink(func(InterceptionRecord) { seen++ })
 	e.SetMaxRecords(2)
@@ -721,7 +721,7 @@ func TestRecordSinkAndRingBuffer(t *testing.T) {
 }
 
 func TestSinkPanicIsSwallowed(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.Register(scripted{v: Verdict{Decision: Allow}})
 	e.SetRecordSink(func(InterceptionRecord) { panic("sink down") })
 	rec, err := e.EmitUnchecked(context.Background(), testCtx())
@@ -734,7 +734,7 @@ func TestSinkPanicIsSwallowed(t *testing.T) {
 }
 
 func TestEmitReturnsEffectiveTarget(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	tr := TransformBody{Path: "$target.url", Value: "clean"}
 	e.Register(scripted{v: Verdict{Decision: Transform, Transform: &tr}})
 	out, err := e.Emit(context.Background(), testCtx())
@@ -751,7 +751,7 @@ func TestEmitReturnsEffectiveTarget(t *testing.T) {
 }
 
 func TestSetCompositionRejectsUnknownProfile(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	if _, err := e.SetComposition(CompositionConfig{Profile: "sequential/frist_deny"}); err == nil {
 		t.Fatal("typo'd profile must be rejected at configuration time (spec 7.2)")
 	}
@@ -765,7 +765,7 @@ func TestSetCompositionRejectsUnknownProfile(t *testing.T) {
 }
 
 func TestSetCompositionRejectsUnknownKnobValues(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	bad := []CompositionConfig{
 		{Profile: SequentialFirstDeny, OnApproval: "pause"},
 		{Profile: ParallelUnanimous, OnDisagreement: "escalate"},
@@ -779,7 +779,7 @@ func TestSetCompositionRejectsUnknownKnobValues(t *testing.T) {
 }
 
 func TestSetCompositionEmptyProfileResetsToDefault(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	if _, err := e.SetComposition(RunAllComposition()); err != nil {
 		t.Fatalf("SetComposition: %v", err)
 	}
@@ -799,7 +799,7 @@ func TestRecordHostFailureSynthesizesRejectionShape(t *testing.T) {
 	// §10.3 host projection failure: the host could not construct a
 	// context at all; the synthesized record is the rejection shape
 	// with the host's envelope facts.
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	e.Register(scripted{v: AllowVerdict})
 	seq := int64(7)
 	r, err := e.RecordHostFailure(PreToolCall, HostFailure{
@@ -854,7 +854,7 @@ func TestRecordHostFailureSynthesizesRejectionShape(t *testing.T) {
 }
 
 func TestRecordHostFailureDefaultsAreTheUnknownValues(t *testing.T) {
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	r, err := e.RecordHostFailure(Output, HostFailure{})
 	if err != nil {
 		t.Fatal(err)
@@ -877,7 +877,7 @@ func TestRecordHostFailureEvaluateOnlyRecordsAndHitsSink(t *testing.T) {
 	// §8: synthesis still records in evaluate_only — records are the
 	// point — and the mode member keeps the record from implying a
 	// block happened.
-	e := NewInterceptionEmitter(EvaluateOnly, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, EvaluateOnly, nil)
 	var seen []InterceptionRecord
 	e.SetRecordSink(func(r InterceptionRecord) { seen = append(seen, r) })
 	r, err := e.RecordHostFailure(PreToolCall, HostFailure{Detail: "reflect.ValueError"})
@@ -898,7 +898,7 @@ func TestRecordHostFailureEvaluateOnlyRecordsAndHitsSink(t *testing.T) {
 func TestRecordHostFailureDetailTruncatedByProjection(t *testing.T) {
 	// §10.3: the synthesized verdict crosses the same payload-free
 	// projection as every combined verdict.
-	e := NewInterceptionEmitter(Enforce, nil)
+	e := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	r, err := e.RecordHostFailure(PreToolCall, HostFailure{Detail: strings.Repeat("x", 300)})
 	if err != nil {
 		t.Fatal(err)

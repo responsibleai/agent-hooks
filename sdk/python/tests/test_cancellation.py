@@ -14,6 +14,7 @@ import asyncio
 from typing import Any
 
 from agent_hooks import (
+    SPEC_VERSION_DRAFT,
     CompositionConfig,
     Decision,
     HostError,
@@ -42,7 +43,7 @@ class Transforming:
 
 
 def _ctx() -> AgentContext:
-    b = AgentContextBuilder(agent_id="a", framework="x", session_id="s")
+    b = AgentContextBuilder(spec=SPEC_VERSION_DRAFT, agent_id="a", framework="x", session_id="s")
     return b.pre_tool_call(call_id="tc", name="t", args={"url": "evil"})
 
 
@@ -62,7 +63,7 @@ def _cancel_mid_emission(em: InterceptionEmitter, hanging: Hanging) -> dict[str,
 
 
 def test_cancelled_emission_appends_fail_closed_record_and_reraises() -> None:
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     hanging = Hanging()
     em.register(hanging)
     out = _cancel_mid_emission(em, hanging)
@@ -76,7 +77,7 @@ def test_cancelled_emission_appends_fail_closed_record_and_reraises() -> None:
 
 
 def test_cancelled_emission_after_partial_fold_records_folded_state() -> None:
-    em = InterceptionEmitter(composition=CompositionConfig.first_deny())
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, composition=CompositionConfig.first_deny())
     hanging = Hanging()
     em.register(Transforming()).register(hanging)
     out = _cancel_mid_emission(em, hanging)
@@ -93,7 +94,7 @@ def test_cancelled_emission_after_partial_fold_records_folded_state() -> None:
 def test_cancellation_outside_dispatch_is_untouched() -> None:
     """A cancel before emit_unchecked starts stays ordinary asyncio."""
 
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     em.register(Transforming())
 
     async def scenario() -> bool:

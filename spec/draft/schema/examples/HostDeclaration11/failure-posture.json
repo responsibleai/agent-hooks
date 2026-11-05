@@ -1,8 +1,12 @@
 {
   "declaration": "agent-hooks-declaration/1.1",
-  "spec": "agent-hooks/0.1",
+  "spec": "agent-hooks/draft",
   "id": "document-policy-failure-posture",
   "configuration": {
+    "composition": {
+      "profile": "sequential/first_deny",
+      "on_approval": "resume"
+    },
     "failure": {
       "on_error": "deny"
     },

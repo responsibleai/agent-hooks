@@ -24,20 +24,24 @@ public static class Canonical
     public static string ContextIdentity(AgentContext ctx) =>
         Native.ContextIdentity(ctx.Json.ToJsonString(Compact));
 
-    /// <summary>§5: validate an interceptor's wire return. Rust core.</summary>
-    public static void ValidateVerdict(JsonNode verdict) =>
-        Native.ValidateVerdict(verdict.ToJsonString(Compact));
+    /// <summary>§5: validate an interceptor's wire return under the
+    /// specification version <paramref name="spec"/> names (the context's
+    /// wire string). Rust core.</summary>
+    public static void ValidateVerdict(JsonNode verdict, string spec) =>
+        Native.ValidateVerdict(Spec.Require(spec), verdict.ToJsonString(Compact));
 
-    /// <summary>§5.5: parse a bare Verdict or hosted response envelope.</summary>
-    public static InterceptorResponse ParseInterceptorResponse(JsonNode response) =>
+    /// <summary>§5.5: parse a bare Verdict or hosted response envelope under
+    /// the specification version <paramref name="spec"/> names.</summary>
+    public static InterceptorResponse ParseInterceptorResponse(JsonNode response, string spec) =>
         InterceptorResponse.FromWire(
-            JsonNode.Parse(Native.NormalizeInterceptorResponse(response.ToJsonString(Compact)))!
+            JsonNode.Parse(Native.NormalizeInterceptorResponse(Spec.Require(spec), response.ToJsonString(Compact)))!
                 .AsObject());
 
-    /// <summary>§5.5: parse raw JSON, preserving duplicate-member rejection.</summary>
-    public static InterceptorResponse ParseInterceptorResponse(string responseJson) =>
+    /// <summary>§5.5: parse raw JSON, preserving duplicate-member rejection,
+    /// under the specification version <paramref name="spec"/> names.</summary>
+    public static InterceptorResponse ParseInterceptorResponse(string responseJson, string spec) =>
         InterceptorResponse.FromWire(
-            JsonNode.Parse(Native.NormalizeInterceptorResponse(responseJson))!.AsObject());
+            JsonNode.Parse(Native.NormalizeInterceptorResponse(Spec.Require(spec), responseJson))!.AsObject());
 
     /// <summary>§5.2: apply a <c>$target</c>-rooted transform. Rust core.</summary>
     public static JsonNode? ApplyTransform(JsonNode? target, string path, JsonNode? value) =>
@@ -78,8 +82,9 @@ public static class Canonical
     /// <summary>§7.3/§7.5: severity-max aggregation for the multi-verdict
     /// composition profiles. Returns <c>{combined, decided_by, consult,
     /// apply_transform, verdicts}</c>. Rust core.</summary>
-    public static JsonObject ComposeAggregate(CompositionConfig composition, JsonArray verdicts) =>
+    public static JsonObject ComposeAggregate(CompositionConfig composition, JsonArray verdicts, string spec) =>
         (JsonObject)JsonNode.Parse(Native.ComposeAggregate(
+            Spec.Require(spec),
             composition.ToWire().ToJsonString(Compact),
             verdicts.ToJsonString(Compact)))!;
 }

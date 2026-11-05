@@ -7,13 +7,73 @@ package agenthooks
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 )
 
-// SpecVersion is the spec version this module implements (§4.1 `spec` field).
-const SpecVersion = "agent-hooks/0.1"
+// SpecVersion01 is the wire string of specification 0.1 (§4.1 `spec`).
+const SpecVersion01 = "agent-hooks/0.1"
+
+// SpecVersionDraft is the wire string of the draft specification,
+// spec/draft/. The draft changes without notice and is never claimed;
+// a cut copies it to a numbered version with a wire string of its own
+// (VERSIONING.md).
+const SpecVersionDraft = "agent-hooks/draft"
+
+// SupportedSpecVersions lists the specification versions this module
+// supports, oldest first; each names a spec/<entry>/ folder, and the
+// last numbered entry is the newest released version (VERSIONING.md).
+// None is a default: a host names the version it runs under when it
+// builds a context or an emitter (SpecVersion01 or SpecVersionDraft),
+// or in its declaration's `spec` member.
+var SupportedSpecVersions = []string{"0.1", "draft"}
+
+// SupportedSpecWireVersions holds the wire strings of
+// SupportedSpecVersions, in the same order.
+var SupportedSpecWireVersions = func() []string {
+	out := make([]string, 0, len(SupportedSpecVersions))
+	for _, v := range SupportedSpecVersions {
+		out = append(out, "agent-hooks/"+v)
+	}
+	return out
+}()
+
+// IsSupportedSpecVersion reports whether wire names a specification
+// version this module supports.
+func IsSupportedSpecVersion(wire string) bool {
+	for _, w := range SupportedSpecWireVersions {
+		if w == wire {
+			return true
+		}
+	}
+	return false
+}
+
+// ErrSpecVersionUnsupported is the error RequireSpecVersion wraps for a
+// wire string that names no supported specification version.
+var ErrSpecVersionUnsupported = errors.New("unsupported specification version")
+
+// RequireSpecVersion returns nil when wire names a supported
+// specification version and otherwise an error naming the supported
+// ones (SupportedSpecVersions).
+func RequireSpecVersion(wire string) error {
+	if IsSupportedSpecVersion(wire) {
+		return nil
+	}
+	return fmt.Errorf("%w: %q is not one of %s (SupportedSpecVersions)",
+		ErrSpecVersionUnsupported, wire, strings.Join(SupportedSpecWireVersions, ", "))
+}
+
+// mustSpecVersion is RequireSpecVersion for constructors that return no
+// error: a version the host did not name is a programming error.
+func mustSpecVersion(what, wire string) string {
+	if err := RequireSpecVersion(wire); err != nil {
+		panic(fmt.Sprintf("%s: spec must name the specification version the host runs under: %v", what, err))
+	}
+	return wire
+}
 
 // JCSSHA256 is the name of the default identity provider (§10.1, §10.2).
 const JCSSHA256 = "jcs-sha256"
@@ -113,7 +173,7 @@ func (e HostError) IsControlFailure() bool {
 
 // HostWarningControlFailed is the reserved host_warning:* reason of the
 // allow the host substitutes for a failing registration whose on_error
-// is continue (§6.3.1, spec/0.1.0/reserved-warnings.json). Interceptors MUST
+// is continue (§6.3.1, spec/draft/reserved-warnings.json). Interceptors MUST
 // NOT emit host_warning:* reasons; the §5 gate refuses such a verdict
 // as host_error:verdict_invalid.
 const HostWarningControlFailed = "host_warning:control_failed"
@@ -239,10 +299,14 @@ type InterceptorResponse struct {
 	Extensions map[string]any `json:"extensions,omitempty"`
 }
 
-// ParseInterceptorResponseJSON parses a bare Verdict or response envelope.
-// Raw JSON preserves duplicate-member rejection in the Rust core.
-func ParseInterceptorResponseJSON(raw []byte) (InterceptorResponse, error) {
-	normalized, err := nativeNormalizeInterceptorResponse(string(raw))
+// ParseInterceptorResponseJSON parses a bare Verdict or response envelope
+// under the specification version spec names (the context's wire
+// string). Raw JSON preserves duplicate-member rejection in the Rust core.
+func ParseInterceptorResponseJSON(raw []byte, spec string) (InterceptorResponse, error) {
+	if err := RequireSpecVersion(spec); err != nil {
+		return InterceptorResponse{}, err
+	}
+	normalized, err := nativeNormalizeInterceptorResponse(spec, string(raw))
 	if err != nil {
 		return InterceptorResponse{}, err
 	}
@@ -253,13 +317,14 @@ func ParseInterceptorResponseJSON(raw []byte) (InterceptorResponse, error) {
 	return response, nil
 }
 
-// ParseInterceptorResponse marshals a Go value then applies the §5.5 gate.
-func ParseInterceptorResponse(value any) (InterceptorResponse, error) {
+// ParseInterceptorResponse marshals a Go value then applies the §5.5 gate
+// under the specification version spec names.
+func ParseInterceptorResponse(value any, spec string) (InterceptorResponse, error) {
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return InterceptorResponse{}, err
 	}
-	return ParseInterceptorResponseJSON(raw)
+	return ParseInterceptorResponseJSON(raw, spec)
 }
 
 // ToWire emits a bare Verdict when no transport metadata is present.
@@ -328,11 +393,19 @@ func (v Verdict) IsLiftable() bool {
 	return v.Decision == Deny && v.Approval != nil
 }
 
-// Validate checks v per §5; returns a HostError on violation. The wire
-// gate every interceptor return crosses is the Rust core's
-// (ValidateVerdict); this is the pure-Go mirror for hosts that want a
-// pre-flight check without a core round-trip.
-func (v Verdict) Validate() error {
+// Validate checks v per §5 of the specification version spec names (a
+// wire string); returns a HostError on violation. The version chooses
+// the reserved warning prefixes: host_error:* under every version, and
+// host_warning:* as well under the draft (§11.1), where an interceptor
+// that emits it spoofs a host substitution (§6.3.1). The wire gate every
+// interceptor return crosses is the Rust core's (ValidateVerdict); this
+// is the pure-Go mirror for hosts that want a pre-flight check without a
+// core round-trip.
+func (v Verdict) Validate(spec string) error {
+	if err := RequireSpecVersion(spec); err != nil {
+		return err
+	}
+	reservesWarnings := spec == SpecVersionDraft
 	switch v.Decision {
 	case Allow, Deny, Transform:
 	default:
@@ -342,11 +415,11 @@ func (v Verdict) Validate() error {
 		return errVerdictInvalid("verdict.reason MUST NOT start with 'host_error:'")
 	}
 	for _, w := range v.Warnings {
-		// §6.3.1: host_warning:* is reserved for the host, like
-		// host_error:*; an interceptor that emits either spoofs a host
-		// substitution.
-		if strings.HasPrefix(w.Reason, "host_error:") || strings.HasPrefix(w.Reason, "host_warning:") {
-			return errVerdictInvalid("warnings[].reason MUST NOT start with 'host_error:' or 'host_warning:'")
+		if strings.HasPrefix(w.Reason, "host_error:") {
+			return errVerdictInvalid("warnings[].reason MUST NOT start with 'host_error:'")
+		}
+		if reservesWarnings && strings.HasPrefix(w.Reason, "host_warning:") {
+			return errVerdictInvalid("warnings[].reason MUST NOT start with 'host_warning:' under the draft (§11.1)")
 		}
 	}
 	if v.Approval != nil && v.Decision != Deny {

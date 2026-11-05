@@ -2,7 +2,7 @@
 
 """agent-hooks: framework-neutral agent lifecycle hook contract.
 
-Implements AGENT-HOOKS-0.1. See ``spec/0.1.0/AGENT-HOOKS-0.1.md`` for the normative
+Implements AGENT-HOOKS-0.1. See ``spec/0.1/AGENT-HOOKS-0.1.md`` for the normative
 text. This package provides:
 
 - :class:`InterceptionPoint`, :class:`Decision`, :class:`EnforcementMode` — enums (§3, §5, §8)
@@ -35,8 +35,11 @@ from agent_hooks._types import (
     ALLOW,
     DECLARATION_VERSION,
     JCS_SHA256,
-    SPEC_VERSION,
+    SPEC_VERSION_0_1,
+    SPEC_VERSION_DRAFT,
     SUPPORTED_DECLARATION_VERSIONS,
+    SUPPORTED_SPEC_VERSIONS,
+    SUPPORTED_SPEC_WIRE_VERSIONS,
     ControlFailureNotice,
     Decision,
     EnforcementMode,
@@ -51,6 +54,8 @@ from agent_hooks._types import (
     Verdict,
     VerdictSummary,
     Warning,
+    is_supported_spec_version,
+    require_spec_version,
 )
 from agent_hooks.approval import (
     ApprovalOutcome,
@@ -80,6 +85,8 @@ from agent_hooks.declaration import (
     ManagedKindResolver,
     ResolvedBinding,
     ResolvedDeclaration,
+    accepted_declaration_versions,
+    current_declaration_version,
 )
 from agent_hooks.emitter import EmitOutcome, IdentityProvider, InterceptionEmitter
 from agent_hooks.exceptions import (
@@ -95,8 +102,11 @@ __all__ = [
     "ALLOW",
     "DECLARATION_VERSION",
     "JCS_SHA256",
-    "SPEC_VERSION",
+    "SPEC_VERSION_0_1",
+    "SPEC_VERSION_DRAFT",
     "SUPPORTED_DECLARATION_VERSIONS",
+    "SUPPORTED_SPEC_VERSIONS",
+    "SUPPORTED_SPEC_WIRE_VERSIONS",
     "AgentContext",
     "AgentContextBuilder",
     "AgentHooksCoreError",
@@ -145,6 +155,10 @@ __all__ = [
     "Verdict",
     "VerdictSummary",
     "Warning",
+    "accepted_declaration_versions",
     "canonical_json",
     "context_identity",
+    "current_declaration_version",
+    "is_supported_spec_version",
+    "require_spec_version",
 ]

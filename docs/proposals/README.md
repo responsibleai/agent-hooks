@@ -6,16 +6,19 @@ proposal is required, its lifecycle, and who decides.
 
 ## Writing a proposal
 
-Copy [TEMPLATE.md](TEMPLATE.md) to `P-XXX-<slug>.md`, keeping `XXX`
-as a placeholder and choosing a descriptive, unique slug. Keep `P-XXX`
-in the title while the proposal is a draft.
+A proposal takes its number from the pull request that introduces it,
+the way MCP SEPs do: the file is `P-<PR>-<slug>.md` and its title is
+`# P-<PR>: ...`, where `<PR>` is that pull request's number.
 
-When maintainers approve the proposal, they assign the next unused
-proposal number and replace `XXX` in both the filename and title
-(for example, `P-009-<slug>.md` and `P-009`). Update links to the
-renamed file as part of acceptance. Rejected proposals retain `P-XXX`;
-existing numbered proposals keep their numbers, and numbers are never
-reused.
+Copy [TEMPLATE.md](TEMPLATE.md) to `P-XXX-<slug>.md` with a
+descriptive, unique slug and open the pull request. The one extra step:
+once the pull request exists, push a commit that renames the file and
+the title to its number (for example `P-212-<slug>.md` and `# P-212`)
+before requesting review. The number is fixed from that point through
+Accepted, Rejected, Final and Superseded; acceptance renumbers nothing.
+Numbers are never reused because pull request numbers are not. P-001
+through P-008 keep their numbers. Cross-references use `P-<PR>` and the
+pull request link.
 
 ## When a proposal is required
 
@@ -51,14 +54,20 @@ and review window.
 
 - **Draft.** The proposal is undergoing informal review.
 - **Accepted.** Approved by the maintainers, awaiting implementation
-  and applicable conformance coverage. Maintainers assign the proposal's
-  permanent number when recording acceptance.
+  and applicable conformance coverage.
 - **Rejected.** Declined by the maintainers.
 - **Final.** Complete with implementation and applicable conformance
   coverage.
 - **Superseded.** Replaced by a newer proposal. The newer proposal marks the
-  old one `Superseded by P-NNN` and states what survives (see
+  old one `Superseded by P-<PR>` and states what survives (see
   P-001/P-002 for the pattern).
+
+Each proposal's Status line also says where its text stands, as a
+parenthetical after the status: `(in draft)` once the change has
+merged into `spec/draft/`, and `(released in X.Y)` once a specification
+version containing it has been cut
+([RELEASING.md](../../RELEASING.md#release-a-specification-version)).
+For example, `**Status:** Accepted (in draft)`.
 
 ## Decision authority and review window
 

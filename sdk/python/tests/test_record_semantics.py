@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 from agent_hooks import (
+    SPEC_VERSION_DRAFT,
     Decision,
     EnforcementMode,
     IdentityProvider,
@@ -20,7 +21,7 @@ from agent_hooks.composition import CompositionConfig
 
 def _ctx(**over: Any) -> dict[str, Any]:
     ctx: dict[str, Any] = {
-        "spec": "agent-hooks/0.1",
+        "spec": SPEC_VERSION_DRAFT,
         "interception_point": "pre_tool_call",
         "timestamp": "2026-01-01T00:00:00Z",
         "sequence": 0,
@@ -45,7 +46,7 @@ def _emit(em: InterceptionEmitter, ctx: dict[str, Any]):
 
 
 def test_envelope_missing_conditional_fails_closed() -> None:
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     em.register(Allow())
     ctx = _ctx()
     del ctx["tool_call"]
@@ -58,7 +59,7 @@ def test_envelope_missing_conditional_fails_closed() -> None:
 
 
 def test_envelope_unknown_point_fails_closed() -> None:
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     em.register(Allow())
     r = _emit(em, _ctx(interception_point="model_call"))
     assert not r.proceeds
@@ -67,17 +68,25 @@ def test_envelope_unknown_point_fails_closed() -> None:
 
 def test_provider_name_rules_enforced() -> None:
     with pytest.raises(ValueError):
-        InterceptionEmitter(identity_provider=IdentityProvider("jcs-fake", lambda c: "x"))
+        InterceptionEmitter(
+            spec=SPEC_VERSION_DRAFT, identity_provider=IdentityProvider("jcs-fake", lambda c: "x")
+        )
     with pytest.raises(ValueError):
-        InterceptionEmitter(identity_provider=IdentityProvider("Bad Name", lambda c: "x"))
-    InterceptionEmitter(identity_provider=IdentityProvider("myco-hash", lambda c: "x"))
+        InterceptionEmitter(
+            spec=SPEC_VERSION_DRAFT, identity_provider=IdentityProvider("Bad Name", lambda c: "x")
+        )
+    InterceptionEmitter(
+        spec=SPEC_VERSION_DRAFT, identity_provider=IdentityProvider("myco-hash", lambda c: "x")
+    )
 
 
 def test_custom_provider_failure_fails_closed() -> None:
     def boom(_ctx: dict[str, Any]) -> str:
         raise RuntimeError("SECRET-VALUE should not leak")
 
-    em = InterceptionEmitter(identity_provider=IdentityProvider("myco-hash", boom))
+    em = InterceptionEmitter(
+        spec=SPEC_VERSION_DRAFT, identity_provider=IdentityProvider("myco-hash", boom)
+    )
     em.register(Allow())
     r = _emit(em, _ctx())
     assert not r.proceeds
@@ -88,7 +97,7 @@ def test_custom_provider_failure_fails_closed() -> None:
 
 
 def test_interceptors_registered_and_names() -> None:
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     em.set_composition(CompositionConfig.run_all())
     em.register(Allow(), name="pii-scan").register(Allow())
     r = _emit(em, _ctx())
@@ -99,7 +108,7 @@ def test_interceptors_registered_and_names() -> None:
 
 
 def test_knob_defaults_on_record() -> None:
-    em = InterceptionEmitter(mode=EnforcementMode.ENFORCE)
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, mode=EnforcementMode.ENFORCE)
     em.register(Allow())
     r = _emit(em, _ctx())
     assert r.composition.on_approval is not None  # resolved default: stop
@@ -111,7 +120,7 @@ def test_record_host_failure_rejection_shape() -> None:
     # with the host's envelope facts.
     from agent_hooks import InterceptionPoint
 
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     em.register(Allow())
     r = em.record_host_failure(
         InterceptionPoint.PRE_TOOL_CALL,
@@ -142,7 +151,7 @@ def test_record_host_failure_rejection_shape() -> None:
 def test_record_host_failure_unknown_envelope_defaults() -> None:
     from agent_hooks import InterceptionPoint
 
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     r = em.record_host_failure(InterceptionPoint.OUTPUT)
     assert r.session_id == ""
     assert r.sequence == -1
@@ -157,7 +166,7 @@ def test_record_host_failure_evaluate_only_records_and_hits_sink() -> None:
     # block happened.
     from agent_hooks import InterceptionPoint
 
-    em = InterceptionEmitter(mode=EnforcementMode.EVALUATE_ONLY)
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, mode=EnforcementMode.EVALUATE_ONLY)
     seen: list[Any] = []
     em.set_record_sink(seen.append)
     r = em.record_host_failure(InterceptionPoint.PRE_TOOL_CALL, "TypeError")
@@ -171,7 +180,7 @@ def test_record_host_failure_detail_truncated_by_projection() -> None:
     # projection as every combined verdict.
     from agent_hooks import InterceptionPoint
 
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     r = em.record_host_failure(InterceptionPoint.PRE_TOOL_CALL, "x" * 300)
     assert r.verdict.message is not None
     assert r.verdict.message.endswith("…")

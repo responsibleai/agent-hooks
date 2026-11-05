@@ -10,14 +10,50 @@ from typing import Any, Final
 
 from agent_hooks.composition import CompositionConfig
 
-#: Spec version this SDK implements (§4.1 ``spec`` field).
-SPEC_VERSION: Final[str] = "agent-hooks/0.1"
+#: The wire string of specification 0.1 (§4.1 ``spec``).
+SPEC_VERSION_0_1: Final[str] = "agent-hooks/0.1"
+
+#: The wire string of the draft specification, ``spec/draft/``. The draft
+#: changes without notice and is never claimed; a cut copies it to a
+#: numbered version with a wire string of its own (VERSIONING.md).
+SPEC_VERSION_DRAFT: Final[str] = "agent-hooks/draft"
+
+#: The specification versions this SDK supports, oldest first; each names
+#: a ``spec/<entry>/`` folder, and the last numbered entry is the newest
+#: released version (VERSIONING.md). None is a default: a host names the
+#: version it runs under when it builds a context or an emitter
+#: (:data:`SPEC_VERSION_0_1` or :data:`SPEC_VERSION_DRAFT`), or in its
+#: declaration's ``spec`` member. A test pins it to the core.
+SUPPORTED_SPEC_VERSIONS: Final[tuple[str, ...]] = ("0.1", "draft")
+
+#: The wire strings of :data:`SUPPORTED_SPEC_VERSIONS`, in the same order.
+SUPPORTED_SPEC_WIRE_VERSIONS: Final[tuple[str, ...]] = tuple(
+    f"agent-hooks/{v}" for v in SUPPORTED_SPEC_VERSIONS
+)
+
+
+def is_supported_spec_version(wire: object) -> bool:
+    """Whether ``wire`` names a specification version this SDK supports."""
+    return isinstance(wire, str) and wire in SUPPORTED_SPEC_WIRE_VERSIONS
+
+
+def require_spec_version(wire: object, what: str = "spec") -> str:
+    """``wire`` when it names a supported specification version; otherwise
+    a :class:`ValueError` naming the supported ones. Every constructor that
+    takes a version runs its argument through this."""
+    if is_supported_spec_version(wire):
+        return str(wire)
+    raise ValueError(
+        f"{what} must name a supported specification version, one of "
+        f"{', '.join(SUPPORTED_SPEC_WIRE_VERSIONS)} (SUPPORTED_SPEC_VERSIONS); got {wire!r}"
+    )
+
 
 #: Name of the default identity provider (§10.1, §10.2).
 JCS_SHA256: Final[str] = "jcs-sha256"
 
 #: The host declaration contract version this SDK writes and accepts
-#: (§7.7.2). Independent of :data:`SPEC_VERSION` (the wire contract)
+#: (§7.7.2). Independent of the wire version (``agent-hooks/<version>``)
 #: and of the package version. Equal to the Rust core's constant; a
 #: test pins the two. 1.1 adds the optional ``on_error`` members
 #: (§6.3.1, §7.7.5); a document without them keeps its 1.0 meaning.
@@ -32,9 +68,11 @@ SUPPORTED_DECLARATION_VERSIONS: Final[tuple[str, ...]] = (
     DECLARATION_VERSION,
 )
 
-#: Warning ``reason`` prefixes reserved for the host (§11, §11.1). An
-#: interceptor verdict carrying either fails the §5 gate.
-_RESERVED_REASON_PREFIXES: Final[tuple[str, ...]] = ("host_error:", "host_warning:")
+#: Warning ``reason`` prefix reserved for the host under every specification
+#: version (§11). The draft also reserves ``host_warning:*`` (§11.1); that
+#: check is the core's §5 gate, which runs under the emitter's version, so a
+#: verdict value may carry it and the gate decides.
+_RESERVED_REASON_PREFIXES: Final[tuple[str, ...]] = ("host_error:",)
 
 
 class InterceptionPoint(str, Enum):
@@ -127,7 +165,7 @@ class HostError(str, Enum):
 
 class HostWarning(str, Enum):
     """Reserved ``host_warning:*`` reasons a host synthesizes (§11.1,
-    ``spec/0.1.0/reserved-warnings.json``). Interceptors MUST NOT emit them;
+    ``spec/draft/reserved-warnings.json``). Interceptors MUST NOT emit them;
     the §5 gate refuses such a verdict as ``verdict_invalid``."""
 
     #: A registration whose ``on_error`` is ``continue`` failed and the
@@ -265,8 +303,7 @@ class Warning:
             not isinstance(reason, str) or reason.startswith(_RESERVED_REASON_PREFIXES)
         ):
             raise ValueError(
-                "warnings[].reason must be a string not starting with 'host_error:' or "
-                "'host_warning:' (§5, §11.1)"
+                "warnings[].reason must be a string not starting with 'host_error:' (§5)"
             )
         message = obj.get("message")
         if message is not None and not isinstance(message, str):
@@ -303,10 +340,7 @@ class Verdict:
             # §11.1: the host_warning: prefix is reserved like host_error:;
             # an interceptor that emits either spoofs a host substitution.
             if w.reason is not None and w.reason.startswith(_RESERVED_REASON_PREFIXES):
-                raise ValueError(
-                    "warnings[].reason MUST NOT start with 'host_error:' or "
-                    "'host_warning:' (§5, §11.1)"
-                )
+                raise ValueError("warnings[].reason MUST NOT start with 'host_error:' (§5)")
         if self.approval is not None and self.decision is not Decision.DENY:
             raise ValueError("approval block permitted only on deny (§5.1)")
         if self.decision is Decision.TRANSFORM and self.transform is None:
@@ -690,7 +724,7 @@ class InterceptionRecord:
         return self.verdict.decision.permits
 
     def to_wire(self) -> dict[str, Any]:
-        """Wire shape per ``spec/0.1.0/schema/generated/interception-record.schema.json``.
+        """Wire shape per ``spec/draft/schema/generated/interception-record.schema.json``.
 
         Mirrors the core's serde serialization: ``verdicts`` omitted when
         empty; ``fold_truncated``/``resolved_by`` omitted when ``None``.

@@ -25,7 +25,7 @@ import uuid
 from importlib.resources import files
 from typing import Any, ClassVar
 
-from agent_hooks._types import ControlFailureNotice, EnforcementMode
+from agent_hooks._types import SPEC_VERSION_DRAFT, ControlFailureNotice, EnforcementMode
 from agent_hooks.approval import ApprovalResolver
 from agent_hooks.composition import CompositionConfig
 from agent_hooks.context import AgentContext, AgentContextBuilder
@@ -159,7 +159,12 @@ class ReferenceHarness:
         self._tool_log = []
         self._host_messages = []
         self._emitter = emitter
+        # The vectors are the working test set for the next version,
+        # carried under agent-hooks/draft: the harness builds its contexts
+        # under the draft, the version every vector document and the
+        # reference document name.
         self._builder = AgentContextBuilder(
+            spec=SPEC_VERSION_DRAFT,
             agent_id="ref-agent",
             framework="reference-agent",
             session_id=str(uuid.uuid4()),

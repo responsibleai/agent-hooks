@@ -1,7 +1,7 @@
 # agent-hooks (.NET SDK)
 
 .NET implementation of
-[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md)
+[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md)
 over the canonical Rust core (`libagent_hooks_ffi` via
 `LibraryImport`): interception points, `AgentContextBuilder`,
 `Verdict` types, host-side `InterceptionEmitter` with the four
@@ -11,7 +11,7 @@ composition profiles, the identity-provider seam, and the CTK runner.
 > boundary: the host framework is fully trusted, interceptors run in-process
 > with full data access, and no complete-mediation claim is made. Read
 > [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
-> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
+> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
 > before relying on it.
 
 ```bash
@@ -28,9 +28,11 @@ dotnet build sdk/dotnet
 ```csharp
 using AgentHooks;
 
-var emitter = new InterceptionEmitter(EnforcementMode.Enforce, resolver: null)
+// The host names the specification version it runs under, here 0.1;
+// Spec.Draft selects the draft. There is no default.
+var emitter = new InterceptionEmitter(Spec.V01, EnforcementMode.Enforce, resolver: null)
     .Register(new MyPolicy());
-var builder = new AgentContextBuilder("my-agent", "my-fw", "s-1");
+var builder = new AgentContextBuilder(Spec.V01, "my-agent", "my-fw", "s-1");
 
 var ctx = builder.PreToolCall("tc-1", "http_get", new JsonObject { ["url"] = url });
 var record = await emitter.EmitUncheckedAsync(ctx);
@@ -68,9 +70,13 @@ outcome is never a timeout and never continues.
 A host can load its configuration, declared surface and interceptor
 bindings from a host declaration document (spec §7.7) instead of
 calling the setters. The document is a versioned contract of its own,
-`agent-hooks-declaration/1.1` (`Declaration.Version`,
-`Declaration.SupportedVersions`, which also lists `1.0`), separate from
-the wire version `Spec.Version`. 1.1 adds two optional members,
+`agent-hooks-declaration/1.1` under the draft and 1.0 under 0.1
+(`Declaration.Version`, `Declaration.SupportedVersions`,
+`Declaration.CurrentVersionFor(spec)`), separate from the wire version
+the document names in its required `spec` member; `Spec.SupportedVersions`
+lists the specification versions the SDK supports, with the wire strings
+`Spec.V01` and `Spec.Draft`. 1.1 adds two
+optional members,
 `configuration.failure.on_error` and `bindings[].on_error`
 (`DeclarationBuilder.FailureOnError`, `BindWith(.., new BindOptions(OnError: ..))`);
 a 1.0 document loads unchanged and keeps its own version on its records.
@@ -94,7 +100,7 @@ var registry = new HostRegistry(surface)
 var emitter = InterceptionEmitter.FromDeclarationPath("agent-hooks.declaration.json", registry);
 // or: FromDeclarationJson(text, registry), FromDeclarationNode(jsonObject, registry),
 // or the code path:
-var declaration = HostDeclaration.Builder()
+var declaration = HostDeclaration.Builder(Spec.V01)
     .Composition(CompositionConfig.RunAll())
     .ApprovalResolver("operator-queue")
     .Bind("egress", "com.example.egress", new JsonObject { ["allow_hosts"] = new JsonArray("internal.example") },

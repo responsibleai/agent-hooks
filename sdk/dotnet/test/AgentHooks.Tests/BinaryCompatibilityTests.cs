@@ -23,7 +23,7 @@ public sealed class BinaryCompatibilityTests
             ValueTask.FromResult(verdict);
     }
 
-    private static readonly AgentContextBuilder Builder = new("a", "x", "s");
+    private static readonly AgentContextBuilder Builder = new(Spec.Draft, "a", "x", "s");
 
     private static IEnumerable<AgentContext> EveryToolPoint()
     {
@@ -44,7 +44,7 @@ public sealed class BinaryCompatibilityTests
         Assert.NotNull(method);
         Assert.Equal(typeof(InterceptionEmitter), method.ReturnType);
 
-        var emitter = new InterceptionEmitter(EnforcementMode.Enforce);
+        var emitter = new InterceptionEmitter(Spec.Draft, EnforcementMode.Enforce);
         var returned = method.Invoke(emitter, [new Scripted(Verdict.Allow), "alpha5"]);
         Assert.Same(emitter, returned);
 

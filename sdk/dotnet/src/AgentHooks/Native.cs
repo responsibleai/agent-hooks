@@ -41,9 +41,6 @@ internal static partial class Native
     }
 
     [LibraryImport(Lib)]
-    private static partial IntPtr ah_spec_version();
-
-    [LibraryImport(Lib)]
     private static partial void ah_free_result(IntPtr r);
 
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
@@ -53,10 +50,10 @@ internal static partial class Native
     private static partial IntPtr ah_context_identity(string ctxJson);
 
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
-    private static partial IntPtr ah_validate_verdict(string verdictJson);
+    private static partial IntPtr ah_validate_verdict(string spec, string verdictJson);
 
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
-    private static partial IntPtr ah_normalize_interceptor_response(string responseJson);
+    private static partial IntPtr ah_normalize_interceptor_response(string spec, string responseJson);
 
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
     private static partial IntPtr ah_validate_envelope(string ctxJson);
@@ -74,7 +71,7 @@ internal static partial class Native
     private static partial IntPtr ah_finalize(string ctxJson, string verdictJson, string mode, string optionsJson);
 
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
-    private static partial IntPtr ah_compose_aggregate(string compositionJson, string verdictsJson);
+    private static partial IntPtr ah_compose_aggregate(string spec, string compositionJson, string verdictsJson);
 
     // ---- failure posture (§6.3.1) ------------------------------------------
 
@@ -82,7 +79,7 @@ internal static partial class Native
     private static partial IntPtr ah_control_failure_substitute(string requestJson);
 
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
-    private static partial IntPtr ah_managed_outcome(string outcomeJson);
+    private static partial IntPtr ah_managed_outcome(string spec, string outcomeJson);
 
     // ---- host declaration (§7.7) --------------------------------------------
 
@@ -124,14 +121,12 @@ internal static partial class Native
         }
     }
 
-    internal static string SpecVersion() =>
-        Marshal.PtrToStringUTF8(ah_spec_version()) ?? string.Empty;
-
     internal static string CanonicalJson(string valueJson) => Unwrap(ah_canonical_json(valueJson));
     internal static string ContextIdentity(string ctxJson) => Unwrap(ah_context_identity(ctxJson));
-    internal static string ValidateVerdict(string verdictJson) => Unwrap(ah_validate_verdict(verdictJson));
-    internal static string NormalizeInterceptorResponse(string responseJson) =>
-        Unwrap(ah_normalize_interceptor_response(responseJson));
+    internal static string ValidateVerdict(string spec, string verdictJson) =>
+        Unwrap(ah_validate_verdict(spec, verdictJson));
+    internal static string NormalizeInterceptorResponse(string spec, string responseJson) =>
+        Unwrap(ah_normalize_interceptor_response(spec, responseJson));
 
     /// <summary>§4/§6.3 envelope validation (fail closed, value-free detail).</summary>
     internal static string ValidateEnvelope(string ctxJson) => Unwrap(ah_validate_envelope(ctxJson));
@@ -143,8 +138,8 @@ internal static partial class Native
         Unwrap(ah_validate_transform_ctx(ctxJson, path, valueJson));
     internal static string Finalize(string ctxJson, string verdictJson, string mode, string optionsJson) =>
         Unwrap(ah_finalize(ctxJson, verdictJson, mode, optionsJson));
-    internal static string ComposeAggregate(string compositionJson, string verdictsJson) =>
-        Unwrap(ah_compose_aggregate(compositionJson, verdictsJson));
+    internal static string ComposeAggregate(string spec, string compositionJson, string verdictsJson) =>
+        Unwrap(ah_compose_aggregate(spec, compositionJson, verdictsJson));
 
     /// <summary>§6.3.1 <c>on_error: continue</c>: request
     /// <c>{binding, reason, index?, interception_point?}</c>; returns
@@ -156,8 +151,8 @@ internal static partial class Native
     /// <summary>§7 typed outcome of a managed interceptor: returns
     /// <c>{verdict, failure: null | {reason, detail, continuable}}</c>;
     /// <c>continuable</c> is false for a cancelled outcome.</summary>
-    internal static string ManagedOutcome(string outcomeJson) =>
-        Unwrap(ah_managed_outcome(outcomeJson));
+    internal static string ManagedOutcome(string spec, string outcomeJson) =>
+        Unwrap(ah_managed_outcome(spec, outcomeJson));
 
     /// <summary>§7.7.2: <c>{"current": "...", "supported": [...]}</c>.</summary>
     internal static string DeclarationVersions() => Unwrap(ah_declaration_versions());

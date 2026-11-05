@@ -27,6 +27,79 @@ import (
 // VectorResult is the outcome of one vector run.
 type VectorResult = agenthooks.CtkVectorResult
 
+// PartReport is one part of a conformance report (§13.1): the vectors
+// that carry one part tag, with their counts. A vector without a tag
+// sits under the empty part.
+type PartReport struct {
+	Part    string
+	Passed  int
+	Failed  int
+	Skipped int
+	Vectors []VectorResult
+}
+
+// ConformanceReport is the report a claim attaches (§13.1, §13.3): the
+// results grouped by part, under the specification version the claim
+// names. Parts are in name order; each keeps its vectors in run order.
+type ConformanceReport struct {
+	Spec    string
+	Parts   []PartReport
+	Passed  int
+	Failed  int
+	Skipped int
+}
+
+// ErrDraftNotClaimable is the one line every runner answers a report
+// that names the draft.
+var ErrDraftNotClaimable = errors.New("a conformance report cannot name agent-hooks/draft; the draft is never claimed: run the vectors for development and report a released version")
+
+// Report groups results by part into the report a claim attaches, under
+// spec, the released version the claim names (a wire string). The
+// vectors under conformance/ are the working test set for the next
+// version, carried under agent-hooks/draft because they exercise
+// behaviour no released version has; running them is fine, but a report
+// that names the draft is refused with ErrDraftNotClaimable, since no
+// claim names it.
+func Report(spec string, results []VectorResult) (ConformanceReport, error) {
+	if err := agenthooks.RequireSpecVersion(spec); err != nil {
+		return ConformanceReport{}, err
+	}
+	if spec == agenthooks.SpecVersionDraft {
+		return ConformanceReport{}, ErrDraftNotClaimable
+	}
+	byPart := map[string]*PartReport{}
+	for _, r := range results {
+		part := byPart[r.Part]
+		if part == nil {
+			part = &PartReport{Part: r.Part}
+			byPart[r.Part] = part
+		}
+		switch r.Status {
+		case "pass":
+			part.Passed++
+		case "skip":
+			part.Skipped++
+		default:
+			part.Failed++
+		}
+		part.Vectors = append(part.Vectors, r)
+	}
+	names := make([]string, 0, len(byPart))
+	for name := range byPart {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	report := ConformanceReport{Spec: spec}
+	for _, name := range names {
+		part := *byPart[name]
+		report.Parts = append(report.Parts, part)
+		report.Passed += part.Passed
+		report.Failed += part.Failed
+		report.Skipped += part.Skipped
+	}
+	return report, nil
+}
+
 // LoadVectors globs conformance/vectors/AH-CTK-*.json under dir in
 // sorted order.
 func LoadVectors(dir string) ([]map[string]any, error) {

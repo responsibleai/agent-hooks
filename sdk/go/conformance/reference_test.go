@@ -8,9 +8,13 @@ package conformance
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
+
+	"github.com/responsibleai/agent-hooks/sdk/go/agenthooks"
 )
 
 // expectedSkips pins the skip set: Go decodes vector JSON via
@@ -62,6 +66,54 @@ func TestReferenceHarnessConformance(t *testing.T) {
 	for id := range expectedSkips {
 		if _, ok := skipped[id]; !ok {
 			t.Fatalf("expected-but-not-skipped vector %s: the expectedSkips manifest is stale", id)
+		}
+	}
+}
+
+// Running the working test set is development; the report a claim
+// attaches names a released version, and the runner refuses the draft.
+func TestAReportNamesAReleasedVersionNeverTheDraft(t *testing.T) {
+	vectors, err := LoadVectors(filepath.Join("..", "..", "..", "conformance", "vectors"))
+	if err != nil {
+		t.Fatalf("LoadVectors: %v", err)
+	}
+	var results []VectorResult
+	for _, v := range vectors {
+		r, err := RunVector(context.Background(), NewReferenceHarness(), v)
+		if err != nil {
+			t.Fatalf("RunVector: %v", err)
+		}
+		results = append(results, r)
+	}
+	if _, err := Report(agenthooks.SpecVersionDraft, results); !errors.Is(err, ErrDraftNotClaimable) {
+		t.Fatalf("a report under the draft must be refused with ErrDraftNotClaimable, got %v", err)
+	}
+	if _, err := Report("agent-hooks/9.9", results); !errors.Is(err, agenthooks.ErrSpecVersionUnsupported) {
+		t.Fatalf("an unsupported version must be refused, got %v", err)
+	}
+	report, err := Report(agenthooks.SpecVersion01, results)
+	if err != nil {
+		t.Fatalf("Report under 0.1: %v", err)
+	}
+	if report.Spec != agenthooks.SpecVersion01 || report.Failed != 0 || report.Skipped != len(expectedSkips) {
+		t.Fatalf("report totals: spec=%s failed=%d skipped=%d", report.Spec, report.Failed, report.Skipped)
+	}
+	if report.Passed+report.Skipped != len(results) {
+		t.Fatalf("passed %d + skipped %d != %d vectors", report.Passed, report.Skipped, len(results))
+	}
+	var names []string
+	for _, part := range report.Parts {
+		names = append(names, part.Part)
+		if part.Passed+part.Failed+part.Skipped != len(part.Vectors) {
+			t.Fatalf("part %q counts do not add up", part.Part)
+		}
+	}
+	if !sort.StringsAreSorted(names) {
+		t.Fatalf("parts not in name order: %v", names)
+	}
+	for _, part := range report.Parts {
+		if part.Part == "streaming/incremental" && part.Skipped != 4 {
+			t.Fatalf("streaming/incremental skipped %d, want 4", part.Skipped)
 		}
 	}
 }

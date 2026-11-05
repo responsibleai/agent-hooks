@@ -1,5 +1,5 @@
 {
-  "spec": "agent-hooks/0.1",
+  "spec": "agent-hooks/draft",
   "interception_point": "pre_model_call",
   "timestamp": "2026-10-30T16:00:02Z",
   "sequence": 2,
@@ -10,12 +10,6 @@
   "session": {
     "id": "policy-search-001"
   },
-  "target": [
-    {
-      "role": "user",
-      "content": "Find the document retention policy."
-    }
-  ],
   "model": {
     "id": "example-model",
     "vendor": "example"

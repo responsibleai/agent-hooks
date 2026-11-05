@@ -15,7 +15,7 @@ export declare function applyTransformCtx(ctxJson: string, path: string, valueJs
 
 export declare function canonicalJson(valueJson: string): string
 
-export declare function composeAggregate(compositionJson: string, verdictsJson: string): string
+export declare function composeAggregate(spec: string, compositionJson: string, verdictsJson: string): string
 
 export declare function contextIdentity(ctxJson: string): string
 
@@ -67,15 +67,13 @@ export declare function finalize(ctxJson: string, verdictJson: string, mode: str
  * emitter maps it: `{verdict, failure: null | {reason, detail,
  * continuable}}`. `continuable` is false for a cancelled outcome.
  */
-export declare function managedOutcome(outcomeJson: string): string
+export declare function managedOutcome(spec: string, outcomeJson: string): string
 
-export declare function normalizeInterceptorResponse(responseJson: string): string
-
-export declare function specVersion(): string
+export declare function normalizeInterceptorResponse(spec: string, responseJson: string): string
 
 /** §4/§6.3: envelope validation (fail closed, value-free detail). */
 export declare function validateEnvelope(ctxJson: string): string
 
 export declare function validateTransformCtx(ctxJson: string, path: string, valueJson: string): string
 
-export declare function validateVerdict(verdictJson: string): string
+export declare function validateVerdict(spec: string, verdictJson: string): string

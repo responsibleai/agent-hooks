@@ -4,6 +4,7 @@
 // Lifted and adapted from policy-engine/sdk/dotnet/.../Primitives.cs.
 
 using System.Text.Json;
+using System.Linq;
 using System.Text.Json.Nodes;
 
 namespace AgentHooks;
@@ -11,7 +12,43 @@ namespace AgentHooks;
 /// <summary>Spec version this SDK implements (§4.1 <c>spec</c> field).</summary>
 public static class Spec
 {
-    public const string Version = "agent-hooks/0.1";
+    /// <summary>The wire string of specification 0.1 (§4.1 <c>spec</c>).</summary>
+    public const string V01 = "agent-hooks/0.1";
+
+    /// <summary>The wire string of the draft specification, <c>spec/draft/</c>.
+    /// The draft changes without notice and is never claimed; a cut copies it
+    /// to a numbered version with a wire string of its own (VERSIONING.md).</summary>
+    public const string Draft = "agent-hooks/draft";
+
+    /// <summary>The specification versions this SDK supports, oldest first;
+    /// each names a <c>spec/&lt;entry&gt;/</c> folder, and the last numbered
+    /// entry is the newest released version (VERSIONING.md). None is a
+    /// default: a host names the version it runs under when it builds a
+    /// context or an emitter (<see cref="V01"/> or <see cref="Draft"/>), or in
+    /// its declaration's <c>spec</c> member.</summary>
+    public static readonly IReadOnlyList<string> SupportedVersions = ["0.1", "draft"];
+
+    /// <summary>The wire strings of <see cref="SupportedVersions"/>, in the same order.</summary>
+    public static readonly IReadOnlyList<string> SupportedWireVersions =
+        SupportedVersions.Select(v => "agent-hooks/" + v).ToList();
+
+    /// <summary>Whether <paramref name="wire"/> names a specification version
+    /// this SDK supports.</summary>
+    public static bool IsSupported(string? wire) =>
+        wire is not null && SupportedWireVersions.Contains(wire);
+
+    /// <summary><paramref name="wire"/> when it names a supported specification
+    /// version; otherwise an <see cref="ArgumentException"/> naming the
+    /// supported ones. Every constructor that takes a version runs its
+    /// argument through this.</summary>
+    public static string Require(string? wire, string paramName = "spec")
+    {
+        if (IsSupported(wire)) return wire!;
+        throw new ArgumentException(
+            $"{paramName} must name a supported specification version, one of " +
+            $"{string.Join(", ", SupportedWireVersions)} (Spec.SupportedVersions); got {(wire is null ? "null" : $"\"{wire}\"")}",
+            paramName);
+    }
 
     /// <summary>Name of the default identity provider (§10.1, §10.2).</summary>
     public const string JcsSha256 = "jcs-sha256";
@@ -137,7 +174,7 @@ public static class HostError
 }
 
 /// <summary>Reserved <c>host_warning:*</c> reasons a host synthesizes
-/// (§11.1, <c>spec/0.1.0/reserved-warnings.json</c>). Interceptors MUST NOT
+/// (§11.1, <c>spec/draft/reserved-warnings.json</c>). Interceptors MUST NOT
 /// emit them; the §5 gate refuses such a verdict as
 /// <c>host_error:verdict_invalid</c>.</summary>
 public static class HostWarning
@@ -413,20 +450,25 @@ public sealed record Verdict(
     /// <summary>A deny carrying an <c>approval</c> block (§5.1).</summary>
     public bool IsLiftable => Decision == Decision.Deny && Approval is not null;
 
-    /// <summary>Validate per §5; throws <see cref="ArgumentException"/> on violation.</summary>
-    public void Validate()
+    /// <summary>Validate per §5 of the specification version
+    /// <paramref name="spec"/> names (a wire string); throws
+    /// <see cref="ArgumentException"/> on violation. The version chooses the
+    /// reserved warning prefixes: <c>host_error:*</c> under every version, and
+    /// <c>host_warning:*</c> as well under the draft (§11.1), where an
+    /// interceptor that emits it spoofs a host substitution (§6.3.1).</summary>
+    public void Validate(string spec)
     {
+        var reservesWarnings = Spec.Require(spec) == Spec.Draft;
         if (Reason?.StartsWith("host_error:", StringComparison.Ordinal) == true)
             throw new ArgumentException("verdict.reason MUST NOT start with 'host_error:' (§5)");
-        // §6.3.1/§11.1: host_warning:* is reserved for the host, like
-        // host_error:*; an interceptor that emits either spoofs a host
-        // substitution.
         foreach (var w in Warnings ?? [])
         {
-            if (w.Reason?.StartsWith("host_error:", StringComparison.Ordinal) == true
-                || w.Reason?.StartsWith("host_warning:", StringComparison.Ordinal) == true)
+            if (w.Reason?.StartsWith("host_error:", StringComparison.Ordinal) == true)
                 throw new ArgumentException(
-                    "verdict.warnings[].reason MUST NOT start with 'host_error:' or 'host_warning:' (§5, §11.1)");
+                    "verdict.warnings[].reason MUST NOT start with 'host_error:' (§5)");
+            if (reservesWarnings && w.Reason?.StartsWith("host_warning:", StringComparison.Ordinal) == true)
+                throw new ArgumentException(
+                    "verdict.warnings[].reason MUST NOT start with 'host_warning:' under the draft (§11.1)");
         }
         if (Approval is not null && Decision != Decision.Deny)
             throw new ArgumentException("approval block permitted only on deny (§5.1)");
@@ -711,7 +753,7 @@ public sealed record InterceptionRecord(
     /// <summary>Whether the guarded action executes (§6, §8).</summary>
     public bool Proceeds => Mode == EnforcementMode.EvaluateOnly || Verdict.Decision.Permits();
 
-    /// <summary>Wire shape per <c>spec/0.1.0/schema/generated/interception-record.schema.json</c>.
+    /// <summary>Wire shape per <c>spec/draft/schema/generated/interception-record.schema.json</c>.
     /// Mirrors the core's serde serialization: <c>verdicts</c> omitted when
     /// empty; <c>declaration</c>, <c>fold_truncated</c> and
     /// <c>resolved_by</c> omitted when null.</summary>

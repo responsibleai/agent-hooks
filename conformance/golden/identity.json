@@ -1,12 +1,12 @@
 {
-  "spec": "agent-hooks/0.1",
+  "spec": "agent-hooks/draft",
   "generator": "scripts/gen-golden-identity.py via Rust core",
   "fixtures": [
     {
       "id": "G-01-startup",
       "note": "agent_startup baseline",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "agent_startup",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 0,
@@ -31,15 +31,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"agent_init\":{\"tools_registered\":[\"a\",\"b\"]},\"interception_point\":\"agent_startup\",\"sequence\":0,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"tools_registered\":[\"a\",\"b\"]},\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
-        "context_identity": "sha256:1e8d587681f94c29a4af3b973bd3dd8793a78a99dac8f2f07a5e5f62f9e2e350"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"agent_init\":{\"tools_registered\":[\"a\",\"b\"]},\"interception_point\":\"agent_startup\",\"sequence\":0,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":{\"tools_registered\":[\"a\",\"b\"]},\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
+        "context_identity": "sha256:287e2e09e25f6205e210f9d2f2c204f10046e8d7bda672a30e7032f59aac1d4f"
       }
     },
     {
       "id": "G-02-input-unicode",
       "note": "input with non-ASCII content and emoji",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "input",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 1,
@@ -60,15 +60,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"input\":{\"content\":\"héllo 🌍\",\"role\":\"user\"},\"interception_point\":\"input\",\"sequence\":1,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"content\":\"héllo 🌍\",\"role\":\"user\"},\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
-        "context_identity": "sha256:6b66816f89fcff55c4daa70ad754009efd6cd26685747864e48fa724c8330e01"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"input\":{\"content\":\"héllo 🌍\",\"role\":\"user\"},\"interception_point\":\"input\",\"sequence\":1,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":{\"content\":\"héllo 🌍\",\"role\":\"user\"},\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
+        "context_identity": "sha256:1be9b12ef00ac9e52adb5fe7ec04ae986b599cb999c108da1a0505e60eac8083"
       }
     },
     {
       "id": "G-03-pre-tool-numbers",
       "note": "pre_tool_call with number edge cases in args",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "pre_tool_call",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 4,
@@ -101,15 +101,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":4,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"big\":1e+21,\"f\":1,\"i\":1,\"neg0\":0,\"pi\":3.141592653589793,\"small\":1e-7},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"big\":1e+21,\"f\":1,\"i\":1,\"neg0\":0,\"pi\":3.141592653589793,\"small\":1e-7},\"id\":\"tc-1\",\"name\":\"calc\"}}",
-        "context_identity": "sha256:4b48672d73d5c4b53974d536d92d210ef4b2d7594d55d8abfbeafc29e56a97c9"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":4,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":{\"big\":1e+21,\"f\":1,\"i\":1,\"neg0\":0,\"pi\":3.141592653589793,\"small\":1e-7},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"big\":1e+21,\"f\":1,\"i\":1,\"neg0\":0,\"pi\":3.141592653589793,\"small\":1e-7},\"id\":\"tc-1\",\"name\":\"calc\"}}",
+        "context_identity": "sha256:348da8f36769eace366d00da223ea6b023031359148f4a9a740a986d7b482085"
       }
     },
     {
       "id": "G-04-key-order",
       "note": "post_model_call with keys supplied in reverse order",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "post_model_call",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 3,
@@ -143,15 +143,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"post_model_call\",\"model\":{\"id\":\"m\"},\"response\":{\"content\":{\"a\":2,\"m\":3,\"z\":1},\"finish_reason\":\"stop\",\"tool_calls\":[]},\"sequence\":3,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"content\":{\"a\":2,\"m\":3,\"z\":1},\"finish_reason\":\"stop\",\"tool_calls\":[]},\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
-        "context_identity": "sha256:1f7972bc04c9bb0c3b20ac252cb350c484a6e7b7c19585d10fea4ea2d6f965d1"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"post_model_call\",\"model\":{\"id\":\"m\"},\"response\":{\"content\":{\"a\":2,\"m\":3,\"z\":1},\"finish_reason\":\"stop\",\"tool_calls\":[]},\"sequence\":3,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":{\"content\":{\"a\":2,\"m\":3,\"z\":1},\"finish_reason\":\"stop\",\"tool_calls\":[]},\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
+        "context_identity": "sha256:4f6f1e8a884a721bb287224426700d9d3e4b573970f6441eeb6d7cba4a0b8d44"
       }
     },
     {
       "id": "G-05-l2-l3-stripped",
       "note": "optional fields (trace, budgets, agent.name) and namespaced extensions MUST NOT affect identity",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "input",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 1,
@@ -187,15 +187,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\",\"name\":\"IGNORED\",\"version\":\"IGNORED\"},\"budgets\":{\"tool_call_count\":999},\"extensions\":{\"acs\":{\"anything\":true}},\"input\":{\"content\":\"hi\",\"role\":\"user\"},\"interception_point\":\"input\",\"sequence\":1,\"session\":{\"id\":\"sess-1\",\"started_at\":\"IGNORED\",\"turn\":99},\"spec\":\"agent-hooks/0.1\",\"target\":{\"content\":\"hi\",\"role\":\"user\"},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"trace\":{\"trace_id\":\"IGNORED\"}}",
-        "context_identity": "sha256:e84b6762b96c04e9713df30fef269a6b123da1c16a687f65305d744371adaff6"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\",\"name\":\"IGNORED\",\"version\":\"IGNORED\"},\"budgets\":{\"tool_call_count\":999},\"extensions\":{\"acs\":{\"anything\":true}},\"input\":{\"content\":\"hi\",\"role\":\"user\"},\"interception_point\":\"input\",\"sequence\":1,\"session\":{\"id\":\"sess-1\",\"started_at\":\"IGNORED\",\"turn\":99},\"spec\":\"agent-hooks/draft\",\"target\":{\"content\":\"hi\",\"role\":\"user\"},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"trace\":{\"trace_id\":\"IGNORED\"}}",
+        "context_identity": "sha256:98404a4df1eeac8a4b56f88433125960d1104294e2624595cabf1cd80952066d"
       }
     },
     {
       "id": "G-05b-l2-l3-baseline",
       "note": "same required+conditional fields as G-05 without optional/namespaced ones; identity MUST equal G-05",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "input",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 1,
@@ -216,15 +216,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"input\":{\"content\":\"hi\",\"role\":\"user\"},\"interception_point\":\"input\",\"sequence\":1,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"content\":\"hi\",\"role\":\"user\"},\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
-        "context_identity": "sha256:e84b6762b96c04e9713df30fef269a6b123da1c16a687f65305d744371adaff6"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"input\":{\"content\":\"hi\",\"role\":\"user\"},\"interception_point\":\"input\",\"sequence\":1,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":{\"content\":\"hi\",\"role\":\"user\"},\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
+        "context_identity": "sha256:98404a4df1eeac8a4b56f88433125960d1104294e2624595cabf1cd80952066d"
       }
     },
     {
       "id": "G-06-nested-array",
       "note": "pre_model_call with nested message array",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "pre_model_call",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 2,
@@ -276,15 +276,15 @@
         ]
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_model_call\",\"messages\":[{\"content\":\"a\",\"role\":\"system\"},{\"content\":{\"parts\":[1,2,{\"k\":\"v\"}]},\"role\":\"user\"}],\"model\":{\"id\":\"gpt-x\"},\"sequence\":2,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":[{\"content\":\"a\",\"role\":\"system\"},{\"content\":{\"parts\":[1,2,{\"k\":\"v\"}]},\"role\":\"user\"}],\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
-        "context_identity": "sha256:32e7df4b4117a6a2cf07adc2170693bbc20579d7a650623c18371e00eb174879"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_model_call\",\"messages\":[{\"content\":\"a\",\"role\":\"system\"},{\"content\":{\"parts\":[1,2,{\"k\":\"v\"}]},\"role\":\"user\"}],\"model\":{\"id\":\"gpt-x\"},\"sequence\":2,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":[{\"content\":\"a\",\"role\":\"system\"},{\"content\":{\"parts\":[1,2,{\"k\":\"v\"}]},\"role\":\"user\"}],\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
+        "context_identity": "sha256:e4416566e1b484892469abfa2a9d60c70dc1ebf0900ad3dd28b7f3f56761ea0e"
       }
     },
     {
       "id": "G-07-post-tool-null",
       "note": "post_tool_call with null result value",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "post_tool_call",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 5,
@@ -307,15 +307,15 @@
         "target": null
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"post_tool_call\",\"sequence\":5,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":null,\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{},\"id\":\"tc-1\",\"name\":\"t\"},\"tool_result\":{\"is_error\":false,\"value\":null}}",
-        "context_identity": "sha256:8a470ab3bb95e86a33a5e5ceb8df6ab2daa8153019393e3f086410a1252cd00d"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"post_tool_call\",\"sequence\":5,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":null,\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{},\"id\":\"tc-1\",\"name\":\"t\"},\"tool_result\":{\"is_error\":false,\"value\":null}}",
+        "context_identity": "sha256:6e97ed3e49a6caf1966cacd9f3b2fa09cae03f0f96326f818b8a855a30f5b130"
       }
     },
     {
       "id": "G-08-output-escapes",
       "note": "output with control chars requiring escape",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "output",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 6,
@@ -334,15 +334,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"output\",\"output\":{\"content\":\"line1\\nline2\\t\\\"q\\\"\\\\end\"},\"sequence\":6,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"content\":\"line1\\nline2\\t\\\"q\\\"\\\\end\"},\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
-        "context_identity": "sha256:f43bd3d6baa17bb3893f2d0bd83a3387bc91f59eb7787ad91934c2f99dcfea41"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"output\",\"output\":{\"content\":\"line1\\nline2\\t\\\"q\\\"\\\\end\"},\"sequence\":6,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":{\"content\":\"line1\\nline2\\t\\\"q\\\"\\\\end\"},\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
+        "context_identity": "sha256:9dc1de13019da04e16840a8b290c91d1f787f36567eb919c5e345b904f0cf3c2"
       }
     },
     {
       "id": "G-09-shutdown",
       "note": "agent_shutdown baseline",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "agent_shutdown",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 7,
@@ -361,15 +361,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"agent_shutdown\",\"sequence\":7,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"summary\":{\"reason\":\"completed\"},\"target\":{\"reason\":\"completed\"},\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
-        "context_identity": "sha256:aefb92c61e406acdbb3d23642ff6326b219abbf1129b29b08df8abc62afb1a51"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"agent_shutdown\",\"sequence\":7,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"summary\":{\"reason\":\"completed\"},\"target\":{\"reason\":\"completed\"},\"timestamp\":\"2026-01-01T00:00:00.000Z\"}",
+        "context_identity": "sha256:544844b0ee7a4cd68586cc7a67e8c906e05ca50cf71efc94460ab3dc63365863"
       }
     },
     {
       "id": "G-10-empty-target",
       "note": "pre_tool_call with empty args object",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "pre_tool_call",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 4,
@@ -388,15 +388,15 @@
         "target": {}
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":4,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{},\"id\":\"tc-1\",\"name\":\"noop\"}}",
-        "context_identity": "sha256:e87b3e17630a9701eec5d2915dab68a870daecbdc3ba4f4790abd4c901e02750"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":4,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":{},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{},\"id\":\"tc-1\",\"name\":\"noop\"}}",
+        "context_identity": "sha256:46cfc66a7215968bf03454332aa7f764769ab798d70d036b52083f1edcc3056e"
       }
     },
     {
       "id": "G-11-utf16-key-order",
       "note": "RFC 8785 sorts by UTF-16 code units: U+10000 (surrogate pair, first unit 0xD800) MUST sort before U+E000 despite the higher code point — the exact case where code-point sorters diverge. Empty key sorts first.",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "pre_tool_call",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 8,
@@ -427,15 +427,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":8,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"\":1,\"z\":4,\"é\":5,\"𐀀\":3,\"\":2},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"\":1,\"z\":4,\"é\":5,\"𐀀\":3,\"\":2},\"id\":\"tc-2\",\"name\":\"k\"}}",
-        "context_identity": "sha256:c29e0bd9b733b7c703e16ee6e84a60870637162d7adf814a9a4904e771071513"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":8,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":{\"\":1,\"z\":4,\"é\":5,\"𐀀\":3,\"\":2},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"\":1,\"z\":4,\"é\":5,\"𐀀\":3,\"\":2},\"id\":\"tc-2\",\"name\":\"k\"}}",
+        "context_identity": "sha256:e091e61c8b9f2ef56ba2dd225594690b6ed909db2bec1b158a52e70c08ccb7c8"
       }
     },
     {
       "id": "G-12-non-ascii-keys",
       "note": "non-ASCII member names (accented, CJK, emoji) survive canonicalization unescaped and sort by UTF-16 units",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "pre_tool_call",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 9,
@@ -462,15 +462,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":9,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"ascii\":3,\"émoji🎯\":2,\"中文\":1},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"ascii\":3,\"émoji🎯\":2,\"中文\":1},\"id\":\"tc-3\",\"name\":\"k\"}}",
-        "context_identity": "sha256:b5a9de47d33bf3d47e21a7046069fe5e6ad2a9c4e44c348bbbd1a34fe2a8b767"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":9,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":{\"ascii\":3,\"émoji🎯\":2,\"中文\":1},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"ascii\":3,\"émoji🎯\":2,\"中文\":1},\"id\":\"tc-3\",\"name\":\"k\"}}",
+        "context_identity": "sha256:39461272cb9eaadf2d953709b33cac3f0c5da59a009461d928e7836bd0c762fc"
       }
     },
     {
       "id": "G-13-int53-boundaries",
       "note": "±(2^53−1) are the largest integral values inside the I-JSON domain (§10.2); one past either bound is rejected (see the negative fixtures)",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "pre_tool_call",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 10,
@@ -495,15 +495,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":10,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"max\":9007199254740991,\"min\":-9007199254740991},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"max\":9007199254740991,\"min\":-9007199254740991},\"id\":\"tc-4\",\"name\":\"k\"}}",
-        "context_identity": "sha256:a243dd5905681dfbb0f274028ab516326defb498ed9f462f8022fe39190e470a"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":10,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":{\"max\":9007199254740991,\"min\":-9007199254740991},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"max\":9007199254740991,\"min\":-9007199254740991},\"id\":\"tc-4\",\"name\":\"k\"}}",
+        "context_identity": "sha256:32e7c832e25f439a51596e9cd65aa20a2de29cf2c907524c3d27e7c69871eb57"
       }
     },
     {
       "id": "G-14-string-encoded-int64",
       "note": "the §4.4 convention: 64-bit identifiers as decimal strings pass through byte-faithfully and never collide with numeric siblings",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "pre_tool_call",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 11,
@@ -528,15 +528,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":11,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"id\":\"9223372036854775807\",\"small\":42},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"id\":\"9223372036854775807\",\"small\":42},\"id\":\"tc-5\",\"name\":\"k\"}}",
-        "context_identity": "sha256:3a78e0666b997220076415b95b9e32a51041547123028e62fe4175b0faed7308"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":11,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":{\"id\":\"9223372036854775807\",\"small\":42},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"id\":\"9223372036854775807\",\"small\":42},\"id\":\"tc-5\",\"name\":\"k\"}}",
+        "context_identity": "sha256:a0bae398ab8e99aec4b66b30388d290435a3cfd7ad5eda16d30c773b6eb424a1"
       }
     },
     {
       "id": "G-15-rfc8785-numbers",
       "note": "ECMA-262 Number::toString forms from the RFC 8785 test corpus (in-domain subset): trailing-zero drop, exponent thresholds, shortest round-trip",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "pre_tool_call",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 12,
@@ -571,15 +571,15 @@
         }
       },
       "expect": {
-        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":12,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/0.1\",\"target\":{\"a\":56,\"b\":0.000001,\"c\":1e-7,\"d\":333333333.3333333,\"e\":1e+21,\"f\":9.999999999999996e+22,\"g\":0.1},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"a\":56,\"b\":0.000001,\"c\":1e-7,\"d\":333333333.3333333,\"e\":1e+21,\"f\":9.999999999999996e+22,\"g\":0.1},\"id\":\"tc-6\",\"name\":\"k\"}}",
-        "context_identity": "sha256:0147bdf34ae0be12583b51a42b3d7cf9dff6adf8e1bfc0b9d9fdb8353a14c7cf"
+        "canonical_json": "{\"agent\":{\"framework\":\"reference\",\"id\":\"agent-1\"},\"interception_point\":\"pre_tool_call\",\"sequence\":12,\"session\":{\"id\":\"sess-1\"},\"spec\":\"agent-hooks/draft\",\"target\":{\"a\":56,\"b\":0.000001,\"c\":1e-7,\"d\":333333333.3333333,\"e\":1e+21,\"f\":9.999999999999996e+22,\"g\":0.1},\"timestamp\":\"2026-01-01T00:00:00.000Z\",\"tool_call\":{\"args\":{\"a\":56,\"b\":0.000001,\"c\":1e-7,\"d\":333333333.3333333,\"e\":1e+21,\"f\":9.999999999999996e+22,\"g\":0.1},\"id\":\"tc-6\",\"name\":\"k\"}}",
+        "context_identity": "sha256:b6e3e8792a38cd64b5bbd317298b25a33250461849a1f9a75e7643726570ec63"
       }
     },
     {
       "id": "G-N01-integral-beyond-2-53",
       "note": "2^53 itself is out of domain: canonicalization would round",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "pre_tool_call",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 13,
@@ -609,7 +609,7 @@
       "id": "G-N02-missing-conditional",
       "note": "pre_tool_call without tool_call fails §4.2 structural validation",
       "ctx": {
-        "spec": "agent-hooks/0.1",
+        "spec": "agent-hooks/draft",
         "interception_point": "pre_tool_call",
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": 14,

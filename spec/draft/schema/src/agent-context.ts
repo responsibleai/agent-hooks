@@ -2,8 +2,8 @@
 
 // agent-context.schema.json and its per-point variants (§4). The master is
 // the union of one variant per interception point; each variant requires that
-// point's conditional members. scripts/generate-schemas.ts derives the closed
-// per-point files under generated/strict-contexts/ from the same variants.
+// point's payload. scripts/generate-schemas.ts derives the closed per-point
+// files under generated/strict-contexts/ from the same variants.
 
 import { Extensions } from "./common";
 import { InterceptionPoint } from "./interception-point";
@@ -102,7 +102,9 @@ export enum SummaryReason {
   Cancelled = "cancelled",
 }
 
-/** Conditional payload of agent_shutdown (§4.2). */
+/**
+ * Conditional payload of agent_shutdown (§4.2).
+ */
 export interface Summary {
   reason: SummaryReason;
   /** @minimum 0 */
@@ -124,14 +126,14 @@ export enum ActorKind {
 }
 
 /**
- * Members present at every point (§4.1), the conditional payloads (§4.2) and
- * the well-known optional members (§4.3, §4.5). Each variant below fixes
- * interception_point and makes that point's payload required.
+ * Metadata available at every interception point.
  */
-interface ContextBase {
-  /** @pattern ^agent-hooks/\d+\.\d+$ */
-  spec: string;
-  interception_point: InterceptionPoint;
+interface ContextMetadata {
+  /**
+   * This version's wire string (§4.1). A released version's contexts
+   * carry that version's own string, agent-hooks/<major>.<minor>.
+   */
+  spec: "agent-hooks/draft";
   /** @format date-time */
   timestamp: string;
   /** @minimum 0 */
@@ -152,19 +154,6 @@ interface ContextBase {
     /** @minimum 0 */
     turn?: number;
   };
-  target: unknown;
-  agent_init?: AgentInit;
-  input?: Input;
-  model?: Model;
-  messages?: Message[];
-  request_id?: string;
-  response?: Response;
-  usage?: Usage;
-  tool_call?: ToolCall;
-  tool_result?: ToolResult;
-  tools?: ToolDecl[];
-  output?: Output;
-  summary?: Summary;
   trace?: {
     trace_id?: string;
     span_id?: string;
@@ -187,101 +176,109 @@ interface ContextBase {
     /** @TJS-type number */
     cost_usd?: number;
   };
+}
+
+export interface HooksRequest extends ContextMetadata {
+  interception_point: InterceptionPoint;
   extensions?: Extensions;
 }
 
 /**
- * The context at agent_startup: agent_init is required (§4.2).
+ * The request at agent_startup: agent_init is required (§4.2).
  * @example [agent-startup.json](../examples/AgentContext/agent-startup.json)
  */
-export interface AgentStartupContext extends ContextBase {
+export interface AgentStartupRequest extends HooksRequest {
   interception_point: InterceptionPoint.AgentStartup;
   agent_init: AgentInit;
 }
 
 /**
- * The context at input: input is required (§4.2).
+ * The request at input: input is required (§4.2).
  * @example [input.json](../examples/AgentContext/input.json)
  */
-export interface InputContext extends ContextBase {
+export interface InputRequest extends HooksRequest {
   interception_point: InterceptionPoint.Input;
   input: Input;
 }
 
 /**
- * The context at pre_model_call: model and messages are required (§4.2).
+ * The request at pre_model_call: model and messages are required (§4.2).
  * @example [pre-model-call.json](../examples/AgentContext/pre-model-call.json)
+ * @example [pre-model-call-with-model-metadata.json](../examples/AgentContext/pre-model-call-with-model-metadata.json)
  * @example [pre-model-call-with-tools.json](../examples/AgentContext/pre-model-call-with-tools.json)
  */
-export interface PreModelCallContext extends ContextBase {
+export interface PreModelCallRequest extends HooksRequest {
   interception_point: InterceptionPoint.PreModelCall;
   model: Model;
   messages: Message[];
+  tools?: ToolDecl[];
+  request_id?: string;
 }
 
 /**
- * The context at post_model_call: model and response are required (§4.2).
+ * The request at post_model_call: model and response are required (§4.2).
  * @example [post-model-call.json](../examples/AgentContext/post-model-call.json)
+ * @example [post-model-call-with-optional-tool-call-id.json](../examples/AgentContext/post-model-call-with-optional-tool-call-id.json)
  * @example [post-model-call-with-usage.json](../examples/AgentContext/post-model-call-with-usage.json)
  */
-export interface PostModelCallContext extends ContextBase {
+export interface PostModelCallRequest extends HooksRequest {
   interception_point: InterceptionPoint.PostModelCall;
   model: Model;
   response: Response;
+  request_id?: string;
+  usage?: Usage;
 }
 
 /**
- * The context at pre_tool_call: tool_call is required (§4.2).
+ * The request at pre_tool_call: tool_call is required (§4.2).
  * @example [pre-tool-call.json](../examples/AgentContext/pre-tool-call.json)
  */
-export interface PreToolCallContext extends ContextBase {
+export interface PreToolCallRequest extends HooksRequest {
   interception_point: InterceptionPoint.PreToolCall;
   tool_call: ToolCall;
 }
 
 /**
- * The context at post_tool_call: tool_call and tool_result are required (§4.2).
+ * The request at post_tool_call: tool_call and tool_result are required (§4.2).
  * @example [post-tool-call.json](../examples/AgentContext/post-tool-call.json)
  * @example [post-tool-call-error.json](../examples/AgentContext/post-tool-call-error.json)
  */
-export interface PostToolCallContext extends ContextBase {
+export interface PostToolCallRequest extends HooksRequest {
   interception_point: InterceptionPoint.PostToolCall;
   tool_call: ToolCall;
   tool_result: ToolResult;
 }
 
 /**
- * The context at output: output is required (§4.2).
+ * The request at output: output is required (§4.2).
  * @example [output.json](../examples/AgentContext/output.json)
- * @example [output-with-metadata.json](../examples/AgentContext/output-with-metadata.json)
  */
-export interface OutputContext extends ContextBase {
+export interface OutputRequest extends HooksRequest {
   interception_point: InterceptionPoint.Output;
   output: Output;
 }
 
 /**
- * The context at agent_shutdown: summary is required (§4.2).
+ * The request at agent_shutdown: summary is required (§4.2).
  * @example [agent-shutdown.json](../examples/AgentContext/agent-shutdown.json)
  */
-export interface AgentShutdownContext extends ContextBase {
+export interface AgentShutdownRequest extends HooksRequest {
   interception_point: InterceptionPoint.AgentShutdown;
   summary: Summary;
 }
 
 /**
  * Payload a host constructs at each interception point (AGENT-HOOKS-0.1 §4).
- * required fields are always present; conditional fields are required per
- * interception_point; optional fields are well-known; namespaced extensions live
- * under extensions.
+ * Each variant requires its discriminator and own hook payload, with shared
+ * metadata and optional namespaced extensions.
  * @title Agent Hooks — agent context
  */
 export type AgentContext =
-  | AgentStartupContext
-  | InputContext
-  | PreModelCallContext
-  | PostModelCallContext
-  | PreToolCallContext
-  | PostToolCallContext
-  | OutputContext
-  | AgentShutdownContext;
+  | AgentStartupRequest
+  | InputRequest
+  | PreModelCallRequest
+  | PostModelCallRequest
+  | PreToolCallRequest
+  | PostToolCallRequest
+  | OutputRequest
+  | AgentShutdownRequest;

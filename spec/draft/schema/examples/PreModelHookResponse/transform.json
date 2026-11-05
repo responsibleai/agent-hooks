@@ -1,0 +1,13 @@
+{
+  "verdict": {
+    "decision": "transform",
+    "transform": {
+      "messages": [
+        {
+          "role": "user",
+          "content": "Find the public retention policy."
+        }
+      ]
+    }
+  }
+}

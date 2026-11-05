@@ -3,8 +3,11 @@
 What a harness or gateway maintainer takes on to expose the contract.
 
 This guide is informative. The normative text is
-[spec/0.1.0/AGENT-HOOKS-0.1.md](../spec/0.1.0/AGENT-HOOKS-0.1.md); section numbers
-below point into it. Read it with
+[spec/0.1/AGENT-HOOKS-0.1.md](../spec/0.1/AGENT-HOOKS-0.1.md); section numbers
+below point into it. What 0.1 does not yet define, such as the failure
+posture `on_error` (§6.3.1) and the reserved warnings (§11.1), is in the
+working draft, [spec/draft/AGENT-HOOKS-DRAFT.md](../spec/draft/AGENT-HOOKS-DRAFT.md).
+Read it with
 [conformance/HARNESS.md](../conformance/HARNESS.md), which covers the
 test side in detail.
 
@@ -34,8 +37,10 @@ the right moments, and obeying the result.
 
 The wire contract is what crosses between host and interceptor: the
 `AgentContext` (§4), the `Verdict` (§5) and the `InterceptionRecord`
-(§10.3). Its version is `agent-hooks/0.1`, stamped in every context's
-`spec` member. Interceptors depend on it and nothing else.
+(§10.3). Its version is the specification version the host names when
+it builds its emitter and contexts, `agent-hooks/0.1` or
+`agent-hooks/draft`, stamped in every context's `spec` member; the SDKs
+have no default. Interceptors depend on it and nothing else.
 
 Host configuration is everything the host decides about how
 interceptors run: composition profile and knobs (§7.2), enforcement
@@ -69,7 +74,12 @@ The document has its own version, `agent-hooks-declaration/1.1`
 (1.0 is still accepted), written in the required `declaration`
 member. It moves independently
 of the wire version and of package versions
-([spec/0.1.0/DECLARATION-VERSIONS.md](../spec/0.1.0/DECLARATION-VERSIONS.md)).
+([spec/draft/DECLARATION-VERSIONS.md](../spec/draft/DECLARATION-VERSIONS.md)).
+The document also names the specification version it is written for
+in `spec` (`agent-hooks/0.1` or `agent-hooks/draft`), and the loader
+reads it by that version's rules. The SDKs require the member under
+both versions: a document written for 0.1 without it is refused and
+needs that one line added.
 
 ### What the host does
 

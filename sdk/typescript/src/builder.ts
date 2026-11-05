@@ -8,7 +8,7 @@
  * point that fills L1 and sets `target`.
  */
 
-import { AgentContext, InterceptionPoint, JsonValue, SPEC_VERSION } from "./index";
+import { AgentContext, InterceptionPoint, JsonValue, requireSpecVersion } from "./index";
 
 function now(): string {
   return new Date().toISOString();
@@ -19,7 +19,16 @@ export class AgentContextBuilder {
   private readonly agent: { id: string; framework: string; name?: string; version?: string };
   private readonly session: { id: string; started_at?: string };
 
+  /** The specification version every context names in `spec` (§4.1):
+   * the wire string the builder was given, the same version the
+   * emitter runs under. */
+  readonly spec: string;
+
+  /** `spec` is required: there is no default version. Pass
+   * {@link SPEC_VERSION_0_1} or {@link SPEC_VERSION_DRAFT}; any other
+   * value is a `RangeError` naming {@link SUPPORTED_SPEC_VERSIONS}. */
   constructor(opts: {
+    spec: string;
     agentId: string;
     framework: string;
     sessionId: string;
@@ -27,6 +36,7 @@ export class AgentContextBuilder {
     agentVersion?: string;
     sessionStartedAt?: string;
   }) {
+    this.spec = requireSpecVersion(opts?.spec, "AgentContextBuilder spec");
     this.agent = { id: opts.agentId, framework: opts.framework };
     if (opts.agentName) this.agent.name = opts.agentName;
     if (opts.agentVersion) this.agent.version = opts.agentVersion;
@@ -36,7 +46,7 @@ export class AgentContextBuilder {
 
   private envelope(ip: InterceptionPoint, target: JsonValue): AgentContext {
     const ctx: AgentContext = {
-      spec: SPEC_VERSION,
+      spec: this.spec,
       interception_point: ip,
       timestamp: now(),
       sequence: this.seq++,

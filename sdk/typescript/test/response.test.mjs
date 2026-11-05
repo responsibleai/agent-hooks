@@ -7,6 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  SPEC_VERSION_DRAFT,
   canonicalJson,
   parseInterceptorResponse,
   serializeInterceptorResponse,
@@ -22,13 +23,13 @@ const fixture = JSON.parse(
 
 for (const entry of fixture.valid) {
   test(`valid response: ${entry.name}`, () => {
-    const response = parseInterceptorResponse(entry.input);
+    const response = parseInterceptorResponse(entry.input, SPEC_VERSION_DRAFT);
     assert.deepEqual(
       response,
       JSON.parse(entry.normalized),
     );
     assert.deepEqual(
-      parseInterceptorResponse(serializeInterceptorResponse(response)),
+      parseInterceptorResponse(serializeInterceptorResponse(response), SPEC_VERSION_DRAFT),
       response,
     );
   });
@@ -37,7 +38,7 @@ for (const entry of fixture.valid) {
 for (const entry of fixture.invalid) {
   test(`invalid response: ${entry.name}`, () => {
     assert.throws(
-      () => parseInterceptorResponse(entry.input),
+      () => parseInterceptorResponse(entry.input, SPEC_VERSION_DRAFT),
       (error) => error.code === fixture.invalid_error,
     );
   });
@@ -55,10 +56,10 @@ for (const entry of fixture.metadata_bounds) {
     const bytes = Buffer.byteLength(canonicalJson(value.extensions));
     assert.equal(bytes, entry.bytes);
     if (entry.valid) {
-      parseInterceptorResponse(value);
+      parseInterceptorResponse(value, SPEC_VERSION_DRAFT);
     } else {
       assert.throws(
-        () => parseInterceptorResponse(value),
+        () => parseInterceptorResponse(value, SPEC_VERSION_DRAFT),
         (error) => error.code === fixture.invalid_error,
       );
     }

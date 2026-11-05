@@ -31,8 +31,23 @@ public static class Declaration
 
     /// <summary>Every contract version this SDK's loader accepts, oldest
     /// first. A document carrying any other <c>declaration</c> value is
-    /// refused with <c>declaration_error:version_unsupported</c>.</summary>
+    /// refused with <c>declaration_error:version_unsupported</c>. The set
+    /// a given document may carry is its specification version's
+    /// (<see cref="AcceptedVersionsFor"/>).</summary>
     public static readonly IReadOnlyList<string> SupportedVersions = [Version10, Version];
+
+    /// <summary>The newest contract version the specification version
+    /// <paramref name="spec"/> (a wire string) defines (§7.7.2): 1.0 under
+    /// 0.1, 1.1 under the draft. What <see cref="DeclarationBuilder"/>
+    /// writes when the document says nothing else. A test pins it to the
+    /// core's <c>declaration_versions().by_spec</c>.</summary>
+    public static string CurrentVersionFor(string spec) =>
+        Spec.Require(spec) == Spec.Draft ? Version : Version10;
+
+    /// <summary>The contract versions a document written for the
+    /// specification version <paramref name="spec"/> may carry (§7.7.2).</summary>
+    public static IReadOnlyList<string> AcceptedVersionsFor(string spec) =>
+        Spec.Require(spec) == Spec.Draft ? SupportedVersions : [Version10];
 
     /// <summary>Largest document the text and file paths accept, in bytes.</summary>
     public const int MaxDocumentBytes = 1 << 20;
@@ -692,9 +707,12 @@ public sealed class HostRegistry
         var version = surface.DeclarationVersions.Contains(Declaration.Version)
             ? Declaration.Version
             : surface.DeclarationVersions.Order(StringComparer.Ordinal).FirstOrDefault() ?? Declaration.Version;
+        // The probe names the oldest specification version that defines
+        // its contract version (0.1 for 1.0, the draft for 1.1).
         var probe = new JsonObject
         {
             ["declaration"] = version,
+            ["spec"] = Declaration.AcceptedVersionsFor(Spec.V01).Contains(version) ? Spec.V01 : Spec.Draft,
             ["bindings"] = new JsonArray(),
         };
         try
@@ -820,7 +838,9 @@ public sealed class HostDeclaration
     }
 
     /// <summary>A builder for the code path (§7.7.7).</summary>
-    public static DeclarationBuilder Builder() => new();
+    /// <summary>A builder for the code path (§7.7.7), for a document written
+    /// for the specification version <paramref name="spec"/> (a wire string).</summary>
+    public static DeclarationBuilder Builder(string spec) => new(spec);
 
     /// <summary>Steps 2 to 10 of §7.7.6 in the core: validate the
     /// document and resolve it against the registry's surface and
@@ -1076,27 +1096,46 @@ public sealed record BindOptions(
 public sealed class DeclarationBuilder
 {
     private readonly JsonObject _doc;
+    /// <summary>Whether an absent <c>declaration</c> is filled at build time
+    /// with the newest contract version the document's <c>spec</c> defines.</summary>
+    private readonly bool _defaults;
 
-    /// <summary>A builder with <c>declaration</c> set to
-    /// <see cref="Declaration.Version"/> and an empty <c>bindings</c> array.</summary>
-    public DeclarationBuilder()
+    /// <summary>A builder for a document written for the specification
+    /// version <paramref name="spec"/> (a wire string, <see cref="AgentHooks.Spec.V01"/>
+    /// or <see cref="AgentHooks.Spec.Draft"/>): <c>spec</c> set, <c>bindings</c> empty,
+    /// and <c>declaration</c> filled at build time with
+    /// <see cref="Declaration.CurrentVersionFor"/> unless <see cref="Version"/>
+    /// names one.</summary>
+    public DeclarationBuilder(string spec)
     {
         _doc = new JsonObject
         {
-            ["declaration"] = Declaration.Version,
+            ["spec"] = AgentHooks.Spec.Require(spec, nameof(spec)),
             ["bindings"] = new JsonArray(),
         };
+        _defaults = true;
     }
 
     private DeclarationBuilder(JsonObject doc)
     {
         _doc = doc;
+        _defaults = false;
     }
 
-    /// <summary>A builder with no member set at all, not even
+    /// <summary>A builder with no member set at all, not even <c>spec</c>,
     /// <c>declaration</c> or <c>bindings</c>. For harnesses that must
     /// express an incomplete document; a host wants the constructor.</summary>
     public static DeclarationBuilder Empty() => new(new JsonObject());
+
+    /// <summary>The document with the build-time default applied (a copy).</summary>
+    private JsonObject Finished()
+    {
+        var doc = (JsonObject)_doc.DeepClone();
+        var spec = (string?)doc["spec"];
+        if (_defaults && !doc.ContainsKey("declaration") && AgentHooks.Spec.IsSupported(spec))
+            doc["declaration"] = Declaration.CurrentVersionFor(spec!);
+        return doc;
+    }
 
     private JsonObject Configuration()
     {
@@ -1123,13 +1162,19 @@ public sealed class DeclarationBuilder
     private static JsonArray Points(IEnumerable<InterceptionPoint> points) =>
         new(points.Distinct().Order().Select(p => (JsonNode)p.ToWireName()).ToArray());
 
-    /// <summary><c>declaration</c> (defaults to <see cref="Declaration.Version"/>).</summary>
+    /// <summary><c>declaration</c>. Unset, the builder writes the newest
+    /// contract version its <c>spec</c> defines
+    /// (<see cref="Declaration.CurrentVersionFor"/>): 1.0 under 0.1, 1.1
+    /// under the draft.</summary>
     public DeclarationBuilder Version(string version)
     {
         _doc["declaration"] = version;
         return this;
     }
 
+    /// <summary><c>spec</c>, the specification version the document is
+    /// written for (§7.7.2); the constructor sets it. A document without it
+    /// is refused.</summary>
     public DeclarationBuilder Spec(string spec)
     {
         _doc["spec"] = spec;
@@ -1355,8 +1400,8 @@ public sealed class DeclarationBuilder
     }
 
     /// <summary>The document as built, before validation (a copy).</summary>
-    public JsonObject ToNode() => (JsonObject)_doc.DeepClone();
+    public JsonObject ToNode() => Finished();
 
     /// <summary>Hand the document to <see cref="HostDeclaration.FromNode"/>.</summary>
-    public HostDeclaration Build() => HostDeclaration.FromNode(_doc);
+    public HostDeclaration Build() => HostDeclaration.FromNode(Finished());
 }

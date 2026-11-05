@@ -2,13 +2,13 @@
 
 //! Verdict wire normalization (§5).
 
-use crate::types::{Decision, Evidence, HostError, Transform, Verdict, Warning};
+use crate::types::{Decision, Evidence, HostError, SpecVersion, Transform, Verdict, Warning};
 use serde_json::Value;
 
 /// Parse a strict Verdict without discarding duplicate object members.
-pub fn from_json(text: &str) -> Result<Verdict, (HostError, String)> {
+pub fn from_json(text: &str, spec: SpecVersion) -> Result<Verdict, (HostError, String)> {
     let raw = crate::response::parse_checked(text)?;
-    from_wire(&raw)
+    from_wire(&raw, spec)
 }
 
 pub(crate) fn check_json_domain(raw: &Value) -> Result<(), (HostError, String)> {
@@ -36,7 +36,7 @@ fn require_members(
 /// Parse and validate an interceptor's wire return value into a `Verdict`
 /// per §5. Any violation yields `HostError::VerdictInvalid` with a detail
 /// message; the caller synthesizes the `deny` verdict.
-pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
+pub fn from_wire(raw: &Value, spec: SpecVersion) -> Result<Verdict, (HostError, String)> {
     check_json_domain(raw)?;
     let obj = raw.as_object().ok_or((
         HostError::VerdictInvalid,
@@ -88,17 +88,23 @@ pub fn from_wire(raw: &Value) -> Result<Verdict, (HostError, String)> {
             .map(|w| match w {
                 Value::Object(m) => {
                     require_members(m, &["reason", "message"])?;
+                    // Reserved for the host: host_error:* under every
+                    // version, host_warning:* under the draft (§11.1).
+                    let reserved = |s: &str| {
+                        s.starts_with("host_error:")
+                            || (spec.reserves_host_warnings() && s.starts_with("host_warning:"))
+                    };
                     let reason = match m.get("reason") {
                         None | Some(Value::Null) => None,
-                        Some(Value::String(s))
-                            if !s.starts_with("host_error:") && !s.starts_with("host_warning:") =>
-                        {
-                            Some(s.clone())
-                        }
+                        Some(Value::String(s)) if !reserved(s) => Some(s.clone()),
                         _ => {
                             return Err((
                                 HostError::VerdictInvalid,
-                                "warnings[].reason must be a non-reserved string (host_error:* and host_warning:* are host-only, §5, §6.3)".into(),
+                                if spec.reserves_host_warnings() {
+                                    "warnings[].reason must be a non-reserved string (host_error:* and host_warning:* are host-only, §5, §11.1)".into()
+                                } else {
+                                    "warnings[].reason must be a non-reserved string (host_error:* is host-only, §5)".into()
+                                },
                             ))
                         }
                     };
@@ -300,7 +306,7 @@ mod tests {
                 "decision": "transform",
                 "transform": {"path": path, "value": 1}
             });
-            let gate = from_wire(&w).expect_err("gate must reject");
+            let gate = from_wire(&w, SpecVersion::Draft).expect_err("gate must reject");
             assert_eq!(gate.0, want, "gate error for {path}");
             let apply = crate::path::parse(path).expect_err("parse must reject");
             assert_eq!(gate.0, apply, "gate/apply divergence for {path}");
@@ -311,25 +317,31 @@ mod tests {
                 "decision": "transform",
                 "transform": {"path": path, "value": 1}
             });
-            assert!(from_wire(&w).is_ok(), "gate rejects valid {path}");
+            assert!(
+                from_wire(&w, SpecVersion::Draft).is_ok(),
+                "gate rejects valid {path}"
+            );
             assert!(crate::path::parse(path).is_ok());
         }
     }
 
     #[test]
     fn from_wire_allow() {
-        let v = from_wire(&json!({"decision": "allow"})).unwrap();
+        let v = from_wire(&json!({"decision": "allow"}), SpecVersion::Draft).unwrap();
         assert_eq!(v.decision, Decision::Allow);
     }
 
     #[test]
     fn from_wire_transform_roundtrip() {
-        let v = from_wire(&json!({
-            "decision": "transform",
-            "reason": "redact",
-            "transform": {"path": "$target.url", "value": "x"},
-            "result_labels": ["pii"]
-        }))
+        let v = from_wire(
+            &json!({
+                "decision": "transform",
+                "reason": "redact",
+                "transform": {"path": "$target.url", "value": "x"},
+                "result_labels": ["pii"]
+            }),
+            SpecVersion::Draft,
+        )
         .unwrap();
         assert_eq!(v.decision, Decision::Transform);
         assert_eq!(v.transform.as_ref().unwrap().path, "$target.url");
@@ -338,71 +350,103 @@ mod tests {
 
     #[test]
     fn from_wire_rejects_bad_decision() {
-        assert!(from_wire(&json!({"decision": "maybe"})).is_err());
+        assert!(from_wire(&json!({"decision": "maybe"}), SpecVersion::Draft).is_err());
     }
 
     #[test]
     fn from_wire_rejects_removed_decisions() {
         // §5.1: warn and escalate are not wire decisions anymore.
-        assert!(from_wire(&json!({"decision": "warn"})).is_err());
-        assert!(from_wire(&json!({"decision": "escalate"})).is_err());
+        assert!(from_wire(&json!({"decision": "warn"}), SpecVersion::Draft).is_err());
+        assert!(from_wire(&json!({"decision": "escalate"}), SpecVersion::Draft).is_err());
     }
 
     #[test]
     fn from_wire_liftable_deny() {
-        let v = from_wire(&json!({"decision": "deny", "approval": {}})).unwrap();
+        let v = from_wire(
+            &json!({"decision": "deny", "approval": {}}),
+            SpecVersion::Draft,
+        )
+        .unwrap();
         assert!(v.is_liftable());
-        let v = from_wire(&json!({"decision": "deny"})).unwrap();
+        let v = from_wire(&json!({"decision": "deny"}), SpecVersion::Draft).unwrap();
         assert!(!v.is_liftable());
     }
 
     #[test]
     fn from_wire_approval_only_on_deny() {
-        assert!(from_wire(&json!({"decision": "allow", "approval": {}})).is_err());
-        assert!(from_wire(&json!({"decision": "deny", "approval": []})).is_err());
+        assert!(from_wire(
+            &json!({"decision": "allow", "approval": {}}),
+            SpecVersion::Draft
+        )
+        .is_err());
+        assert!(from_wire(
+            &json!({"decision": "deny", "approval": []}),
+            SpecVersion::Draft
+        )
+        .is_err());
     }
 
     #[test]
     fn from_wire_warnings() {
-        let v = from_wire(&json!({
-            "decision": "allow",
-            "warnings": [{"reason": "pii", "message": "found ssn"}]
-        }))
+        let v = from_wire(
+            &json!({
+                "decision": "allow",
+                "warnings": [{"reason": "pii", "message": "found ssn"}]
+            }),
+            SpecVersion::Draft,
+        )
         .unwrap();
         assert_eq!(v.warnings.len(), 1);
         assert_eq!(v.warnings[0].reason.as_deref(), Some("pii"));
-        assert!(from_wire(&json!({"decision": "allow", "warnings": ["x"]})).is_err());
-        assert!(from_wire(&json!({
-            "decision": "allow",
-            "warnings": [{"reason": "host_error:x"}]
-        }))
+        assert!(from_wire(
+            &json!({"decision": "allow", "warnings": ["x"]}),
+            SpecVersion::Draft
+        )
+        .is_err());
+        assert!(from_wire(
+            &json!({
+                "decision": "allow",
+                "warnings": [{"reason": "host_error:x"}]
+            }),
+            SpecVersion::Draft
+        )
         .is_err());
         // §6.3: the host-only warning namespace is refused the same way.
-        let e = from_wire(&json!({
-            "decision": "allow",
-            "warnings": [{"reason": "host_warning:control_failed", "message": "spoof"}]
-        }))
+        let e = from_wire(
+            &json!({
+                "decision": "allow",
+                "warnings": [{"reason": "host_warning:control_failed", "message": "spoof"}]
+            }),
+            SpecVersion::Draft,
+        )
         .unwrap_err();
         assert_eq!(e.0, HostError::VerdictInvalid);
     }
 
     #[test]
     fn from_wire_rejects_host_error_reason() {
-        let e = from_wire(&json!({"decision": "deny", "reason": "host_error:x"})).unwrap_err();
+        let e = from_wire(
+            &json!({"decision": "deny", "reason": "host_error:x"}),
+            SpecVersion::Draft,
+        )
+        .unwrap_err();
         assert_eq!(e.0, HostError::VerdictInvalid);
     }
 
     #[test]
     fn from_wire_transform_body_required() {
-        assert!(from_wire(&json!({"decision": "transform"})).is_err());
+        assert!(from_wire(&json!({"decision": "transform"}), SpecVersion::Draft).is_err());
     }
 
     #[test]
     fn from_wire_transform_body_forbidden() {
-        assert!(from_wire(&json!({
-            "decision": "allow",
-            "transform": {"path": "$target.x", "value": 1}
-        }))
+        assert!(from_wire(
+            &json!({
+                "decision": "allow",
+                "transform": {"path": "$target.x", "value": 1}
+            }),
+            SpecVersion::Draft
+        )
         .is_err());
     }
 
@@ -413,7 +457,7 @@ mod tests {
             "decision": "allow",
             "evidence": {"artefact": big}
         });
-        let (e, d) = from_wire(&raw).unwrap_err();
+        let (e, d) = from_wire(&raw, SpecVersion::Draft).unwrap_err();
         assert_eq!(e, HostError::VerdictInvalid);
         assert!(d.contains("exceeds 10240"));
     }
@@ -426,7 +470,7 @@ mod tests {
             "decision": "allow",
             "evidence": {"artefact": pad}
         });
-        assert!(from_wire(&raw).is_ok());
+        assert!(from_wire(&raw, SpecVersion::Draft).is_ok());
     }
 
     #[test]
@@ -438,6 +482,24 @@ mod tests {
             }),
             ..crate::types::Verdict::allow()
         };
-        assert_eq!(v.validate(), Err(HostError::VerdictInvalid));
+        assert_eq!(
+            v.validate(SpecVersion::Draft),
+            Err(HostError::VerdictInvalid)
+        );
+    }
+
+    #[test]
+    fn warning_prefix_reservation_follows_the_specification_version() {
+        let w = json!({"decision": "allow", "warnings": [{"reason": "host_warning:x"}]});
+        let v = from_wire(&w, SpecVersion::V0_1).unwrap();
+        assert_eq!(v.warnings[0].reason.as_deref(), Some("host_warning:x"));
+        let e = from_wire(&w, SpecVersion::Draft).unwrap_err();
+        assert_eq!(e.0, HostError::VerdictInvalid);
+        assert!(e.1.contains("host_warning:*"), "{}", e.1);
+        let w = json!({"decision": "allow", "warnings": [{"reason": "host_error:x"}]});
+        for spec in SpecVersion::ALL {
+            let e = from_wire(&w, *spec).unwrap_err();
+            assert_eq!(e.0, HostError::VerdictInvalid, "{spec}");
+        }
     }
 }
