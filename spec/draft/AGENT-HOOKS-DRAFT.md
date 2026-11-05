@@ -1057,44 +1057,8 @@ that names anything the host cannot honour is refused at load, before
 any emission (§7.7.6); nothing is narrowed, defaulted past the code's
 capability, or partially applied.
 
-Configuration in code without a declaration remains conformant. Records
+Configuration in code without a `HostDeclaration` remains conformant. Records
 do not distinguish declaration-built and code-configured hosts (§7.7.8).
-
-#### 7.7.2 Version and compatibility
-
-The host declaration format is part of the specification version selected
-by its REQUIRED `spec` member. This draft uses `agent-hooks/draft`; a
-released specification uses its own wire string. Package versions remain
-independent. There is no separate declaration version or supported
-declaration-version list.
-
-A loader MUST publish the exact specification versions it supports and
-refuse a missing, malformed or unsupported `spec` with
-`declaration_error:spec_unsupported`, naming the supported set. After reading
-and parsing, this check runs before all other validation. The selected
-specification determines the declaration schema, defaults and behavior.
-Supporting another specification does not change a document selecting an
-older one. A loader MUST NOT guess, migrate, downgrade, rewrite or partially
-apply a document, or select rules from several specifications.
-
-The schema is closed: an unknown member at a closed level is
-`declaration_error:unknown_field`. In this draft that includes the removed
-`declaration` and `surface.declaration_versions` members. The OPTIONAL
-`on_error` members (§7.7.3, §7.7.5) default to `deny`; omitting them does not
-opt into continuation.
-
-Released spec 0.1 retains its original declaration format and rules. Moving
-a document to this draft requires explicitly selecting the draft and
-removing the old version fields. The host MUST re-run applicable CTK
-coverage after migration. The draft is mutable and not an immutable
-compatibility promise.
-
-**Implementation status:** This declaration and record change is an
-experiment proposed for review. Existing SDK loaders, builders and CTK
-fixtures still implement the previous draft format; coordinated SDK/CTK
-implementation is deferred. These schema changes do not establish runtime
-conformance. See [P-6](https://github.com/CaitieM20/agent-hooks/pull/6)
-for the design comparison and `DECLARATION-VERSIONS.md` for the schema mapping.
 
 #### 7.7.3 Members and defaults
 
@@ -1105,7 +1069,7 @@ order carries no meaning are sets; `bindings` is an ordered list.
 | Member | Type | Required | Default |
 | --- | --- | --- | --- |
 | `$schema` | string | no | absent; ignored by the loader |
-| `spec` | `agent-hooks/draft` for this version, `agent-hooks/<major>.<minor>` for a released one | yes | none; a loader that supports several versions cannot guess one |
+| `spec` | the spec version | yes | none; a loader that supports several versions cannot guess one |
 | `id` | `^[a-z0-9][a-z0-9._-]{0,63}$` | no | absent; an operator label for logs |
 | `host` | `{name, version?}` | no | absent; informative, never checked |
 | `configuration` | object, below | no | all defaults |

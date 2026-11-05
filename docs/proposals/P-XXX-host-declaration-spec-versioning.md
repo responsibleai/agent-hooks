@@ -1,31 +1,55 @@
-# P-6: Version host declarations with the specification
+# P-XXX: Version host declarations with the specification
 
 - **Status:** Draft
 - **Created:** 2026-11-05
 - **Author(s):** @CaitieM20
-- **PR:** https://github.com/CaitieM20/agent-hooks/pull/6
+- **PR:** https://github.com/responsibleai/agent-hooks/pull/xxx
 
-## Abstract and motivation
+## Abstract & Motivation
+A `HostDeclaration` selects deployment configuration for controls already
+registered in code. Today it is versioned separately from the specification, 
+and a separate HostDeclaration to spec version compatibility matrix is maintained. 
+This adds additional complexity and maintenance costs for an optional feature that 
+has limited to no adoption, and no clear user scenario for versioning independently.
 
-A host declaration selects deployment configuration for controls already
-registered in code. Today it selects both a specification version and an
-independent declaration version, while the specification determines which
-declaration versions are supported. Each spec bundle also publishes its own
-declaration schemas. The extra selector therefore adds a compatibility
-matrix without independently identifying a validator.
+This proposal removes the independent `HostDeclaration` version, and instead has it's version
+coupled to the spec version. 
 
-This experiment makes the declaration format part of the specification.
-`spec` selects its syntax, defaults and behavior, just as it selects the
-hook contracts. SDK package versions remain independent.
+## Specification
 
-## Proposed contract
+The substantive changes to [the draft specification](../../spec/draft/AGENT-HOOKS-DRAFT.md)
+are:
 
-Remove `declaration` and `surface.declaration_versions`. Publish one
+- **Version selection and compatibility (former §7.7.2; §7.7.1, §7.7.3):**
+  remove the independent declaration major/minor contract, its accepted-version
+  APIs and mandatory per-version migration machinery.
+- **Members and surface (§7.7.3, §7.7.4):** remove top-level `declaration`,
+  `surface.declaration_versions` and the requirement that the surface's
+  accepted set include the document's declaration version. 
+- **Resolution and binding context (§7.7.3, §7.7.5):** resolve defaults to
+  the selected specification's shape, retaining its `spec`; pass the selected
+  specification version to kind resolvers. 
+- **Loader refusals (§7.7.6):** remove `declaration_error:version_unsupported`,
+  reducing the refusal vocabulary from eleven classes to ten. Check `spec`
+  immediately after reading and parsing, before unknown-field and value
+  validation; `spec_unsupported` carries the supported specification set.
+- **Records and operational logging (§7.7.8, §10.3):** remove the record's
+  `declaration` marker, so records no longer identify configuration origin.
+  Their existing `spec` identifies the contract; load-time logging uses the
+  selected specification version alongside the document label and digest,
+  outside the record stream.
+- **Remove Declaration-Versions.md** no longer necessary since declaration version and
+  spec version are the same. 
+
+## Schema and wire impact
+
+Remove `declaration` and `surface.declaration_versions`.
+Add required `spec` field 
+Publish one
 `host-declaration.schema.json` per specification bundle. Reject removed
-fields rather than silently migrating documents. The draft permits
-`on_error`, with `deny` when omitted.
+fields rather than silently migrating documents.
 
-Before (existing draft format):
+Current Format:
 
 ```json
 {
@@ -38,7 +62,7 @@ Before (existing draft format):
 }
 ```
 
-After (proposed draft format):
+Proposed Format:
 
 ```json
 {
@@ -53,7 +77,9 @@ policy. Remove the optional `declaration` field from interception records
 entirely; the existing `spec` still identifies their contract. Records no
 longer distinguish file-configured from code-configured emitters.
 
-## Options and rationale
+### Recommended normative semantics
+
+## Rationale
 
 | Option | Benefit | Cost |
 | --- | --- | --- |

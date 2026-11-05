@@ -288,7 +288,31 @@ export interface Binding {
   on_error?: OnError;
 }
 
-interface HostDeclarationBase {
+/**
+ * A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that
+ * fixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface
+ * (§13.1) and its interceptor bindings. The document's spec member selects
+ * its format and behavior; this file describes agent-hooks/draft. Every object is
+ * closed except bindings[].config and the values under extensions. This schema
+ * is self-contained so a settings validator can use it alone. Rules it cannot
+ * express (knob consistency, the §3.2 floor, surface against the host's code,
+ * registered names) live in the loader (§7.7.6).
+ * @example [document-policy.json](../examples/HostDeclaration/document-policy.json)
+ * @example [default-failure-posture.json](../examples/HostDeclaration/default-failure-posture.json)
+ * @example [failure-posture.json](../examples/HostDeclaration/failure-posture.json)
+ * @example [streaming-document-policy.json](../examples/HostDeclaration/streaming-document-policy.json)
+ * @title Agent Hooks — host declaration document (agent-hooks/draft)
+ * @additionalProperties false
+ */
+export interface HostDeclaration {
+  configuration?: Configuration;
+  /**
+   * Ordered: array order is dispatch order. REQUIRED, so an empty-deny host
+   * (zero bindings) is written down rather than arrived at by omission. Binding
+   * ids are unique.
+   * @maxItems 256
+   */
+  bindings: Binding[];
   /** Ignored by the loader; kept for editors. */
   $schema?: string;
   /**
@@ -316,31 +340,4 @@ interface HostDeclarationBase {
    * follow the §4.6 namespace rule; the §4.6 reserved namespaces apply.
    */
   extensions?: Extensions;
-}
-
-/**
- * A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that
- * fixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface
- * (§13.1) and its interceptor bindings. The document's spec member selects
- * its format and behavior; this file describes agent-hooks/draft. Every object is
- * closed except bindings[].config and the values under extensions. This schema
- * is self-contained so a settings validator can use it alone. Rules it cannot
- * express (knob consistency, the §3.2 floor, surface against the host's code,
- * registered names) live in the loader (§7.7.6).
- * @example [document-policy.json](../examples/HostDeclaration/document-policy.json)
- * @example [default-failure-posture.json](../examples/HostDeclaration/default-failure-posture.json)
- * @example [failure-posture.json](../examples/HostDeclaration/failure-posture.json)
- * @example [streaming-document-policy.json](../examples/HostDeclaration/streaming-document-policy.json)
- * @title Agent Hooks — host declaration document (agent-hooks/draft)
- * @additionalProperties false
- */
-export interface HostDeclaration extends HostDeclarationBase {
-  configuration?: Configuration;
-  /**
-   * Ordered: array order is dispatch order. REQUIRED, so an empty-deny host
-   * (zero bindings) is written down rather than arrived at by omission. Binding
-   * ids are unique.
-   * @maxItems 256
-   */
-  bindings: Binding[];
 }
