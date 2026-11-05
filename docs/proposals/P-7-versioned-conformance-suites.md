@@ -13,7 +13,7 @@ Give each Agent Hooks specification version its own conformance vector schema an
 
 ## The gap (Motivation)
 
-Today `conformance/vectors.schema.json` has a draft schema `$id` and directly references draft schemas, including the host declaration schema. The vectors in `conformance/vectors/` likewise describe the working draft and include features not present in released 0.1. CI validates that one schema and suite against the draft schemas; the release workflow does the same. SDK runners also load one shared vector directory.
+Before this proposal, `conformance/vectors.schema.json` had a draft schema `$id` and directly referenced draft schemas, including the host declaration schema. The vectors in `conformance/vectors/` likewise described the working draft and included features not present in released 0.1. CI validated that one schema and suite against the draft schemas; the release workflow did the same. SDK runners also loaded one shared vector directory.
 
 This coupling means the shared schema cannot validate vectors written for another specification version. Pointing it at a released schema would not solve the problem: the current draft vectors use the draft wire string and draft-only fields. Conversely, adding a new spec version can change the referenced schema IDs and make the old suite fail validation even where the old specification remains supported.
 
@@ -73,7 +73,7 @@ This proposal changes validation and test organization, not runtime authorizatio
 
 ## Backward compatibility
 
-The vector schema path, vector directory path, and SDK runner defaults change. Existing invocations that implicitly load `conformance/vectors/` must either select a specification version or retain a clearly documented development default that cannot be mistaken for a released claim. Released specification schemas and their contents remain immutable.
+The vector schema path and vector directory path change. SDK runner defaults move to the released `conformance/0.1/vectors/` suite; draft-suite SDK support is deferred. Existing invocations that implicitly load `conformance/vectors/` must be updated. Released specification schemas and their contents remain immutable.
 
 At migration, move the current working suite to `conformance/draft/` without changing its meaning. Add a `conformance/0.1/` suite only for cases valid under the released 0.1 contract; do not convert draft vectors by changing their `spec` string alone. Existing released claims remain tied to their reported specification and must not be retroactively evaluated against the draft suite.
 
@@ -83,8 +83,8 @@ CI validates each existing suite against its matching schema bundle. Workflows m
 
 ## SDK surface and implementation impact
 
-- Update Rust, Python, TypeScript, .NET, and Go CTK runners to accept or derive the specification version and load only that suite.
-- Keep draft development execution available without allowing it to create a released conformance report.
+- Keep the SDK CTK runners and packaged vector mirror on the released `0.1` suite for now; draft-suite SDK support is deferred to separate work.
+- Keep draft development validation available in repository CI without allowing it to create a released conformance report.
 - Update each reference harness and vendored CTK vector mirror to package the appropriate suite or suites.
 - Update `scripts/check-spec-versions.py`, schema example/equivalence checks, release and CI workflows, schema-drift synchronization, and docs-site staging/publication to discover and validate suites by version.
 - Preserve per-SDK tests for cases not expressible in JSON vectors.

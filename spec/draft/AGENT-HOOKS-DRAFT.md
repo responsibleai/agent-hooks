@@ -1230,7 +1230,7 @@ the bound itself never blocks canonicalisation.
 `profiles` values are objects whose only members are the knobs that
 profile consults, each a non-empty set of supported values. An absent
 knob member means the default value only. The capability list is the
-`conformance/vectors.schema.json` enum with `buffered_output` removed
+`conformance/draft/vectors.schema.json` enum with `buffered_output` removed
 (it is the boolean member above) and `host_declaration` added
 (§7.7.9).
 
@@ -1443,7 +1443,7 @@ emitter from a declaration document through the loader. A host that
 declares it MUST build its emitter from the declaration the CTK
 supplies, together with the CTK's registry, and MUST surface refusal
 as a load outcome, never as a run. The `declaration/*` vector parts
-(`conformance/vectors/AH-CTK-120` onwards) are gated on it. The
+(`conformance/draft/vectors/AH-CTK-120` onwards) are gated on it. The
 runner proves the construction paths of §7.7.7 on every such vector
 and refuses to pass a vector whose paths diverge.
 
@@ -2014,8 +2014,8 @@ A host claims conformance by:
 2. Declaring its surface per §13.1.
 3. Passing 100% of non-skipped vectors and attaching the report.
 
-Vectors are language-agnostic JSON under `conformance/vectors/` validated by
-`conformance/vectors.schema.json`; vectors that exercise composition
+Vectors are language-agnostic JSON under `conformance/draft/vectors/` validated by
+`conformance/draft/vectors.schema.json`; vectors that exercise composition
 carry the profile/knobs they apply to. The golden identity vectors
 apply only when the declared provider is `jcs-sha256`. Per-language CTK
 runners are provided under `sdk/<lang>/`.

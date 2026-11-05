@@ -6,7 +6,7 @@ Run with::
 
     pytest test_conformance.py \
         --agent-hooks-harness=harness:AgentFrameworkHarness \
-        --agent-hooks-vectors=/path/to/conformance/vectors
+        --agent-hooks-vectors=/path/to/conformance/0.1/vectors
 
 Omitting ``--agent-hooks-vectors`` uses the vector set vendored in the
 ``agent-hooks-sdk`` wheel (the claimed corpus).

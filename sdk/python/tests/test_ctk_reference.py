@@ -22,14 +22,14 @@ from agent_hooks.ctk import (
 )
 from agent_hooks.ctk.reference import ReferenceHarness
 
-_VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vectors"
+_VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "0.1" / "vectors"
 
 # Pinned capability skips: Python ints are arbitrary precision, so the
 # reference harness declares every value-domain capability and no
-# value-domain vector may skip. The streaming/incremental part (§12.1
+# value-domain vector may skip. The streaming/incremental part (Â§12.1
 # exception) skips because the reference harness buffers caller-bound
 # output and does not declare incremental_output. The declaration/*
-# parts (§7.7.9) run: the harness declares host_declaration and builds
+# parts (Â§7.7.9) run: the harness declares host_declaration and builds
 # every emitter through the loader. Any other skip means a capability
 # regressed or a vector was quietly excluded; both must fail the suite.
 CAPABILITY_SKIPS: frozenset[str] = frozenset(
@@ -49,7 +49,7 @@ def test_reference_harness_conformance(vector: dict) -> None:
     result = asyncio.run(run_vector(ReferenceHarness(SPEC_VERSION_0_1), vector))
     if result.status == "skip":
         assert result.id in EXPECTED_SKIPS, (
-            f"unexpected skip: {result.id} ({result.detail}) — update "
+            f"unexpected skip: {result.id} ({result.detail}) â€” update "
             "CAPABILITY_SKIPS only with a capability rationale"
         )
         if result.id in DRAFT_ONLY:

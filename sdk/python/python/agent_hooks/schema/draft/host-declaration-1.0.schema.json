@@ -356,7 +356,7 @@
       }
     },
     "Capability": {
-      "description": "The conformance capability vocabulary (§13.1, conformance/vectors.schema.json)\nless buffered_output, which is the boolean surface member, plus\nhost_declaration.",
+      "description": "The conformance capability vocabulary (§13.1, conformance/draft/vectors.schema.json)\nless buffered_output, which is the boolean surface member, plus\nhost_declaration.",
       "type": "string",
       "enum": [
         "model_calls",

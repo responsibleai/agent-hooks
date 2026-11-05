@@ -5,8 +5,8 @@ agent-hooks CTK can drive that framework through the conformance vectors. The
 harness owns three responsibilities:
 
 1. **Wire the scenario.** Inject the vector's mock model (a deterministic
-   response script) and mock tools (a `name → args → return` lookup table)
-   into the framework so a run is hermetic — no real LLM, no real I/O.
+   response script) and mock tools (a `name â†’ args â†’ return` lookup table)
+   into the framework so a run is hermetic â€” no real LLM, no real I/O.
 2. **Register the interceptor.** Attach the CTK-supplied `Interceptor` (a
    `ScriptedInterceptor` that records every `AgentContext` and replays the
    vector's `interceptor_script`) at every interception point the framework supports.
@@ -14,7 +14,7 @@ harness owns three responsibilities:
    describing what happened.
 
 The CTK runner handles everything else: loading vectors, building the
-scripted interceptor/resolver, validating every recorded context against the full §4 envelope (required-core types plus per-point conditional fields — the same check the emitters run), and asserting
+scripted interceptor/resolver, validating every recorded context against the full Â§4 envelope (required-core types plus per-point conditional fields â€” the same check the emitters run), and asserting
 `expect`.
 
 ## Hosted response fixtures
@@ -61,15 +61,15 @@ class MyFrameworkHarness(Harness):
         # 5. Register `resolver` as the approval seam (if your framework
         #    supports lifting deny+approval verdicts)
         # 6. Set enforcement mode, the vector's composition profile
-        #    (§7.2), and its identity provider ("jcs-sha256" or None,
-        #    §10.1)
+        #    (Â§7.2), and its identity provider ("jcs-sha256" or None,
+        #    Â§10.1)
         ...
 
     async def run(self) -> RunRecord:
         # Execute one session with scenario.input. Catch InterceptionBlocked.
         # Return outcome, final_output, the tool-invocation log captured by
-        # your mock tools, and — from your emitter — the per-emission
-        # identity pairs and wire-shaped InterceptionRecords (§10.3; they
+        # your mock tools, and â€” from your emitter â€” the per-emission
+        # identity pairs and wire-shaped InterceptionRecords (Â§10.3; they
         # power expect.identities_equal and expect.records).
         ...
 
@@ -81,23 +81,13 @@ Equivalent interfaces ship in `sdk/typescript/src/ctk/index.ts`,
 `sdk/dotnet/src/AgentHooks.Conformance/IHarness.cs`,
 `sdk/go/conformance/harness.go`, and `sdk/rust/core/src/ctk.rs (`ctk` feature)`.
 
-The vectors under `conformance/` are two sets. The released set, every
-vector without `introduced_in`, is what the gating runs use: its host
-declarations name `agent-hooks/0.1`, and a harness under 0.1 runs it.
-The 17 draft-only vectors, `AH-CTK-144` to `AH-CTK-160` with
-`introduced_in: draft`, are the working test set for the next
-specification version. They are carried under `agent-hooks/draft`
-because they exercise behaviour no released version has (`on_error`,
-declaration 1.1, the reserved warnings); a harness under a released
-version skips them with the reason `draft-only vector; see #188`, and
-the advisory `draft-tests` job runs them under the draft. A harness
-states the version it builds under in `spec`; the reference harnesses
-take it in their constructor and build their contexts under the
-emitter's version, so a declaration vector's own document decides.
-Nothing is claimed against the draft: a claim names a released version,
-and every runner refuses a conformance report that names
-`agent-hooks/draft` ([RUNNER.md](RUNNER.md)). Binding tests to a draft
-revision is #188.
+SDK CTK runs currently use `conformance/0.1/` and report against the
+released `agent-hooks/0.1` contract. The separate
+`conformance/draft/` suite tracks work on the next specification
+version and is validated by repository CI, but SDK draft-suite support
+is deferred to separate work. A claim names a released version, and
+every runner refuses a conformance report that names
+`agent-hooks/draft` ([RUNNER.md](RUNNER.md)).
 
 ## Mock model
 
@@ -112,7 +102,7 @@ counter.
 clauses evaluated top-down; the first whose `when_args` deep-equals the
 invocation args (or has no `when_args`) wins. **Your mock MUST record every
 invocation** `{name, args}` into a list the harness returns in
-`RunRecord.tool_invocations` — this is how the CTK proves a `transform` was
+`RunRecord.tool_invocations` â€” this is how the CTK proves a `transform` was
 actually honoured independently of what the host *reports* in
 `post_tool_call`.
 
@@ -124,37 +114,37 @@ mandatory baseline is `{}` (lifecycle only: `agent_startup`, `input`,
 `output`, `agent_shutdown`).
 
 `int64_json` declares that your harness *language* can hold integers
-beyond 2^53 from vector JSON losslessly (§4.4). JavaScript harnesses
+beyond 2^53 from vector JSON losslessly (Â§4.4). JavaScript harnesses
 omit it (`JSON.parse` rounds before any guard can run); Go harnesses
 need `json.Number` decoding to claim it (see `sdk/go/conformance/runner.go`).
 
 `bigint_json` is the stronger form: integer tokens beyond u64/i64
 survive your JSON layer byte-faithfully (Python `int`, Go
-`json.Number`, .NET `JsonNode`). Rust harnesses omit it — `serde_json`
-coerces such literals to a double at load — which is exactly the
-coercion class the core's raw-text scan (§10.2) exists to reject; see
+`json.Number`, .NET `JsonNode`). Rust harnesses omit it â€” `serde_json`
+coerces such literals to a double at load â€” which is exactly the
+coercion class the core's raw-text scan (Â§10.2) exists to reject; see
 `AH-CTK-091`.
 
-`buffered_output` (§12.1a) is **declaration-only**: it defaults to
+`buffered_output` (Â§12.1a) is **declaration-only**: it defaults to
 `true` (the host buffers caller-bound output until the `output`
 combined verdict permits), and a host that streams to its caller
 without buffering declares `buffered_output: false` in its surface and
 claim. The CTK drives hosts with mocked I/O and cannot exercise
-streaming egress, so no vector carries this capability — the
-declaration exists to make the retraction limitation visible (§13.3).
+streaming egress, so no vector carries this capability â€” the
+declaration exists to make the retraction limitation visible (Â§13.3).
 
 `incremental_output` gates the `streaming/incremental` vector part
-(`AH-CTK-110`–`AH-CTK-113`), which exercises the §12.1 exception's
+(`AH-CTK-110`â€“`AH-CTK-113`), which exercises the Â§12.1 exception's
 accounting discipline against a mocked stream (see "Incremental
 mediation" below). Declare it only when your host declares
 `buffered_output: false` **and** mediates `post_model_call`
 incrementally with watermark-gated release (declared exposure bound:
-none — the posture ACS §18.1 calls `blocking`); the vectors pin that
+none â€” the posture ACS Â§18.1 calls `blocking`); the vectors pin that
 posture's deterministic release points, so a host with a looser bound
 does not declare the capability and skips the part. A buffering host
 never declares it.
 
-`host_declaration` (§7.7.9) declares that the host builds its emitter
+`host_declaration` (Â§7.7.9) declares that the host builds its emitter
 from a host declaration document through the loader. It gates the
 `declaration/load`, `declaration/bindings`, `declaration/refusal`,
 `failure_posture/deny` and `failure_posture/continue` parts
@@ -165,21 +155,21 @@ harnesses (Rust, Python, TypeScript, .NET and Go) declare it and build
 every emitter through the loader.
 
 Non-finite floats (NaN/Infinity) and lone surrogates cannot be
-expressed in a JSON vector at all — those §4.4 marshalling guards are
+expressed in a JSON vector at all â€” those Â§4.4 marshalling guards are
 pinned by per-SDK unit tests, not vectors.
 
 ## Postures
 
 Where the spec permits two host behaviors, the harness **declares**
 which one its host implements and the runner selects the single
-expected outcome for that declared surface — a vector never accepts
+expected outcome for that declared surface â€” a vector never accepts
 "either outcome", so a pass always attests one specific behavior.
 
 `tool_seam_host_error: continue | terminate` (default `continue`)
 declares what the host does with the run after a `host_error:*` deny
-at `pre_tool_call`/`post_tool_call` (§6.2): `continue` surfaces a tool
+at `pre_tool_call`/`post_tool_call` (Â§6.2): `continue` surfaces a tool
 error to the model and keeps the loop going; `terminate` means the
-host's own semantics terminate the turn — the posture §6.2's "unless
+host's own semantics terminate the turn â€” the posture Â§6.2's "unless
 the host's own semantics terminate the turn" clause permits. Vectors
 whose run ends in such a deny carry `expect.run_outcome_by_posture`,
 and the runner resolves it against this declaration (forwarded in the
@@ -190,18 +180,18 @@ Declare it per SDK convention: a `tool_seam_host_error` attribute
 `ToolSeamHostErrorDeclarer` interface (Go), the `ToolSeamHostError`
 property (default interface member, .NET), or the
 `tool_seam_host_error()` trait method (Rust). Omitting it declares
-`continue` — the posture every in-tree reference harness implements.
-The declaration belongs in the host's §13.3 claim alongside its
+`continue` â€” the posture every in-tree reference harness implements.
+The declaration belongs in the host's Â§13.3 claim alongside its
 capabilities.
 
-The failure posture `on_error: deny | continue` (§6.3.1) is not a
+The failure posture `on_error: deny | continue` (Â§6.3.1) is not a
 harness-declared posture of this kind. It is configuration the vector
 itself sets, through the `on_error` member of a binding or the
 `configuration.failure.on_error` document default in the host
 declaration document it carries, so every vector in the
 `failure_posture/*` parts is single-valued without a
 `run_outcome_by_posture` branch and is gated on `host_declaration`.
-A harness has nothing to declare for it; a host's §13.3 claim states
+A harness has nothing to declare for it; a host's Â§13.3 claim states
 `on_error: continue` when the declaration or registrations it runs
 under set it.
 
@@ -211,12 +201,12 @@ An `interceptor_script` rule may carry a `fault` instead of a
 `return`. The scripted interceptor the runner builds implements each
 one; a harness wraps that interceptor and must not swallow the fault:
 
-- `raise`: the interceptor raises or throws natively (§6.3
+- `raise`: the interceptor raises or throws natively (Â§6.3
   `host_error:interceptor_failed`).
-- `malformed_verdict`: the interceptor returns a §5-invalid shape, a
+- `malformed_verdict`: the interceptor returns a Â§5-invalid shape, a
   `transform` decision with no body (`host_error:verdict_invalid`).
 - `mutate`: the wrapper mutates the context it received in place and
-  returns allow (§7 copy isolation, TM-05).
+  returns allow (Â§7 copy isolation, TM-05).
 - `hang`: the interceptor does not return before the binding's
   timeout. The vector sets a small `timeout_ms` on the binding (50 ms)
   so the run stays fast. Under kind `ctk.scripted` the emitter's own
@@ -224,25 +214,25 @@ one; a harness wraps that interceptor and must not swallow the fault:
   and, if the host has not done so once the timeout plus a grace
   period has passed, returns allow, so a host that does not bound
   execution fails the vector on `tool_not_invoked` instead of hanging
-  the run (§6.3 `host_error:interceptor_timeout`). A build that cannot
+  the run (Â§6.3 `host_error:interceptor_timeout`). A build that cannot
   bound execution refuses the numeric timeout at load
-  (`surface_unsupported`, §7.7.6 step 8) and fails these vectors
+  (`surface_unsupported`, Â§7.7.6 step 8) and fails these vectors
   honestly. Under kind `ctk.managed` the interceptor owns its
-  deadline (§7): it waits out the bound it was handed, cleans up and
+  deadline (Â§7): it waits out the bound it was handed, cleans up and
   reports the typed `timeout` outcome; the emitter does not wrap it in
   a second timer. `AH-CTK-144` and `AH-CTK-145` bind `ctk.scripted`,
   so they pin the emitter-owned timer.
 - `cancel`: defined only for kind `ctk.managed`. The managed scripted
-  interceptor reports the typed `cancelled` outcome (§7) at the
+  interceptor reports the typed `cancelled` outcome (Â§7) at the
   matched point. The host must treat it as
   `deny host_error:interceptor_failed` and must not substitute an
-  allow even under `on_error: continue` (§6.3.1). `AH-CTK-150` binds
+  allow even under `on_error: continue` (Â§6.3.1). `AH-CTK-150` binds
   `ctk.managed` for this.
 
 ## Principal notification
 
 A host that continues under `on_error: continue` must tell the
-principal (§6.3.1). The `RunRecord` grows one field for this,
+principal (Â§6.3.1). The `RunRecord` grows one field for this,
 `host_messages`: the host messages the host delivered to the
 principal during the run, as strings, in order. In the reference
 harnesses the principal is the agent and the channel is the one the
@@ -265,30 +255,30 @@ concatenation equals `respond.content`. A harness declaring
   that chunk: `response.content` is the prefix, `response.finish_reason`
   is `"incremental"` for a non-final segment and the scripted
   `finish_reason` for the final one. Each emission is an ordinary
-  `post_model_call` (§12.1); the scripted interceptor answers each.
+  `post_model_call` (Â§12.1); the scripted interceptor answers each.
 - Release is watermark-gated: a permitted segment's text egresses on
   its verdict; a `deny` terminates the stream, withholds everything
   not yet released, and stops chunk consumption.
 - `respond.stream_truncated: true` means the stream dies abnormally
   after the listed chunks: the final chunk is a partial segment no
   emission covers, and the scripted `finish_reason` never arrives. The
-  host MUST fail closed per §12.1 exception item 3 — a
+  host MUST fail closed per Â§12.1 exception item 3 â€” a
   `post_model_call` over the full delivered assembly with
   `response.finish_reason: "stream_incomplete"` and a deny
-  self-verdict `host_error:streaming_unsupported` — withholding and
+  self-verdict `host_error:streaming_unsupported` â€” withholding and
   not persisting the residue. The vectors assert the record, not
   whether interceptors observe that emission (host-defined, as with
   provider faults).
-- The `RunRecord` grows two fields for this part: `released_output` —
+- The `RunRecord` grows two fields for this part: `released_output` â€”
   the caller-visible content the host actually egressed, in order
-  (distinct from `final_output`, which stays null on a blocked run) —
-  and `persisted` — a serialization of every durable incorporation the
+  (distinct from `final_output`, which stays null on a blocked run) â€”
+  and `persisted` â€” a serialization of every durable incorporation the
   host made for the session (conversation history, session stores).
   `expect.released_output` is compared exactly;
   `expect.persisted_must_not_contain` asserts substrings that must not
   appear in `persisted`. A host that persists nothing reports an empty
   value and satisfies the durability assertions vacuously, which is
-  the always-safe §6.1 posture.
+  the always-safe Â§6.1 posture.
 
 No in-tree reference harness declares `incremental_output` yet (every
 reference harness buffers), so runner-side assertion support for
@@ -302,12 +292,12 @@ The Harness contract has two methods with defaults and one the
 `host_declaration` capability requires (Rust names; each SDK uses its
 own casing):
 
-- `host_surface()` returns the host's code surface (§7.7.4): the
+- `host_surface()` returns the host's code surface (Â§7.7.4): the
   points it emits, its capabilities, the profiles and knob values it
   supports, its posture, whether it may declare `buffered_output:
   false` and the exposure bound it then enforces, whether the build
   bounds execution, and the contract versions it accepts. The default
-  derives it from `capabilities()` and the posture: the §3.2 floor plus
+  derives it from `capabilities()` and the posture: the Â§3.2 floor plus
   the model points iff `model_calls` plus the tool points iff
   `tool_calls`, every profile with every knob value. A host declaring
   `incremental_output` overrides it to add its exposure bound; a
@@ -331,14 +321,14 @@ For a declaration vector the runner builds the registry
 the reserved `ctk` kind segment) with two interceptor kinds over the
 same scripted interceptor, `ctk.scripted` (a standard registration the
 emitter wraps in its own timer) and `ctk.managed` (registered through
-the managed-interceptor path of §7, so it receives the resolved bound
+the managed-interceptor path of Â§7, so it receives the resolved bound
 and reports a typed outcome); for both, config `{"script": i}` selects
 `interceptor_scripts[i]` and script 0 records. It registers
 identity provider `ctk-fault`, approval resolver `ctk-scripted` (from
 `approval_script`) and redactor `ctk-redact` (from
 `redact_for_approval`). Before calling the harness it resolves the
 document through the core from the value, from its JSON text, from a
-temporary file and from a builder populated member by member (§7.7.7);
+temporary file and from a builder populated member by member (Â§7.7.7);
 the four canonical resolved forms must agree, or all four must refuse
 with one class, and a divergence fails the vector. It then records
 `RunRecord.load` (`outcome: accepted | refused`, `class`,
@@ -368,9 +358,7 @@ validates against the schemas of the bundle it names.
 ```bash
 # Python
 pytest --agent-hooks-harness=my_pkg.MyFrameworkHarness \
-       --agent-hooks-vectors=path/to/conformance/vectors
-# The built-in reference harness, under the version it should run
-pytest --agent-hooks-spec=agent-hooks/0.1
+       --agent-hooks-vectors=path/to/conformance/0.1/vectors
 ```
 
 See per-language `sdk/<lang>/README.md` for the equivalent invocation.
@@ -379,26 +367,26 @@ See per-language `sdk/<lang>/README.md` for the equivalent invocation.
 
 - `identity_provider: "ctk-fault"` in a vector means the harness MUST
   declare a custom provider named `ctk-fault` whose compute function
-  fails on every call. It pins the §10.1 provider-failure rule: the
+  fails on every call. It pins the Â§10.1 provider-failure rule: the
   emission is denied `host_error:context_invalid` before any
   interceptor runs, with null identities and the declared provider
   name on the record.
-- Hosts validate the §4 envelope before dispatch (§10.2). The CTK
+- Hosts validate the Â§4 envelope before dispatch (Â§10.2). The CTK
   cannot express an invalid envelope through a scenario (harnesses
   construct valid contexts by design), so envelope rejection is pinned
   by core and per-SDK emitter tests rather than vectors.
 - `resolved_by` on asserted records distinguishes `"approval"`
   (permit substitution) from `"rejection"` (consulted, not lifted);
-  absent means the seam was never consulted (§10.3).
+  absent means the seam was never consulted (Â§10.3).
 
 ## Coverage boundaries
 
 Some normative behavior cannot be expressed in the vector grammar and
 is pinned by per-SDK unit tests instead:
 
-- **NaN/Infinity marshalling guards (§4.4)** — not representable in a
+- **NaN/Infinity marshalling guards (Â§4.4)** â€” not representable in a
   JSON vector file.
-- **§12.1 streaming assembly (buffered path)** — for a buffering host
+- **Â§12.1 streaming assembly (buffered path)** â€” for a buffering host
   the scenario grammar has no partial-stream form, so the
   assemble-before-`post_model_call` rule and its fail-closed
   `host_error:streaming_unsupported` path remain host obligations the
@@ -406,14 +394,14 @@ is pinned by per-SDK unit tests instead:
   the `streaming/incremental` part drives it through `respond.stream`
   for hosts declaring `incremental_output` (see "Incremental
   mediation"), including the residue fail-closed shape (`AH-CTK-112`).
-- **§12.2 concurrent emissions** — vectors run single-threaded;
+- **Â§12.2 concurrent emissions** â€” vectors run single-threaded;
   sequence-uniqueness under concurrency is a per-SDK unit test.
-- **Multi-turn sessions (§3.1)** — the scenario grammar carries one
+- **Multi-turn sessions (Â§3.1)** â€” the scenario grammar carries one
   `input`; multi-turn ordering is pinned by emitter unit tests.
-- **§5.4 result_labels persistence/resurfacing** — requires label
+- **Â§5.4 result_labels persistence/resurfacing** â€” requires label
   storage in the harness agent; not yet implemented in the reference
   harnesses.
-- **Host declaration load errors a vector cannot express (§7.7.6)**:
+- **Host declaration load errors a vector cannot express (Â§7.7.6)**:
   `unreadable` (a missing path, a directory, an oversize file, invalid
   UTF-8, a byte-order mark), `malformed` (non-JSON text, duplicate
   keys, excess depth, a non-finite value on the value path),
@@ -437,9 +425,9 @@ is pinned by per-SDK unit tests instead:
   `sdk/typescript/test/golden_declaration.test.mjs`,
   `sdk/dotnet/test/AgentHooks.Tests/DeclarationTests.cs`,
   `sdk/go/agenthooks/declaration_test.go`).
-- **Failure posture details a vector cannot express (§6.3.1, §7)**:
+- **Failure posture details a vector cannot express (Â§6.3.1, Â§7)**:
   an interceptor that emits a `host_warning:*` warning reason (the
-  vector schema's verdict reference forbids the prefix, so the §5
+  vector schema's verdict reference forbids the prefix, so the Â§5
   rejection is a per-SDK gate test); the code registration API's
   per-registration `on_error` with its `deny` default (vectors set
   the posture through a document only); the managed interceptor's

@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-# Supply chain: least privilege — jobs only read the repo.
+# Supply chain: least privilege â€” jobs only read the repo.
 permissions:
   contents: read
 
@@ -24,10 +24,8 @@ jobs:
       - name: Validate schemas are well-formed
         run: |
           set -e
-          # Validate each specification bundle separately: every
-          # *.schema.json under its schema/ folder outside src/. The vector
-          # grammar references the draft's ids, so it joins the draft's set
-          # only.
+          # Validate each specification bundle and its matching conformance
+          # schema together, so external references cannot cross versions.
           validated=0
           for spec_dir in spec/*/; do
             [ -d "${spec_dir}schema" ] || continue
@@ -38,7 +36,8 @@ jobs:
               echo "::error::$root holds no *.schema.json files"
               exit 1
             fi
-            [ "$spec_dir" = spec/draft/ ] && schemas+=(conformance/vectors.schema.json)
+            version=$(basename "$spec_dir")
+            schemas+=("conformance/$version/vectors.schema.json")
             echo "Validating ${#schemas[@]} schemas under $root"
             for f in "${schemas[@]}"; do
               # -r must not include the file under -s (ajv rejects duplicate $id)
@@ -55,38 +54,37 @@ jobs:
             exit 1
           fi
           echo "schemas validated for $validated bundle(s)"
-      - name: Released vectors validate against the newest released bundle
-        # conformance/vectors/ holds two sets. The released set (every
-        # vector without introduced_in: draft) is what the gating runs
-        # use: it validates here against the newest spec/<MAJOR.MINOR>/,
-        # with the grammar rebased to that bundle's schema ids and
-        # without the references the bundle lacks
-        # (scripts/vectors-for-bundle.py). The draft-only vectors are the
-        # working test set for the next version and validate against the
-        # draft in the advisory draft-tests job below. Binding a test set
-        # to a draft revision is #188.
+      - name: Validate each versioned conformance suite
         run: |
-          set -eu
-          version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
-          version=$(for dir in spec/*/; do basename "$dir"; done | grep -E "$version_pattern" | sort -V | tail -1)
-          if [ -z "$version" ]; then
-            echo "::error::no released spec/<MAJOR.MINOR>/ folder"
+          set -e
+          validated=0
+          for spec_dir in spec/*/; do
+            name=$(basename "$spec_dir")
+            suite="conformance/$name"
+            root="${spec_dir}schema/generated"
+            [ -d "$root" ] || root="${spec_dir}schema"
+            [ -d "$root" ] || continue
+            if [ ! -f "$suite/vectors.schema.json" ] || [ ! -d "$suite/vectors" ]; then
+              echo "::error::missing versioned suite at $suite"
+              exit 1
+            fi
+            count=$(find "$suite/vectors" -maxdepth 1 -name 'AH-CTK-*.json' | wc -l)
+            if [ "$count" -eq 0 ]; then
+              echo "::error::$suite/vectors contains no vectors"
+              exit 1
+            fi
+            mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+            echo "Validating $suite/vectors against $root"
+            ajv validate --spec=draft2020 -c ajv-formats \
+              -s "$suite/vectors.schema.json" "${refs[@]}" \
+              -d "$suite/vectors/*.json"
+            validated=$((validated + 1))
+          done
+          if [ "$validated" -eq 0 ]; then
+            echo "::error::no versioned conformance suites were validated"
             exit 1
           fi
-          grammar="$RUNNER_TEMP/vectors-$version.schema.json"
-          python3 scripts/vectors-for-bundle.py grammar "$version" > "$grammar"
-          mapfile -t vectors < <(python3 scripts/vectors-for-bundle.py list "$version")
-          if [ "${#vectors[@]}" -eq 0 ]; then
-            echo "::error::no released vectors under conformance/vectors"
-            exit 1
-          fi
-          root="spec/$version/schema/generated"
-          [ -d "$root" ] || root="spec/$version/schema"
-          mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
-          data=()
-          for v in "${vectors[@]}"; do data+=(-d "$v"); done
-          ajv validate --spec=draft2020 -c ajv-formats -s "$grammar" "${refs[@]}" "${data[@]}"
-          echo "validated ${#vectors[@]} released vectors against spec/$version"
+          echo "versioned conformance suites validated: $validated"
 
   python:
     runs-on: ubuntu-latest
@@ -292,7 +290,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
 
   # Cross-platform build+test of the core and one FFI consumer
-  # Advisory: not in the required-check set yet — required
+  # Advisory: not in the required-check set yet â€” required
   # names must be stable and always-reporting (see CONTRIBUTING.md).
   rust-xplat:
     strategy:
@@ -462,7 +460,7 @@ jobs:
           done
 
   # Workflow files were ungated until a duplicate mapping key invalidated
-  # release.yml for every event (PR #25) — actionlint gates them now, and
+  # release.yml for every event (PR #25) â€” actionlint gates them now, and
   # the version surfaces are checked for agreement (VERSIONING.md).
   # Advisory: not in the required-check set yet (names must prove stable).
   lint:

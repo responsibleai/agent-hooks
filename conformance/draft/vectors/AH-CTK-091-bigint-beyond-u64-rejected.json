@@ -1,0 +1,86 @@
+{
+  "id": "AH-CTK-091",
+  "title": "raw-text funnel rejects an integer literal beyond u64 that serde-class parsers silently coerce to a double",
+  "spec_clause": "4.4, 10.2, 11",
+  "part": "identity_provider",
+  "capabilities": [
+    "model_calls",
+    "tool_calls",
+    "bigint_json"
+  ],
+  "scenario": {
+    "input": {
+      "content": "go",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "wire_transfer",
+        "behavior": [
+          {
+            "return": "UNREACHED"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "wire_transfer",
+              "args": {
+                "id": 18446744073709551616
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "sent",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "pre_tool_call",
+      "return": {
+        "decision": "allow"
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_model_call"
+      }
+    ],
+    "interceptions_absent": [
+      "post_model_call",
+      "pre_tool_call"
+    ],
+    "tool_not_invoked": [
+      "wire_transfer"
+    ],
+    "records": [
+      {
+        "interception_point": "post_model_call",
+        "assert": {
+          "verdict.decision": "deny",
+          "verdict.reason": "host_error:context_invalid",
+          "input_identity": null,
+          "identity_provider": "jcs-sha256"
+        }
+      }
+    ],
+    "run_outcome": "blocked"
+  }
+}

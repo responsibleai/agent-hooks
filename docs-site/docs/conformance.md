@@ -7,8 +7,10 @@ passing 100% of the vectors applicable to what you declared.
 
 ## The kit
 
-The CTK is a corpus of language-agnostic JSON vectors under
-`conformance/vectors/` in the repository (47 at the time of writing).
+The CTK is organized into version-matched suites. SDK runs currently use
+the released 0.1 corpus under `conformance/0.1/vectors/`; draft vectors
+are maintained separately under `conformance/draft/vectors/` and are
+not yet run by the SDK CTK harnesses.
 Each vector scripts a scenario against a mocked model and tools: deny
 at each point, transform fold-through and write-back, approval flows
 including echo-rule violations, every composition profile and knob,

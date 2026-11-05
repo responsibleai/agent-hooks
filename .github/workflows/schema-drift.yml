@@ -44,7 +44,7 @@ jobs:
           done
           rm -rf sdk/python/python/agent_hooks/ctk/vectors
           mkdir -p sdk/python/python/agent_hooks/ctk/vectors
-          cp conformance/vectors/AH-CTK-*.json sdk/python/python/agent_hooks/ctk/vectors/
+          cp conformance/0.1/vectors/AH-CTK-*.json sdk/python/python/agent_hooks/ctk/vectors/
       - name: Fail if regeneration produced a diff
         # -A first so untracked regenerated output also fails the gate.
         run: git add -A && git diff --cached --exit-code

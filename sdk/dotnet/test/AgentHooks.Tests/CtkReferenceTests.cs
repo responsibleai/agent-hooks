@@ -20,7 +20,7 @@ public sealed class CtkReferenceTests
     {
         var here = Path.GetDirectoryName(typeof(CtkReferenceTests).Assembly.Location)!;
         var root = Path.GetFullPath(Path.Combine(here, "..", "..", "..", "..", "..", "..", ".."));
-        return Path.Combine(root, "conformance", "vectors");
+        return Path.Combine(root, "conformance", "0.1", "vectors");
     }
 
     public static IEnumerable<object[]> Vectors() =>
@@ -73,9 +73,7 @@ public sealed class CtkReferenceTests
     [Fact]
     public async Task AReportNamesAReleasedVersionNeverTheDraft()
     {
-        // Running the working test set is development; the report a
-        // claim attaches names a released version, and the runner
-        // refuses the draft.
+        // The SDK runner currently exercises the released 0.1 suite.
         var results = new List<VectorResult>();
         foreach (var v in Runner.LoadVectors(VectorsDir()))
             results.Add(await Runner.RunVectorAsync(new ReferenceHarness(Spec.V01), v));

@@ -1,0 +1,675 @@
+{
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/conformance/vectors.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Hooks — CTK vector",
+  "description": "Language-agnostic conformance test case (AGENT-HOOKS-0.1 §13.2). Scripts use the three-verdict vocabulary (§5): an escalation is a deny with an approval block; a warning is an allow with a warnings[] entry. Non-finite floats (NaN/Infinity) and lone surrogates cannot be expressed in a JSON vector file; those guards are pinned by per-SDK unit tests instead (§4.4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "spec_clause",
+    "scenario",
+    "expect"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^AH-CTK-[0-9]{3}(-[a-z0-9-]+)?$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "spec_clause": {
+      "type": "string",
+      "description": "Section of AGENT-HOOKS-0.1 this vector verifies."
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "enforce",
+        "evaluate_only"
+      ],
+      "default": "enforce",
+      "description": "Enforcement mode the harness MUST set for this run (§8)."
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "model_calls",
+          "tool_calls",
+          "parallel_tool_calls",
+          "streaming",
+          "multi_turn",
+          "int64_json",
+          "bigint_json",
+          "buffered_output",
+          "incremental_output",
+          "host_declaration"
+        ],
+        "description": "int64_json marks vectors whose JSON carries integers beyond 2^53 (within i64/u64): a JavaScript harness cannot even load such a file without silent rounding (JSON.parse), so it omits the capability and skips. bigint_json marks vectors carrying integers beyond u64/i64, which additionally exceed serde_json's integer range — only harness languages whose JSON layer preserves raw numeric tokens (Python int, Go json.Number, .NET JsonNode) can claim it. buffered_output is declaration-only (§12.1a): it appears in a host's declared surface and claim, never as a vector requirement — the CTK's mocked I/O cannot exercise streaming egress. incremental_output marks the streaming/incremental vector part (§12.1 exception): the host declares buffered_output: false, mediates post_model_call incrementally with watermark-gated release (declared exposure bound: none), and its harness can drive a chunked mock stream (scenario respond.stream) and report released_output and persisted content. A host that buffers (buffered_output: true, the default) does not declare it and skips these vectors. host_declaration marks the declaration parts (§7.7.9): the host builds its emitter from the host declaration document the vector carries, through the loader, and surfaces refusal as a load outcome."
+      },
+      "default": []
+    },
+    "scenario": {
+      "$ref": "#/$defs/scenario"
+    },
+    "interceptor_script": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/interceptor_rule"
+      }
+    },
+    "approval_script": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/approval_rule"
+      },
+      "default": []
+    },
+    "expect": {
+      "$ref": "#/$defs/expect"
+    },
+    "interceptor_scripts": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/interceptor_rule"
+        }
+      },
+      "description": "Multi-interceptor form (§7.1 fold-through): one rule list per registered interceptor, in registration order. Mutually exclusive with interceptor_script. An empty array registers zero interceptors."
+    },
+    "composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile"
+      ],
+      "properties": {
+        "profile": {
+          "type": "string",
+          "enum": [
+            "sequential/first_deny",
+            "sequential/run_all",
+            "parallel/strictest",
+            "parallel/unanimous"
+          ]
+        },
+        "on_approval": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "resume"
+          ]
+        },
+        "on_disagreement": {
+          "type": "string",
+          "enum": [
+            "deny",
+            "approval"
+          ]
+        },
+        "on_transform_conflict": {
+          "type": "string",
+          "enum": [
+            "deny",
+            "approval"
+          ]
+        }
+      },
+      "description": "Composition profile the harness MUST declare for this run (§7.2). Absent means sequential/first_deny with on_approval: stop."
+    },
+    "identity_provider": {
+      "enum": [
+        "jcs-sha256",
+        "ctk-fault",
+        null
+      ],
+      "description": "Identity provider the harness MUST declare (§10.1). Absent means jcs-sha256; null means identity-unbound; \"ctk-fault\" means a custom provider named ctk-fault that fails on every compute (pins the §10.1 provider-failure rule). Other custom providers are functions and not vector-expressible."
+    },
+    "part": {
+      "type": "string",
+      "description": "Declared-surface tag (§13.1): grouping runner results by part is the conformance report (e.g. composition/parallel_strictest, approval_seam, identity_provider)."
+    },
+    "redact_for_approval": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^\\$target(\\.|\\[|$)"
+      },
+      "description": "§9 redaction seam: the harness MUST register an approval redactor that replaces each listed §5.2 path in the request context's target with the string \"[redacted]\" (write-back mirrored per §4.3). The request identity is computed over the redacted context."
+    },
+    "host_declaration": {
+      "type": "object",
+      "description": "§7.7.9: the host declaration document under test. The harness MUST build its emitter from this document and the CTK registry (kind ctk.scripted, a standard interceptor the emitter wraps in its own timer, and kind ctk.managed, the same scripted interceptor registered through the managed-interceptor path of spec 7 so it owns its deadline and reports a typed outcome; both take config {\"script\": i} selecting interceptor_scripts[i]; identity provider ctk-fault, approval resolver ctk-scripted, redactor ctk-redact) through the loader, and report the load outcome in RunRecord.load. Validated against the published host-declaration schema for the version it writes (1.0 or 1.1) unless host_declaration_invalid is true."
+    },
+    "host_declaration_invalid": {
+      "type": "boolean",
+      "default": false,
+      "description": "True on a refusal vector whose document deliberately breaks the host-declaration JSON schema (a reserved version, a missing version, an unknown member, an enum violation), so schema-lint does not validate it against that schema. The loader's refusal class is still pinned by expect.load."
+    }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input"
+      ],
+      "properties": {
+        "input": {
+          "type": "object",
+          "required": [
+            "content",
+            "role"
+          ],
+          "properties": {
+            "content": true,
+            "role": {
+              "type": "string",
+              "enum": [
+                "user",
+                "system",
+                "external"
+              ]
+            }
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "behavior"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "schema": {
+                "type": "object"
+              },
+              "behavior": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "return"
+                  ],
+                  "properties": {
+                    "when_args": {
+                      "type": "object"
+                    },
+                    "return": true,
+                    "is_error": {
+                      "type": "boolean",
+                      "default": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": []
+        },
+        "model_script": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "respond"
+            ],
+            "properties": {
+              "respond": {
+                "type": "object",
+                "required": [
+                  "content",
+                  "tool_calls",
+                  "finish_reason"
+                ],
+                "properties": {
+                  "stream": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "description": "Chunked delivery of this response for an incremental_output host (§12.1 exception): the mock model delivers these chunks in order, each chunk boundary closes one evaluated segment, and the host emits one post_model_call per segment over the assembled prefix through that chunk (response.content is the prefix; response.finish_reason is \"incremental\" for a non-final segment and this respond's finish_reason for the final one). The chunk concatenation MUST equal content. Ignored by buffered hosts, which never run a vector carrying incremental_output."
+                  },
+                  "stream_truncated": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "The mock stream terminates abnormally after delivering the listed chunks: the final chunk is a partial segment no emission covers and the scripted finish_reason never arrives. The host has residue no emission evaluated and MUST fail closed per §12.1 exception item 3 — a post_model_call over the full delivered assembly with response.finish_reason \"stream_incomplete\" and a deny self-verdict host_error:streaming_unsupported — withholding and not persisting the residue. Only meaningful with stream."
+                  },
+                  "content": true,
+                  "tool_calls": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "args"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "args": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  },
+                  "finish_reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "default": []
+        }
+      }
+    },
+    "interceptor_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "at"
+      ],
+      "properties": {
+        "at": {
+          "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-point.schema.json"
+        },
+        "match": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Dotted-path -> expected-value predicates against the AgentContext. All must match."
+        },
+        "return": {
+          "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/verdict.schema.json"
+        },
+        "fault": {
+          "type": "string",
+          "enum": [
+            "raise",
+            "malformed_verdict",
+            "mutate",
+            "hang",
+            "cancel"
+          ],
+          "description": "Fault injection: 'raise' makes the scripted interceptor raise/throw natively (exercises §6.3 host_error:interceptor_failed); 'malformed_verdict' returns a §5-invalid shape (transform decision with no body; exercises host_error:verdict_invalid); 'mutate' makes the wrapper mutate the received context in-place and return allow (exercises §7 copy isolation, TM-05); 'hang' makes the scripted interceptor not return before the binding's timeout (exercises §6.3 host_error:interceptor_timeout; the vector sets a small timeout_ms on the binding; under kind ctk.scripted the emitter's own timer must fire, and the wrapper returns allow once the timeout plus a grace period has passed so a host that does not bound execution fails the vector instead of hanging it; under kind ctk.managed the interceptor waits out the bound it was handed, cleans up and reports the typed timeout outcome of §7); 'cancel' is defined only for kind ctk.managed: the managed scripted interceptor reports the typed cancelled outcome at the matched point (exercises the rule that cancellation is deny host_error:interceptor_failed and never continues, §6.3.1). Mutually exclusive with 'return'."
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "return"
+          ]
+        },
+        {
+          "required": [
+            "fault"
+          ]
+        }
+      ]
+    },
+    "approval_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resolve"
+      ],
+      "properties": {
+        "match": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "resolve": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "approve",
+                "reject",
+                "unresolved"
+              ]
+            },
+            "verdict": {
+              "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/verdict.schema.json"
+            },
+            "fault": {
+              "type": "string",
+              "enum": [
+                "raise"
+              ],
+              "description": "Fault injection: the scripted resolver raises/throws natively (exercises §6.3/§9 host_error:approval_resolver_failed). Mutually exclusive with 'outcome'."
+            },
+            "identity_override": {
+              "type": "string",
+              "description": "Return this context_identity instead of echoing the request's (violates the §9 echo rule; exercises host_error:approval_identity_mismatch)."
+            },
+            "echo_recomputed": {
+              "type": "boolean",
+              "description": "§9 redaction pinning: the scripted resolver recomputes the jcs-sha256 identity from the request context it actually received and echoes that, so a host that computed the request identity over a different (unredacted) context fails the echo rule. Overrides identity_override."
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "outcome"
+              ]
+            },
+            {
+              "required": [
+                "fault"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "interceptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "interception_point"
+            ],
+            "properties": {
+              "interception_point": {
+                "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-point.schema.json"
+              },
+              "context": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Dotted-path -> expected-value assertions against the recorded AgentContext."
+              },
+              "context_must_validate": {
+                "type": "boolean",
+                "default": true
+              },
+              "context_must_contain": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Substrings that MUST appear somewhere in the serialization of the recorded AgentContext — shape-agnostic: pins that content surfaced to this interception point in SOME form (e.g. a deny reason surfaced to the model per §6.2) without prescribing message layout or payload format. Needles should avoid characters JSON escapes (quotes, backslashes, control characters)."
+              },
+              "context_must_not_contain": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Substrings that MUST NOT appear anywhere in the serialization of the recorded AgentContext — pins non-incorporation (§6.1): a discarded result must not surface here in any form. Same needle caveat as context_must_contain."
+              }
+            }
+          }
+        },
+        "sequence_strict": {
+          "type": "boolean",
+          "default": true
+        },
+        "interceptions_absent": {
+          "type": "array",
+          "items": {
+            "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-point.schema.json"
+          }
+        },
+        "tool_invocations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "args"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "args": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "tool_not_invoked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "host_messages_must_contain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Substrings that MUST each appear in at least one entry of RunRecord.host_messages, the host messages the harness reports the host delivered to the principal during the run, in order (§6.3.1 principal notification: a continuation must name the binding and the host_error:* reason and say the action continued). Same needle caveat as context_must_contain. A vector that omits it asserts nothing about host messages."
+        },
+        "final_output": true,
+        "released_output": {
+          "description": "Caller-visible content the host actually egressed, in order, by the end of the run (streaming/incremental part only). Asserted against RunRecord.released_output, which the harness of an incremental_output host MUST report. Distinct from final_output: a stream denied mid-way returns no final output, yet the prefix released under covering verdicts had already reached the caller and is pinned here."
+        },
+        "persisted_must_not_contain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Substrings that MUST NOT appear anywhere in the serialization of RunRecord.persisted — the harness-reported durable incorporations the host made for this session (conversation history, session stores; §6.1, §12.1 exception item 4). A host that persists nothing reports an empty value and passes vacuously, which is the always-safe §6.1 posture; the assertion pins that withheld or unevaluated stream content never became durable."
+        },
+        "run_outcome": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "blocked",
+            "error"
+          ],
+          "description": "The run outcome for a host with the spec-default posture. When run_outcome_by_posture is present, this MUST equal its outcomes entry for the default posture value (the engine enforces the equality), so pre-posture runners resolve the same expectation for default-posture hosts."
+        },
+        "run_outcome_by_posture": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "posture",
+            "outcomes"
+          ],
+          "properties": {
+            "posture": {
+              "type": "string",
+              "enum": [
+                "tool_seam_host_error"
+              ],
+              "description": "The declared host posture (§13.1) that selects the expected outcome. tool_seam_host_error: what the host does with the run after a host_error:* deny at pre_tool_call/post_tool_call — \"continue\" (the §6.2 default: surface a tool error to the model and keep the loop going) or \"terminate\" (the host's own semantics terminate the turn, which §6.2 explicitly permits)."
+            },
+            "outcomes": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "continue",
+                "terminate"
+              ],
+              "properties": {
+                "continue": {
+                  "enum": [
+                    "completed",
+                    "blocked",
+                    "error"
+                  ]
+                },
+                "terminate": {
+                  "enum": [
+                    "completed",
+                    "blocked",
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "description": "Posture-conditional run outcome, for behavior the spec permits either way (§6.2). The runner forwards the harness's declared posture and the engine selects the single outcome that declared surface must produce — each (vector, declared surface) pair stays single-valued, so a pass never means \"one of several outcomes happened\"."
+        },
+        "identities_equal": {
+          "type": "boolean",
+          "description": "Assert input_identity == enforced_identity for all interception points (false to assert they differ at some interception point)."
+        },
+        "load": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "outcome"
+          ],
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "accepted",
+                "refused"
+              ]
+            },
+            "class": {
+              "type": "string",
+              "enum": [
+                "declaration_error:unreadable",
+                "declaration_error:malformed",
+                "declaration_error:version_unsupported",
+                "declaration_error:spec_unsupported",
+                "declaration_error:unknown_field",
+                "declaration_error:invalid_field",
+                "declaration_error:inconsistent",
+                "declaration_error:surface_unsupported",
+                "declaration_error:reference_unresolved",
+                "declaration_error:kind_unknown",
+                "declaration_error:binding_rejected"
+              ],
+              "description": "The refusal class the loader MUST report (§7.7.6); meaningful with outcome refused."
+            },
+            "paths_equivalent": {
+              "type": "boolean",
+              "description": "Pin that the value, JSON text, file and builder construction paths resolved the document to one canonical form (§7.7.7). The runner proves this on every declaration vector; a divergence always fails."
+            }
+          },
+          "description": "§7.7.9: the expected load outcome for a vector carrying host_declaration. With outcome refused the vector has no run: interceptions and run_outcome are absent, and the engine asserts that no record and no interception exists."
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "interception_point"
+            ],
+            "properties": {
+              "interception_point": {
+                "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-point.schema.json"
+              },
+              "assert": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Dotted-path -> expected-value assertions against the wire-shaped InterceptionRecord (§10.3): verdict.*, composition.*, verdicts[i].* (including verdicts[i].substituted_for, §6.3.1), verdict.warnings[i].*, fold_truncated, resolved_by, identity_provider, input_identity/enforced_identity (null for the null provider). A path may name declaration (§7.7.8)."
+              },
+              "absent": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Dotted paths that MUST NOT resolve on the matched record (e.g. verdict.transform.value under the §10.3 payload-free projection)."
+              },
+              "present": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Dotted paths that MUST resolve on the matched record without pinning the value (e.g. timestamp, whose value is host-dynamic)."
+              }
+            }
+          },
+          "description": "Forward-scan-ordered record assertions, matched by interception_point."
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "interceptions",
+            "run_outcome"
+          ]
+        },
+        {
+          "required": [
+            "load"
+          ],
+          "properties": {
+            "load": {
+              "type": "object",
+              "required": [
+                "outcome"
+              ],
+              "properties": {
+                "outcome": {
+                  "const": "refused"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "required": [
+        "interceptor_script"
+      ]
+    },
+    {
+      "required": [
+        "interceptor_scripts"
+      ]
+    }
+  ],
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "host_declaration"
+        ],
+        "not": {
+          "properties": {
+            "host_declaration_invalid": {
+              "const": true
+            }
+          },
+          "required": [
+            "host_declaration_invalid"
+          ]
+        }
+      },
+      "then": {
+        "properties": {
+          "host_declaration": {
+            "anyOf": [
+              {
+                "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.0.schema.json"
+              }
+            ],
+            "description": "A released 0.1 vector document validates against the host-declaration-1.0 schema; host-declaration-1.1 is draft-only."
+          }
+        }
+      }
+    }
+  ]
+}

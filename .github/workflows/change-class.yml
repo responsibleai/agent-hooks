@@ -58,7 +58,7 @@ jobs:
           echo "labels: ${LABELS:-<none>}"
 
           normative=$(echo "$changed" | grep -E \
-            '^(spec/|conformance/vectors|conformance/vectors\.schema\.json)' || true)
+            '^(spec/|conformance/(draft|0\.1)/vectors)' || true)
           if [ -n "$normative" ] && ! echo "$LABELS" | grep -qE 'spec:(breaking|additive)'; then
             echo "::error::PR touches the normative surface but carries no spec:breaking/spec:additive label:"
             echo "$normative"

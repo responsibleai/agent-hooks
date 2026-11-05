@@ -22,7 +22,7 @@ import {
 } from "../dist/ctk/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const vectorsDir = resolve(here, "../../../conformance/vectors");
+const vectorsDir = resolve(here, "../../../conformance/0.1/vectors");
 
 // Pinned capability skips: a skip outside this manifest fails the
 // suite — the parity gate must not silently degrade to green when a
@@ -78,8 +78,7 @@ test("ctk skip set matches the manifest exactly", () => {
 });
 
 test("a conformance report names a released version, never the draft", () => {
-  // Running the working test set is development; the report a claim
-  // attaches names a released version, and the runner refuses the draft.
+  // The SDK runner currently exercises the released 0.1 suite.
   assert.equal(results.length, vectors.length);
   assert.throws(() => conformanceReport(SPEC_VERSION_DRAFT, results), {
     name: "RangeError",

@@ -53,7 +53,7 @@ func expectedSkip(id string) bool {
 }
 
 func TestReferenceHarnessConformance(t *testing.T) {
-	dir := filepath.Join("..", "..", "..", "conformance", "vectors")
+	dir := filepath.Join("..", "..", "..", "conformance", "0.1", "vectors")
 	vectors, err := LoadVectors(dir)
 	if err != nil {
 		t.Fatalf("LoadVectors: %v", err)
@@ -148,10 +148,9 @@ func TestAHarnessNamesTheVersionItBuildsUnder(t *testing.T) {
 	}
 }
 
-// Running the working test set is development; the report a claim
-// attaches names a released version, and the runner refuses the draft.
+// The SDK runner currently exercises the released 0.1 suite.
 func TestAReportNamesAReleasedVersionNeverTheDraft(t *testing.T) {
-	vectors, err := LoadVectors(filepath.Join("..", "..", "..", "conformance", "vectors"))
+	vectors, err := LoadVectors(filepath.Join("..", "..", "..", "conformance", "0.1", "vectors"))
 	if err != nil {
 		t.Fatalf("LoadVectors: %v", err)
 	}

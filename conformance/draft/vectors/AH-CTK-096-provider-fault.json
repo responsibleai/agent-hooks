@@ -1,0 +1,86 @@
+{
+  "id": "AH-CTK-096",
+  "title": "a failing identity provider denies context_invalid at the first emission (agent_startup) — §10.1 provider-failure rule, session never starts",
+  "spec_clause": "10.1",
+  "part": "identity_provider",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "scenario": {
+    "input": {
+      "content": "send wire",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "wire_transfer",
+        "behavior": [
+          {
+            "return": "UNREACHED"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "wire_transfer",
+              "args": {
+                "amount": 100
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "sent",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "pre_tool_call",
+      "return": {
+        "decision": "allow",
+        "reason": "ctk:should-not-run"
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": true,
+    "interceptions": [],
+    "interceptions_absent": [
+      "input",
+      "pre_model_call",
+      "post_model_call",
+      "pre_tool_call",
+      "post_tool_call",
+      "output"
+    ],
+    "records": [
+      {
+        "interception_point": "agent_startup",
+        "assert": {
+          "verdict.decision": "deny",
+          "verdict.reason": "host_error:context_invalid",
+          "input_identity": null,
+          "enforced_identity": null,
+          "identity_provider": "ctk-fault"
+        }
+      }
+    ],
+    "run_outcome": "blocked",
+    "final_output": null
+  },
+  "identity_provider": "ctk-fault"
+}

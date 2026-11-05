@@ -104,7 +104,7 @@ func Report(spec string, results []VectorResult) (ConformanceReport, error) {
 	return report, nil
 }
 
-// LoadVectors globs conformance/vectors/AH-CTK-*.json under dir in
+// LoadVectors globs AH-CTK-*.json in the selected versioned suite directory
 // sorted order.
 func LoadVectors(dir string) ([]map[string]any, error) {
 	paths, err := filepath.Glob(filepath.Join(dir, "AH-CTK-*.json"))

@@ -1,0 +1,137 @@
+{
+  "id": "AH-CTK-001",
+  "title": "All eight interception points fire in spec order with valid L0+L1 context",
+  "spec_clause": "3.1, 4.1, 4.2",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "scenario": {
+    "input": {
+      "content": "what is 2+2",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "calculator",
+        "schema": {
+          "expr": "string"
+        },
+        "behavior": [
+          {
+            "when_args": {
+              "expr": "2+2"
+            },
+            "return": "4"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "calculator",
+              "args": {
+                "expr": "2+2"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "The answer is 4.",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [],
+  "expect": {
+    "sequence_strict": true,
+    "interceptions": [
+      {
+        "interception_point": "agent_startup",
+        "context": {
+          "sequence": 0,
+          "agent_init.tools_registered": [
+            "calculator"
+          ]
+        }
+      },
+      {
+        "interception_point": "input",
+        "context": {
+          "input.content": "what is 2+2",
+          "input.role": "user"
+        }
+      },
+      {
+        "interception_point": "pre_model_call"
+      },
+      {
+        "interception_point": "post_model_call",
+        "context": {
+          "response.tool_calls[0].name": "calculator",
+          "response.finish_reason": "tool_calls"
+        }
+      },
+      {
+        "interception_point": "pre_tool_call",
+        "context": {
+          "tool_call.id": "tc-1",
+          "tool_call.name": "calculator",
+          "tool_call.args.expr": "2+2",
+          "target.expr": "2+2"
+        }
+      },
+      {
+        "interception_point": "post_tool_call",
+        "context": {
+          "tool_call.id": "tc-1",
+          "tool_result.value": "4",
+          "tool_result.is_error": false
+        }
+      },
+      {
+        "interception_point": "pre_model_call"
+      },
+      {
+        "interception_point": "post_model_call",
+        "context": {
+          "response.content": "The answer is 4.",
+          "response.finish_reason": "stop"
+        }
+      },
+      {
+        "interception_point": "output",
+        "context": {
+          "output.content": "The answer is 4."
+        }
+      },
+      {
+        "interception_point": "agent_shutdown",
+        "context": {
+          "summary.reason": "completed"
+        }
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "calculator",
+        "args": {
+          "expr": "2+2"
+        }
+      }
+    ],
+    "final_output": "The answer is 4.",
+    "run_outcome": "completed",
+    "identities_equal": true
+  }
+}

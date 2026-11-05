@@ -20,7 +20,7 @@ const VECTORS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../conformance
 /// coerces beyond-u64 vector literals at load (no bigint_json), and the
 /// reference harness buffers caller-bound output, so it does not
 /// declare incremental_output and skips the streaming/incremental part
-/// (§12.1 exception). Exact ids, not a count: the parity gate must fail
+/// (Â§12.1 exception). Exact ids, not a count: the parity gate must fail
 /// when the skip set drifts in either direction.
 const CAPABILITY_SKIPS: &[&str] = &[
     "AH-CTK-091",

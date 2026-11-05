@@ -93,10 +93,18 @@ class StageTest(unittest.TestCase):
             "> The latest released version is [0.10](../0.10/AGENT-HOOKS-0.10.md).\n# draft\n",
             encoding="utf-8",
         )
-        (self.root / "conformance").mkdir()
-        (self.root / "conformance/vectors.schema.json").write_text(
-            schema("draft/conformance/vectors.schema.json", "vectors"), encoding="utf-8"
-        )
+        for version, published in (
+            ("0.1", "v0.1"),
+            ("0.2", "v0.2"),
+            ("0.10", "v0.10"),
+            ("draft", "draft"),
+        ):
+            suite = self.root / "conformance" / version
+            suite.mkdir(parents=True)
+            (suite / "vectors.schema.json").write_text(
+                schema(f"{published}/conformance/vectors.schema.json", version),
+                encoding="utf-8",
+            )
         (self.root / "docs-site/docs").mkdir(parents=True)
         (self.root / "docs-site/mkdocs.yml").write_text(MKDOCS, encoding="utf-8")
         self.docs = self.root / "docs-site/docs"
@@ -157,12 +165,13 @@ class StageTest(unittest.TestCase):
             ],
             "working",
         )
-        self.assertEqual(
-            json.loads(self.read("schema/draft/conformance/vectors.schema.json"))[
-                "title"
-            ],
-            "vectors",
-        )
+        for version in ("v0.1", "v0.2", "v0.10", "draft"):
+            self.assertEqual(
+                json.loads(
+                    self.read(f"schema/{version}/conformance/vectors.schema.json")
+                )["title"],
+                "0.1" if version == "v0.1" else version.removeprefix("v"),
+            )
         self.assertFalse((self.docs / "schema/strict-contexts").exists())
         self.assertFalse((self.docs / "schema/v0.2/src").exists())
 
@@ -185,6 +194,12 @@ class StageTest(unittest.TestCase):
 
     def test_a_shared_path_with_identical_bytes_is_allowed(self) -> None:
         bundle(self.root, "0.3", "v0.2", "second")
+        suite = self.root / "conformance/0.3"
+        suite.mkdir(parents=True)
+        (suite / "vectors.schema.json").write_text(
+            schema("v0.2/conformance/vectors.schema.json", "0.2"),
+            encoding="utf-8",
+        )
         for inventory in stage.INVENTORIES:
             (self.root / "spec/0.3" / inventory).write_text(
                 json.dumps({"$id": ID_BASE + f"v0.2/{inventory}", "from": "0.2"})
@@ -214,6 +229,7 @@ class StageTest(unittest.TestCase):
         )
         self.assertIn("ID_BASE", message)
 
+    @unittest.skipIf(os.name == "nt", "symlink creation may require Windows elevation")
     def test_symbolic_links_fail(self) -> None:
         generated = self.root / "spec/0.2/schema/generated"
         os.symlink("agent-context.schema.json", generated / "copy.schema.json")
@@ -228,6 +244,7 @@ class StageTest(unittest.TestCase):
             stage.stage(self.root)
         self.assertIn("AGENT-HOOKS-0.2.md", str(raised.exception))
 
+    @unittest.skipIf(os.name == "nt", "symlink creation may require Windows elevation")
     def test_symlinked_schema_directories_fail(self) -> None:
         generated = self.root / "spec/0.2/schema/generated"
         import shutil

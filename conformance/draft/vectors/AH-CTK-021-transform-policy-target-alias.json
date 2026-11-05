@@ -1,0 +1,90 @@
+{
+  "id": "AH-CTK-021",
+  "title": "transform path with deprecated $policy_target alias is accepted",
+  "spec_clause": "5.2",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "schema": {
+          "url": "string"
+        },
+        "behavior": [
+          {
+            "when_args": {
+              "url": "https://safe.example"
+            },
+            "return": "ok"
+          },
+          {
+            "return": "WRONG"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://evil.example"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "pre_tool_call",
+      "return": {
+        "decision": "transform",
+        "transform": {
+          "path": "$policy_target.url",
+          "value": "https://safe.example"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "post_tool_call",
+        "context": {
+          "tool_call.args.url": "https://safe.example"
+        }
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://safe.example"
+        }
+      }
+    ],
+    "run_outcome": "completed"
+  }
+}

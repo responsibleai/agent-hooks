@@ -15,8 +15,8 @@ docs-site/docs/:
                       src/ and examples/) at the path its own $id names
                       (schema/vX.Y/ for a release, schema/draft/ for the
                       draft); the inventories the bundle carries beside its
-                      root schemas; and conformance/vectors.schema.json at its
-                      own $id path
+                      root schemas; and each conformance/<version>/vectors.schema.json
+                      at its own $id path
 
 and docs-site/mkdocs.staged.yml: the committed mkdocs.yml with the
 Specification navigation entries generated from the same folders, newest
@@ -24,9 +24,8 @@ first, then the draft. Nothing it writes is committed.
 
 A published path is immutable: two bundles may stage the same path only
 with identical bytes, so a release that changes a schema must publish
-under a new $id path (the generator's ID_BASE). The vectors schema is
-not part of a bundle; it is staged from the working tree, which tracks
-the draft. Symbolic links anywhere in a bundle fail the staging.
+under a new $id path (the generator's ID_BASE). Each versioned vectors schema is staged from conformance/<version>/.
+Symbolic links anywhere in a bundle fail the staging.
 
 Usage: stage-docs-site.py [<repository-root>]
 """
@@ -187,10 +186,11 @@ def stage_schemas(root: Path, bundles: list[str], schema_out: Path) -> None:
                     f"publishes under schema/{prefix}/"
                 )
             publisher.publish(source, relative, origin)
-    vectors = root / "conformance" / "vectors.schema.json"
-    publisher.publish(
-        vectors, published_path(vectors), "conformance/vectors.schema.json"
-    )
+    for name in bundles:
+        vectors = root / "conformance" / name / "vectors.schema.json"
+        publisher.publish(
+            vectors, published_path(vectors), f"conformance/{name}/vectors.schema.json"
+        )
 
 
 def staged_config(config: str, versions: list[str]) -> str:
