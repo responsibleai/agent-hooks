@@ -79,6 +79,18 @@ Equivalent interfaces ship in `sdk/typescript/src/ctk/index.ts`,
 `sdk/dotnet/src/AgentHooks.Conformance/IHarness.cs`,
 `sdk/go/conformance/harness.go`, and `sdk/rust/core/src/ctk.rs (`ctk` feature)`.
 
+The vectors under `conformance/` are the working test set for the next
+specification version. They are carried under `agent-hooks/draft`
+because they exercise behaviour no released version has (`on_error`,
+declaration 1.1, the reserved warnings), so a vector's host declaration
+names `agent-hooks/draft` and the reference harnesses build their
+emitter and context builder with the SDK's draft constant
+(`SPEC_VERSION_DRAFT` in Python; each SDK has one). A harness over an
+SDK names the draft the same way; the SDKs have no default version.
+Running the set is development, not conformance: a claim names a
+released version, and every runner refuses a conformance report that
+names `agent-hooks/draft` ([RUNNER.md](RUNNER.md)).
+
 ## Mock model
 
 `scenario.model_script` is an ordered list of responses. The Nth
@@ -332,12 +344,12 @@ through the loader too: each writes the vector's mode, composition and
 provider into a copy of its document and binds the scripted
 interceptors by index through a `ctk.instance` kind. Their skip
 manifests do not change for that routing. Every reference harness
-runs `AH-CTK-120` to `AH-CTK-159`; none lists them in its skip
+runs `AH-CTK-120` to `AH-CTK-160`; none lists them in its skip
 manifest.
 
 Vector documents write the version they use: `AH-CTK-144` to
 `AH-CTK-159` carry `agent-hooks-declaration/1.1` where they set
-`on_error`, and `AH-CTK-155` keeps a 1.0 document to pin that a 1.1
+`on_error`, `AH-CTK-160` carries it for its surface rule, and `AH-CTK-155` keeps a 1.0 document to pin that a 1.1
 loader accepts it unchanged. Schema-lint validates each document
 against the schema of the version it writes.
 

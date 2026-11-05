@@ -49,6 +49,7 @@ fn bench_compose(c: &mut Criterion) {
             |b, (comp, verd)| {
                 b.iter(|| {
                     agent_hooks::ffi_surface::compose_aggregate(
+                        agent_hooks::SPEC_VERSION_DRAFT,
                         std::hint::black_box(comp),
                         std::hint::black_box(verd),
                     )
@@ -77,7 +78,11 @@ fn bench_emit(c: &mut Criterion) {
         g.bench_function(BenchmarkId::from_parameter(format!("{kb}KiB-{n}i")), |b| {
             b.iter(|| {
                 rt.block_on(async {
-                    let mut e = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+                    let mut e = InterceptionEmitter::new(
+                        agent_hooks::SpecVersion::V0_1,
+                        EnforcementMode::Enforce,
+                        None,
+                    );
                     for _ in 0..n {
                         e.register(Box::new(Allow));
                     }

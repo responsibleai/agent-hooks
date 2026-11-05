@@ -19,7 +19,9 @@ use crate::composition::{
     CompositionProfile, SynthesisPolicy,
 };
 use crate::enforce::FinalizeMeta;
-use crate::types::{ControlFailureNotice, EnforcementMode, ManagedInterceptorOutcome, Verdict};
+use crate::types::{
+    ControlFailureNotice, EnforcementMode, ManagedInterceptorOutcome, SpecVersion, Verdict,
+};
 use crate::{canonical, enforce as enforce_mod, path, verdict, AgentContext, HostError, Transform};
 use serde_json::Value;
 
@@ -32,6 +34,27 @@ fn err(e: HostError, detail: impl Into<String>) -> FfiError {
 
 fn parse_json(s: &str, what: &str) -> Result<Value, FfiError> {
     serde_json::from_str(s).map_err(|e| err(HostError::ContextInvalid, format!("{what}: {e}")))
+}
+
+/// The specification version a wrapper names for a gate that has no
+/// context to read it from: the wire string of the context the
+/// emission runs under. A string that names no supported version is a
+/// wrapper defect and crosses the boundary as `marshal_error`, never
+/// as a verdict refusal.
+fn spec_arg(spec: &str) -> Result<SpecVersion, FfiError> {
+    SpecVersion::from_wire(spec).ok_or_else(|| {
+        (
+            "marshal_error".to_owned(),
+            format!(
+                "spec: {spec:?} is not a supported wire string ({})",
+                SpecVersion::ALL
+                    .iter()
+                    .map(|v| v.wire())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        )
+    })
 }
 
 /// §10.2: canonical JSON of an arbitrary value (RFC 8785). Rejects
@@ -57,18 +80,22 @@ pub fn context_identity(ctx_json: &str) -> Result<String, FfiError> {
     canonical::context_identity(&ctx).map_err(|(e, d)| err(e, d))
 }
 
-/// §5: validate an interceptor's wire return value. Returns the normalized
-/// verdict as JSON on success.
-pub fn validate_verdict(verdict_json: &str) -> Result<String, FfiError> {
-    let v = verdict::from_json(verdict_json).map_err(|(e, d)| err(e, d))?;
+/// §5: validate an interceptor's wire return value under the
+/// specification version `spec` names (the context's wire string).
+/// Returns the normalized verdict as JSON on success.
+pub fn validate_verdict(spec: &str, verdict_json: &str) -> Result<String, FfiError> {
+    let spec = spec_arg(spec)?;
+    let v = verdict::from_json(verdict_json, spec).map_err(|(e, d)| err(e, d))?;
     Ok(serde_json::to_string(&v).expect("verdict serialize"))
 }
 
-/// §5.5: accept a bare Verdict or transport envelope and return the
-/// normalized envelope form.
-pub fn normalize_interceptor_response(response_json: &str) -> Result<String, FfiError> {
+/// §5.5: accept a bare Verdict or transport envelope under the
+/// specification version `spec` names and return the normalized
+/// envelope form.
+pub fn normalize_interceptor_response(spec: &str, response_json: &str) -> Result<String, FfiError> {
+    let spec = spec_arg(spec)?;
     let response =
-        crate::InterceptorResponse::from_json(response_json).map_err(|(e, d)| err(e, d))?;
+        crate::InterceptorResponse::from_json(response_json, spec).map_err(|(e, d)| err(e, d))?;
     Ok(serde_json::to_string(&response.to_envelope_value())
         .expect("interceptor response serialize"))
 }
@@ -141,7 +168,12 @@ pub fn validate_transform_ctx(
 ///                                 // winning transform, not yet applied
 /// }
 /// ```
-pub fn compose_aggregate(composition_json: &str, verdicts_json: &str) -> Result<String, FfiError> {
+pub fn compose_aggregate(
+    spec: &str,
+    composition_json: &str,
+    verdicts_json: &str,
+) -> Result<String, FfiError> {
+    let spec = spec_arg(spec)?;
     let cfg: CompositionConfig = serde_json::from_str(composition_json)
         .map_err(|e| err(HostError::ContextInvalid, format!("composition: {e}")))?;
     let raw: Vec<Value> = serde_json::from_str(verdicts_json)
@@ -169,7 +201,7 @@ pub fn compose_aggregate(composition_json: &str, verdicts_json: &str) -> Result<
             && v.transform.is_none())
             || v.is_control_failure_substitute();
         if !synthesized_shape {
-            v.validate()
+            v.validate(spec)
                 .map_err(|e| err(e, format!("verdicts[{i}]: fails the §5 gate")))?;
         }
     }
@@ -449,7 +481,8 @@ pub fn control_failure_substitute(request_json: &str) -> Result<String, FfiError
 /// ..., "continuable": bool}}`. `continuable` is false for a cancelled
 /// outcome: a wrapper MUST NOT substitute an allow for it, whatever
 /// the registration's `on_error` says.
-pub fn managed_outcome(outcome_json: &str) -> Result<String, FfiError> {
+pub fn managed_outcome(spec: &str, outcome_json: &str) -> Result<String, FfiError> {
+    let spec = spec_arg(spec)?;
     #[derive(serde::Deserialize)]
     #[serde(tag = "outcome", rename_all = "snake_case")]
     enum Wire {
@@ -466,7 +499,7 @@ pub fn managed_outcome(outcome_json: &str) -> Result<String, FfiError> {
     let wire: Wire = serde_json::from_str(outcome_json)
         .map_err(|e| err(HostError::ContextInvalid, format!("outcome: {e}")))?;
     let outcome = match wire {
-        Wire::Verdict { verdict } => match verdict::from_wire(&verdict) {
+        Wire::Verdict { verdict } => match verdict::from_wire(&verdict, spec) {
             Ok(v) => ManagedInterceptorOutcome::Verdict(Box::new(v)),
             Err(_) => return Ok(failure_json(HostError::VerdictInvalid, None, true)),
         },
@@ -518,19 +551,35 @@ pub fn validate_envelope(ctx_json: &str) -> Result<String, FfiError> {
     Ok(String::new())
 }
 
-/// Version stamp for binding sanity checks.
-pub fn spec_version() -> &'static str {
-    crate::SPEC_VERSION
-}
-
 // ---- host declaration (§7.7) -----------------------------------------------
 
 /// The declaration contract versions this core writes and accepts
-/// (§7.7.2): `{"current": "...", "supported": ["..."]}`.
+/// (§7.7.2), and the specification versions it writes and accepts:
+/// `{"current": "...", "supported": ["..."], "spec": "agent-hooks/X.Y",
+/// "spec_supported": ["X.Y"]}`. The wrapper SDKs pin their mirrored
+/// constants to this.
 pub fn declaration_versions() -> String {
+    // `current` and `supported` are the draft's, the newest set this
+    // build implements; `by_spec` says what each supported
+    // specification version defines, which is what the loader accepts
+    // for a document written for it (§7.7.2).
+    let by_spec: serde_json::Map<String, Value> = SpecVersion::ALL
+        .iter()
+        .map(|s| {
+            (
+                s.name().to_owned(),
+                serde_json::json!({
+                    "current": s.current_declaration_version(),
+                    "supported": s.declaration_versions(),
+                }),
+            )
+        })
+        .collect();
     serde_json::json!({
         "current": crate::DECLARATION_VERSION,
         "supported": crate::SUPPORTED_DECLARATION_VERSIONS,
+        "spec_supported": crate::SUPPORTED_SPEC_VERSIONS,
+        "by_spec": by_spec,
     })
     .to_string()
 }
@@ -636,6 +685,7 @@ mod tests {
     #[test]
     fn compose_aggregate_strictest_winner() {
         let out = compose_aggregate(
+            crate::SPEC_VERSION_DRAFT,
             r#"{"profile": "parallel/strictest"}"#,
             &json!([
                 {"decision": "allow"},
@@ -655,6 +705,7 @@ mod tests {
     #[test]
     fn compose_aggregate_liftable_consult() {
         let out = compose_aggregate(
+            crate::SPEC_VERSION_DRAFT,
             r#"{"profile": "parallel/strictest"}"#,
             &json!([{"decision": "allow"}, {"decision": "deny", "approval": {}}]).to_string(),
         )
@@ -668,6 +719,7 @@ mod tests {
     fn compose_aggregate_transform_conflict() {
         let t = json!({"decision": "transform", "transform": {"path": "$target.x", "value": 1}});
         let out = compose_aggregate(
+            crate::SPEC_VERSION_DRAFT,
             r#"{"profile": "parallel/strictest", "on_transform_conflict": "deny"}"#,
             &json!([t, t]).to_string(),
         )
@@ -677,6 +729,7 @@ mod tests {
         assert_eq!(v["consult"], false);
 
         let out = compose_aggregate(
+            crate::SPEC_VERSION_DRAFT,
             r#"{"profile": "parallel/strictest", "on_transform_conflict": "approval"}"#,
             &json!([t, t]).to_string(),
         )
@@ -688,6 +741,7 @@ mod tests {
     #[test]
     fn compose_aggregate_unanimous() {
         let out = compose_aggregate(
+            crate::SPEC_VERSION_DRAFT,
             r#"{"profile": "parallel/unanimous", "on_disagreement": "deny"}"#,
             &json!([{"decision": "allow"}, {"decision": "transform",
                      "transform": {"path": "$target.x", "value": 1}}])
@@ -701,6 +755,7 @@ mod tests {
         );
         // Unanimous allow:
         let out = compose_aggregate(
+            crate::SPEC_VERSION_DRAFT,
             r#"{"profile": "parallel/unanimous", "on_disagreement": "deny"}"#,
             &json!([{"decision": "allow"}, {"decision": "allow", "result_labels": ["l"]}])
                 .to_string(),
@@ -714,6 +769,7 @@ mod tests {
     #[test]
     fn compose_aggregate_parallel_single_transform_flagged() {
         let out = compose_aggregate(
+            crate::SPEC_VERSION_DRAFT,
             r#"{"profile": "parallel/strictest"}"#,
             &json!([{"decision": "allow"},
                     {"decision": "transform", "transform": {"path": "$target.x", "value": 1}}])
@@ -795,6 +851,7 @@ mod tests {
     fn compose_aggregate_accepts_the_substituted_allow_only_in_its_exact_shape() {
         let sub = Verdict::control_failure_substitute("egress", HostError::InterceptorTimeout);
         let out = compose_aggregate(
+            crate::SPEC_VERSION_DRAFT,
             r#"{"profile": "sequential/run_all"}"#,
             &json!([sub, {"decision": "allow"}]).to_string(),
         )
@@ -820,6 +877,7 @@ mod tests {
             json!({"decision": "allow", "warnings": [{"reason": "host_warning:other"}]}),
         ] {
             let e = compose_aggregate(
+                crate::SPEC_VERSION_DRAFT,
                 r#"{"profile": "sequential/run_all"}"#,
                 &json!([forged]).to_string(),
             )
@@ -926,24 +984,35 @@ mod tests {
 
     #[test]
     fn managed_outcome_helper() {
-        let v: Value =
-            serde_json::from_str(&managed_outcome(r#"{"outcome": "timeout"}"#).unwrap()).unwrap();
+        let v: Value = serde_json::from_str(
+            &managed_outcome(crate::SPEC_VERSION_DRAFT, r#"{"outcome": "timeout"}"#).unwrap(),
+        )
+        .unwrap();
         assert_eq!(v["verdict"]["reason"], "host_error:interceptor_timeout");
         assert_eq!(v["failure"]["continuable"], true);
-        let v: Value =
-            serde_json::from_str(&managed_outcome(r#"{"outcome": "cancelled"}"#).unwrap()).unwrap();
+        let v: Value = serde_json::from_str(
+            &managed_outcome(crate::SPEC_VERSION_DRAFT, r#"{"outcome": "cancelled"}"#).unwrap(),
+        )
+        .unwrap();
         assert_eq!(v["verdict"]["reason"], "host_error:interceptor_failed");
         assert_eq!(v["failure"]["continuable"], false);
         let v: Value = serde_json::from_str(
-            &managed_outcome(r#"{"outcome": "failed", "detail": "IOException"}"#).unwrap(),
+            &managed_outcome(
+                crate::SPEC_VERSION_DRAFT,
+                r#"{"outcome": "failed", "detail": "IOException"}"#,
+            )
+            .unwrap(),
         )
         .unwrap();
         assert_eq!(v["verdict"]["message"], "IOException");
         assert_eq!(v["failure"]["reason"], "host_error:interceptor_failed");
         assert_eq!(v["failure"]["continuable"], true);
         let v: Value = serde_json::from_str(
-            &managed_outcome(r#"{"outcome": "verdict", "verdict": {"decision": "allow"}}"#)
-                .unwrap(),
+            &managed_outcome(
+                crate::SPEC_VERSION_DRAFT,
+                r#"{"outcome": "verdict", "verdict": {"decision": "allow"}}"#,
+            )
+            .unwrap(),
         )
         .unwrap();
         assert_eq!(v["verdict"]["decision"], "allow");
@@ -951,6 +1020,7 @@ mod tests {
         // A managed verdict crosses the §5 gate like any other.
         let v: Value = serde_json::from_str(
             &managed_outcome(
+                crate::SPEC_VERSION_DRAFT,
                 r#"{"outcome": "verdict", "verdict": {"decision": "allow", "reason": "host_error:x"}}"#,
             )
             .unwrap(),
@@ -958,7 +1028,7 @@ mod tests {
         .unwrap();
         assert_eq!(v["verdict"]["reason"], "host_error:verdict_invalid");
         assert_eq!(v["failure"]["continuable"], true);
-        assert!(managed_outcome(r#"{"outcome": "slow"}"#).is_err());
+        assert!(managed_outcome(crate::SPEC_VERSION_DRAFT, r#"{"outcome": "slow"}"#).is_err());
     }
 
     #[test]

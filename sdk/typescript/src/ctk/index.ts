@@ -20,6 +20,8 @@ import type {
 
 export {
   assessHarness,
+  conformanceReport,
+  DRAFT_NOT_CLAIMABLE,
   loadVectors,
   runVector,
   runVectors,
@@ -27,7 +29,7 @@ export {
   builderFromValue,
   provePaths,
 } from "./runner";
-export type { AssessedSurface } from "./runner";
+export type { AssessedSurface, ConformanceReport, PartReport } from "./runner";
 export { ReferenceHarness, REFERENCE_DECLARATION } from "./reference";
 
 /** Host-declared capability subset (§3.2, §13.1): the closed list of

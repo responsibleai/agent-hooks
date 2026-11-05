@@ -22,7 +22,17 @@ public sealed class AgentContextBuilder
     private readonly Dictionary<string, JsonNode?> _l2 = [];
     private int _seq = -1; // advanced via Interlocked.Increment (§12.2.3)
 
+    /// <summary>The specification version every context names in <c>spec</c>
+    /// (§4.1): the wire string the builder was given, the same version the
+    /// emitter runs under.</summary>
+    public string Spec { get; }
+
+    /// <param name="spec">Required: there is no default version. Pass
+    /// <see cref="AgentHooks.Spec.V01"/> or <see cref="AgentHooks.Spec.Draft"/>;
+    /// any other value is an <see cref="ArgumentException"/> naming
+    /// <see cref="AgentHooks.Spec.SupportedVersions"/>.</param>
     public AgentContextBuilder(
+        string spec,
         string agentId,
         string framework,
         string sessionId,
@@ -30,6 +40,7 @@ public sealed class AgentContextBuilder
         string? agentVersion = null,
         string? sessionStartedAt = null)
     {
+        Spec = AgentHooks.Spec.Require(spec, nameof(spec));
         _agent = new JsonObject { ["id"] = agentId, ["framework"] = framework };
         if (agentName is not null) _agent["name"] = agentName;
         if (agentVersion is not null) _agent["version"] = agentVersion;
@@ -52,7 +63,7 @@ public sealed class AgentContextBuilder
     {
         var ctx = new JsonObject
         {
-            ["spec"] = Spec.Version,
+            ["spec"] = Spec,
             ["interception_point"] = ip.ToWireName(),
             ["timestamp"] = Now(),
             ["sequence"] = Interlocked.Increment(ref _seq),

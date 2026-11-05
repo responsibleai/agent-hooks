@@ -7,8 +7,9 @@ A declaration is one JSON object that fixes a host's configuration
 (§7.1, §8, §10.1, §13.1), its declared surface (§13.1) and its
 interceptor bindings. It is a versioned contract of its own
 (``agent-hooks-declaration/<major>.<minor>``, §7.7.2), separate from
-the wire version :data:`~agent_hooks.SPEC_VERSION` and from the
-package version.
+the wire version the document names in its required ``spec`` member
+(:data:`~agent_hooks.SPEC_VERSION_0_1` or
+:data:`~agent_hooks.SPEC_VERSION_DRAFT`) and from the package version.
 
 Loading is a pipeline (§7.7.6). Step 1 (read the file) and step 11 (run
 the host's kind resolvers) are this wrapper's; steps 2 to 10 run in the
@@ -41,11 +42,14 @@ from typing import Any, Final
 from agent_hooks import _core
 from agent_hooks._types import (
     DECLARATION_VERSION,
+    SPEC_VERSION_DRAFT,
     SUPPORTED_DECLARATION_VERSIONS,
     ControlFailureNotice,
     EnforcementMode,
     InterceptionPoint,
     OnError,
+    is_supported_spec_version,
+    require_spec_version,
 )
 from agent_hooks.approval import ApprovalResolver
 from agent_hooks.composition import CompositionConfig, CompositionProfile
@@ -94,6 +98,27 @@ CAPABILITIES: Final[tuple[str, ...]] = (
 #: The Python emitter always does (``asyncio.wait_for``), so a numeric
 #: timeout in a declaration is always honoured.
 INTERCEPTOR_TIMEOUT_SUPPORT: Final[str] = "bounded"
+
+#: The contract versions each specification version defines (§7.7.2), by
+#: wire string: 0.1 defines 1.0; the draft defines 1.0 and 1.1. A test pins
+#: it to the core's ``declaration_versions().by_spec``.
+DECLARATION_VERSIONS_BY_SPEC: Final[dict[str, tuple[str, tuple[str, ...]]]] = {
+    "agent-hooks/0.1": ("agent-hooks-declaration/1.0", ("agent-hooks-declaration/1.0",)),
+    "agent-hooks/draft": (DECLARATION_VERSION, SUPPORTED_DECLARATION_VERSIONS),
+}
+
+
+def current_declaration_version(spec: str) -> str:
+    """The newest declaration contract version the specification version
+    ``spec`` (a wire string) defines: what :class:`DeclarationBuilder`
+    writes when the document says nothing else."""
+    return DECLARATION_VERSIONS_BY_SPEC[require_spec_version(spec)][0]
+
+
+def accepted_declaration_versions(spec: str) -> tuple[str, ...]:
+    """The contract versions a document written for ``spec`` may carry."""
+    return DECLARATION_VERSIONS_BY_SPEC[require_spec_version(spec)][1]
+
 
 _RESERVED_KIND_SEGMENTS: Final[frozenset[str]] = frozenset({"agent_hooks", "ctk"})
 _REFERENCE_RE = re.compile(r"[a-z][a-z0-9_-]{0,63}")
@@ -447,8 +472,16 @@ class HostSurface:
             (v for v in SUPPORTED_DECLARATION_VERSIONS if v in self.declaration_versions),
             DECLARATION_VERSION,
         )
+        # The probe names the oldest specification version that defines
+        # its contract version (0.1 for 1.0, the draft for 1.1).
+        probe_spec = next(
+            wire
+            for wire, (_, accepted) in DECLARATION_VERSIONS_BY_SPEC.items()
+            if probe_version in accepted
+        )
         probe = {
             "declaration": probe_version,
+            "spec": probe_spec,
             "configuration": {"posture": {"tool_seam_host_error": self.tool_seam_host_error}},
             "bindings": [],
         }
@@ -830,9 +863,10 @@ class HostDeclaration:
         return cls(text)
 
     @staticmethod
-    def builder() -> DeclarationBuilder:
-        """A builder for the code path (§7.7.7)."""
-        return DeclarationBuilder()
+    def builder(spec: str) -> DeclarationBuilder:
+        """A builder for the code path (§7.7.7), for a document written for
+        the specification version ``spec`` (a wire string)."""
+        return DeclarationBuilder(spec)
 
     def as_value(self) -> Any:
         """The document parsed as a Python value (duplicate keys
@@ -849,22 +883,38 @@ class DeclarationBuilder:
     :meth:`HostDeclaration.from_value`, so the code path is validated by
     the same core function, with the same classes, as a file.
 
-    The constructor starts with ``declaration`` set to
-    :data:`~agent_hooks.DECLARATION_VERSION` and ``bindings`` empty;
-    :meth:`empty` starts with nothing, for harnesses that must express
-    an incomplete document.
+    The constructor takes the specification version the document is
+    written for (a wire string, :data:`~agent_hooks.SPEC_VERSION_0_1` or
+    :data:`~agent_hooks.SPEC_VERSION_DRAFT`) and starts with ``spec`` set
+    to it, ``bindings`` empty and ``declaration`` filled at build time
+    with :func:`current_declaration_version` unless :meth:`version` names
+    one; :meth:`empty` starts with nothing, for harnesses that must
+    express an incomplete document.
     """
 
-    __slots__ = ("_doc",)
+    __slots__ = ("_defaults", "_doc")
 
-    def __init__(self) -> None:
-        self._doc: dict[str, Any] = {"declaration": DECLARATION_VERSION, "bindings": []}
+    def __init__(self, spec: str) -> None:
+        self._doc: dict[str, Any] = {
+            "spec": require_spec_version(spec, "DeclarationBuilder spec"),
+            "bindings": [],
+        }
+        self._defaults = True
 
     @classmethod
     def empty(cls) -> DeclarationBuilder:
-        out = cls()
+        out = cls(SPEC_VERSION_DRAFT)
         out._doc = {}
+        out._defaults = False
         return out
+
+    def _finished(self) -> dict[str, Any]:
+        """The document with the build-time default applied."""
+        doc = copy.deepcopy(self._doc)
+        spec = doc.get("spec")
+        if self._defaults and "declaration" not in doc and is_supported_spec_version(spec):
+            doc["declaration"] = current_declaration_version(spec)
+        return doc
 
     def _configuration(self) -> dict[str, Any]:
         out: dict[str, Any] = self._doc.setdefault("configuration", {})
@@ -1028,11 +1078,11 @@ class DeclarationBuilder:
 
     def to_value(self) -> dict[str, Any]:
         """The document as built, before validation."""
-        return copy.deepcopy(self._doc)
+        return self._finished()
 
     def build(self) -> HostDeclaration:
         """The document, through :meth:`HostDeclaration.from_value`."""
-        return HostDeclaration.from_value(self._doc)
+        return HostDeclaration.from_value(self._finished())
 
 
 # ---- resolved form -------------------------------------------------------------

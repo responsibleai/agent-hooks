@@ -15,6 +15,7 @@ import copy
 from typing import Any
 
 from agent_hooks import (
+    SPEC_VERSION_DRAFT,
     ApprovalOutcome,
     ApprovalRequest,
     ApprovalResolution,
@@ -62,7 +63,7 @@ class Approver:
 
 
 def _ctx() -> AgentContext:
-    b = AgentContextBuilder(agent_id="a", framework="x", session_id="s")
+    b = AgentContextBuilder(spec=SPEC_VERSION_DRAFT, agent_id="a", framework="x", session_id="s")
     return b.pre_tool_call(call_id="tc", name="t", args={"url": "evil"})
 
 
@@ -82,7 +83,7 @@ def _emit(em: InterceptionEmitter, ctx: AgentContext) -> InterceptionRecord:
 
 
 def test_run_all_runs_everything_and_strictest_wins() -> None:
-    em = InterceptionEmitter(composition=CompositionConfig.run_all())
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, composition=CompositionConfig.run_all())
     late = Scripted(Verdict.warn(reason="late"))
     em.register(Scripted(_deny())).register(late)
     r = _emit(em, _ctx())
@@ -96,7 +97,7 @@ def test_run_all_runs_everything_and_strictest_wins() -> None:
 
 
 def test_run_all_transforms_fold_through() -> None:
-    em = InterceptionEmitter(composition=CompositionConfig.run_all())
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, composition=CompositionConfig.run_all())
     seen: list[Any] = []
 
     class Peek:
@@ -115,7 +116,9 @@ def test_run_all_transforms_fold_through() -> None:
 
 def test_run_all_consults_once_when_all_denies_liftable() -> None:
     approver = Approver(ApprovalOutcome.APPROVE, Verdict(decision=Decision.ALLOW))
-    em = InterceptionEmitter(resolver=approver, composition=CompositionConfig.run_all())
+    em = InterceptionEmitter(
+        spec=SPEC_VERSION_DRAFT, resolver=approver, composition=CompositionConfig.run_all()
+    )
     em.register(Scripted(Verdict.escalate(reason="a")))
     em.register(Scripted(Verdict.escalate(reason="b")))
     r = _emit(em, _ctx())
@@ -129,7 +132,9 @@ def test_run_all_consults_once_when_all_denies_liftable() -> None:
 
 def test_run_all_plain_deny_blocks_consult() -> None:
     approver = Approver(ApprovalOutcome.APPROVE, Verdict(decision=Decision.ALLOW))
-    em = InterceptionEmitter(resolver=approver, composition=CompositionConfig.run_all())
+    em = InterceptionEmitter(
+        spec=SPEC_VERSION_DRAFT, resolver=approver, composition=CompositionConfig.run_all()
+    )
     em.register(Scripted(Verdict.escalate())).register(Scripted(_deny()))
     r = _emit(em, _ctx())
     # §7.4: a single plain deny makes lifting pointless — severity
@@ -145,7 +150,7 @@ def test_run_all_plain_deny_blocks_consult() -> None:
 
 
 def test_first_deny_no_resolver_liftable_deny_stands() -> None:
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     em.register(Scripted(Verdict.escalate(reason="check")))
     r = _emit(em, _ctx())
     # §9: no resolver → the liftable deny stands, NOT an error.
@@ -159,7 +164,9 @@ def test_first_deny_no_resolver_liftable_deny_stands() -> None:
 def test_first_deny_stop_truncates_and_records_substitution() -> None:
     approver = Approver(ApprovalOutcome.APPROVE, Verdict(decision=Decision.ALLOW))
     em = InterceptionEmitter(
-        resolver=approver, composition=CompositionConfig.first_deny(OnApproval.STOP)
+        spec=SPEC_VERSION_DRAFT,
+        resolver=approver,
+        composition=CompositionConfig.first_deny(OnApproval.STOP),
     )
     skipped = Scripted(_deny())
     em.register(Scripted(Verdict.escalate())).register(skipped)
@@ -174,7 +181,9 @@ def test_first_deny_stop_truncates_and_records_substitution() -> None:
 def test_first_deny_resume_continues_the_fold() -> None:
     approver = Approver(ApprovalOutcome.APPROVE, Verdict(decision=Decision.ALLOW))
     em = InterceptionEmitter(
-        resolver=approver, composition=CompositionConfig.first_deny(OnApproval.RESUME)
+        spec=SPEC_VERSION_DRAFT,
+        resolver=approver,
+        composition=CompositionConfig.first_deny(OnApproval.RESUME),
     )
     em.register(Scripted(Verdict.escalate()))
     em.register(Scripted(_deny()))  # now runs — and denies
@@ -188,7 +197,9 @@ def test_first_deny_resume_continues_the_fold() -> None:
 def test_first_deny_resume_allows_multiple_consultations() -> None:
     approver = Approver(ApprovalOutcome.APPROVE, Verdict(decision=Decision.ALLOW))
     em = InterceptionEmitter(
-        resolver=approver, composition=CompositionConfig.first_deny(OnApproval.RESUME)
+        spec=SPEC_VERSION_DRAFT,
+        resolver=approver,
+        composition=CompositionConfig.first_deny(OnApproval.RESUME),
     )
     em.register(Scripted(Verdict.escalate(reason="one")))
     em.register(Scripted(Verdict.escalate(reason="two")))
@@ -203,7 +214,7 @@ def test_first_deny_resume_allows_multiple_consultations() -> None:
 
 def test_first_deny_reject_leaves_deny_standing() -> None:
     approver = Approver(ApprovalOutcome.REJECT, Verdict(decision=Decision.DENY, reason="rejected"))
-    em = InterceptionEmitter(resolver=approver)
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, resolver=approver)
     em.register(Scripted(Verdict.escalate(reason="check")))
     r = _emit(em, _ctx())
     assert r.verdict.decision is Decision.DENY
@@ -222,7 +233,7 @@ def test_echo_rule_violation_fails_closed() -> None:
                 verdict=Verdict(decision=Decision.ALLOW),
             )
 
-    em = InterceptionEmitter(resolver=BadEcho())
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, resolver=BadEcho())
     em.register(Scripted(Verdict.escalate()))
     r = _emit(em, _ctx())
     assert r.verdict.reason == "host_error:approval_identity_mismatch"
@@ -243,7 +254,7 @@ def test_approve_with_deny_is_verdict_invalid() -> None:
             res.context_identity = request.context_identity
             return res
 
-    em = InterceptionEmitter(resolver=BadApprover())
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, resolver=BadApprover())
     em.register(Scripted(Verdict.escalate()))
     r = _emit(em, _ctx())
     assert r.verdict.reason == "host_error:verdict_invalid"
@@ -261,7 +272,7 @@ def test_reject_with_permit_is_verdict_invalid() -> None:
             res.context_identity = request.context_identity
             return res
 
-    em = InterceptionEmitter(resolver=BadRejecter())
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, resolver=BadRejecter())
     em.register(Scripted(Verdict.escalate()))
     r = _emit(em, _ctx())
     assert r.verdict.reason == "host_error:verdict_invalid"
@@ -269,9 +280,9 @@ def test_reject_with_permit_is_verdict_invalid() -> None:
 
 def test_shutdown_never_consults() -> None:
     approver = Approver(ApprovalOutcome.APPROVE, Verdict(decision=Decision.ALLOW))
-    em = InterceptionEmitter(resolver=approver)
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, resolver=approver)
     em.register(Scripted(Verdict.escalate()))
-    b = AgentContextBuilder(agent_id="a", framework="x", session_id="s")
+    b = AgentContextBuilder(spec=SPEC_VERSION_DRAFT, agent_id="a", framework="x", session_id="s")
     r = _emit(em, b.agent_shutdown(reason="completed"))
     # §6.1a: the liftable deny is recorded, the seam untouched.
     assert approver.calls == 0
@@ -281,7 +292,9 @@ def test_shutdown_never_consults() -> None:
 
 def test_evaluate_only_never_consults_and_proceeds() -> None:
     approver = Approver(ApprovalOutcome.APPROVE, Verdict(decision=Decision.ALLOW))
-    em = InterceptionEmitter(mode=EnforcementMode.EVALUATE_ONLY, resolver=approver)
+    em = InterceptionEmitter(
+        spec=SPEC_VERSION_DRAFT, mode=EnforcementMode.EVALUATE_ONLY, resolver=approver
+    )
     em.register(Scripted(Verdict.escalate()))
     r = _emit(em, _ctx())
     assert approver.calls == 0
@@ -293,7 +306,9 @@ def test_evaluate_only_never_consults_and_proceeds() -> None:
 
 
 def test_parallel_strictest_transform_conflict_fails_closed() -> None:
-    em = InterceptionEmitter(composition=CompositionConfig.strictest(SynthesisPolicy.DENY))
+    em = InterceptionEmitter(
+        spec=SPEC_VERSION_DRAFT, composition=CompositionConfig.strictest(SynthesisPolicy.DENY)
+    )
     em.register(Scripted(_transform("$target.url", "a")))
     em.register(Scripted(_transform("$target.url", "b")))
     ctx = _ctx()
@@ -308,6 +323,7 @@ def test_parallel_strictest_transform_conflict_fails_closed() -> None:
 def test_parallel_strictest_conflict_approval_consults_seam() -> None:
     approver = Approver(ApprovalOutcome.APPROVE, _transform("$target.url", "resolved"))
     em = InterceptionEmitter(
+        spec=SPEC_VERSION_DRAFT,
         resolver=approver,
         composition=CompositionConfig.strictest(SynthesisPolicy.APPROVAL),
     )
@@ -325,7 +341,9 @@ def test_parallel_strictest_conflict_approval_consults_seam() -> None:
 
 
 def test_parallel_strictest_single_transform_applies() -> None:
-    em = InterceptionEmitter(composition=CompositionConfig.strictest(SynthesisPolicy.DENY))
+    em = InterceptionEmitter(
+        spec=SPEC_VERSION_DRAFT, composition=CompositionConfig.strictest(SynthesisPolicy.DENY)
+    )
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     em.register(Scripted(_transform("$target.url", "safe")))
     ctx = _ctx()
@@ -349,7 +367,7 @@ def test_parallel_strictest_isolated_snapshots() -> None:
             seen.append(context["target"]["url"])
             return Verdict(decision=Decision.ALLOW)
 
-    em = InterceptionEmitter(composition=CompositionConfig.strictest())
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, composition=CompositionConfig.strictest())
     em.register(Mutating()).register(Peek())
     ctx = _ctx()
     r = _emit(em, ctx)
@@ -360,7 +378,9 @@ def test_parallel_strictest_isolated_snapshots() -> None:
 
 def test_parallel_strictest_liftable_winner_consults() -> None:
     approver = Approver(ApprovalOutcome.APPROVE, Verdict(decision=Decision.ALLOW))
-    em = InterceptionEmitter(resolver=approver, composition=CompositionConfig.strictest())
+    em = InterceptionEmitter(
+        spec=SPEC_VERSION_DRAFT, resolver=approver, composition=CompositionConfig.strictest()
+    )
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     em.register(Scripted(Verdict.escalate(reason="check")))
     r = _emit(em, _ctx())
@@ -374,7 +394,7 @@ def test_parallel_strictest_liftable_winner_consults() -> None:
 
 
 def test_unanimous_allow_passes_with_unions() -> None:
-    em = InterceptionEmitter(composition=CompositionConfig.unanimous())
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, composition=CompositionConfig.unanimous())
     a = Verdict(decision=Decision.ALLOW, result_labels=("l1",))
     b = Verdict.warn(reason="w")
     em.register(Scripted(a)).register(Scripted(b))
@@ -386,7 +406,8 @@ def test_unanimous_allow_passes_with_unions() -> None:
 
 def test_unanimous_disagreement_synthesizes_deny() -> None:
     em = InterceptionEmitter(
-        composition=CompositionConfig.unanimous(SynthesisPolicy.DENY, SynthesisPolicy.DENY)
+        spec=SPEC_VERSION_DRAFT,
+        composition=CompositionConfig.unanimous(SynthesisPolicy.DENY, SynthesisPolicy.DENY),
     )
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     em.register(Scripted(_transform("$target.url", "x")))
@@ -401,6 +422,7 @@ def test_unanimous_disagreement_synthesizes_deny() -> None:
 def test_unanimous_disagreement_approval_consults_seam() -> None:
     approver = Approver(ApprovalOutcome.APPROVE, Verdict(decision=Decision.ALLOW))
     em = InterceptionEmitter(
+        spec=SPEC_VERSION_DRAFT,
         resolver=approver,
         composition=CompositionConfig.unanimous(SynthesisPolicy.APPROVAL, SynthesisPolicy.DENY),
     )
@@ -415,7 +437,8 @@ def test_unanimous_disagreement_approval_consults_seam() -> None:
 
 def test_unanimous_disagreement_approval_without_resolver_stands() -> None:
     em = InterceptionEmitter(
-        composition=CompositionConfig.unanimous(SynthesisPolicy.APPROVAL, SynthesisPolicy.DENY)
+        spec=SPEC_VERSION_DRAFT,
+        composition=CompositionConfig.unanimous(SynthesisPolicy.APPROVAL, SynthesisPolicy.DENY),
     )
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     em.register(Scripted(_deny()))
@@ -430,7 +453,7 @@ def test_unanimous_disagreement_approval_without_resolver_stands() -> None:
 
 
 def test_null_provider_unbound_record() -> None:
-    em = InterceptionEmitter(identity_provider=None)
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, identity_provider=None)
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     r = _emit(em, _ctx())
     assert r.input_identity is None
@@ -445,7 +468,9 @@ def test_custom_provider_identities_and_name() -> None:
         calls.append(ctx["interception_point"])
         return f"host:{ctx['sequence']}"
 
-    em = InterceptionEmitter(identity_provider=IdentityProvider("host-hash", fingerprint))
+    em = InterceptionEmitter(
+        spec=SPEC_VERSION_DRAFT, identity_provider=IdentityProvider("host-hash", fingerprint)
+    )
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     r = _emit(em, _ctx())
     assert r.identity_provider == "host-hash"
@@ -456,7 +481,7 @@ def test_custom_provider_identities_and_name() -> None:
 
 def test_default_provider_rejects_big_int_before_dispatch() -> None:
     scripted = Scripted(Verdict(decision=Decision.ALLOW))
-    em = InterceptionEmitter().register(scripted)
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT).register(scripted)
     ctx = _ctx()
     ctx["target"]["id"] = 9007199254740993  # 2^53 + 1
     r = _emit(em, ctx)
@@ -472,7 +497,7 @@ def test_default_provider_rejects_beyond_u64_literal() -> None:
     # share an identity without the core's raw-text scan. Python ints
     # are arbitrary precision, so the literal reaches the core intact.
     scripted = Scripted(Verdict(decision=Decision.ALLOW))
-    em = InterceptionEmitter().register(scripted)
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT).register(scripted)
     ctx = _ctx()
     ctx["target"]["id"] = 2**64  # beyond u64: the coerced class
     r = _emit(em, ctx)
@@ -485,7 +510,7 @@ def test_default_provider_rejects_beyond_u64_literal() -> None:
 def test_nan_in_context_fails_closed_before_dispatch() -> None:
     # P-004 survivor: allow_nan=False at every marshalling site.
     scripted = Scripted(Verdict(decision=Decision.ALLOW))
-    em = InterceptionEmitter().register(scripted)
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT).register(scripted)
     ctx = _ctx()
     ctx["target"]["ratio"] = float("nan")
     r = _emit(em, ctx)
@@ -497,7 +522,7 @@ def test_nan_in_context_fails_closed_before_dispatch() -> None:
 
 
 def test_composition_recorded_on_every_record() -> None:
-    em = InterceptionEmitter(composition=CompositionConfig.run_all())
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, composition=CompositionConfig.run_all())
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     r = _emit(em, _ctx())
     # §7.1/§10.3: records are interpretable without out-of-band
@@ -513,7 +538,9 @@ def test_sequence_unique_under_concurrent_emissions() -> None:
 
     from agent_hooks.context import AgentContextBuilder
 
-    builder = AgentContextBuilder(agent_id="a", framework="x", session_id="s")
+    builder = AgentContextBuilder(
+        spec=SPEC_VERSION_DRAFT, agent_id="a", framework="x", session_id="s"
+    )
     seen: list[int] = []
     lock = threading.Lock()
 

@@ -9,8 +9,41 @@
 import { native, AgentHooksCoreError } from "./native";
 export { AgentHooksCoreError };
 
-/** Spec version this SDK implements (§4.1 `spec` field). */
-export const SPEC_VERSION = "agent-hooks/0.1";
+/** The wire string of specification 0.1 (§4.1 `spec`). */
+export const SPEC_VERSION_0_1 = "agent-hooks/0.1";
+
+/** The wire string of the draft specification, `spec/draft/`. The draft
+ * changes without notice and is never claimed; a cut copies it to a
+ * numbered version with a wire string of its own (VERSIONING.md). */
+export const SPEC_VERSION_DRAFT = "agent-hooks/draft";
+
+/** The specification versions this SDK supports, oldest first; each
+ * names a `spec/<entry>/` folder, and the last numbered entry is the
+ * newest released version (VERSIONING.md). None is a default: a host
+ * names the version it runs under when it builds a context or an
+ * emitter ({@link SPEC_VERSION_0_1} or {@link SPEC_VERSION_DRAFT}), or
+ * in its declaration's `spec` member. A test pins it to the core. */
+export const SUPPORTED_SPEC_VERSIONS: readonly string[] = Object.freeze(["0.1", "draft"]);
+
+/** The wire strings of {@link SUPPORTED_SPEC_VERSIONS}, in the same order. */
+export const SUPPORTED_SPEC_WIRE_VERSIONS: readonly string[] = Object.freeze(
+  SUPPORTED_SPEC_VERSIONS.map((v) => `agent-hooks/${v}`),
+);
+
+/** Whether `wire` names a specification version this SDK supports. */
+export function isSupportedSpecVersion(wire: unknown): wire is string {
+  return typeof wire === "string" && SUPPORTED_SPEC_WIRE_VERSIONS.includes(wire);
+}
+
+/** The wire string `wire` when it names a supported specification
+ * version; otherwise a `RangeError` naming the supported ones. Every
+ * constructor that takes a version runs its argument through this. */
+export function requireSpecVersion(wire: unknown, what = "spec"): string {
+  if (isSupportedSpecVersion(wire)) return wire;
+  throw new RangeError(
+    `${what} must name a supported specification version, one of ${SUPPORTED_SPEC_WIRE_VERSIONS.join(", ")} (SUPPORTED_SPEC_VERSIONS); got ${JSON.stringify(wire)}`,
+  );
+}
 
 /** Name of the default identity provider (§10.1, §10.2). */
 export const JCS_SHA256 = "jcs-sha256";
@@ -82,8 +115,9 @@ export const HostError = Object.freeze({
 export type HostError = (typeof HostError)[keyof typeof HostError];
 
 /** Reserved `host_warning:*` reasons a host synthesizes (§11.1,
- * `spec/0.1.0/reserved-warnings.json`). Interceptors MUST NOT emit them; the
- * §5 gate refuses such a verdict as `host_error:verdict_invalid`. */
+ * `spec/draft/reserved-warnings.json`). Under the draft interceptors MUST
+ * NOT emit them; the §5 gate refuses such a verdict as
+ * `host_error:verdict_invalid`. 0.1 reserves `host_error:*` only. */
 export const HostWarning = Object.freeze({
   /** A registration whose `on_error` is `continue` failed and the host
    * substituted an allow for its slot (§6.3.1). */
@@ -153,8 +187,9 @@ export interface RegistrationOptions {
 
 /** Thrown by {@link InterceptionEmitter.registerWithOptions} and
  * {@link InterceptionEmitter.registerManaged} when a registration asks
- * for `on_error: continue` on an emitter with no control failure
- * notifier. Nothing is registered then. */
+ * for `on_error: continue` on an emitter under 0.1, which defines no
+ * failure posture, or on one with no control failure notifier. Nothing
+ * is registered then. */
 export class RegistrationError extends Error {
   constructor(public readonly detail: string) {
     super(`registration refused: ${detail}`);
@@ -543,17 +578,23 @@ export function contextIdentity(ctx: AgentContext): string {
   return native.contextIdentity(marshal(ctx));
 }
 
-/** §5: validate an interceptor's wire return value. Rust core. */
-export function validateVerdict(v: Verdict): void {
-  native.validateVerdict(marshal(v));
+/** §5: validate an interceptor's wire return value under the
+ * specification version `spec` names (the context's wire string). Rust
+ * core. */
+export function validateVerdict(v: Verdict, spec: string): void {
+  native.validateVerdict(requireSpecVersion(spec), marshal(v));
 }
 
-/** Parse a bare Verdict or §5.5 response envelope. */
+/** Parse a bare Verdict or §5.5 response envelope under the
+ * specification version `spec` names. */
 export function parseInterceptorResponse(
   value: JsonValue | string,
+  spec: string,
 ): InterceptorResponse {
   const wire = typeof value === "string" ? value : marshal(value);
-  return JSON.parse(native.normalizeInterceptorResponse(wire)) as InterceptorResponse;
+  return JSON.parse(
+    native.normalizeInterceptorResponse(requireSpecVersion(spec), wire),
+  ) as InterceptorResponse;
 }
 
 /** Emit a bare Verdict when the response carries no transport metadata. */
@@ -656,6 +697,7 @@ export function finalize(
 export function composeAggregate(
   composition: CompositionConfig,
   verdicts: Verdict[],
+  spec: string,
 ): {
   combined: Verdict;
   decided_by: number | null;
@@ -663,7 +705,9 @@ export function composeAggregate(
   apply_transform: boolean;
   verdicts: VerdictSummary[];
 } {
-  return JSON.parse(native.composeAggregate(JSON.stringify(composition), marshal(verdicts)));
+  return JSON.parse(
+    native.composeAggregate(requireSpecVersion(spec), JSON.stringify(composition), marshal(verdicts)),
+  );
 }
 
 export { AgentContextBuilder } from "./builder";
@@ -688,6 +732,7 @@ export {
   MAX_TIMEOUT_MS,
   SUPPORTED_DECLARATION_VERSIONS,
   canonicalDeclaration,
+  currentDeclarationVersion,
   declarationVersions,
   fullKnobSupport,
   validKind,

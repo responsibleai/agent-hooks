@@ -7,7 +7,14 @@ import { dirname, resolve } from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { loadVectors, runVector, ReferenceHarness } from "../dist/ctk/index.js";
+import { SPEC_VERSION_0_1, SPEC_VERSION_DRAFT } from "../dist/index.js";
+import {
+  DRAFT_NOT_CLAIMABLE,
+  conformanceReport,
+  loadVectors,
+  runVector,
+  ReferenceHarness,
+} from "../dist/ctk/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const vectorsDir = resolve(here, "../../../conformance/vectors");
@@ -32,11 +39,13 @@ const EXPECTED_SKIPS = new Set([
 ]);
 
 const skipped = new Set();
+const results = [];
 const vectors = loadVectors(vectorsDir);
 
 for (const v of vectors) {
   test(`ctk ${v.id} ${v.title}`, async () => {
     const r = await runVector(new ReferenceHarness(), v);
+    results.push(r);
     if (r.status === "skip") {
       skipped.add(r.id);
       assert.ok(
@@ -55,4 +64,27 @@ test("ctk skip set matches the manifest exactly", () => {
     [...EXPECTED_SKIPS].sort(),
     "expected-but-not-skipped vectors mean the manifest is stale",
   );
+});
+
+test("a conformance report names a released version, never the draft", () => {
+  // Running the working test set is development; the report a claim
+  // attaches names a released version, and the runner refuses the draft.
+  assert.equal(results.length, vectors.length);
+  assert.throws(() => conformanceReport(SPEC_VERSION_DRAFT, results), {
+    name: "RangeError",
+    message: DRAFT_NOT_CLAIMABLE,
+  });
+  assert.throws(() => conformanceReport("agent-hooks/9.9", results), /SUPPORTED_SPEC_VERSIONS/);
+  const report = conformanceReport(SPEC_VERSION_0_1, results);
+  assert.equal(report.spec, "agent-hooks/0.1");
+  assert.equal(report.failed, 0);
+  assert.equal(report.skipped, EXPECTED_SKIPS.size);
+  assert.equal(report.passed + report.skipped, vectors.length);
+  const names = report.parts.map((p) => p.part);
+  assert.deepEqual(names, [...names].sort());
+  for (const part of report.parts) {
+    assert.equal(part.passed + part.failed + part.skipped, part.vectors.length);
+  }
+  const streaming = report.parts.find((p) => p.part === "streaming/incremental");
+  assert.equal(streaming.skipped, 4);
 });

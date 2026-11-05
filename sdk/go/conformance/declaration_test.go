@@ -23,7 +23,7 @@ func TestProvePathsAgreesOnShapesWithoutATypedForm(t *testing.T) {
 	}
 	t.Run("config null", func(t *testing.T) {
 		doc := map[string]any{
-			"declaration": agenthooks.DeclarationVersion,
+			"declaration": agenthooks.DeclarationVersion, "spec": agenthooks.SpecVersionDraft,
 			"bindings": []any{
 				map[string]any{"id": "a", "kind": "ctk.scripted", "config": nil},
 			},
@@ -42,7 +42,7 @@ func TestProvePathsAgreesOnShapesWithoutATypedForm(t *testing.T) {
 	})
 	t.Run("empty knob set", func(t *testing.T) {
 		doc := map[string]any{
-			"declaration": agenthooks.DeclarationVersion,
+			"declaration": agenthooks.DeclarationVersion, "spec": agenthooks.SpecVersionDraft,
 			"surface": map[string]any{
 				"profiles": map[string]any{
 					"sequential/first_deny": map[string]any{"on_approval": []any{}},
@@ -103,7 +103,7 @@ func TestScriptedConfigIndexBounds(t *testing.T) {
 		{"1", "out of range"},
 	} {
 		doc := map[string]any{
-			"declaration": agenthooks.DeclarationVersion,
+			"declaration": agenthooks.DeclarationVersion, "spec": agenthooks.SpecVersionDraft,
 			"bindings": []any{
 				map[string]any{"id": "a", "kind": "ctk.scripted", "config": map[string]any{"script": json.Number(tc.script)}},
 			},
@@ -129,7 +129,7 @@ func TestBuilderPathCarriesTheFailurePosture(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc := map[string]any{
-		"declaration":   agenthooks.DeclarationVersion,
+		"declaration": agenthooks.DeclarationVersion, "spec": agenthooks.SpecVersionDraft,
 		"configuration": map[string]any{"failure": map[string]any{"on_error": "continue"}},
 		"bindings": []any{
 			map[string]any{"id": "a", "kind": "ctk.scripted", "config": map[string]any{"script": json.Number("0")}, "on_error": "deny"},

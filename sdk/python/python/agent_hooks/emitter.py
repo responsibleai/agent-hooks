@@ -83,6 +83,7 @@ from agent_hooks import declaration as _declaration
 from agent_hooks._marshal import dumps
 from agent_hooks._types import (
     JCS_SHA256,
+    SPEC_VERSION_DRAFT,
     ControlFailureNotice,
     Decision,
     EnforcementMode,
@@ -94,6 +95,7 @@ from agent_hooks._types import (
     Verdict,
     VerdictSummary,
     Warning,
+    require_spec_version,
 )
 from agent_hooks.approval import (
     ApprovalOutcome,
@@ -343,10 +345,20 @@ class InterceptionEmitter:
     :class:`IdentityProvider` (custom name + function), or ``None``
     (identity-unbound records).
 
+    ``spec`` is required: there is no default version. It names the
+    specification version this emitter runs under,
+    :data:`~agent_hooks.SPEC_VERSION_0_1` or
+    :data:`~agent_hooks.SPEC_VERSION_DRAFT`, the same version the host's
+    :class:`~agent_hooks.AgentContextBuilder` stamps; any other value is a
+    :class:`ValueError` naming :data:`~agent_hooks.SUPPORTED_SPEC_VERSIONS`.
+    A context naming another supported version is denied
+    ``host_error:context_invalid``.
+
     Every registration fails closed by default (``on_error: deny``,
     §6.3.1). :meth:`register` and :meth:`register_managed` take
     ``on_error=OnError.CONTINUE`` for a best-effort registration; that
-    needs :meth:`set_control_failure_notifier` first.
+    needs an emitter under the draft (0.1 defines no failure posture) and
+    :meth:`set_control_failure_notifier` first.
 
     This constructor and the setters are configuration in code without
     a declaration (§7.7.7): the records carry no ``declaration`` member
@@ -369,18 +381,23 @@ class InterceptionEmitter:
         "_resolver",
         "_resolver_timeout",
         "_sealed",
+        "_spec",
         "_timeout",
     )
 
     def __init__(
         self,
         *,
+        spec: str,
         mode: EnforcementMode = EnforcementMode.ENFORCE,
         resolver: ApprovalResolver | None = None,
         timeout: float | None = DEFAULT_TIMEOUT,
         composition: CompositionConfig | None = None,
         identity_provider: str | IdentityProvider | None = JCS_SHA256,
     ) -> None:
+        #: The specification version this emitter runs under (§4): the
+        #: wire string it was given, or its declaration's ``spec``.
+        self._spec: str = require_spec_version(spec, "InterceptionEmitter spec")
         self._interceptors: list[_Bound] = []
         self._resolver = resolver
         self._mode = mode
@@ -578,7 +595,10 @@ class InterceptionEmitter:
             )
 
         timeouts = cfg["timeouts"]
+        # The loader accepted the document's ``spec`` (§7.7.6 step 4), so
+        # it names a supported version; the emitter runs under it.
         em = cls(
+            spec=resolved.spec,
             mode=resolved.mode,
             resolver=resolver,
             timeout=_declaration._ms_to_seconds(timeouts["interceptor_ms"]),
@@ -593,6 +613,12 @@ class InterceptionEmitter:
         em._declaration = resolved
         em._sealed = True
         return em
+
+    @property
+    def spec(self) -> str:
+        """The specification version this emitter runs under (§4): its
+        declaration's ``spec`` or the wire string it was built with."""
+        return self._spec
 
     def _unsealed(self, what: str) -> None:
         """§7.7.7: a declaration-built emitter refuses reconfiguration;
@@ -700,11 +726,16 @@ class InterceptionEmitter:
             # invalid_field; the code path must not register an
             # interceptor that never runs.
             raise ValueError("register: `at` must name at least one interception point")
+        label = name if name is not None else "unnamed registration"
+        if posture is OnError.CONTINUE and self._spec != SPEC_VERSION_DRAFT:
+            raise RegistrationError(
+                f"{label}: on_error is continue, which {self._spec} does not define; "
+                f"only an emitter under {SPEC_VERSION_DRAFT} accepts it (see spec 6.3.1)"
+            )
         if posture is OnError.CONTINUE and self._notifier is None:
             raise RegistrationError(
-                f"{name if name is not None else 'unnamed registration'}: on_error is continue "
-                "but the emitter has no control failure notifier; call "
-                "set_control_failure_notifier first (see spec 6.3.1)"
+                f"{label}: on_error is continue but the emitter has no control failure "
+                "notifier; call set_control_failure_notifier first (see spec 6.3.1)"
             )
         self._interceptors.append(
             _Bound(interceptor, name, bound_at, on_error=posture, managed=managed)
@@ -837,7 +868,19 @@ class InterceptionEmitter:
             # §4/§6.3: an invalid envelope is denied before any
             # interceptor or identity provider sees it.
             _core.validate_envelope(dumps(ctx))
-            input_identity = self._compute_identity(ctx)
+            if ctx.get("spec") != self._spec:
+                # §4: one specification version per emission. The context
+                # names a supported version, but not the one this emitter
+                # runs under.
+                outcome = _Outcome(
+                    Verdict.host_error(
+                        HostError.CONTEXT_INVALID,
+                        f"$.spec: this emitter runs {self._spec}; the context names another "
+                        "version (see spec §4)",
+                    )
+                )
+            else:
+                input_identity = self._compute_identity(ctx)
         except _core.AgentHooksCoreError as e:
             # §10.2: the default provider rejected the value domain.
             outcome = _Outcome(
@@ -1057,7 +1100,9 @@ class InterceptionEmitter:
         try:
             wire = called.to_wire() if isinstance(called, Verdict) else called
             # §5 gate in the core; from_wire re-types the normalized JSON.
-            return _Settled(Verdict.from_wire(json.loads(_core.validate_verdict(dumps(wire)))))
+            return _Settled(
+                Verdict.from_wire(json.loads(_core.validate_verdict(self._spec, dumps(wire))))
+            )
         except _core.AgentHooksCoreError as e:
             failure = _CallFailure(_host_error_of(e, HostError.VERDICT_INVALID), str(e))
         except Exception as e:  # noqa: BLE001 (non-JSON return etc.)
@@ -1111,7 +1156,7 @@ class InterceptionEmitter:
             # The verdict crosses the same §5 gate as any interceptor's.
             return raw.verdict
         try:
-            mapped = json.loads(_core.managed_outcome(dumps(raw.to_wire())))
+            mapped = json.loads(_core.managed_outcome(self._spec, dumps(raw.to_wire())))
         except Exception as e:  # noqa: BLE001 (an outcome the core does not know)
             return _CallFailure(HostError.VERDICT_INVALID, str(e))
         failure = mapped["failure"]
@@ -1316,7 +1361,9 @@ class InterceptionEmitter:
         not yet applied)."""
         agg = json.loads(
             _core.compose_aggregate(
-                dumps(self._composition.to_wire()), dumps([v.to_wire() for v in all_v])
+                self._spec,
+                dumps(self._composition.to_wire()),
+                dumps([v.to_wire() for v in all_v]),
             )
         )
         combined = Verdict._from_core(agg["combined"])
@@ -1469,7 +1516,9 @@ class InterceptionEmitter:
         try:
             # §9: the resolver's verdict crosses the same §5 gate as an
             # interceptor's.
-            rv = Verdict.from_wire(json.loads(_core.validate_verdict(dumps(res.verdict.to_wire()))))
+            rv = Verdict.from_wire(
+                json.loads(_core.validate_verdict(self._spec, dumps(res.verdict.to_wire())))
+            )
         except Exception as e:  # noqa: BLE001
             return Verdict.host_error(HostError.VERDICT_INVALID, str(e)), False
         # §9: outcome/decision must agree — approve MUST carry a permit,

@@ -1,5 +1,5 @@
 {
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/conformance/vectors.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/conformance/vectors.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — CTK vector",
   "description": "Language-agnostic conformance test case (AGENT-HOOKS-0.1 §13.2). Scripts use the three-verdict vocabulary (§5): an escalation is a deny with an approval block; a warning is an allow with a warnings[] entry. Non-finite floats (NaN/Infinity) and lone surrogates cannot be expressed in a JSON vector file; those guards are pinned by per-SDK unit tests instead (§4.4).",
@@ -287,7 +287,7 @@
       ],
       "properties": {
         "at": {
-          "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-point.schema.json"
+          "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/interception-point.schema.json"
         },
         "match": {
           "type": "object",
@@ -295,7 +295,7 @@
           "description": "Dotted-path -> expected-value predicates against the AgentContext. All must match."
         },
         "return": {
-          "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/verdict.schema.json"
+          "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/verdict.schema.json"
         },
         "fault": {
           "type": "string",
@@ -346,7 +346,7 @@
               ]
             },
             "verdict": {
-              "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/verdict.schema.json"
+              "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/verdict.schema.json"
             },
             "fault": {
               "type": "string",
@@ -392,7 +392,7 @@
             ],
             "properties": {
               "interception_point": {
-                "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-point.schema.json"
+                "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/interception-point.schema.json"
               },
               "context": {
                 "type": "object",
@@ -427,7 +427,7 @@
         "interceptions_absent": {
           "type": "array",
           "items": {
-            "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-point.schema.json"
+            "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/interception-point.schema.json"
           }
         },
         "tool_invocations": {
@@ -575,7 +575,7 @@
             ],
             "properties": {
               "interception_point": {
-                "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/interception-point.schema.json"
+                "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/interception-point.schema.json"
               },
               "assert": {
                 "type": "object",
@@ -663,10 +663,10 @@
           "host_declaration": {
             "anyOf": [
               {
-                "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.0.schema.json"
+                "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration-1.0.schema.json"
               },
               {
-                "$ref": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.1.schema.json"
+                "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration-1.1.schema.json"
               }
             ],
             "description": "A vector document validates against the schema of the version it writes (§7.7.2): 1.0 documents against host-declaration-1.0, 1.1 documents against host-declaration-1.1."

@@ -234,7 +234,7 @@ pub struct RunRecord {
 }
 
 /// Result of one vector run.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct VectorResult {
     pub id: String,
     pub title: String,

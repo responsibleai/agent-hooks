@@ -129,8 +129,11 @@ export enum ActorKind {
  * Metadata available at every interception point.
  */
 interface ContextMetadata {
-  /** @pattern ^agent-hooks/\d+\.\d+$ */
-  spec: string;
+  /**
+   * This version's wire string (§4.1). A released version's contexts
+   * carry that version's own string, agent-hooks/<major>.<minor>.
+   */
+  spec: "agent-hooks/draft";
   /** @format date-time */
   timestamp: string;
   /** @minimum 0 */

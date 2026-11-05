@@ -20,7 +20,7 @@ func TestDenyVerdictSugarIsFinalDeny(t *testing.T) {
 	if v.IsLiftable() {
 		t.Fatal("plain deny must not be liftable")
 	}
-	if err := v.Validate(); err != nil {
+	if err := v.Validate(SpecVersionDraft); err != nil {
 		t.Fatalf("Validate() = %v, want nil", err)
 	}
 }

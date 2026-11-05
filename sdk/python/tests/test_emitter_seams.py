@@ -11,6 +11,7 @@ import asyncio
 import json
 
 from agent_hooks import (
+    SPEC_VERSION_DRAFT,
     ApprovalOutcome,
     ApprovalRequest,
     ApprovalResolution,
@@ -50,7 +51,7 @@ class CapturingApprover:
 
 
 def _ctx() -> AgentContext:
-    b = AgentContextBuilder(agent_id="a", framework="x", session_id="s")
+    b = AgentContextBuilder(spec=SPEC_VERSION_DRAFT, agent_id="a", framework="x", session_id="s")
     return b.pre_tool_call(call_id="tc", name="t", args={"secret": "evil", "n": 1})
 
 
@@ -59,7 +60,7 @@ def test_redactor_binds_identity_to_presented_context() -> None:
     # the redacted value never reaches the resolver; record identities
     # are unaffected.
     approver = CapturingApprover()
-    em = InterceptionEmitter(resolver=approver)
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, resolver=approver)
     em.register(Scripted(Verdict.escalate(reason="check")))
 
     def redact(ctx: AgentContext) -> AgentContext:
@@ -82,7 +83,7 @@ def test_redactor_binds_identity_to_presented_context() -> None:
 
 def test_raising_redactor_fails_closed() -> None:
     approver = CapturingApprover()
-    em = InterceptionEmitter(resolver=approver)
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, resolver=approver)
     em.register(Scripted(Verdict.escalate(reason="check")))
 
     def bad(_ctx: AgentContext) -> AgentContext:
@@ -97,7 +98,7 @@ def test_raising_redactor_fails_closed() -> None:
 
 def test_record_sink_and_ring_buffer() -> None:
     seen: list[str] = []
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
     em.set_record_sink(lambda r: seen.append(r.session_id))
     em.set_max_records(2)
@@ -111,7 +112,7 @@ def test_record_sink_and_ring_buffer() -> None:
 
 
 def test_sink_exception_is_swallowed() -> None:
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     em.register(Scripted(Verdict(decision=Decision.ALLOW)))
 
     def bad_sink(_r: object) -> None:
@@ -124,7 +125,7 @@ def test_sink_exception_is_swallowed() -> None:
 
 def test_emit_returns_effective_target() -> None:
     # §4.3: the returned target reflects the fold's transforms.
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     em.register(
         Scripted(
             Verdict(

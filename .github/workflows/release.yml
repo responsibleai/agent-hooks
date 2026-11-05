@@ -1,7 +1,9 @@
 # Tag-driven release pipeline.
 #
-# Trigger: push a tag `v*` (e.g. v0.1.0-alpha.2) — one tag releases the
-# spec + all five SDKs together (VERSIONING.md). The release-tags
+# Trigger: push a tag `v*` (e.g. v0.1.0-alpha.2). One tag releases all
+# five SDKs together; the specification releases on its own train
+# (VERSIONING.md). The first job checks that the SDKs' supported
+# specification versions name frozen folders. The release-tags
 # ruleset limits `v*` tag creation to repository admins and
 # maintainers. Or run manually: dry_run=true builds everything and
 # skips attestation and every upload; dry_run=false publishes only when
@@ -63,8 +65,69 @@ env:
   DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
 
 jobs:
+  # Runs first, on the tag and on every dry run: the SDKs' version
+  # surfaces agree, every supported specification version has a
+  # spec/<version>/ folder and every released one its tag, the
+  # conformance vectors validate against the draft, and the examples of
+  # every bundle validate against that bundle's schemas. Every build job
+  # depends on it.
+  spec-gate:
+    name: Specification gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tag check below needs the history and the spec/<X.Y> tags.
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: "22" }
+      # The same pinned ajv-cli ci.yml uses; no vendored copy exists, so
+      # the gate fetches it from npm by version.
+      - run: npm install -g ajv-cli@5.0.0 ajv-formats@3.0.1
+      - name: SDK version surfaces, supported specification versions and their tags agree
+        # Every released version the SDKs support must carry the tag
+        # spec/<X.Y> on an ancestor of this commit, so an SDK tag cannot
+        # claim a specification version that was never released. The
+        # draft is supported too and has no tag.
+        run: python3 scripts/check-version-consistency.py --require-spec-tags
+      - name: Specification folders are complete and references current
+        run: python3 scripts/check-spec-versions.py
+      - name: Conformance vectors validate against the draft schemas
+        # The vectors under conformance/ are the working test set for the
+        # next version, carried under agent-hooks/draft because they
+        # exercise behaviour no released version has: the grammar
+        # references the draft's schema ids and the documents carry that
+        # string. So this gate reads spec/draft and no released bundle.
+        # No claim names the draft; a claim names a released version.
+        run: |
+          set -e
+          root=spec/draft/schema/generated
+          mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+          if [ "${#refs[@]}" -eq 0 ]; then
+            echo "::error::$root holds no *.schema.json files"
+            exit 1
+          fi
+          ajv validate --spec=draft2020 -c ajv-formats \
+            -s conformance/vectors.schema.json "${refs[@]}" \
+            -d 'conformance/vectors/*.json'
+      - name: Schema examples of every bundle validate against their own schemas
+        # The SDKs accept 0.1 contexts and documents beside the draft's,
+        # so a release ships against two bundles. The vectors above prove
+        # the draft; the 0.1 examples, which carry agent-hooks/0.1, are
+        # the instances that prove the frozen 0.1 schemas still validate
+        # with the validator this release pins. The draft's examples run
+        # here too, as in ci.yml.
+        run: |
+          npm ci
+          node scripts/check-schema-examples.mjs
+        working-directory: sdk/typescript
+
   python-wheels:
     name: Python wheel (${{ matrix.platform }})
+    needs: spec-gate
     strategy:
       fail-fast: false
       matrix:
@@ -109,6 +172,7 @@ jobs:
 
   python-sdist:
     runs-on: ubuntu-latest
+    needs: spec-gate
     permissions:
       contents: read
     steps:
@@ -177,6 +241,7 @@ jobs:
 
   rust:
     runs-on: ubuntu-latest
+    needs: spec-gate
     environment: release
     permissions:
       contents: read
@@ -218,6 +283,7 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ steps.cratesio-auth.outputs.token }}
 
   typescript-build:
+    needs: spec-gate
     strategy:
       fail-fast: false
       matrix:
@@ -375,6 +441,7 @@ jobs:
 
   ffi-build:
     timeout-minutes: 25
+    needs: spec-gate
     strategy:
       fail-fast: false
       matrix:
@@ -488,6 +555,7 @@ jobs:
   # the tagged tree builds as a module consumer would see it.
   go:
     runs-on: ubuntu-latest
+    needs: spec-gate
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master; toolchain pinned via sdk/rust/rust-toolchain.toml

@@ -1,0 +1,175 @@
+{
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/agent-context/input.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Hooks — agent context (input)",
+  "description": "Required+conditional schema for interception_point=input (AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
+  "type": "object",
+  "properties": {
+    "interception_point": {
+      "type": "string",
+      "const": "input"
+    },
+    "input": {
+      "$ref": "#/$defs/Input"
+    },
+    "extensions": {
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "$ref": "#/$defs/Extensions"
+    },
+    "spec": {
+      "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+      "type": "string",
+      "const": "agent-hooks/draft"
+    },
+    "timestamp": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "sequence": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "agent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "framework": {
+          "pattern": "^[a-z0-9_-]+$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "framework",
+        "id"
+      ]
+    },
+    "session": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "turn": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "trace": {
+      "type": "object",
+      "properties": {
+        "trace_id": {
+          "type": "string"
+        },
+        "span_id": {
+          "type": "string"
+        }
+      }
+    },
+    "tenant": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "Who acts (§4.5).",
+          "enum": [
+            "agent",
+            "human",
+            "service"
+          ],
+          "type": "string"
+        }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "properties": {
+        "tool_call_count": {
+          "type": "number"
+        },
+        "token_count": {
+          "type": "number"
+        },
+        "elapsed_seconds": {
+          "type": "number"
+        },
+        "cost_usd": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "required": [
+    "agent",
+    "input",
+    "interception_point",
+    "sequence",
+    "session",
+    "spec",
+    "timestamp"
+  ],
+  "$defs": {
+    "Extensions": {
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
+      "type": "object",
+      "additionalProperties": {}
+    },
+    "Input": {
+      "description": "Conditional payload of input (§4.2).",
+      "type": "object",
+      "properties": {
+        "content": {},
+        "role": {
+          "$ref": "#/$defs/InputRole"
+        }
+      },
+      "required": [
+        "content",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "InputRole": {
+      "description": "Who produced an input (§4.2).",
+      "type": "string",
+      "enum": [
+        "user",
+        "system",
+        "external"
+      ]
+    }
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/post-model-hook-response.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/post-model-hook-response.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — post_model_call response",
   "description": "post_model_call response.",

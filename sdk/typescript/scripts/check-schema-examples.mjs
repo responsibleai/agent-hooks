@@ -1,20 +1,32 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-import { readdir, readFile } from "node:fs/promises";
+// Validate the standalone JSON examples of every specification bundle
+// against that bundle's own generated schemas.
+//
+//   node scripts/check-schema-examples.mjs [<bundle> ...]
+//
+// A bundle is spec/draft or spec/<MAJOR.MINOR>; with no argument every
+// bundle is checked. Each example sits at
+// <bundle>/schema/examples/<Type>/<name>.json and is validated against the
+// schema `schemaMapping` names for <Type>, using only the bundle's own
+// schemas (under schema/generated/ when that folder exists, else flat
+// under schema/; no fetching). A bundle without an examples/ folder is
+// skipped and said so; 0.1 predates the examples. Anything under
+// examples/ that is not a regular file or a directory, such as a
+// symbolic link, fails.
+
+import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 
-export const schemaRoot = fileURLToPath(
-  new URL("../../../spec/draft/schema/", import.meta.url),
-);
-export const releaseSchemaRoot = fileURLToPath(
-  new URL("../../../spec/0.1.0/schema/", import.meta.url),
-);
+export const specRoot = fileURLToPath(new URL("../../../spec/", import.meta.url));
+const VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
+
 export const schemaMapping = {
   AgentContext: "agent-context.schema.json",
-  // The generic verdict root is retained only in the released 0.1.0 bundle.
+  // The generic verdict root is retained only in the released 0.1 bundle.
   Verdict: "verdict.schema.json",
   InterceptorResponse: "interceptor-response.schema.json#/$defs/ResponseEnvelope",
   ApprovalRequest: "approval.schema.json#/$defs/request",
@@ -50,12 +62,39 @@ const transformHookResponseSchema = {
   output: "output-hook-response.schema.json",
 };
 
+/** The schema folder of one bundle, "draft" or a MAJOR.MINOR version. */
+export function bundleSchemaRoot(name) {
+  return path.join(specRoot, name, "schema") + path.sep;
+}
+
+/** The draft bundle's schema folder, where new examples are written first. */
+export const schemaRoot = bundleSchemaRoot("draft");
+
+/** Every bundle name under spec/, sorted. Anything else under spec/ that is
+ *  a directory or a symbolic link is an error: the folder holds bundles only. */
+export async function bundles(root = specRoot) {
+  const names = [];
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    const filename = path.join(root, entry.name);
+    if (entry.isSymbolicLink()) {
+      throw new Error(`${filename}: symbolic links are not allowed under spec/`);
+    }
+    if (!entry.isDirectory()) continue;
+    if (entry.name !== "draft" && !VERSION.test(entry.name)) {
+      throw new Error(`${filename}: not draft or a MAJOR.MINOR version`);
+    }
+    names.push(entry.name);
+  }
+  return names.sort();
+}
+
 async function jsonFiles(directory) {
   const files = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const filename = path.join(directory, entry.name);
     if (entry.isDirectory()) files.push(...await jsonFiles(filename));
-    else if (entry.isFile() && entry.name.endsWith(".json")) files.push(filename);
+    else if (!entry.isFile()) throw new Error(`${filename}: not a regular file or directory`);
+    else if (entry.name.endsWith(".json")) files.push(filename);
   }
   return files.sort();
 }
@@ -68,15 +107,37 @@ async function readJson(filename) {
   }
 }
 
+/** Whether a bundle's schema folder carries standalone examples. */
+export async function hasExamples(root) {
+  try {
+    return (await stat(path.join(root, "examples"))).isDirectory();
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+/** Where a bundle keeps its schemas: schema/generated/ when present, else schema/. */
+export async function schemaDirectory(root) {
+  const generated = path.join(root, "generated");
+  try {
+    if ((await stat(generated)).isDirectory()) return generated;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  return root;
+}
+
 export async function validateExamples(root = schemaRoot) {
   // Match schema-lint's Draft 2020-12 + ajv-formats behavior. The generated
   // schemas use union types and annotation keywords not covered by strict mode.
   // No loadSchema callback is supplied: missing refs fail, never fetch.
   const ajv = new Ajv2020({ strict: false, allErrors: true });
   addFormats(ajv);
-  const generated = path.join(root, "generated");
+  const generated = await schemaDirectory(root);
   const schemas = new Map();
   for (const filename of await jsonFiles(generated)) {
+    if (!filename.endsWith(".schema.json")) continue;
     const schema = await readJson(filename);
     if (!ajv.validateSchema(schema)) {
       throw new Error(`${filename}: invalid schema: ${ajv.errorsText()}`);
@@ -128,7 +189,11 @@ export async function validateExamples(root = schemaRoot) {
       : instance;
     for (const reference of references) validate(responseInstance, filename, reference);
     if (parts[0] === "AgentContext") {
-      validate(instance, filename, `strict-contexts/${instance.interception_point}.schema.json`);
+      // The per-point folder is strict-contexts/ in the generated layout
+      // and agent-context/ in the flat one.
+      const point = `${instance.interception_point}.schema.json`;
+      const folder = schemas.has(`strict-contexts/${point}`) ? "strict-contexts" : "agent-context";
+      validate(instance, filename, `${folder}/${point}`);
     }
   }
   function assertSchemaProbe(schemaFile, instance, expected, label, definition) {
@@ -290,7 +355,7 @@ export async function validateExamples(root = schemaRoot) {
       "pre-tool transform rejects post-tool payload",
     );
     const inputRequest = {
-      spec: "agent-hooks/0.1",
+      spec: "agent-hooks/draft",
       timestamp: "2026-01-01T00:00:00Z",
       sequence: 0,
       agent: { id: "a", framework: "test" },
@@ -387,7 +452,7 @@ export async function validateExamples(root = schemaRoot) {
       "record omits transform details",
     );
     const request = {
-      spec: "agent-hooks/0.1",
+      spec: "agent-hooks/draft",
       timestamp: "2026-01-01T00:00:00Z",
       sequence: 0,
       agent: { id: "a", framework: "test" },
@@ -418,15 +483,23 @@ export async function validateExamples(root = schemaRoot) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const selection = process.argv[2] || "draft";
-  if (process.argv.length > 3 || !["draft", "0.1.0", "all"].includes(selection)) {
-    throw new Error("Usage: node check-schema-examples.mjs [draft|0.1.0|all]");
+  const known = await bundles();
+  const selected = process.argv.length > 2 ? process.argv.slice(2) : known;
+  for (const name of selected) {
+    if (!known.includes(name)) {
+      throw new Error(`Usage: node check-schema-examples.mjs [${known.join("|")}]...`);
+    }
   }
-  const bundles = selection === "all"
-    ? [["draft", schemaRoot], ["0.1.0", releaseSchemaRoot]]
-    : [[selection, selection === "0.1.0" ? releaseSchemaRoot : schemaRoot]];
-  for (const [name, root] of bundles) {
+  let checked = 0;
+  for (const name of selected) {
+    const root = bundleSchemaRoot(name);
+    if (!(await hasExamples(root))) {
+      console.log(`check-schema-examples: skipping ${name}, it has no schema/examples/ folder`);
+      continue;
+    }
     const count = await validateExamples(root);
+    checked++;
     console.log(`check-schema-examples: validated ${count} JSON examples for ${name}`);
   }
+  if (checked === 0) throw new Error("no bundle with a schema/examples/ folder was checked");
 }

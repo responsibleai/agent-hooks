@@ -208,11 +208,21 @@ type InterceptionEmitter struct {
 	// from, when it was built from one; it feeds the record's
 	// `declaration` member (§7.7.8).
 	declaration *ResolvedDeclaration
+	// spec is the specification version this emitter runs under: its
+	// declaration's `spec`, or the one NewInterceptionEmitter was given.
+	// Every context must name it. A continue registration (§6.3.1)
+	// needs the draft, because 0.1 defines no failure posture.
+	spec string
 }
 
 // Declaration returns the resolved declaration this emitter runs under,
 // or nil when it was configured in code (§7.7.7).
 func (e *InterceptionEmitter) Declaration() *ResolvedDeclaration { return e.declaration }
+
+// Spec returns the specification version this emitter runs under: its
+// declaration's `spec`, or the wire string it was built with. A context
+// naming another supported version is denied host_error:context_invalid.
+func (e *InterceptionEmitter) Spec() string { return e.spec }
 
 // Sealed reports whether the emitter was built from a host declaration
 // and refuses reconfiguration (§7.7.7).
@@ -289,8 +299,14 @@ func (e *InterceptionEmitter) Records() []InterceptionRecord {
 // optional approval resolver, the default composition profile
 // (sequential/first_deny, on_approval: stop) and the default jcs-sha256
 // identity provider.
-func NewInterceptionEmitter(mode EnforcementMode, resolver ApprovalResolver) *InterceptionEmitter {
+//
+// spec is the specification version the emitter runs under; there is no
+// default. Pass SpecVersion01 or SpecVersionDraft, the version the host's
+// AgentContextBuilder stamps; any other value panics with a message
+// naming SupportedSpecVersions.
+func NewInterceptionEmitter(spec string, mode EnforcementMode, resolver ApprovalResolver) *InterceptionEmitter {
 	return &InterceptionEmitter{
+		spec:        mustSpecVersion("NewInterceptionEmitter", spec),
 		mode:        mode,
 		resolver:    resolver,
 		composition: DefaultComposition(),
@@ -492,6 +508,11 @@ func checkPoints(what string, at []InterceptionPoint) ([]InterceptionPoint, erro
 // ErrControlFailureNotifierMissing is returned by RegisterWithOptions
 // and RegisterManaged for a registration with on_error: continue on an
 // emitter that has no control failure notifier (§6.3.1).
+// ErrContinueNeedsDraft is returned by a registration with on_error:
+// continue on an emitter under a specification version that defines no
+// failure posture (0.1); only the draft does (§6.3.1).
+var ErrContinueNeedsDraft = errors.New("on_error is continue")
+
 var ErrControlFailureNotifierMissing = errors.New("on_error is continue but the emitter has no control failure notifier; call SetControlFailureNotifier first (see spec 6.3.1)")
 
 // RegistrationOptions are the binding facts of one code registration
@@ -544,6 +565,10 @@ func (e *InterceptionEmitter) push(what string, b *bound, opts RegistrationOptio
 	}
 	if err := opts.OnError.Validate(); err != nil {
 		return fmt.Errorf("%s: %w", what, err)
+	}
+	if opts.OnError == OnErrorContinue && e.spec != SpecVersionDraft {
+		return fmt.Errorf("%s: %w: %s does not define it; only an emitter under %s accepts it (see spec 6.3.1)",
+			what, ErrContinueNeedsDraft, e.spec, SpecVersionDraft)
 	}
 	if opts.OnError == OnErrorContinue && e.notifier == nil {
 		return fmt.Errorf("%s: %w", what, ErrControlFailureNotifierMissing)
@@ -639,6 +664,12 @@ func (e *InterceptionEmitter) EmitUnchecked(ctx context.Context, actx AgentConte
 		decided = true
 	} else if _, envErr := nativeValidateEnvelope(string(envJSON)); envErr != nil {
 		outcome = dispatchOutcome{combined: coreErrVerdict(envErr, ErrContextInvalid)}
+		decided = true
+	} else if spec, _ := actx["spec"].(string); spec != e.spec {
+		// §4: one specification version per emission. The context names
+		// a supported version, but not the one this emitter runs under.
+		outcome = dispatchOutcome{combined: HostErrorVerdict(ErrContextInvalid,
+			fmt.Sprintf("$.spec: this emitter runs %s; the context names another version (see spec 4)", e.spec))}
 		decided = true
 	}
 	if !decided {
@@ -944,7 +975,7 @@ func (e *InterceptionEmitter) callManaged(ctx context.Context, b *bound, cp Agen
 		f := covered(ErrInterceptorFailed, fmt.Sprintf("%T", err))
 		return Verdict{}, &f
 	}
-	res, err := nativeManagedOutcome(string(wire))
+	res, err := nativeManagedOutcome(e.spec, string(wire))
 	if err != nil {
 		// The zero value or an unknown kind: the interceptor's fault.
 		f := covered(ErrInterceptorFailed, "malformed managed outcome")
@@ -977,7 +1008,7 @@ func (e *InterceptionEmitter) gate(v Verdict) (Verdict, *callFailure) {
 		f := covered(ErrInterceptorFailed, fmt.Sprintf("%T", err))
 		return Verdict{}, &f
 	}
-	normalized, err := nativeValidateVerdict(string(vb)) // §5
+	normalized, err := nativeValidateVerdict(e.spec, string(vb)) // §5, under this emitter's version
 	if err != nil {
 		var ce *CoreError
 		if errors.As(err, &ce) {
@@ -1249,7 +1280,7 @@ func (e *InterceptionEmitter) aggregateAndConsult(ctx context.Context, actx Agen
 	if err != nil {
 		return dispatchOutcome{combined: HostErrorVerdict(ErrVerdictInvalid, err.Error()), verdicts: named(summaries(all), active, substituted)}
 	}
-	out, err := nativeComposeAggregate(string(cfgJSON), string(allJSON))
+	out, err := nativeComposeAggregate(e.spec, string(cfgJSON), string(allJSON))
 	if err != nil {
 		return dispatchOutcome{combined: coreErrVerdict(err, ErrVerdictInvalid), verdicts: named(summaries(all), active, substituted)}
 	}
@@ -1424,7 +1455,7 @@ func (e *InterceptionEmitter) consult(ctx context.Context, actx AgentContext, ve
 	if err != nil {
 		return HostErrorVerdict(ErrVerdictInvalid, err.Error()), true, false
 	}
-	normalized, err := nativeValidateVerdict(string(vb))
+	normalized, err := nativeValidateVerdict(e.spec, string(vb))
 	if err != nil {
 		return coreErrVerdict(err, ErrVerdictInvalid), true, false
 	}

@@ -17,21 +17,30 @@ import (
 // AgentContextBuilder is the stateful per-session builder for
 // AgentContext values.
 type AgentContextBuilder struct {
+	spec    string
 	agent   map[string]any
 	session map[string]any
 	seq     int64 // assigned via atomic.AddInt64 (§12.2.3)
 	l2      map[string]any
 }
 
-// NewAgentContextBuilder constructs a builder with the required L0
-// agent/session identifiers.
-func NewAgentContextBuilder(agentID, framework, sessionID string) *AgentContextBuilder {
+// NewAgentContextBuilder constructs a builder for one session under the
+// specification version spec, which every context it builds names in
+// `spec` (§4.1), with the required L0 agent/session identifiers. There
+// is no default version: pass SpecVersion01 or SpecVersionDraft, the
+// version the emitter runs under; any other value panics with a message
+// naming SupportedSpecVersions.
+func NewAgentContextBuilder(spec, agentID, framework, sessionID string) *AgentContextBuilder {
 	return &AgentContextBuilder{
+		spec:    mustSpecVersion("NewAgentContextBuilder", spec),
 		agent:   map[string]any{"id": agentID, "framework": framework},
 		session: map[string]any{"id": sessionID},
 		l2:      map[string]any{},
 	}
 }
+
+// Spec returns the specification version every context names (§4.1).
+func (b *AgentContextBuilder) Spec() string { return b.spec }
 
 // WithAgent sets optional L2 agent.name/version.
 func (b *AgentContextBuilder) WithAgent(name, version string) *AgentContextBuilder {
@@ -69,7 +78,7 @@ func cloneMap(m map[string]any) map[string]any {
 
 func (b *AgentContextBuilder) envelope(ip InterceptionPoint, target any) AgentContext {
 	ctx := AgentContext{
-		"spec":               SpecVersion,
+		"spec":               b.spec,
 		"interception_point": string(ip),
 		"timestamp":          nowRFC3339(),
 		"sequence":           atomic.AddInt64(&b.seq, 1) - 1,

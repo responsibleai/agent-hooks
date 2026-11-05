@@ -27,11 +27,6 @@ fn map_err(py: Python<'_>, e: core::FfiError) -> PyErr {
 }
 
 #[pyfunction]
-fn spec_version() -> &'static str {
-    core::spec_version()
-}
-
-#[pyfunction]
 fn canonical_json(py: Python<'_>, value_json: &str) -> PyResult<String> {
     core::canonical_json(value_json).map_err(|e| map_err(py, e))
 }
@@ -42,13 +37,17 @@ fn context_identity(py: Python<'_>, ctx_json: &str) -> PyResult<String> {
 }
 
 #[pyfunction]
-fn validate_verdict(py: Python<'_>, verdict_json: &str) -> PyResult<String> {
-    core::validate_verdict(verdict_json).map_err(|e| map_err(py, e))
+fn validate_verdict(py: Python<'_>, spec: &str, verdict_json: &str) -> PyResult<String> {
+    core::validate_verdict(spec, verdict_json).map_err(|e| map_err(py, e))
 }
 
 #[pyfunction]
-fn normalize_interceptor_response(py: Python<'_>, response_json: &str) -> PyResult<String> {
-    core::normalize_interceptor_response(response_json).map_err(|e| map_err(py, e))
+fn normalize_interceptor_response(
+    py: Python<'_>,
+    spec: &str,
+    response_json: &str,
+) -> PyResult<String> {
+    core::normalize_interceptor_response(spec, response_json).map_err(|e| map_err(py, e))
 }
 
 /// §4/§6.3: envelope validation (fail closed, value-free detail).
@@ -101,10 +100,11 @@ fn finalize(
 #[pyfunction]
 fn compose_aggregate(
     py: Python<'_>,
+    spec: &str,
     composition_json: &str,
     verdicts_json: &str,
 ) -> PyResult<String> {
-    core::compose_aggregate(composition_json, verdicts_json).map_err(|e| map_err(py, e))
+    core::compose_aggregate(spec, composition_json, verdicts_json).map_err(|e| map_err(py, e))
 }
 
 /// §6.3.1 `on_error: continue`: the substituted allow, its
@@ -121,8 +121,8 @@ fn control_failure_substitute(py: Python<'_>, request_json: &str) -> PyResult<St
 /// `{"outcome": "verdict" | "timeout" | "cancelled" | "failed", ...}` in,
 /// `{verdict, failure: null | {reason, detail, continuable}}` out.
 #[pyfunction]
-fn managed_outcome(py: Python<'_>, outcome_json: &str) -> PyResult<String> {
-    core::managed_outcome(outcome_json).map_err(|e| map_err(py, e))
+fn managed_outcome(py: Python<'_>, spec: &str, outcome_json: &str) -> PyResult<String> {
+    core::managed_outcome(spec, outcome_json).map_err(|e| map_err(py, e))
 }
 
 // ---- host declaration (§7.7) ---------------------------------------------
@@ -179,9 +179,7 @@ fn ctk_assert(
 
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add("SPEC_VERSION", core::spec_version())?;
     m.add("AgentHooksCoreError", m.py().get_type::<AgentHooksCoreError>())?;
-    m.add_function(wrap_pyfunction!(spec_version, m)?)?;
     m.add_function(wrap_pyfunction!(canonical_json, m)?)?;
     m.add_function(wrap_pyfunction!(context_identity, m)?)?;
     m.add_function(wrap_pyfunction!(validate_verdict, m)?)?;

@@ -94,9 +94,3 @@ func TestGoldenL2L3Stripped(t *testing.T) {
 		t.Error("L2/L3 fields must not affect context_identity (§10.2)")
 	}
 }
-
-func TestNativeSpecVersion(t *testing.T) {
-	if v := nativeSpecVersion(); v != SpecVersion {
-		t.Errorf("core spec version %q != Go SpecVersion %q", v, SpecVersion)
-	}
-}

@@ -70,7 +70,7 @@ public sealed class IdentityProvider
 
     /// <summary>The shipped default (§10.2): JCS + SHA-256 over the closed
     /// required+conditional projection; fail-closed I-JSON domain.</summary>
-    public static readonly IdentityProvider JcsSha256 = new(Spec.JcsSha256, null);
+    public static readonly IdentityProvider JcsSha256 = new(AgentHooks.Spec.JcsSha256, null);
 
     /// <summary>Identity-unbound: approvals bind by correlation only; records
     /// carry <c>null</c> identities and self-describe as unbound.</summary>
@@ -198,6 +198,14 @@ public sealed class InterceptionEmitter
     private readonly TimeSpan _resolverTimeout;
     private readonly bool _sealed;
     private readonly ResolvedDeclaration? _declaration;
+
+    /// <summary>The specification version this emitter runs under: its
+    /// declaration's <c>spec</c>, or the wire string the constructor was
+    /// given. Every context must name it; one naming another supported
+    /// version is denied <c>host_error:context_invalid</c>. A
+    /// <c>continue</c> registration (§6.3.1) needs the draft, because 0.1
+    /// defines no failure posture.</summary>
+    public string Spec { get; }
     private CompositionConfig _composition = CompositionConfig.Default;
     private IdentityProvider _identity = IdentityProvider.JcsSha256;
     private Func<AgentContext, AgentContext>? _approvalRedactor;
@@ -206,6 +214,11 @@ public sealed class InterceptionEmitter
     private int? _maxRecords;
     private long _recordsDropped;
 
+    /// <param name="spec">Required: there is no default version. Pass
+    /// <see cref="AgentHooks.Spec.V01"/> or <see cref="AgentHooks.Spec.Draft"/>,
+    /// the version the host's <see cref="AgentContextBuilder"/> stamps; any
+    /// other value is an <see cref="ArgumentException"/> naming
+    /// <see cref="AgentHooks.Spec.SupportedVersions"/>.</param>
     /// <param name="timeout">Bounds each interceptor
     /// <c>InterceptAsync</c> and resolver <c>ResolveAsync</c> call (§7,
     /// RECOMMENDED default 5000 ms); breach fails closed with
@@ -214,10 +227,12 @@ public sealed class InterceptionEmitter
     /// ignores it keeps running detached. <c>null</c> = 5000 ms;
     /// <see cref="Timeout.InfiniteTimeSpan"/> disables enforcement.</param>
     public InterceptionEmitter(
+        string spec,
         EnforcementMode mode = EnforcementMode.Enforce,
         IApprovalResolver? resolver = null,
         TimeSpan? timeout = null)
     {
+        Spec = AgentHooks.Spec.Require(spec, nameof(spec));
         _mode = mode;
         _resolver = resolver;
         _timeout = timeout ?? DefaultTimeout;
@@ -265,6 +280,9 @@ public sealed class InterceptionEmitter
         static TimeSpan Limit(long? ms) =>
             ms is { } v ? TimeSpan.FromMilliseconds(v) : Timeout.InfiniteTimeSpan;
 
+        // The loader accepted the document's `spec` (§7.7.6 step 4), so
+        // it names a supported version; the emitter runs under it.
+        Spec = resolved.Spec;
         _mode = resolved.Mode;
         _composition = resolved.Composition;
         _timeout = Limit(resolved.InterceptorTimeoutMs);
@@ -283,7 +301,7 @@ public sealed class InterceptionEmitter
             case null:
                 _identity = IdentityProvider.Null;
                 break;
-            case Spec.JcsSha256:
+            case AgentHooks.Spec.JcsSha256:
                 _identity = IdentityProvider.JcsSha256;
                 break;
             case var name:
@@ -485,6 +503,11 @@ public sealed class InterceptionEmitter
     private void PushBound(IInterceptor? interceptor, IManagedInterceptor? managed, RegistrationOptions options)
     {
         Unsealed("Register");
+        if (options.OnError == OnError.Continue && Spec != AgentHooks.Spec.Draft)
+        {
+            throw new RegistrationException(
+                $"{options.Name ?? "unnamed registration"}: on_error is continue, which {Spec} does not define; only an emitter under {AgentHooks.Spec.Draft} accepts it (see spec 6.3.1)");
+        }
         if (options.OnError == OnError.Continue && _notifier is null)
         {
             throw new RegistrationException(
@@ -637,7 +660,19 @@ public sealed class InterceptionEmitter
             // §4/§6.3: an invalid envelope is denied before any
             // interceptor or identity provider sees it.
             Native.ValidateEnvelope(ctx.Json.ToJsonString(Compact));
-            inputId = _identity.Compute(ctx);
+            if ((string?)ctx.Json["spec"] != Spec)
+            {
+                // §4: one specification version per emission. The context
+                // names a supported version, but not the one this emitter
+                // runs under.
+                outcome = DispatchOutcome.Synthesized(
+                    HostError.ContextInvalid,
+                    $"$.spec: this emitter runs {Spec}; the context names another version (see spec §4)");
+            }
+            else
+            {
+                inputId = _identity.Compute(ctx);
+            }
         }
         catch (AgentHooksCoreException e)
         {
@@ -905,7 +940,7 @@ public sealed class InterceptionEmitter
                     // The core maps timeout, cancelled and failed the way
                     // the Rust emitter does; cancelled is not continuable.
                     var mapped = (JsonObject)JsonNode.Parse(
-                        Native.ManagedOutcome(outcome.ToWire().ToJsonString(Compact)))!;
+                        Native.ManagedOutcome(Spec, outcome.ToWire().ToJsonString(Compact)))!;
                     var failure = (JsonObject)mapped["failure"]!;
                     return (null, new CallFailure(
                         (string)failure["reason"]!, (string?)failure["detail"], (bool)failure["continuable"]!));
@@ -933,7 +968,7 @@ public sealed class InterceptionEmitter
         }
         try
         {
-            Native.ValidateVerdict(v.ToWire().ToJsonString(Compact)); // §5
+            Native.ValidateVerdict(Spec, v.ToWire().ToJsonString(Compact)); // §5, under this emitter's version
             return (v, null);
         }
         catch (AgentHooksCoreException e)
@@ -1183,7 +1218,8 @@ public sealed class InterceptionEmitter
     {
         var agg = Canonical.ComposeAggregate(
             _composition,
-            new JsonArray(all.Select(v => (JsonNode)v.ToWire()).ToArray()));
+            new JsonArray(all.Select(v => (JsonNode)v.ToWire()).ToArray()),
+            Spec);
         var combined = Verdict.FromWire((JsonObject)agg["combined"]!);
         var decidedBy = agg["decided_by"] is null ? null : (int?)agg["decided_by"]!;
         // The core's summaries carry neither names nor substituted_for;
@@ -1348,7 +1384,7 @@ public sealed class InterceptionEmitter
         {
             // §9: the resolver's verdict crosses the same §5 gate as an
             // interceptor's.
-            Native.ValidateVerdict(rv.ToWire().ToJsonString(Compact));
+            Native.ValidateVerdict(Spec, rv.ToWire().ToJsonString(Compact));
         }
         catch (AgentHooksCoreException e)
         {

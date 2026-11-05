@@ -28,8 +28,11 @@ use crate::types::{
     InterceptionPoint, Interceptor, ManagedInterceptor, ManagedInterceptorOutcome, Verdict,
 };
 use crate::AgentContextBuilder;
+use crate::SpecVersion;
 pub use async_trait::async_trait;
+use serde::Serialize;
 use serde_json::{json, Map, Value};
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -103,6 +106,11 @@ impl ScriptedInterceptor {
                 .push(ctx_value.clone());
         }
         let wire = scripted_intercept(&self.rules, &ctx_value);
+        // The script's verdict is read under the context's own version,
+        // the same rules the emitter's §5 gate applies to it; a context
+        // without one never reaches an interceptor (the envelope check
+        // ran), so the corpus version stands in.
+        let spec = SpecVersion::of_context(context).unwrap_or(CTK_SPEC);
         match wire.get("__ctk_fault__").and_then(Value::as_str) {
             // §7 isolation fault (TM-05): the trait takes &AgentContext,
             // so in-place mutation is statically impossible in Rust —
@@ -112,6 +120,7 @@ impl ScriptedInterceptor {
             Some("mutate") => Scripted::Verdict(Box::new(
                 crate::verdict_from_wire(
                     &serde_json::json!({"decision": "allow", "reason": "ctk:mutated"}),
+                    spec,
                 )
                 .expect("static allow shape"),
             )),
@@ -122,7 +131,7 @@ impl ScriptedInterceptor {
             // A §5-malformed shape fails the emitter's gate and yields
             // host_error:verdict_invalid (fail closed either way).
             None => Scripted::Verdict(Box::new(
-                crate::verdict_from_wire(&wire).unwrap_or_else(|_| invalid_verdict()),
+                crate::verdict_from_wire(&wire, spec).unwrap_or_else(|_| invalid_verdict()),
             )),
         }
     }
@@ -219,9 +228,10 @@ impl ApprovalResolver for ScriptedResolver {
             Some("reject") => crate::ApprovalOutcome::Reject,
             _ => crate::ApprovalOutcome::Unresolved,
         };
+        let spec = SpecVersion::of_context(request.context).unwrap_or(CTK_SPEC);
         let verdict = out
             .get("verdict")
-            .map(|v| crate::verdict_from_wire(v).expect("malformed approval_script verdict"));
+            .map(|v| crate::verdict_from_wire(v, spec).expect("malformed approval_script verdict"));
         let echoed = out["context_identity"].as_str().unwrap_or_default();
         ApprovalResolution {
             outcome,
@@ -1003,6 +1013,78 @@ pub async fn run_vector(harness: &mut dyn Harness, vector: &Value) -> VectorResu
     assert_vector(vector, &recorded, &rr)
 }
 
+/// One part of a conformance report (§13.1): the vectors that carry
+/// one `part` tag, with their counts. A vector without a tag sits
+/// under the empty part.
+#[derive(Debug, Clone, Serialize)]
+pub struct PartReport {
+    pub part: String,
+    pub passed: usize,
+    pub failed: usize,
+    pub skipped: usize,
+    pub vectors: Vec<VectorResult>,
+}
+
+/// The conformance report a claim attaches (§13.1, §13.3): the results
+/// grouped by `part`, under the specification version the claim names.
+#[derive(Debug, Clone, Serialize)]
+pub struct ConformanceReport {
+    /// The wire string of the version the claim names.
+    pub spec: &'static str,
+    /// Parts in name order; each keeps its vectors in run order.
+    pub parts: Vec<PartReport>,
+    pub passed: usize,
+    pub failed: usize,
+    pub skipped: usize,
+}
+
+/// The one line every runner answers a report that names the draft.
+pub const DRAFT_NOT_CLAIMABLE: &str = "a conformance report cannot name agent-hooks/draft; the draft is never claimed: run the vectors for development and report a released version";
+
+/// Group `results` by `part` into the report a claim attaches, under
+/// `spec`, the released version the claim names. The vectors under
+/// `conformance/` are the working test set for the next version,
+/// carried under `agent-hooks/draft` because they exercise behaviour
+/// no released version has; running them is fine, but a report that
+/// names the draft is refused with [`DRAFT_NOT_CLAIMABLE`], since no
+/// claim names it.
+pub fn conformance_report(
+    spec: SpecVersion,
+    results: &[VectorResult],
+) -> Result<ConformanceReport, String> {
+    if spec == SpecVersion::Draft {
+        return Err(DRAFT_NOT_CLAIMABLE.to_owned());
+    }
+    let mut parts: BTreeMap<String, PartReport> = BTreeMap::new();
+    for result in results {
+        let part = parts
+            .entry(result.part.clone())
+            .or_insert_with(|| PartReport {
+                part: result.part.clone(),
+                passed: 0,
+                failed: 0,
+                skipped: 0,
+                vectors: Vec::new(),
+            });
+        match result.status {
+            "pass" => part.passed += 1,
+            "skip" => part.skipped += 1,
+            _ => part.failed += 1,
+        }
+        part.vectors.push(result.clone());
+    }
+    let (passed, failed, skipped) = parts.values().fold((0, 0, 0), |(p, f, s), part| {
+        (p + part.passed, f + part.failed, s + part.skipped)
+    });
+    Ok(ConformanceReport {
+        spec: spec.wire(),
+        parts: parts.into_values().collect(),
+        passed,
+        failed,
+        skipped,
+    })
+}
+
 // ---- reference harness ------------------------------------------------------
 
 /// Minimal conformant in-memory agent loop; the CTK self-test target.
@@ -1034,6 +1116,11 @@ type InstanceSlots = Arc<Mutex<Vec<Option<Box<dyn Interceptor>>>>>;
 /// surface a claim can cite.
 pub const REFERENCE_DECLARATION: &str = include_str!("ctk/reference.declaration.json");
 
+/// The specification version the conformance kit runs: the vectors,
+/// the golden files and the reference declaration are the draft
+/// corpus, and a harness builds its contexts under it.
+pub const CTK_SPEC: SpecVersion = SpecVersion::Draft;
+
 impl ReferenceHarness {
     pub fn new() -> Self {
         Self::default()
@@ -1063,8 +1150,13 @@ impl ReferenceHarness {
             .expect("host messages poisoned")
             .clear();
         self.session_counter += 1;
+        // The vectors are the working test set for the next version,
+        // carried under agent-hooks/draft: the harness builds its
+        // contexts under the draft, the version every vector document
+        // and the reference document name.
         self.emitter = Some(emitter);
         self.builder = Some(AgentContextBuilder::new(
+            CTK_SPEC,
             "ref-agent",
             "reference-agent",
             &format!("sess-{}", self.session_counter),

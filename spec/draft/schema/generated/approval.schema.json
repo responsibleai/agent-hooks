@@ -1,5 +1,5 @@
 {
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/approval.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/approval.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — approval seam",
   "description": "Approval request and resolution shapes for lifting a liftable deny (AGENT-HOOKS-0.1 §9). context_identity is an opaque provider-produced string, or null when identity_provider is null (§10.1); the only normative constraint is the echo rule.",
@@ -215,8 +215,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -375,8 +376,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -550,8 +552,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -752,8 +755,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -946,8 +950,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -1114,8 +1119,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -1270,8 +1276,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -1417,8 +1424,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",

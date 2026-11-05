@@ -1,7 +1,7 @@
 # agent-hooks (TypeScript SDK)
 
 TypeScript implementation of
-[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md)
+[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md)
 over the canonical Rust core (napi-rs native module): interception
 points, `AgentContextBuilder`, `Verdict` types, host-side
 `InterceptionEmitter` with the four composition profiles, the
@@ -12,7 +12,7 @@ runner.
 > boundary: the host framework is fully trusted, interceptors run in-process
 > with full data access, and no complete-mediation claim is made. Read
 > [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
-> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
+> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
 > before relying on it.
 
 ```bash
@@ -28,9 +28,16 @@ version. Check what the tags resolve to with
 ## Usage
 
 ```ts
-import { AgentContextBuilder, InterceptionEmitter, Verdict } from "@responsibleai/agent-hooks";
+import {
+  AgentContextBuilder,
+  InterceptionEmitter,
+  SPEC_VERSION_0_1,
+  Verdict,
+} from "@responsibleai/agent-hooks";
 
-const emitter = new InterceptionEmitter();
+// The host names the specification version it runs under, here 0.1;
+// `SPEC_VERSION_DRAFT` selects the draft. There is no default.
+const emitter = new InterceptionEmitter(SPEC_VERSION_0_1);
 emitter.register({
   intercept(ctx) {
     if (ctx.interception_point === "pre_tool_call" && ctx.tool_call.name === "rm") {
@@ -40,7 +47,12 @@ emitter.register({
   },
 });
 
-const builder = new AgentContextBuilder({ agentId: "my-agent", framework: "my-fw", sessionId: "s-1" });
+const builder = new AgentContextBuilder({
+  spec: SPEC_VERSION_0_1,
+  agentId: "my-agent",
+  framework: "my-fw",
+  sessionId: "s-1",
+});
 const ctx = builder.preToolCall("tc-1", "http_get", { url });
 await emitter.emit(ctx); // throws InterceptionBlocked on a combined deny
 ```
@@ -74,11 +86,14 @@ in the registry), receives the resolved bound and reports `verdict`,
 A host can load its configuration, declared surface and interceptor
 bindings from one JSON document (spec §7.7) instead of calling the
 setters. The document is a versioned contract,
-`agent-hooks-declaration/1.1` (1.0 documents load unchanged), separate
-from the wire version `agent-hooks/0.1`. The SDK exports the version
-it writes (`DECLARATION_VERSION`) and the set it accepts
-(`SUPPORTED_DECLARATION_VERSIONS`). A document of any other version is
-refused.
+`agent-hooks-declaration/1.1` under the draft and 1.0 under 0.1 (a 1.0
+document loads under both), separate from the wire version the
+document names in its required `spec` member. The SDK exports the
+newest contract version (`DECLARATION_VERSION`), the set it accepts
+(`SUPPORTED_DECLARATION_VERSIONS`), `currentDeclarationVersion(spec)`,
+and `SUPPORTED_SPEC_VERSIONS` with the wire strings `SPEC_VERSION_0_1`
+and `SPEC_VERSION_DRAFT`, the specification versions it supports. A
+document of any other version is refused.
 
 ```ts
 import {

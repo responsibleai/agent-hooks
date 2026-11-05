@@ -74,6 +74,7 @@ import {
   OnError,
   RegistrationError,
   RegistrationOptions,
+  SPEC_VERSION_DRAFT,
   Verdict,
   VerdictSummary,
   Warning,
@@ -84,6 +85,7 @@ import {
   nonFiniteDetail,
   permits,
   proceeds,
+  requireSpecVersion,
 } from "./index";
 import {
   BindingContext,
@@ -378,8 +380,20 @@ export class InterceptionEmitter {
   private _declaration: ResolvedDeclaration | null = null;
   /** §6.3.1: the principal channel a continuation is announced on. */
   private notifier: ControlFailureNotifier | null = null;
+  /** The specification version this emitter runs under: its
+   * declaration's `spec`, or the wire string the constructor was
+   * given. Every context must name it; one naming another supported
+   * version is denied `host_error:context_invalid`. A `continue`
+   * registration (§6.3.1) needs the draft, because 0.1 defines no
+   * failure posture. */
+  readonly spec: string;
 
   /**
+   * `spec` is required: there is no default version. Pass
+   * {@link SPEC_VERSION_0_1} or {@link SPEC_VERSION_DRAFT}, the version
+   * the host's {@link AgentContextBuilder} stamps; any other value is a
+   * `RangeError` naming {@link SUPPORTED_SPEC_VERSIONS}.
+   *
    * `timeoutMs` bounds each interceptor `intercept()` and resolver
    * `resolve()` call (§7, RECOMMENDED default 5000 ms); breach fails
    * closed with `host_error:interceptor_timeout` (interceptor) or
@@ -388,10 +402,12 @@ export class InterceptionEmitter {
    * loop cannot be interrupted. `timeoutMs: null` disables enforcement.
    */
   constructor(
+    spec: string,
     mode: EnforcementMode = EnforcementMode.Enforce,
     resolver: ApprovalResolver | null = null,
     timeoutMs: number | null = DEFAULT_TIMEOUT_MS,
   ) {
+    this.spec = requireSpecVersion(spec, "InterceptionEmitter spec");
     this.mode = mode;
     this.resolver = resolver;
     this.timeoutMs = timeoutMs;
@@ -574,7 +590,9 @@ export class InterceptionEmitter {
       });
     });
 
-    const em = new InterceptionEmitter(cfg.mode, resolver, cfg.timeouts.interceptor_ms);
+    // The loader accepted the document's `spec` (§7.7.6 step 4), so it
+    // names a supported version; the emitter runs under it.
+    const em = new InterceptionEmitter(resolved.spec, cfg.mode, resolver, cfg.timeouts.interceptor_ms);
     em.resolverTimeoutMs = cfg.timeouts.approval_resolver_ms;
     em.notifier = notifier;
     // The emitter owns its own copy of the composition and the
@@ -675,6 +693,11 @@ export class InterceptionEmitter {
   private pushBound(interceptor: BoundInterceptor, options: RegistrationOptions): void {
     const points = pointSet(options.at);
     const onError = onErrorOf(options.onError);
+    if (onError === OnError.Continue && this.spec !== SPEC_VERSION_DRAFT) {
+      throw new RegistrationError(
+        `${options.name ?? "unnamed registration"}: on_error is continue, which ${this.spec} does not define; only an emitter under ${SPEC_VERSION_DRAFT} accepts it (see spec §6.3.1)`,
+      );
+    }
     if (onError === OnError.Continue && this.notifier === null) {
       throw new RegistrationError(
         `${options.name ?? "unnamed registration"}: on_error is continue but the emitter has no control failure notifier; call setControlFailureNotifier first (see spec §6.3.1)`,
@@ -818,6 +841,14 @@ export class InterceptionEmitter {
       // the context BEFORE dispatch.
       try {
         native.validateEnvelope(JSON.stringify(ctx));
+        // §4: one specification version per emission. The context names
+        // a supported version, but not the one this emitter runs under.
+        if (ctx.spec !== this.spec) {
+          throw new AgentHooksCoreError(
+            HostError.ContextInvalid,
+            `$.spec: this emitter runs ${this.spec}; the context names another version (see spec §4)`,
+          );
+        }
         inputIdentity = this.identityOf(ctx);
       } catch (e) {
         // §10.1/§10.2: envelope invalid, value domain rejected, or the
@@ -1046,6 +1077,7 @@ export class InterceptionEmitter {
     try {
       mapped = JSON.parse(
         native.managedOutcome(
+          this.spec,
           JSON.stringify(
             outcome.outcome === "failed"
               ? { outcome: "failed", ...(outcome.detail !== undefined ? { detail: String(outcome.detail) } : {}) }
@@ -1123,7 +1155,7 @@ export class InterceptionEmitter {
     const hit = findNonFinite(v);
     if (hit !== null) return hostErrorVerdict(HostError.VerdictInvalid, nonFiniteDetail(hit));
     try {
-      return JSON.parse(native.validateVerdict(JSON.stringify(v)));
+      return JSON.parse(native.validateVerdict(this.spec, JSON.stringify(v)));
     } catch (e) {
       const [code, detail] = codeAndDetail(e, HostError.VerdictInvalid);
       return hostErrorVerdict(code, detail);
@@ -1320,7 +1352,7 @@ export class InterceptionEmitter {
     };
     try {
       agg = JSON.parse(
-        native.composeAggregate(JSON.stringify(this.composition), JSON.stringify(all)),
+        native.composeAggregate(this.spec, JSON.stringify(this.composition), JSON.stringify(all)),
       );
     } catch (e) {
       return synthesized(...codeAndDetail(e));

@@ -1,5 +1,5 @@
 {
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/input-hook-response.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/input-hook-response.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — input response",
   "description": "input response.",

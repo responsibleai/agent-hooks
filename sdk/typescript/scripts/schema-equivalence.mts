@@ -6,14 +6,26 @@
 // the same instances as the schemas they replace.
 //
 //   tsx scripts/schema-equivalence.mts --old <git-ref|dir> [--new <dir>]
-//       [--random <mutants per seed>] [--seed <n>] [--structural-diff]
+//       [--random <mutants per seed>] [--seed <n>] [--examples <n>] [--structural-diff]
+//       [--wire-old <string> --wire-new <string>]
 //
 // --old takes a git ref (the schemas are read with git show) or a directory
 // containing either layout's generated files (or a schema/ folder with generated/).
 // --new defaults to the checkout's spec/draft/schema/generated. Git refs may
 // predate the source/output split or the versioned spec/<version>/ folders; a
-// versioned ref is read from spec/draft/. Sets are keyed by published identity,
-// not disk path.
+// versioned ref is read from spec/draft/. Sets are keyed by published identity
+// below each set's own id base (schema/vX.Y/ or schema/draft/), not disk path,
+// so a released set and the draft compare file by file.
+//
+// Two sets that are two specification versions differ by the wire string
+// their `spec` member names (agent-hooks/0.1, agent-hooks/draft). With
+// --wire-old and --wire-new, each side reads a `spec` member that carries
+// either string as its own, so the sets compare by shape and not by the
+// version they name; the instances the two sides judge differently for the
+// `spec` member alone are reported on their own line ("spec-only") and are
+// not disagreements. The structural diff likewise treats a `spec` member
+// schema that admits its own side's string and not the other's as the same
+// on both sides. Without the two flags nothing is rewritten.
 //
 // The corpus for every validation target is the seeds of every shape (the
 // conformance vectors, the golden files and hand-written instances), plus
@@ -36,7 +48,11 @@ type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Obj = { [key: string]: Json };
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const ID_BASE = "https://responsibleai.github.io/agent-hooks/schema/v0.1/";
+// Every schema's $id sits under one path segment below this origin:
+// schema/vX.Y/ for a released version, schema/draft/ for the draft. A
+// set is keyed by the path below that segment, so two sets compare by
+// the file they publish, whatever their version.
+const ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/";
 const POINTS = [
   "agent_startup",
   "input",
@@ -57,23 +73,85 @@ function arg(name: string, fallback?: string): string | undefined {
 const OLD = arg("--old");
 const NEW = arg("--new", join(ROOT, "spec", "draft", "schema", "generated"))!;
 const RANDOM = Number(arg("--random", "150"));
+const EXAMPLES = Number(arg("--examples", "20"));
 const SEED = Number(arg("--seed", "1"));
 const STRUCTURAL = process.argv.includes("--structural-diff");
-if (!OLD) {
-  console.error("usage: schema-equivalence.mts --old <git-ref|dir> [--new <dir>] [--structural-diff]");
+const WIRE_OLD = arg("--wire-old");
+const WIRE_NEW = arg("--wire-new");
+if (!OLD || (WIRE_OLD === undefined) !== (WIRE_NEW === undefined)) {
+  console.error(
+    "usage: schema-equivalence.mts --old <git-ref|dir> [--new <dir>] [--structural-diff] [--wire-old <string> --wire-new <string>]",
+  );
   process.exit(2);
+}
+const WIRES = WIRE_OLD !== undefined && WIRE_NEW !== undefined;
+
+/** The instance as one side reads it: every member named `spec` that
+ *  carries either wire string carries that side's. The same object when
+ *  nothing changes, so a caller can skip a second validation. */
+function asSide(value: Json, wire: string): Json {
+  if (Array.isArray(value)) {
+    let changed = false;
+    const out = value.map((item) => {
+      const seen = asSide(item, wire);
+      if (seen !== item) changed = true;
+      return seen;
+    });
+    return changed ? out : value;
+  }
+  if (value === null || typeof value !== "object") return value;
+  let out: Obj | undefined;
+  for (const [key, member] of Object.entries(value)) {
+    const seen = key === "spec" && (member === WIRE_OLD || member === WIRE_NEW) ? wire : asSide(member, wire);
+    if (seen !== member) {
+      out ??= { ...value };
+      out[key] = seen;
+    }
+  }
+  return out ?? value;
+}
+
+/** Whether a `spec` member schema accepts `wire` by const, enum or pattern;
+ *  a schema with none of them accepts any string. */
+function admits(schema: Obj, wire: string): boolean {
+  if (schema.const !== undefined) return schema.const === wire;
+  if (Array.isArray(schema.enum)) return (schema.enum as Json[]).includes(wire);
+  if (typeof schema.pattern === "string") return new RegExp(schema.pattern).test(wire);
+  return true;
 }
 
 // ---- schema sets ------------------------------------------------------------
 
-type SchemaSet = Map<string, Obj>; // path relative to ID_BASE -> document
+type SchemaSet = Map<string, Obj>; // path below the set's id base -> document
+const BASES = new WeakMap<SchemaSet, string>();
+
+/** Split an $id or absolute $ref into its base (origin plus one segment) and the path below it. */
+function splitIdentity(id: string): { base: string; key: string } {
+  if (!id.startsWith(ID_ORIGIN)) throw new Error(`unexpected schema identity ${JSON.stringify(id)}`);
+  const rest = id.slice(ID_ORIGIN.length);
+  const slash = rest.indexOf("/");
+  if (slash <= 0 || slash === rest.length - 1) throw new Error(`unexpected schema identity ${JSON.stringify(id)}`);
+  return { base: ID_ORIGIN + rest.slice(0, slash + 1), key: rest.slice(slash + 1) };
+}
+
+/** A reference's path below its set's base, or the reference itself when it is already relative. */
+function localName(target: string): string {
+  return target.startsWith(ID_ORIGIN) ? splitIdentity(target).key : target;
+}
+
+function baseOf(set: SchemaSet): string {
+  const base = BASES.get(set);
+  if (!base) throw new Error("empty schema set");
+  return base;
+}
 
 function addDocument(set: SchemaSet, text: string): void {
   const doc = JSON.parse(text) as Obj;
-  if (typeof doc.$id !== "string" || !doc.$id.startsWith(ID_BASE)) {
-    throw new Error(`unexpected schema identity ${JSON.stringify(doc.$id)}`);
-  }
-  const key = doc.$id.slice(ID_BASE.length);
+  if (typeof doc.$id !== "string") throw new Error(`schema without $id`);
+  const { base, key } = splitIdentity(doc.$id);
+  const known = BASES.get(set);
+  if (known === undefined) BASES.set(set, base);
+  else if (known !== base) throw new Error(`schema set mixes id bases ${known} and ${base}`);
   if (set.has(key)) throw new Error(`duplicate schema identity ${doc.$id}`);
   set.set(key, doc);
 }
@@ -128,7 +206,7 @@ function deref(set: SchemaSet, file: string, node: Json, depth = 0): Located {
   if (target === "") {
     doc = set.get(file);
   } else {
-    const name = target.startsWith(ID_BASE) ? target.slice(ID_BASE.length) : target;
+    const name = localName(target);
     docFile = name;
     doc = set.get(name);
   }
@@ -251,12 +329,6 @@ function handWritten(): void {
     { decision: "allow", reason: null, message: null, warnings: null, result_labels: null },
     { decision: "deny", reason: "policy", approval: {} },
     { decision: "deny", approval: { ticket: 1 } },
-    { decision: "transform", transform: { input: { content: "x", role: "user" } } },
-    { decision: "transform", transform: { messages: [{ role: "user", content: "x" }] } },
-    { decision: "transform", transform: { response: { content: "x", tool_calls: [], finish_reason: "stop" } } },
-    { decision: "transform", transform: { args: {} } },
-    { decision: "transform", transform: { value: "x" } },
-    { decision: "transform", transform: { output: { content: "x" } } },
     { decision: "transform", transform: { path: "$target.args", value: 1 } },
     { decision: "transform", transform: { path: "$policy_target[0]" } },
     { decision: "allow", transform: { path: "$target" } },
@@ -268,24 +340,22 @@ function handWritten(): void {
     { decision: "deny", reason: "host_error:x" },
     { decision: "allow", warnings: [{ reason: "host_warning:x" }] },
     { decision: "allow", evidence: { artefact: null } },
-    { decision: "allow", extensions: { policy: { receipt: "r" } } },
-    { decision: "deny", extensions: { policy: {} }, approval: {} },
-    { decision: "transform", transform: { path: "$target" }, extensions: { policy: {} } },
-    { decision: "allow", extensions: { "Bad-Key": true } },
   );
   seed(
     "response",
     ...(seeds.get("verdict") ?? []).map((verdict) => ({ verdict })),
     { decision: "allow", extensions: { policy: {} } },
     { decision: "transform", transform: { args: { limit: 20 } }, extensions: { policy: {} } },
-    { verdict: { decision: "allow" } },
-    { verdict: { decision: "allow" }, extensions: { policy: {} } },
     { verdict: { decision: "deny", approval: {} }, extensions: { policy: {} } },
     { verdict: { decision: "transform", transform: { args: { limit: 20 } } }, extensions: { policy: {} } },
-    { verdict: { decision: "allow" }, extensions: { "Bad-Key": true } },
     { verdict: { decision: "allow", extensions: { policy: {} } } },
     { verdict: { verdict: { decision: "allow" } } },
+    { verdict: { decision: "allow" } },
+    { verdict: { decision: "allow" }, extensions: { prov: { receipt: "r" } } },
+    { verdict: { decision: "allow" }, extensions: { "Bad-Key": 1 } },
+    { verdict: { decision: "allow" }, extra: 1 },
     { decision: "allow", verdict: { decision: "allow" } },
+    { verdict: { decision: "transform" } },
   );
   seed(
     "resolution",
@@ -314,7 +384,7 @@ function handWritten(): void {
   const record = {
     interception_point: "pre_tool_call",
     mode: "enforce",
-    verdict: { decision: "allow" },
+    verdict: {},
     input_identity: "i",
     enforced_identity: "e",
     identity_provider: "jcs-sha256",
@@ -335,9 +405,9 @@ function handWritten(): void {
     { ...record, identity_provider: "myprov" },
     { ...record, identity_provider: "jcsx" },
     { ...record, identity_provider: "" },
-    { ...record, verdict: { decision: "transform", approval: {} } },
-    { ...record, verdict: { decision: "transform", transform: { path: "$target" } } },
-    { ...record, verdict: { decision: "deny", approval: { ticket: 1 } } },
+    { ...record, verdict: { transform: { path: "$target" }, approval: {} } },
+    { ...record, verdict: { transform: { path: "$target", value: 1 } } },
+    { ...record, verdict: { approval: { ticket: 1 } } },
     { ...record, decided_by: null, resolved_by: null, fold_truncated: true, timestamp: "2026-01-01T00:00:00Z", trace: { trace_id: "t" } },
     { ...record, decided_by: 0, resolved_by: "approval", declaration: "agent-hooks-declaration/1.0" },
     { ...record, resolved_by: "other" },
@@ -605,23 +675,6 @@ interface Target {
   pointer: string;
 }
 
-const BASE_TARGETS: Target[] = [
-  { name: "interception-point", file: "interception-point.schema.json", shape: "point", pointer: "" },
-  { name: "approval request", file: "approval.schema.json", shape: "request", pointer: "#/$defs/request" },
-  { name: "approval resolution", file: "approval.schema.json", shape: "resolution", pointer: "#/$defs/resolution" },
-  { name: "agent-context", file: "agent-context.schema.json", shape: "context", pointer: "" },
-  ...POINTS.map((p) => ({ name: `agent-context/${p}`, file: `agent-context/${p}.schema.json`, shape: "context" as Shape, pointer: "" })),
-  { name: "interception-record", file: "interception-record.schema.json", shape: "record", pointer: "" },
-  { name: "host-declaration-1.0", file: "host-declaration-1.0.schema.json", shape: "declaration", pointer: "" },
-  { name: "host-declaration-1.1", file: "host-declaration-1.1.schema.json", shape: "declaration", pointer: "" },
-];
-
-const LEGACY_RESPONSE_TARGET: Target = {
-  name: "interceptor-response",
-  file: "interceptor-response.schema.json",
-  shape: "response",
-  pointer: "",
-};
 const RESPONSE_SCHEMA_NAMES: Record<string, string> = {
   agent_startup: "agent-startup",
   input: "input",
@@ -632,37 +685,35 @@ const RESPONSE_SCHEMA_NAMES: Record<string, string> = {
   output: "output",
   agent_shutdown: "agent-shutdown",
 };
-const HOOK_RESPONSE_TARGETS: Target[] = POINTS.map((point) => ({
-  name: `${point} hook-response`,
-  file: `${RESPONSE_SCHEMA_NAMES[point]}-hook-response.schema.json`,
-  shape: "response",
-  pointer: "",
-}));
 
-function targetsFor(oldSet: SchemaSet, newSet: SchemaSet): Target[] {
-  function commonOnly(target: Target): boolean {
-    const oldHas = oldSet.has(target.file);
-    const newHas = newSet.has(target.file);
-    if (oldHas !== newHas) {
-      console.log(
-        `skipping ${target.name}: schema exists only in ${oldHas ? "old" : "new"} bundle`,
-      );
-    }
-    return oldHas && newHas;
-  }
-  const verdictTarget: Target[] = commonOnly({
-    name: "generic verdict",
-    file: "verdict.schema.json",
-    shape: "verdict",
+const TARGETS: Target[] = [
+  { name: "interception-point", file: "interception-point.schema.json", shape: "point", pointer: "" },
+  { name: "verdict", file: "verdict.schema.json", shape: "verdict", pointer: "" },
+  { name: "interceptor-response", file: "interceptor-response.schema.json", shape: "response", pointer: "" },
+  ...POINTS.map((point) => ({
+    name: `${point} hook-response`,
+    file: `${RESPONSE_SCHEMA_NAMES[point]}-hook-response.schema.json`,
+    shape: "response" as Shape,
     pointer: "",
-  })
-    ? [{ name: "verdict", file: "verdict.schema.json", shape: "verdict", pointer: "" }]
-    : [];
-  const hookResponseTargets = HOOK_RESPONSE_TARGETS.filter((target) => {
-    return commonOnly(target);
-  });
-  const responseTargets = commonOnly(LEGACY_RESPONSE_TARGET) ? [LEGACY_RESPONSE_TARGET] : [];
-  return [...BASE_TARGETS, ...verdictTarget, ...responseTargets, ...hookResponseTargets];
+  })),
+  { name: "approval request", file: "approval.schema.json", shape: "request", pointer: "#/$defs/request" },
+  { name: "approval resolution", file: "approval.schema.json", shape: "resolution", pointer: "#/$defs/resolution" },
+  { name: "agent-context", file: "agent-context.schema.json", shape: "context", pointer: "" },
+  ...POINTS.map((p) => ({ name: `agent-context/${p}`, file: `agent-context/${p}.schema.json`, shape: "context" as Shape, pointer: "" })),
+  { name: "interception-record", file: "interception-record.schema.json", shape: "record", pointer: "" },
+  { name: "host-declaration-1.0", file: "host-declaration-1.0.schema.json", shape: "declaration", pointer: "" },
+  { name: "host-declaration-1.1", file: "host-declaration-1.1.schema.json", shape: "declaration", pointer: "" },
+];
+
+/** "old" or "new" when the target's file exists in only that set, "neither"
+ *  when both lack it (a version that predates the file), else undefined. */
+function onlyOneSide(oldSet: SchemaSet, newSet: SchemaSet, t: Target): "old" | "new" | "neither" | undefined {
+  const inOld = oldSet.has(t.file);
+  const inNew = newSet.has(t.file);
+  if (inOld && !inNew) return "old";
+  if (!inOld && inNew) return "new";
+  if (!inOld && !inNew) return "neither";
+  return undefined;
 }
 
 function pointerSchema(set: SchemaSet, file: string, pointer: string): Obj {
@@ -675,23 +726,42 @@ function pointerSchema(set: SchemaSet, file: string, pointer: string): Obj {
 
 const ANNOTATIONS = new Set(["title", "description", "$id", "$schema", "$comment", "examples", "default"]);
 
-function normalize(set: SchemaSet, file: string, node: Json, depth = 0): Json {
+/** The member schemas of an object schema as one side sees them: with the
+ *  wire strings given, a `spec` member that admits this side's string and
+ *  not the other's is the same placeholder on both sides. */
+function ownProperties(set: SchemaSet, file: string, properties: Obj, wire: string | undefined): Obj {
+  const spec = properties.spec;
+  if (wire === undefined || spec === undefined || spec === null || typeof spec !== "object" || Array.isArray(spec)) {
+    return properties;
+  }
+  const other = wire === WIRE_OLD ? WIRE_NEW! : WIRE_OLD!;
+  const schema = deref(set, file, spec).node;
+  if (!admits(schema, wire) || admits(schema, other)) return properties;
+  return { ...properties, spec: { $wire: "this side's own string" } };
+}
+
+function normalize(set: SchemaSet, file: string, node: Json, wire: string | undefined, depth = 0): Json {
   if (node === true) return {};
   if (node === null || typeof node !== "object") return node;
-  if (Array.isArray(node)) return node.map((n) => normalize(set, file, n, depth + 1));
+  if (Array.isArray(node)) return node.map((n) => normalize(set, file, n, wire, depth + 1));
   if (depth > 40) return "<depth>";
   let obj = node as Obj;
   if (typeof obj.$ref === "string") {
     const ref = obj.$ref;
     const target = ref.split("#")[0];
-    const nextFile = target === "" ? file : target.startsWith(ID_BASE) ? target.slice(ID_BASE.length) : target;
+    const nextFile = target === "" ? file : localName(target);
     obj = deref(set, file, obj).node;
     file = nextFile;
   }
   const out: Obj = {};
   for (const key of Object.keys(obj).sort()) {
     if (ANNOTATIONS.has(key) || key === "$defs") continue;
-    let v = normalize(set, file, obj[key], depth + 1);
+    const member = obj[key];
+    const seen =
+      key === "properties" && member !== null && typeof member === "object" && !Array.isArray(member)
+        ? ownProperties(set, file, member as Obj, wire)
+        : member;
+    let v = normalize(set, file, seen, wire, depth + 1);
     if ((key === "type" || key === "enum" || key === "required") && Array.isArray(v)) {
       v = [...v].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
     }
@@ -752,12 +822,21 @@ function diff(a: Json, b: Json, path: string, out: string[]): void {
 function main(): number {
   const oldSet = loadSet(OLD!);
   const newSet = loadSet(NEW);
-  const targets = targetsFor(oldSet, newSet);
   if (STRUCTURAL) {
     let total = 0;
-    for (const t of targets) {
-      const a = normalize(oldSet, t.file, pointerSchema(oldSet, t.file, t.pointer));
-      const b = normalize(newSet, t.file, pointerSchema(newSet, t.file, t.pointer));
+    for (const t of TARGETS) {
+      const side = onlyOneSide(oldSet, newSet, t);
+      if (side === "neither") {
+        console.log(`== ${t.name}: 0 differing path(s): neither set has the file`);
+        continue;
+      }
+      if (side) {
+        total += 1;
+        console.log(`== ${t.name}: 1 differing path(s): the file exists only in the ${side} set`);
+        continue;
+      }
+      const a = normalize(oldSet, t.file, pointerSchema(oldSet, t.file, t.pointer), WIRE_OLD);
+      const b = normalize(newSet, t.file, pointerSchema(newSet, t.file, t.pointer), WIRE_NEW);
       const lines: string[] = [];
       diff(a, b, "", lines);
       total += lines.length;
@@ -766,6 +845,9 @@ function main(): number {
       if (lines.length > 12) console.log(`  ... ${lines.length - 12} more`);
     }
     console.log(`structural diff: ${total} differing path(s) after normalization`);
+    if (WIRES) {
+      console.log(`spec member: a schema that admits its own side's string only (old ${WIRE_OLD}, new ${WIRE_NEW}) is the same on both sides`);
+    }
     return 0;
   }
   const oldAjv = makeAjv(oldSet);
@@ -776,11 +858,31 @@ function main(): number {
   const random = rng(SEED);
   let totalInstances = 0;
   let totalDisagreements = 0;
+  // Instances the old set accepts and the new set rejects: what a host
+  // of the old version changes when it moves to the new one.
+  let narrowed = 0;
+  // Instances the two sides judge differently for the `spec` member
+  // alone, with the wire strings given: reported, not disagreements.
+  let specOnly = 0;
   const examples: string[] = [];
   console.log("target                        instances  valid(old)  valid(new)  disagree");
-  for (const t of targets) {
-    const validateOld = oldAjv.getSchema(ID_BASE + t.file + t.pointer);
-    const validateNew = newAjv.getSchema(ID_BASE + t.file + t.pointer);
+  let missingTargets = 0;
+  for (const t of TARGETS) {
+    const side = onlyOneSide(oldSet, newSet, t);
+    if (side === "neither") {
+      console.log(`${t.name.padEnd(29)} ${"-".padStart(9)}  ${"-".padStart(10)}  ${"-".padStart(10)}  ${"0".padStart(8)}  (neither set has the file)`);
+      continue;
+    }
+    if (side) {
+      // Counted as one disagreement: every instance the present side
+      // judges has no verdict on the other side.
+      missingTargets++;
+      totalDisagreements++;
+      console.log(`${t.name.padEnd(29)} ${"-".padStart(9)}  ${"-".padStart(10)}  ${"-".padStart(10)}  ${"1".padStart(8)}  (file exists only in the ${side} set)`);
+      continue;
+    }
+    const validateOld = oldAjv.getSchema(baseOf(oldSet) + t.file + t.pointer);
+    const validateNew = newAjv.getSchema(baseOf(newSet) + t.file + t.pointer);
     if (!validateOld || !validateNew) throw new Error(`${t.name}: validator missing at ${t.pointer || "the root"}`);
     const own = seeds.get(t.shape) ?? [];
     const oldSchema = pointerSchema(oldSet, t.file, t.pointer);
@@ -798,14 +900,24 @@ function main(): number {
     let validNew = 0;
     let disagree = 0;
     for (const instance of corpus.values()) {
-      const a = validateOld(instance) === true;
-      const b = validateNew(instance) === true;
+      let a = validateOld(instance) === true;
+      let b = validateNew(instance) === true;
+      if (WIRES) {
+        const oldView = asSide(instance, WIRE_OLD!);
+        const newView = asSide(instance, WIRE_NEW!);
+        const ownA = oldView === instance ? a : validateOld(oldView) === true;
+        const ownB = newView === instance ? b : validateNew(newView) === true;
+        if (a !== b && ownA === ownB) specOnly++;
+        a = ownA;
+        b = ownB;
+      }
       if (a) validOld++;
       if (b) validNew++;
       if (a !== b) {
         disagree++;
-        if (examples.length < 20) {
-          examples.push(`${t.name}: old ${a ? "accepts" : "rejects"}, new ${b ? "accepts" : "rejects"}: ${JSON.stringify(instance).slice(0, 300)}`);
+        if (a && !b) narrowed++;
+        if (examples.length < EXAMPLES) {
+          examples.push(`${t.name}: old ${a ? "accepts" : "rejects"}, new ${b ? "accepts" : "rejects"}: ${JSON.stringify(instance).slice(0, 4000)}`);
         }
       }
     }
@@ -815,7 +927,11 @@ function main(): number {
       `${t.name.padEnd(29)} ${String(corpus.size).padStart(9)}  ${String(validOld).padStart(10)}  ${String(validNew).padStart(10)}  ${String(disagree).padStart(8)}`,
     );
   }
-  console.log(`total: ${totalInstances} instances across ${targets.length} targets, ${totalDisagreements} disagreements (seed ${SEED}, ${RANDOM} random mutants per seed)`);
+  console.log(`total: ${totalInstances} instances across ${TARGETS.length} targets, ${totalDisagreements} disagreements (seed ${SEED}, ${RANDOM} random mutants per seed${missingTargets ? `; ${missingTargets} target(s) exist on one side only, counted once each` : ""})`);
+  console.log(`narrowed: ${narrowed} instance(s) the old set accepts and the new set rejects`);
+  if (WIRES) {
+    console.log(`spec-only: ${specOnly} instance(s) the two sides judge differently for the spec member alone (old ${WIRE_OLD}, new ${WIRE_NEW}), not counted above`);
+  }
   for (const e of examples) console.log(`  ${e}`);
   return totalDisagreements ? 1 : 0;
 }

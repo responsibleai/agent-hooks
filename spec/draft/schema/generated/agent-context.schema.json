@@ -1,5 +1,5 @@
 {
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/agent-context.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/agent-context.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — agent context",
   "description": "Payload a host constructs at each interception point (AGENT-HOOKS-0.1 §4).\nEach variant requires its discriminator and own hook payload, with shared\nmetadata and optional namespaced extensions.",
@@ -46,8 +46,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -206,8 +207,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -381,8 +383,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -583,8 +586,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -777,8 +781,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -945,8 +950,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -1101,8 +1107,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
@@ -1248,8 +1255,9 @@
           "$ref": "#/$defs/Extensions"
         },
         "spec": {
-          "pattern": "^agent-hooks/\\d+\\.\\d+$",
-          "type": "string"
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
+          "type": "string",
+          "const": "agent-hooks/draft"
         },
         "timestamp": {
           "format": "date-time",
