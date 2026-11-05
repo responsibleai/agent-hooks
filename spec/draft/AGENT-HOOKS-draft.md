@@ -20,7 +20,7 @@
 2. [Terminology](#2-terminology)
 3. [Interception points](#3-interception-points)
 4. [Hooks Request](#4-hooks-request)
-5. [Hooks Responses & Verdicts](#5-hooks-responses-verdicts)
+5. [Hooks Responses & Verdicts](#5-hooks-responses--verdicts)
 6. [Host obligations](#6-host-obligations)
 7. [Interceptor contract and composition](#7-interceptor-contract-and-composition)
 8. [Enforcement mode](#8-enforcement-mode)
@@ -618,7 +618,7 @@ example, this is a complete `pre_tool_call` response:
   as instructions to preserve existing values.
 - Before applying a transform, the host MUST construct a candidate request
   using the complete replacement and validate that candidate against the strict
-  request shape for its `interception_point` in §5.1.2.4. The host MUST commit the
+  request shape for its `interception_point` defined in §4.1–§4.2. The host MUST commit the
   candidate only after validation succeeds; it MUST leave the original request
   unchanged if validation fails. A response that passes its response schema
   but whose replacement makes the candidate request invalid fails with
@@ -927,7 +927,7 @@ following stay fail closed with no knob, whatever `on_error` says:
   cancelled outcome of a managed interceptor, §7, which the host
   treats as `host_error:interceptor_failed` and never substitutes);
 - a transform the host cannot apply (`host_error:transform_invalid`,
-  §5.2) and a transform
+  §5.1.2.4) and a transform
   conflict (§7.5);
 - every approval seam failure, including a resolver that raises or
   times out (`host_error:approval_resolver_failed`, §9);
@@ -1151,7 +1151,7 @@ the next interceptor, so each interceptor observes the context as
 already transformed by its predecessors. In `evaluate_only` mode the
 transform is validated but not applied (§8), so later interceptors
 observe the untransformed context. A transform that fails to apply
-(§5.2) becomes a `deny` with the corresponding `host_error:*` reason
+(§5.1.2.4) becomes a `deny` with the corresponding `host_error:*` reason
 and — in both sequential profiles — short-circuits. When that
 short-circuit (or any other) leaves registered interceptors uninvoked,
 the record sets `fold_truncated: true` (§10.3) in **either** sequential
@@ -1368,7 +1368,7 @@ order carries no meaning are sets; `bindings` is an ordered list.
 `host.name` follows the `agent.framework` grammar (§4.1). `extensions`
 is kept verbatim and never read by the loader, which checks the key
 grammar only and does not check namespaces; the reserved namespaces of
-§4.5 bind the writer of the document, not the loader. This differs
+§4.4 bind the writer of the document, not the loader. This differs
 from binding kinds on purpose. A kind is a key the loader resolves, so
 a reserved segment would let a host kind shadow a kind this
 specification or the conformance kit defines later, and the registry
@@ -1423,7 +1423,7 @@ measured after serialization), nests at most 32 levels, and carries at
 most 256 bindings. Ids and registered names are at most 64 characters,
 kinds 128, `exposure_bound` and refusal details 512. Exceeding a bound
 is a refusal, never a truncation. `records.max_buffered` stops at
-2^53 - 1 because canonical JSON (§4.4) refuses integers above it, so
+2^53 - 1 because RFC 8785 canonicalization (§10.2) refuses integers above it, so
 the bound itself never blocks canonicalisation.
 
 #### 7.7.4 Surface
@@ -1845,14 +1845,14 @@ where:
 canonical bytes only for I-JSON ([RFC 7493]) data. The provider MUST
 reject — as `deny` with `host_error:context_invalid` and a
 remediation-detail message (e.g., *"integer exceeds 2^53;
-string-encode 64-bit identifiers, see §4.4"*) — any context whose
+string-encode 64-bit identifiers, see §4.3"*) — any context whose
 projection contains:
 
 - an integral number outside ±(2⁵³−1) (canonicalization would silently
   round it, making the identity non-injective);
 - a non-finite number or a lone surrogate (not representable; in
   practice these fail at the parse funnel before the provider runs,
-  and SDK marshalling guards reject them uniformly per §4.4).
+  and SDK marshalling guards reject them uniformly per §4.3).
 
 The provider never rewrites a value to make it canonicalizable.
 
@@ -1932,7 +1932,7 @@ of the record.
 | `session_id`, `sequence` | Copied from the context; records are totally ordered within a session. |
 | `timestamp` | OPTIONAL. The context's RFC 3339 `timestamp`, copied verbatim — the event time audit/SIEM sinks index on. Absent when the context lacked the field. |
 | `trace` | OPTIONAL. `{trace_id?, span_id?}` echoed from the context's optional `trace` block (§4.1, W3C Trace Context). Payload-free identifiers only; absent when the context carried neither member. Lets a record join the host's distributed trace without out-of-band stitching. |
-| `decided_by` | Registration index of the interceptor whose verdict won the aggregation (§7.3) or whose liftable deny was consulted (§7.6). A §6.3 failure deny (`interceptor_failed`, `interceptor_timeout`, `verdict_invalid`) carries the **failing interceptor's** index, in every profile. A §6.3.1 substituted allow follows the pure-allow rule: it never carries the failing index, and an emission where every verdict is an allow has `decided_by: null`. `null` is reserved for pure-allow combinations, §5.2 transform-application failures, and profile-synthesized verdicts (`transform_conflict`, `composition_disagreement`, `no_interceptor`, identity-provider rejection). |
+| `decided_by` | Registration index of the interceptor whose verdict won the aggregation (§7.3) or whose liftable deny was consulted (§7.6). A §6.3 failure deny (`interceptor_failed`, `interceptor_timeout`, `verdict_invalid`) carries the **failing interceptor's** index, in every profile. A §6.3.1 substituted allow follows the pure-allow rule: it never carries the failing index, and an emission where every verdict is an allow has `decided_by: null`. `null` is reserved for pure-allow combinations, §5.1.2.4 transform-application failures, and profile-synthesized verdicts (`transform_conflict`, `composition_disagreement`, `no_interceptor`, identity-provider rejection). |
 | `composition` | The profile and knobs in effect (§7.1). REQUIRED. Knob members the profile consults MUST be present with their **resolved** values (the §7.2 defaults filled in when the host left them unset); knobs the profile never consults MUST be absent. |
 | `declaration` | OPTIONAL. The host declaration contract version the emitter was built from (§7.7.8), e.g. `agent-hooks-declaration/1.0`. Present iff the emitter was built from a declaration document; absent for a host configured in code. Never defaulted. |
 | `verdicts` | Payload-free per-interceptor summary `{index, decision, reason?, name?, substituted_for?}`. REQUIRED in multi-verdict profiles (`sequential/run_all`, `parallel/*`) and REQUIRED in every profile when any slot was substituted under `on_error: continue`; otherwise OPTIONAL in `sequential/first_deny`. `name` is the host-chosen registration identifier for the interceptor at `index` (§7); it MUST be payload-free. `substituted_for` is present iff the entry is the §6.3.1 substituted allow; its value is the `host_error:*` reason the deny would have carried (`host_error:interceptor_failed`, `host_error:interceptor_timeout` or `host_error:verdict_invalid`). The entry's `decision` is `allow` and its `reason` is absent, so a reader that treats a `host_error:*` reason as a deny is not misled; the cause lives in `substituted_for` alone. An auditor counts continuations by counting entries with `substituted_for`. |
@@ -1994,7 +1994,7 @@ projection failure). An interceptor MUST NOT emit a
 | `host_error:interceptor_failed` | An interceptor raised or returned a non-JSON value. |
 | `host_error:interceptor_timeout` | An interceptor exceeded the host's timeout. |
 | `host_error:verdict_invalid` | An interceptor returned a value that fails the matching hook response schema defined in §5|
-| `host_error:transform_invalid` | A validated whole-member replacement could not be applied (§5.2). |
+| `host_error:transform_invalid` | A validated whole-member replacement could not be applied (§5.1.2.4). |
 | `host_error:transform_conflict` | Two or more transforms against the same snapshot in a parallel profile (§7.5). |
 | `host_error:composition_disagreement` | Non-unanimous outcome under `parallel/unanimous` (§7.5). |
 | `host_error:approval_resolver_failed` | The resolver raised or timed out. |
