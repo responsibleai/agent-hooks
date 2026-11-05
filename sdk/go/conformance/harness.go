@@ -115,6 +115,13 @@ type Harness interface {
 	Name() string
 	Capabilities() map[Capability]struct{}
 
+	// Spec is the specification version the harness builds its emitter
+	// and contexts under (agenthooks.SpecVersion01 or
+	// agenthooks.SpecVersionDraft). The runner skips a draft-only
+	// vector (introduced_in: draft) for a harness under a released
+	// version, with the reason DraftOnlySkip.
+	Spec() string
+
 	// Setup wires the scenario's mock model + tools into the framework,
 	// registers the interceptors and resolver, and sets the enforcement
 	// mode, the vector's composition profile (§7.1), and its identity

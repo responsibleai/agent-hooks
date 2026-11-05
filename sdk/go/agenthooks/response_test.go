@@ -39,7 +39,7 @@ func TestSharedInterceptorResponseFixtures(t *testing.T) {
 	}
 	for _, item := range fixture.Valid {
 		t.Run(item["name"], func(t *testing.T) {
-			response, err := ParseInterceptorResponseJSON([]byte(item["input"]), SpecVersionDraft)
+			response, err := ParseInterceptorResponseJSON([]byte(item["input"]), SpecVersion01)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -61,7 +61,7 @@ func TestSharedInterceptorResponseFixtures(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			reparsed, err := ParseInterceptorResponseJSON(wire, SpecVersionDraft)
+			reparsed, err := ParseInterceptorResponseJSON(wire, SpecVersion01)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -73,7 +73,7 @@ func TestSharedInterceptorResponseFixtures(t *testing.T) {
 
 	for _, item := range fixture.Invalid {
 		t.Run(item["name"], func(t *testing.T) {
-			_, err := ParseInterceptorResponseJSON([]byte(item["input"]), SpecVersionDraft)
+			_, err := ParseInterceptorResponseJSON([]byte(item["input"]), SpecVersion01)
 			var core *CoreError
 			if !errors.As(err, &core) || core.Code != fixture.InvalidError {
 				t.Fatalf("expected %s, got %v", fixture.InvalidError, err)
@@ -97,7 +97,7 @@ func TestSharedInterceptorResponseFixtures(t *testing.T) {
 			if bytes != item.Bytes {
 				t.Fatalf("canonical bytes = %d, expected %d", bytes, item.Bytes)
 			}
-			_, err = ParseInterceptorResponse(value, SpecVersionDraft)
+			_, err = ParseInterceptorResponse(value, SpecVersion01)
 			if item.Valid {
 				if err != nil {
 					t.Fatal(err)
@@ -115,7 +115,7 @@ func TestSharedInterceptorResponseFixtures(t *testing.T) {
 func TestInterceptorResponsePreservesReceiptNumber(t *testing.T) {
 	response, err := ParseInterceptorResponseJSON([]byte(
 		`{"verdict":{"decision":"allow"},"extensions":{"provider":{"receipt":{"counter":9007199254740991}}}}`,
-	), SpecVersionDraft)
+	), SpecVersion01)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestInterceptorResponsePreservesReceiptNumber(t *testing.T) {
 }
 
 func TestInterceptorResponseToWirePrefersBareVerdict(t *testing.T) {
-	response, err := ParseInterceptorResponse(map[string]any{"decision": "allow"}, SpecVersionDraft)
+	response, err := ParseInterceptorResponse(map[string]any{"decision": "allow"}, SpecVersion01)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -49,6 +49,10 @@ type ConformanceReport struct {
 	Skipped int
 }
 
+// DraftOnlySkip is the skip reason of a draft-only vector under a
+// released version.
+const DraftOnlySkip = "draft-only vector; see #188"
+
 // ErrDraftNotClaimable is the one line every runner answers a report
 // that names the draft.
 var ErrDraftNotClaimable = errors.New("a conformance report cannot name agent-hooks/draft; the draft is never claimed: run the vectors for development and report a released version")
@@ -314,6 +318,17 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 	vectorJSON := mustJSON(vector)
 	id, _ := vector["id"].(string)
 	title, _ := vector["title"].(string)
+	part, _ := vector["part"].(string)
+
+	if err := agenthooks.RequireSpecVersion(h.Spec()); err != nil {
+		return VectorResult{}, fmt.Errorf("harness %q Spec() must name the specification version the harness builds under: %w", h.Name(), err)
+	}
+	// A draft-only vector (introduced_in: draft) is part of the working
+	// test set for the next version and runs under the draft only.
+	// Binding tests to a draft revision is #188.
+	if introduced, _ := vector["introduced_in"].(string); introduced == "draft" && h.Spec() != agenthooks.SpecVersionDraft {
+		return VectorResult{ID: id, Title: title, Part: part, Status: "skip", Detail: DraftOnlySkip}, nil
+	}
 
 	// §13.1 posture declaration; a Harness that does not implement the
 	// optional declarer interface declares the spec default.
@@ -331,7 +346,7 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 	if d, ok := h.(DeclarationDeclarer); ok && d.Declaration() != nil {
 		resolved, err := cachedResolvedSurface(d.Declaration(), surface)
 		if err != nil {
-			return VectorResult{ID: id, Title: title, Status: "fail",
+			return VectorResult{ID: id, Title: title, Part: part, Status: "fail",
 				Failures: []string{fmt.Sprintf("harness declaration refused: %v", err)}}, nil
 		}
 		caps, posture, onError = resolved.caps, resolved.posture, resolved.onError
@@ -344,7 +359,7 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 	if reason, err := agenthooks.CtkShouldSkip(vectorJSON, caps); err != nil {
 		return VectorResult{}, err
 	} else if reason != "" {
-		return VectorResult{ID: id, Title: title, Status: "skip", Detail: reason}, nil
+		return VectorResult{ID: id, Title: title, Part: part, Status: "skip", Detail: reason}, nil
 	}
 
 	scenRaw, _ := vector["scenario"].(map[string]any)
