@@ -1,9 +1,9 @@
-# P-185: Version conformance suites with the specification
+# P-7: Version conformance suites with the specification
 
 - **Status:** Draft
 - **Created:** 2026-11-05
 - **Author(s):** @CaitieM20
-- **PR:** https://github.com/responsibleai/agent-hooks/pull/185
+- **PR:** https://github.com/CaitieM20/agent-hooks/pull/7
 
 See the [proposal process](README.md) for scope, lifecycle, decision authority, and review window.
 
