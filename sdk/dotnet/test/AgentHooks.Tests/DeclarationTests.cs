@@ -199,17 +199,30 @@ public sealed class DeclarationTests
         Assert.True(ok.Proceeds);
     }
 
-    [Fact]
-    public void ErrorClassesMatchTheInventory()
+    private static void ErrorClassesMatchTheInventoryOf(string bundle)
     {
-        // The inventory of the bundle SDK development tracks (VERSIONING.md).
         var inventory = JsonNode.Parse(File.ReadAllText(
-            Path.Combine(RepoRoot(), "spec", "draft", "declaration-errors.json")))!;
+            Path.Combine(RepoRoot(), "spec", bundle, "declaration-errors.json")))!;
         var ids = ((JsonArray)inventory["classes"]!).Select(c => (string)c!["id"]!).ToList();
         var codes = Enum.GetValues<DeclarationErrorClass>().Select(c => c.ToCode()).ToList();
         Assert.Equal(ids, codes);
         foreach (var code in codes)
             Assert.Equal(code, DeclarationErrorClassExtensions.FromCode(code)!.Value.ToCode());
+    }
+
+    [Fact]
+    public void ErrorClassesMatchTheInventory()
+    {
+        // The released bundle's inventory gates (VERSIONING.md).
+        ErrorClassesMatchTheInventoryOf("0.1");
+    }
+
+    /// <summary>Advisory (the draft-tests job): the draft's inventory.</summary>
+    [Fact]
+    [Trait("Category", "draft")]
+    public void DraftOnlyErrorClassesMatchTheInventory()
+    {
+        ErrorClassesMatchTheInventoryOf("draft");
     }
 
     [Fact]
@@ -1029,7 +1042,7 @@ public sealed class DeclarationTests
     [Fact]
     public void ReferenceDeclarationResolvesAgainstTheHarnessSurface()
     {
-        var harness = new ReferenceHarness();
+        var harness = new ReferenceHarness(Spec.V01);
         Assert.Contains(Capability.HostDeclaration, harness.Capabilities);
         var resolved = HostDeclaration.FromNode(harness.Declaration).ResolveSurfaceOnly(harness.HostSurface);
         Assert.Equal(
@@ -1047,7 +1060,7 @@ public sealed class DeclarationTests
     [Fact]
     public async Task HarnessDeclarationWithReferencesResolvesSurfaceOnly()
     {
-        var harness = new ReferenceHarness();
+        var harness = new ReferenceHarness(Spec.V01);
         var document = (JsonObject)harness.Declaration!.DeepClone();
         ((JsonObject)document["configuration"]!)["identity_provider"] = "hmac-sha256-k1";
         document["bindings"] = new JsonArray(new JsonObject
@@ -1092,6 +1105,7 @@ public sealed class DeclarationTests
     {
         public string Name => inner.Name;
         public IReadOnlySet<Capability> Capabilities => inner.Capabilities;
+        public string Spec => inner.Spec;
         public string ToolSeamHostError => inner.ToolSeamHostError;
         public HostSurface HostSurface => inner.HostSurface;
         public JsonObject? Declaration => declaration;

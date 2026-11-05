@@ -55,6 +55,9 @@ public static class Runner
 {
     private static readonly JsonSerializerOptions Compact = new() { WriteIndented = false };
 
+    /// <summary>The skip reason of a draft-only vector under a released version.</summary>
+    public const string DraftOnlySkip = "draft-only vector; see #188";
+
     /// <summary>The one line every runner answers a report that names the draft.</summary>
     public const string DraftNotClaimable =
         "a conformance report cannot name agent-hooks/draft; the draft is never claimed: " +
@@ -104,6 +107,13 @@ public static class Runner
         var title = (string)vector["title"]!;
         var part = (string?)vector["part"] ?? "";
         var vectorJson = vector.ToJsonString(Compact);
+
+        Spec.Require(harness.Spec, "harness.Spec");
+        // A draft-only vector (introduced_in: draft) is part of the working
+        // test set for the next version and runs under the draft only.
+        // Binding tests to a draft revision is #188.
+        if ((string?)vector["introduced_in"] == "draft" && harness.Spec != Spec.Draft)
+            return new VectorResult(id, title, "skip", DraftOnlySkip, [], part);
 
         // §7.7.9: a harness with its own declaration is assessed against
         // the resolved document, so what ran is what a claim cites.

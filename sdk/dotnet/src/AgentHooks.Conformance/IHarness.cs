@@ -139,6 +139,13 @@ public interface IHarness
     string Name { get; }
     IReadOnlySet<Capability> Capabilities { get; }
 
+    /// <summary>The specification version the harness builds its emitter
+    /// and contexts under (<see cref="AgentHooks.Spec.V01"/> or
+    /// <see cref="AgentHooks.Spec.Draft"/>). The runner skips a draft-only
+    /// vector (<c>introduced_in: draft</c>) for a harness under a released
+    /// version, with the reason <see cref="Runner.DraftOnlySkip"/>.</summary>
+    string Spec { get; }
+
     /// <summary>Declared §6.2 posture at the tool seam (§13.1): what the
     /// host does with the run after a <c>host_error:*</c> deny at
     /// <c>pre_tool_call</c>/<c>post_tool_call</c>. <c>"continue"</c> (the

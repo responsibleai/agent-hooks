@@ -16,7 +16,19 @@ namespace AgentHooks.Conformance;
 
 public sealed class ReferenceHarness : IHarness
 {
+    /// <summary>A reference harness under <paramref name="spec"/>, the
+    /// version it builds its emitter and contexts under. The gating runs
+    /// use the newest released version; the advisory draft run uses the
+    /// draft.</summary>
+    public ReferenceHarness(string spec)
+    {
+        Spec = AgentHooks.Spec.Require(spec);
+    }
+
     public string Name => "reference-agent";
+
+    /// <summary>The version this harness builds under.</summary>
+    public string Spec { get; }
     public IReadOnlySet<Capability> Capabilities { get; } =
         new HashSet<Capability>
         {
@@ -53,8 +65,26 @@ public sealed class ReferenceHarness : IHarness
         Capabilities.Select(c => c.ToWireName()), ToolSeamPosture.Continue);
 
     /// <summary>The reference harness's own declaration (§7.7.9), with
-    /// an explicit surface a claim can cite.</summary>
-    public JsonObject? Declaration => Document();
+    /// an explicit surface a claim can cite, under this harness's
+    /// version.</summary>
+    public JsonObject? Declaration => DocumentUnder(Spec);
+
+    /// <summary>The reference document under <paramref name="spec"/>: the
+    /// committed file names 0.1 and contract 1.0; under another version
+    /// the document names that version and the contract versions it
+    /// accepts.</summary>
+    public static JsonObject DocumentUnder(string spec)
+    {
+        var wire = AgentHooks.Spec.Require(spec);
+        var doc = Document();
+        var folder = wire == AgentHooks.Spec.Draft ? "draft" : "v" + wire["agent-hooks/".Length..];
+        doc["$schema"] =
+            $"https://responsibleai.github.io/agent-hooks/schema/{folder}/host-declaration-1.0.schema.json";
+        doc["spec"] = wire;
+        ((JsonObject)doc["surface"]!)["declaration_versions"] = new JsonArray(
+            AgentHooks.Declaration.AcceptedVersionsFor(wire).Select(v => (JsonNode)v).ToArray());
+        return doc;
+    }
 
     /// <summary>The embedded <c>reference.declaration.json</c>.</summary>
     public static JsonObject Document()
@@ -74,7 +104,7 @@ public sealed class ReferenceHarness : IHarness
         // Field-based vector: write the vector's configuration into a
         // copy of the reference document and bind the interceptors by
         // index through the `ctk.instance` kind.
-        var doc = Document();
+        var doc = DocumentUnder(Spec);
         var cfg = (JsonObject)doc["configuration"]!;
         cfg["mode"] = mode == EnforcementMode.EvaluateOnly ? "evaluate_only" : "enforce";
         cfg["composition"] = composition.ToWire();
@@ -93,7 +123,7 @@ public sealed class ReferenceHarness : IHarness
                 cfg["identity_provider"] = "ctk-fault";
                 break;
             default:
-                cfg["identity_provider"] = Spec.JcsSha256;
+                cfg["identity_provider"] = AgentHooks.Spec.JcsSha256;
                 break;
         }
         var approval = new JsonObject();
@@ -161,12 +191,10 @@ public sealed class ReferenceHarness : IHarness
         _toolLog.Clear();
         lock (_hostMessagesLock) _hostMessages.Clear();
         _emitter = emitter;
-        // The vectors are the working test set for the next version,
-        // carried under agent-hooks/draft: the harness builds its contexts
-        // under the draft, the version every vector document and the
-        // reference document name.
+        // Contexts follow the emitter's version: this harness's own under
+        // a field-based vector, the document's under a declaration vector.
         _builder = new AgentContextBuilder(
-            spec: Spec.Draft,
+            spec: emitter.Spec,
             agentId: "ref-agent",
             framework: "reference-agent",
             sessionId: Guid.NewGuid().ToString());

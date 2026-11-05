@@ -32,7 +32,7 @@ public sealed class InterceptorResponseTests
         foreach (var item in Fixture["valid"]!.AsArray())
         {
             var response = Canonical.ParseInterceptorResponse(
-                item!["input"]!.GetValue<string>(), Spec.Draft);
+                item!["input"]!.GetValue<string>(), Spec.V01);
             var normalized = new JsonObject
             {
                 ["verdict"] = response.Verdict.ToWire(),
@@ -43,7 +43,7 @@ public sealed class InterceptorResponseTests
                 JsonNode.DeepEquals(
                     normalized,
                     JsonNode.Parse(item["normalized"]!.GetValue<string>())));
-            var reparsed = Canonical.ParseInterceptorResponse(response.ToWire(), Spec.Draft);
+            var reparsed = Canonical.ParseInterceptorResponse(response.ToWire(), Spec.V01);
             Assert.True(JsonNode.DeepEquals(response.ToWire(), reparsed.ToWire()));
         }
 
@@ -51,7 +51,7 @@ public sealed class InterceptorResponseTests
         {
             var error = Assert.Throws<AgentHooksCoreException>(
                 () => Canonical.ParseInterceptorResponse(
-                    item!["input"]!.GetValue<string>(), Spec.Draft));
+                    item!["input"]!.GetValue<string>(), Spec.V01));
             Assert.Equal(Fixture["invalid_error"]!.GetValue<string>(), error.Code);
         }
         foreach (var item in Fixture["metadata_bounds"]!.AsArray())
@@ -74,11 +74,11 @@ public sealed class InterceptorResponseTests
             var bytes = System.Text.Encoding.UTF8.GetByteCount(Canonical.Json(value["extensions"]!));
             Assert.Equal(item["bytes"]!.GetValue<int>(), bytes);
             if (item["valid"]!.GetValue<bool>())
-                Canonical.ParseInterceptorResponse(value, Spec.Draft);
+                Canonical.ParseInterceptorResponse(value, Spec.V01);
             else
             {
                 var error = Assert.Throws<AgentHooksCoreException>(
-                    () => Canonical.ParseInterceptorResponse(value, Spec.Draft));
+                    () => Canonical.ParseInterceptorResponse(value, Spec.V01));
                 Assert.Equal(Fixture["invalid_error"]!.GetValue<string>(), error.Code);
             }
         }
@@ -88,7 +88,7 @@ public sealed class InterceptorResponseTests
     public void SerializationPrefersBareVerdictWithoutMetadata()
     {
         var response = Canonical.ParseInterceptorResponse(
-            JsonNode.Parse("""{"decision":"allow"}""")!, Spec.Draft);
+            JsonNode.Parse("""{"decision":"allow"}""")!, Spec.V01);
         Assert.True(
             JsonNode.DeepEquals(
                 response.ToWire(),
