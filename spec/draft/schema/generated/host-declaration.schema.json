@@ -1,26 +1,21 @@
 {
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration-1.0.schema.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Agent Hooks — host declaration document (agent-hooks-declaration/1.0)",
-  "description": "A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that\nfixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface\n(§13.1) and its interceptor bindings. The document is a versioned contract of\nits own, separate from the wire version agent-hooks/draft and from package\nversions; this file describes agent-hooks-declaration/1.0. Every object is\nclosed except bindings[].config and the values under extensions. This schema\nis self-contained so a settings validator can use it alone. Rules it cannot\nexpress (knob consistency, the §3.2 floor, surface against the host's code,\nregistered names) live in the loader (§7.7.6).",
+  "title": "Agent Hooks — host declaration document (agent-hooks/draft)",
+  "description": "A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that\nfixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface\n(§13.1) and its interceptor bindings. The document's spec member selects\nits format and behavior; this file describes agent-hooks/draft. Every object is\nclosed except bindings[].config and the values under extensions. This schema\nis self-contained so a settings validator can use it alone. Rules it cannot\nexpress (knob consistency, the §3.2 floor, surface against the host's code,\nregistered names) live in the loader (§7.7.6).",
   "additionalProperties": false,
   "type": "object",
   "properties": {
-    "declaration": {
-      "description": "The declaration contract version (§7.7.2). A loader refuses any value\noutside the set it accepts with declaration_error:version_unsupported.\nMajor 0 is reserved for the conformance kit.",
-      "type": "string",
-      "const": "agent-hooks-declaration/1.0"
-    },
     "configuration": {
       "description": "Host configuration (§7.1). Every member is OPTIONAL; defaults are the values\nthe specification already names and fail closed.",
-      "$ref": "#/$defs/Configuration10"
+      "$ref": "#/$defs/Configuration"
     },
     "bindings": {
       "description": "Ordered: array order is dispatch order. REQUIRED, so an empty-deny host\n(zero bindings) is written down rather than arrived at by omission. Binding\nids are unique.",
       "maxItems": 256,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/Binding10"
+        "$ref": "#/$defs/Binding"
       }
     },
     "$schema": {
@@ -59,11 +54,10 @@
   },
   "required": [
     "bindings",
-    "declaration",
     "spec"
   ],
   "$defs": {
-    "Configuration10": {
+    "Configuration": {
       "description": "Host configuration (§7.1). Every member is OPTIONAL; defaults are the values\nthe specification already names and fail closed.",
       "additionalProperties": false,
       "type": "object",
@@ -100,6 +94,9 @@
         },
         "records": {
           "$ref": "#/$defs/RecordsConfig"
+        },
+        "failure": {
+          "$ref": "#/$defs/FailureConfig"
         }
       }
     },
@@ -221,7 +218,22 @@
         }
       }
     },
-    "Binding10": {
+    "FailureConfig": {
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "on_error": {
+          "description": "§6.3.1. The document default every binding's on_error inherits. deny keeps\nthe §6.3 substituted deny; continue substitutes an allow carrying\nhost_warning:control_failed and records the cause in substituted_for.",
+          "default": "deny",
+          "enum": [
+            "continue",
+            "deny"
+          ],
+          "type": "string"
+        }
+      }
+    },
+    "Binding": {
       "description": "One interceptor binding (§7.7.4).",
       "additionalProperties": false,
       "type": "object",
@@ -257,6 +269,14 @@
             "null",
             "integer"
           ]
+        },
+        "on_error": {
+          "description": "§6.3.1 failure posture for this binding: what the host does when the\ninterceptor raises, times out or returns an invalid verdict. Default:\nconfiguration.failure.on_error.",
+          "enum": [
+            "continue",
+            "deny"
+          ],
+          "type": "string"
         }
       },
       "required": [
@@ -300,20 +320,7 @@
       ]
     },
     "BufferedSurface": {
-      "description": "The surface of a host that buffers output (§12.1a), the default:\nexposure_bound is absent.\nThe allOf tag carries the item grammar of declaration_versions, which the\ngenerator cannot place on array items from a type alias.",
-      "allOf": [
-        {
-          "properties": {
-            "declaration_versions": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "pattern": "^agent-hooks-declaration/[0-9]+\\.[0-9]+$"
-              }
-            }
-          }
-        }
-      ],
+      "description": "The surface of a host that buffers output (§12.1a), the default:\nexposure_bound is absent.",
       "additionalProperties": false,
       "type": "object",
       "properties": {
@@ -343,15 +350,6 @@
         "profiles": {
           "description": "Profiles and the knob values supported under each (§13.1). Only the knobs a\nprofile consults may appear; an absent knob member means the §7.2 default\nvalue only.",
           "$ref": "#/$defs/ProfileSupport"
-        },
-        "declaration_versions": {
-          "description": "Contract versions the host accepts (§7.7.2); includes the document's own.\nEach item matches ^agent-hooks-declaration/[0-9]+\\.[0-9]+$, written in the\nallOf tag of the two surface variants.",
-          "uniqueItems": true,
-          "minItems": 1,
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       }
     },
@@ -452,20 +450,7 @@
       }
     },
     "UnbufferedSurface": {
-      "description": "The surface of a host that streams output (§12.1a): buffered_output is\nwritten as false and exposure_bound is present.\nThe allOf tag carries the item grammar of declaration_versions, which the\ngenerator cannot place on array items from a type alias.",
-      "allOf": [
-        {
-          "properties": {
-            "declaration_versions": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "pattern": "^agent-hooks-declaration/[0-9]+\\.[0-9]+$"
-              }
-            }
-          }
-        }
-      ],
+      "description": "The surface of a host that streams output (§12.1a): buffered_output is\nwritten as false and exposure_bound is present.",
       "additionalProperties": false,
       "type": "object",
       "properties": {
@@ -500,15 +485,6 @@
         "profiles": {
           "description": "Profiles and the knob values supported under each (§13.1). Only the knobs a\nprofile consults may appear; an absent knob member means the §7.2 default\nvalue only.",
           "$ref": "#/$defs/ProfileSupport"
-        },
-        "declaration_versions": {
-          "description": "Contract versions the host accepts (§7.7.2); includes the document's own.\nEach item matches ^agent-hooks-declaration/[0-9]+\\.[0-9]+$, written in the\nallOf tag of the two surface variants.",
-          "uniqueItems": true,
-          "minItems": 1,
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
         }
       },
       "required": [

@@ -1,18 +1,16 @@
 {
-  "declaration": "agent-hooks-declaration/1.1",
   "spec": "agent-hooks/draft",
-  "id": "document-policy",
+  "id": "document-policy-failure-posture",
   "configuration": {
-    "identity_provider": null,
     "composition": {
       "profile": "sequential/first_deny",
       "on_approval": "resume"
     },
-    "approval": {
-      "resolver": "operator"
-    },
     "failure": {
       "on_error": "deny"
+    },
+    "timeouts": {
+      "interceptor_ms": 2000
     }
   },
   "surface": {
@@ -27,16 +25,11 @@
       "agent_shutdown"
     ],
     "capabilities": ["model_calls", "tool_calls", "host_declaration"],
-    "declaration_versions": [
-      "agent-hooks-declaration/1.0",
-      "agent-hooks-declaration/1.1"
-    ],
     "profiles": {
       "sequential/first_deny": {
         "on_approval": ["resume"]
       }
-    },
-    "buffered_output": true
+    }
   },
   "bindings": [
     {
@@ -45,7 +38,8 @@
       "config": {
         "permitted_collection": "public"
       },
-      "on_error": "deny"
+      "timeout_ms": 1000,
+      "on_error": "continue"
     }
   ]
 }

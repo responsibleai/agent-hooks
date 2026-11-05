@@ -32,6 +32,7 @@ export const schemaMapping = {
   ApprovalResolution: "approval.schema.json#/$defs/resolution",
   HostDeclaration10: "host-declaration-1.0.schema.json",
   HostDeclaration11: "host-declaration-1.1.schema.json",
+  HostDeclaration: "host-declaration.schema.json",
   InterceptionRecord: "interception-record.schema.json",
 };
 

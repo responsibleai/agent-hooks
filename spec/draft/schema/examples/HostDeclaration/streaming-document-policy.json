@@ -1,5 +1,4 @@
 {
-  "declaration": "agent-hooks-declaration/1.1",
   "spec": "agent-hooks/draft",
   "id": "streaming-document-policy",
   "configuration": {
@@ -18,7 +17,6 @@
       "agent_shutdown"
     ],
     "capabilities": ["model_calls", "incremental_output", "host_declaration"],
-    "declaration_versions": ["agent-hooks-declaration/1.1"],
     "profiles": {
       "sequential/first_deny": {
         "on_approval": ["resume"]

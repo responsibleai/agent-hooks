@@ -91,6 +91,7 @@ const ROOTS: Root[] = [
   { file: "interception-record.schema.json", source: "interception-record.ts", type: "InterceptionRecord" },
   { file: "host-declaration-1.0.schema.json", source: "host-declaration.ts", type: "HostDeclaration10" },
   { file: "host-declaration-1.1.schema.json", source: "host-declaration.ts", type: "HostDeclaration11" },
+  { file: "host-declaration.schema.json", source: "host-declaration.ts", type: "HostDeclaration" },
 ];
 
 const MASTER = "agent-context.schema.json";

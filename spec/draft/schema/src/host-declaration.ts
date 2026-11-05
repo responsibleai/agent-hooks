@@ -1,8 +1,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-// host-declaration-<version>.schema.json: the host declaration document (§7.7).
-// 1.1 extends 1.0 with the two failure-posture members (§6.3.1), so the two
-// contract versions cannot drift apart.
+// host-declaration.schema.json: the specification's host declaration (§7.7).
 
 import { CompositionProfile, ConflictResolution, Extensions, Mode, OnApproval } from "./common";
 import { InterceptionPoint } from "./interception-point";
@@ -131,7 +129,6 @@ export interface FailureConfig {
    * §6.3.1. The document default every binding's on_error inherits. deny keeps
    * the §6.3 substituted deny; continue substitutes an allow carrying
    * host_warning:control_failed and records the cause in substituted_for.
-   * Since 1.1.
    * @default "deny"
    */
   on_error?: OnError;
@@ -142,7 +139,7 @@ export interface FailureConfig {
  * the specification already names and fail closed.
  * @additionalProperties false
  */
-export interface Configuration10 {
+export interface Configuration {
   /**
    * §8.
    * @default "enforce"
@@ -159,14 +156,6 @@ export interface Configuration10 {
   posture?: PostureConfig;
   timeouts?: TimeoutsConfig;
   records?: RecordsConfig;
-}
-
-/**
- * Host configuration (§7.1). Every member is OPTIONAL; defaults are the values
- * the specification already names and fail closed. 1.1 adds failure.
- * @additionalProperties false
- */
-export interface Configuration11 extends Configuration10 {
   failure?: FailureConfig;
 }
 
@@ -225,22 +214,11 @@ interface SurfaceBase {
   /** @uniqueItems true */
   capabilities?: Capability[];
   profiles?: ProfileSupport;
-  /**
-   * Contract versions the host accepts (§7.7.2); includes the document's own.
-   * Each item matches ^agent-hooks-declaration/[0-9]+\.[0-9]+$, written in the
-   * allOf tag of the two surface variants.
-   * @uniqueItems true
-   * @minItems 1
-   */
-  declaration_versions?: string[];
 }
 
 /**
  * The surface of a host that buffers output (§12.1a), the default:
  * exposure_bound is absent.
- * The allOf tag carries the item grammar of declaration_versions, which the
- * generator cannot place on array items from a type alias.
- * @allOf [{"properties": {"declaration_versions": {"type": "array", "items": {"type": "string", "pattern": "^agent-hooks-declaration/[0-9]+\\.[0-9]+$"}}}}]
  * @additionalProperties false
  */
 export interface BufferedSurface extends SurfaceBase {
@@ -254,9 +232,6 @@ export interface BufferedSurface extends SurfaceBase {
 /**
  * The surface of a host that streams output (§12.1a): buffered_output is
  * written as false and exposure_bound is present.
- * The allOf tag carries the item grammar of declaration_versions, which the
- * generator cannot place on array items from a type alias.
- * @allOf [{"properties": {"declaration_versions": {"type": "array", "items": {"type": "string", "pattern": "^agent-hooks-declaration/[0-9]+\\.[0-9]+$"}}}}]
  * @additionalProperties false
  */
 export interface UnbufferedSurface extends SurfaceBase {
@@ -277,7 +252,7 @@ export type Surface = BufferedSurface | UnbufferedSurface;
  * One interceptor binding (§7.7.4).
  * @additionalProperties false
  */
-export interface Binding10 {
+export interface Binding {
   /** Unique in the array; stamped on verdicts[].name (§10.3). */
   id: Reference;
   /**
@@ -305,17 +280,10 @@ export interface Binding10 {
   at?: InterceptionPoint[];
   /** Per-binding bound. Default: configuration.timeouts.interceptor_ms; null is unbounded. */
   timeout_ms?: TimeoutMs;
-}
-
-/**
- * One interceptor binding (§7.7.4). 1.1 adds on_error.
- * @additionalProperties false
- */
-export interface Binding11 extends Binding10 {
   /**
    * §6.3.1 failure posture for this binding: what the host does when the
    * interceptor raises, times out or returns an invalid verdict. Default:
-   * configuration.failure.on_error. Since 1.1.
+   * configuration.failure.on_error.
    */
   on_error?: OnError;
 }
@@ -353,67 +321,26 @@ interface HostDeclarationBase {
 /**
  * A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that
  * fixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface
- * (§13.1) and its interceptor bindings. The document is a versioned contract of
- * its own, separate from the wire version agent-hooks/draft and from package
- * versions; this file describes agent-hooks-declaration/1.0. Every object is
+ * (§13.1) and its interceptor bindings. The document's spec member selects
+ * its format and behavior; this file describes agent-hooks/draft. Every object is
  * closed except bindings[].config and the values under extensions. This schema
  * is self-contained so a settings validator can use it alone. Rules it cannot
  * express (knob consistency, the §3.2 floor, surface against the host's code,
  * registered names) live in the loader (§7.7.6).
- * @example [document-policy.json](../examples/HostDeclaration10/document-policy.json)
- * @title Agent Hooks — host declaration document (agent-hooks-declaration/1.0)
+ * @example [document-policy.json](../examples/HostDeclaration/document-policy.json)
+ * @example [default-failure-posture.json](../examples/HostDeclaration/default-failure-posture.json)
+ * @example [failure-posture.json](../examples/HostDeclaration/failure-posture.json)
+ * @example [streaming-document-policy.json](../examples/HostDeclaration/streaming-document-policy.json)
+ * @title Agent Hooks — host declaration document (agent-hooks/draft)
  * @additionalProperties false
  */
-export interface HostDeclaration10 extends HostDeclarationBase {
-  /**
-   * The declaration contract version (§7.7.2). A loader refuses any value
-   * outside the set it accepts with declaration_error:version_unsupported.
-   * Major 0 is reserved for the conformance kit.
-   */
-  declaration: "agent-hooks-declaration/1.0";
-  configuration?: Configuration10;
+export interface HostDeclaration extends HostDeclarationBase {
+  configuration?: Configuration;
   /**
    * Ordered: array order is dispatch order. REQUIRED, so an empty-deny host
    * (zero bindings) is written down rather than arrived at by omission. Binding
    * ids are unique.
    * @maxItems 256
    */
-  bindings: Binding10[];
-}
-
-/**
- * A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that
- * fixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface
- * (§13.1) and its interceptor bindings. The document is a versioned contract of
- * its own, separate from the wire version agent-hooks/draft and from package
- * versions; this file describes agent-hooks-declaration/1.1. 1.1 adds two
- * OPTIONAL members over 1.0: configuration.failure.on_error, the document
- * default failure posture, and bindings[].on_error, the per-binding posture
- * (§6.3.1); a document that uses neither means the same under both versions. A
- * 1.0 document validates against host-declaration-1.0.schema.json. Every object
- * is closed except bindings[].config and the values under extensions. This
- * schema is self-contained so a settings validator can use it alone. Rules it
- * cannot express (knob consistency, the §3.2 floor, surface against the host's
- * code, registered names) live in the loader (§7.7.6).
- * @example [document-policy.json](../examples/HostDeclaration11/document-policy.json)
- * @example [failure-posture.json](../examples/HostDeclaration11/failure-posture.json)
- * @example [streaming-document-policy.json](../examples/HostDeclaration11/streaming-document-policy.json)
- * @title Agent Hooks — host declaration document (agent-hooks-declaration/1.1)
- * @additionalProperties false
- */
-export interface HostDeclaration11 extends HostDeclarationBase {
-  /**
-   * The declaration contract version (§7.7.2). A loader refuses any value
-   * outside the set it accepts with declaration_error:version_unsupported.
-   * Major 0 is reserved for the conformance kit.
-   */
-  declaration: "agent-hooks-declaration/1.1";
-  configuration?: Configuration11;
-  /**
-   * Ordered: array order is dispatch order. REQUIRED, so an empty-deny host
-   * (zero bindings) is written down rather than arrived at by omission. Binding
-   * ids are unique.
-   * @maxItems 256
-   */
-  bindings: Binding11[];
+  bindings: Binding[];
 }

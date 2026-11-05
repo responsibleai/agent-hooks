@@ -143,11 +143,6 @@
         "profile"
       ]
     },
-    "declaration": {
-      "description": "OPTIONAL. The host declaration contract version the emitter was built from\n(§7.7.8), e.g. agent-hooks-declaration/1.0. Present iff the emitter was\nconstructed from a declaration document; absent for a host configured in\ncode. One closed-grammar string, so payload-free by construction.",
-      "pattern": "^agent-hooks-declaration/[0-9]+\\.[0-9]+$",
-      "type": "string"
-    },
     "verdicts": {
       "description": "Payload-free per-interceptor summary. REQUIRED in multi-verdict profiles\n(sequential/run_all, parallel/*) and whenever any slot carries\nsubstituted_for (§6.3.1); otherwise OPTIONAL in sequential/first_deny.",
       "type": "array",
