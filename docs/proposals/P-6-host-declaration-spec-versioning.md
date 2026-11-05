@@ -1,9 +1,9 @@
-# P-XXX: Version host declarations with the specification
+# P-6: Version host declarations with the specification
 
 - **Status:** Draft
 - **Created:** 2026-11-05
 - **Author(s):** @CaitieM20
-- **PR:** Pending
+- **PR:** https://github.com/CaitieM20/agent-hooks/pull/6
 
 ## Abstract and motivation
 
