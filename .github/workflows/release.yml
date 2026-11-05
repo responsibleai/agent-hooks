@@ -95,34 +95,56 @@ jobs:
         run: python3 scripts/check-version-consistency.py --require-spec-tags
       - name: Specification folders are complete and references current
         run: python3 scripts/check-spec-versions.py
-      - name: Conformance vectors validate against the draft schemas
-        # The vectors under conformance/ are the working test set for the
-        # next version, carried under agent-hooks/draft because they
-        # exercise behaviour no released version has: the grammar
-        # references the draft's schema ids and the documents carry that
-        # string. So this gate reads spec/draft and no released bundle.
-        # No claim names the draft; a claim names a released version.
+      - name: Released vectors validate against the newest released bundle
+        # The gating tests target the newest released version. The
+        # released set of vectors (every vector without introduced_in:
+        # draft) validates against that bundle with the grammar rebased
+        # to its schema ids (scripts/vectors-for-bundle.py). The
+        # draft-only vectors are the working test set for the next
+        # version and run in ci.yml's advisory draft-tests job, never
+        # here. Binding tests to a draft revision is #188.
         run: |
-          set -e
-          root=spec/draft/schema/generated
-          mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
-          if [ "${#refs[@]}" -eq 0 ]; then
-            echo "::error::$root holds no *.schema.json files"
+          set -eu
+          version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          version=$(for dir in spec/*/; do basename "$dir"; done | grep -E "$version_pattern" | sort -V | tail -1)
+          if [ -z "$version" ]; then
+            echo "::error::no released spec/<MAJOR.MINOR>/ folder"
             exit 1
           fi
-          ajv validate --spec=draft2020 -c ajv-formats \
-            -s conformance/vectors.schema.json "${refs[@]}" \
-            -d 'conformance/vectors/*.json'
-      - name: Schema examples of every bundle validate against their own schemas
-        # The SDKs accept 0.1 contexts and documents beside the draft's,
-        # so a release ships against two bundles. The vectors above prove
-        # the draft; the 0.1 examples, which carry agent-hooks/0.1, are
-        # the instances that prove the frozen 0.1 schemas still validate
-        # with the validator this release pins. The draft's examples run
-        # here too, as in ci.yml.
+          grammar="$RUNNER_TEMP/vectors-$version.schema.json"
+          python3 scripts/vectors-for-bundle.py grammar "$version" > "$grammar"
+          mapfile -t vectors < <(python3 scripts/vectors-for-bundle.py list "$version")
+          if [ "${#vectors[@]}" -eq 0 ]; then
+            echo "::error::no released vectors under conformance/vectors"
+            exit 1
+          fi
+          root="spec/$version/schema/generated"
+          [ -d "$root" ] || root="spec/$version/schema"
+          mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+          data=()
+          for v in "${vectors[@]}"; do data+=(-d "$v"); done
+          ajv validate --spec=draft2020 -c ajv-formats -s "$grammar" "${refs[@]}" "${data[@]}"
+          echo "validated ${#vectors[@]} released vectors against spec/$version"
+      - name: Schema examples of every released bundle validate against their own schemas
+        # The 0.1 examples, which carry agent-hooks/0.1, prove the frozen
+        # 0.1 schemas still validate with the validator this release
+        # pins. The draft's examples are the draft's own business and run
+        # in ci.yml, not in a release gate.
         run: |
+          set -eu
           npm ci
-          node scripts/check-schema-examples.mjs
+          version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          checked=0
+          for dir in ../../spec/*/; do
+            version=$(basename "$dir")
+            [[ $version =~ $version_pattern ]] || continue
+            node scripts/check-schema-examples.mjs "$version"
+            checked=$((checked + 1))
+          done
+          if [ "$checked" -eq 0 ]; then
+            echo "::error::no released spec/<MAJOR.MINOR>/ folder"
+            exit 1
+          fi
         working-directory: sdk/typescript
 
   python-wheels:
@@ -564,7 +586,7 @@ jobs:
         working-directory: sdk/rust
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.22" }
-      - run: go build ./... && go test ./...
+      - run: go build ./... && go test ./... -skip 'DraftOnly'
         working-directory: sdk/go
         env:
           CGO_LDFLAGS: -L${{ github.workspace }}/sdk/rust/target/release -lagent_hooks_ffi

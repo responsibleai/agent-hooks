@@ -55,42 +55,38 @@ jobs:
             exit 1
           fi
           echo "schemas validated for $validated bundle(s)"
-      - name: Validate vectors against vectors.schema.json
-        # The vectors live once and are the working test set for the
-        # next version: the grammar's $ref values name the draft schema
-        # ids, the documents carry agent-hooks/draft, and the vectors use
-        # documents that 0.1 never defined (declaration 1.1, on_error,
-        # reserved warnings). So they are validated against the draft
-        # (spec/draft) and against every released bundle listed in
-        # RESOLVABLE_RELEASES, which is empty until a cut bundle carries
-        # the schemas the grammar references. Any other released bundle
-        # is skipped and named below, never silently.
-        env:
-          RESOLVABLE_RELEASES: ""
+      - name: Released vectors validate against the newest released bundle
+        # conformance/vectors/ holds two sets. The released set (every
+        # vector without introduced_in: draft) is what the gating runs
+        # use: it validates here against the newest spec/<MAJOR.MINOR>/,
+        # with the grammar rebased to that bundle's schema ids and
+        # without the references the bundle lacks
+        # (scripts/vectors-for-bundle.py). The draft-only vectors are the
+        # working test set for the next version and validate against the
+        # draft in the advisory draft-tests job below. Binding a test set
+        # to a draft revision is #188.
         run: |
-          set -e
-          validated=0
-          for spec_dir in spec/*/; do
-            name=$(basename "$spec_dir")
-            root="${spec_dir}schema/generated"
-            [ -d "$root" ] || root="${spec_dir}schema"
-            [ -d "$root" ] || continue
-            if [ "$spec_dir" != spec/draft/ ] && ! tr ' ' '\n' <<< "$RESOLVABLE_RELEASES" | grep -qx "$name"; then
-              echo "skipping spec/$name: the vector grammar references the draft schema ids and schemas this bundle does not publish"
-              continue
-            fi
-            mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
-            echo "Validating conformance/vectors against $root"
-            ajv validate --spec=draft2020 -c ajv-formats \
-              -s conformance/vectors.schema.json "${refs[@]}" \
-              -d 'conformance/vectors/*.json'
-            validated=$((validated + 1))
-          done
-          if [ "$validated" -eq 0 ]; then
-            echo "::error::the vectors were validated against no bundle"
+          set -eu
+          version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          version=$(for dir in spec/*/; do basename "$dir"; done | grep -E "$version_pattern" | sort -V | tail -1)
+          if [ -z "$version" ]; then
+            echo "::error::no released spec/<MAJOR.MINOR>/ folder"
             exit 1
           fi
-          echo "vectors validated against $validated bundle(s)"
+          grammar="$RUNNER_TEMP/vectors-$version.schema.json"
+          python3 scripts/vectors-for-bundle.py grammar "$version" > "$grammar"
+          mapfile -t vectors < <(python3 scripts/vectors-for-bundle.py list "$version")
+          if [ "${#vectors[@]}" -eq 0 ]; then
+            echo "::error::no released vectors under conformance/vectors"
+            exit 1
+          fi
+          root="spec/$version/schema/generated"
+          [ -d "$root" ] || root="spec/$version/schema"
+          mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+          data=()
+          for v in "${vectors[@]}"; do data+=(-d "$v"); done
+          ajv validate --spec=draft2020 -c ajv-formats -s "$grammar" "${refs[@]}" "${data[@]}"
+          echo "validated ${#vectors[@]} released vectors against spec/$version"
 
   python:
     runs-on: ubuntu-latest
@@ -111,7 +107,8 @@ jobs:
           uv pip install --system -r sdk/python/requirements-dev.lock
           uv pip install --system --no-deps --no-build-isolation -e ./sdk/python
       - run: ruff format --check sdk/python scripts && ruff check sdk/python scripts
-      - run: pytest sdk/python/tests -p no:agent_hooks_ctk -v
+      # The required set: the tests marked draft run in draft-tests.
+      - run: pytest sdk/python/tests -p no:agent_hooks_ctk -m "not draft" -v
 
   typescript:
     runs-on: ubuntu-latest
@@ -229,7 +226,7 @@ jobs:
         working-directory: sdk/typescript
       # All test files, never an allowlist: the emitter suite shipped
       # ~100 tests before first running in CI because this line named
-      # two files.
+      # two files. test/draft/ is the advisory set, run in draft-tests.
       - run: node --test test/*.mjs
         working-directory: sdk/typescript
 
@@ -243,7 +240,8 @@ jobs:
         working-directory: sdk/rust
       - run: cargo clippy --locked --workspace --all-features -- -D warnings
         working-directory: sdk/rust
-      - run: cargo test --locked --workspace --all-features
+      # The required set: the draft_only_* tests run in draft-tests.
+      - run: cargo test --locked --workspace --all-features -- --skip draft_only
         working-directory: sdk/rust
 
   dotnet:
@@ -264,7 +262,8 @@ jobs:
       - run: dotnet build --no-restore -warnaserror
         working-directory: sdk/dotnet
       - name: Test (golden identity)
-        run: dotnet test test/AgentHooks.Tests/ --nologo
+        # The required set: the Category=draft tests run in draft-tests.
+        run: dotnet test test/AgentHooks.Tests/ --nologo --filter "Category!=draft"
         working-directory: sdk/dotnet
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
@@ -285,7 +284,8 @@ jobs:
           test -z "$(gofmt -l .)" || { gofmt -l .; echo "::error::gofmt violations"; exit 1; }
           go build ./...
           go vet ./...
-          go test ./... -v
+          # The required set: the TestDraftOnly* tests run in draft-tests.
+          go test ./... -skip 'DraftOnly' -v
         working-directory: sdk/go
         env:
           CGO_LDFLAGS: -L${{ github.workspace }}/sdk/rust/target/release -lagent_hooks_ffi
@@ -304,7 +304,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: stable }
-      - run: cargo test --locked --workspace --all-features
+      - run: cargo test --locked --workspace --all-features -- --skip draft_only
         working-directory: sdk/rust
 
   dotnet-xplat:
@@ -345,11 +345,121 @@ jobs:
         shell: bash
         run: echo "${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}" >> "$GITHUB_PATH"
       - name: Test
-        run: dotnet test test/AgentHooks.Tests/ --nologo
+        run: dotnet test test/AgentHooks.Tests/ --nologo --filter "Category!=draft"
         working-directory: sdk/dotnet
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
+
+  # Advisory, never required: the working test set for the next
+  # specification version (the draft-only vectors, introduced_in: draft)
+  # and the SDK tests that read draft-only files (the draft's
+  # inventories, examples and schemas). Every step continues on error
+  # and the last step writes the outcomes to the step summary, so a
+  # draft change cannot turn a required check red. The required jobs run
+  # the released set under 0.1. Binding tests to a draft revision is
+  # #188.
+  draft-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: "22" }
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with: { python-version: "3.12" }
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with: { toolchain: stable }
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with: { dotnet-version: "8.0.x" }
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with: { go-version: "1.22" }
+      - name: Draft-only vectors validate against the draft schemas
+        id: vectors
+        continue-on-error: true
+        run: |
+          set -eu
+          npm install -g ajv-cli@5.0.0 ajv-formats@3.0.1
+          mapfile -t vectors < <(python3 scripts/vectors-for-bundle.py list draft)
+          mapfile -t refs < <(find spec/draft/schema/generated -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+          data=()
+          for v in "${vectors[@]}"; do data+=(-d "$v"); done
+          ajv validate --spec=draft2020 -c ajv-formats -s conformance/vectors.schema.json "${refs[@]}" "${data[@]}"
+          echo "validated ${#vectors[@]} draft-only vectors against spec/draft"
+      - name: Rust draft-only tests
+        id: rust
+        continue-on-error: true
+        run: cargo test --locked --workspace --all-features -- draft_only
+        working-directory: sdk/rust
+      - name: Build ffi cdylib
+        id: ffi
+        continue-on-error: true
+        run: cargo build --locked -p agent-hooks-ffi --release
+        working-directory: sdk/rust
+      - name: Python draft-only tests
+        id: python
+        continue-on-error: true
+        run: |
+          uv pip install --system -r sdk/python/requirements-dev.lock
+          uv pip install --system --no-deps --no-build-isolation -e ./sdk/python
+          pytest sdk/python/tests -p no:agent_hooks_ctk -m draft -v
+      - name: TypeScript draft-only tests
+        id: typescript
+        continue-on-error: true
+        run: |
+          npm ci
+          cargo fetch --locked
+          npm run build:native:debug
+          npx tsc
+          node --test test/draft/*.mjs
+        working-directory: sdk/typescript
+      - name: .NET draft-only tests
+        id: dotnet
+        continue-on-error: true
+        run: |
+          dotnet restore --locked-mode
+          dotnet test test/AgentHooks.Tests/ --nologo --filter "Category=draft"
+        working-directory: sdk/dotnet
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
+      - name: Go draft-only tests
+        id: go
+        continue-on-error: true
+        run: go test ./... -run 'DraftOnly' -v
+        working-directory: sdk/go
+        env:
+          CGO_LDFLAGS: -L${{ github.workspace }}/sdk/rust/target/release -lagent_hooks_ffi
+          LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
+      - name: Summary
+        env:
+          VECTORS: ${{ steps.vectors.outcome }}
+          RUST: ${{ steps.rust.outcome }}
+          FFI: ${{ steps.ffi.outcome }}
+          PYTHON: ${{ steps.python.outcome }}
+          TYPESCRIPT: ${{ steps.typescript.outcome }}
+          DOTNET: ${{ steps.dotnet.outcome }}
+          GO: ${{ steps.go.outcome }}
+        run: |
+          {
+            echo "## Draft-only tests (advisory)"
+            echo "The working test set for the next specification version and the SDK tests that read draft-only files. Not required; see #188."
+            echo
+            echo "| Step | Outcome |"
+            echo "| --- | --- |"
+            echo "| Draft-only vectors against the draft schemas | $VECTORS |"
+            echo "| Rust draft_only_* tests | $RUST |"
+            echo "| FFI build for .NET and Go | $FFI |"
+            echo "| Python -m draft tests | $PYTHON |"
+            echo "| TypeScript test/draft | $TYPESCRIPT |"
+            echo "| .NET Category=draft tests | $DOTNET |"
+            echo "| Go TestDraftOnly* tests | $GO |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for outcome in "$VECTORS" "$RUST" "$FFI" "$PYTHON" "$TYPESCRIPT" "$DOTNET" "$GO"; do
+            if [ "$outcome" != "success" ]; then
+              echo "::warning::a draft-only step did not succeed; see the job summary (advisory, not required)"
+              break
+            fi
+          done
 
   # Workflow files were ungated until a duplicate mapping key invalidated
   # release.yml for every event (PR #25) — actionlint gates them now, and
@@ -444,7 +554,7 @@ jobs:
         shell: bash
         run: |
           uv pip install --system ./sdk/python "pytest>=9.1.1" "jsonschema>=4.26.0"
-          pytest sdk/python/tests -p no:agent_hooks_ctk
+          pytest sdk/python/tests -p no:agent_hooks_ctk -m "not draft"
 
   typescript-xplat:
     strategy:
@@ -516,7 +626,7 @@ jobs:
         shell: bash
         run: |
           go build ./...
-          go test ./...
+          go test ./... -skip 'DraftOnly'
         working-directory: sdk/go
         env:
           CGO_LDFLAGS: -L${{ github.workspace }}/sdk/rust/target/${{ matrix.target }}/release -lagent_hooks_ffi
