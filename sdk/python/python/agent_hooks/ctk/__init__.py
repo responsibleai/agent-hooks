@@ -14,6 +14,7 @@ from agent_hooks.ctk.harness import (
 )
 from agent_hooks.ctk.runner import (
     DRAFT_NOT_CLAIMABLE,
+    DRAFT_ONLY_SKIP,
     ConformanceReport,
     PartReport,
     VectorResult,
@@ -34,6 +35,7 @@ from agent_hooks.ctk.scripted import (
 
 __all__ = [
     "DRAFT_NOT_CLAIMABLE",
+    "DRAFT_ONLY_SKIP",
     "Capability",
     "ConformanceReport",
     "Harness",

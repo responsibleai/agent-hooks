@@ -173,6 +173,12 @@ class Harness(Protocol):
 
     name: str
     capabilities: set[Capability]
+    #: The specification version the harness builds its emitter and
+    #: contexts under (``SPEC_VERSION_0_1`` or ``SPEC_VERSION_DRAFT``).
+    #: The runner skips a draft-only vector (``introduced_in: draft``) for
+    #: a harness under a released version, with the reason
+    #: :data:`agent_hooks.ctk.DRAFT_ONLY_SKIP`.
+    spec: str
     #: Declared §6.2 posture at the tool seam (§13.1): what the host does
     #: with the run after a ``host_error:*`` deny at
     #: ``pre_tool_call``/``post_tool_call``. ``"continue"`` (the default —

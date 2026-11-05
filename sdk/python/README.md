@@ -136,6 +136,8 @@ does not skips the `declaration/*` vectors with a stated reason. Then:
 
 ```bash
 pytest --agent-hooks-harness=my_pkg:MyHarness
+# or the built-in reference harness, under the version it should run
+pytest --agent-hooks-spec=agent-hooks/0.1
 ```
 
 The vectors ship inside the wheel; pass `--agent-hooks-vectors=<dir>` only to

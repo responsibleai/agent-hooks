@@ -1,6 +1,10 @@
 # Copyright (c) Microsoft. All rights reserved.
 
-"""CTK self-test: run all vectors against the in-tree ReferenceHarness."""
+"""CTK self-test: the vectors against the in-tree ReferenceHarness. The
+gating run is under 0.1, the newest released version: the released set
+runs and the draft-only vectors (``introduced_in: draft``) are skipped.
+The ``draft``-marked test runs those under the draft in the advisory
+job. Binding tests to a draft revision is #188."""
 
 from __future__ import annotations
 
@@ -9,12 +13,18 @@ import pathlib
 
 import pytest
 from agent_hooks import SPEC_VERSION_0_1, SPEC_VERSION_DRAFT
-from agent_hooks.ctk import DRAFT_NOT_CLAIMABLE, conformance_report, load_vectors, run_vector
+from agent_hooks.ctk import (
+    DRAFT_NOT_CLAIMABLE,
+    DRAFT_ONLY_SKIP,
+    conformance_report,
+    load_vectors,
+    run_vector,
+)
 from agent_hooks.ctk.reference import ReferenceHarness
 
 _VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vectors"
 
-# Pinned skip set: Python ints are arbitrary precision, so the
+# Pinned capability skips: Python ints are arbitrary precision, so the
 # reference harness declares every value-domain capability and no
 # value-domain vector may skip. The streaming/incremental part (§12.1
 # exception) skips because the reference harness buffers caller-bound
@@ -22,7 +32,12 @@ _VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vector
 # parts (§7.7.9) run: the harness declares host_declaration and builds
 # every emitter through the loader. Any other skip means a capability
 # regressed or a vector was quietly excluded; both must fail the suite.
-EXPECTED_SKIPS: frozenset[str] = frozenset({"AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113"})
+CAPABILITY_SKIPS: frozenset[str] = frozenset(
+    {"AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113"}
+)
+# The draft-only vectors, skipped under 0.1 with DRAFT_ONLY_SKIP.
+DRAFT_ONLY: frozenset[str] = frozenset(f"AH-CTK-{n}" for n in range(144, 161))
+EXPECTED_SKIPS: frozenset[str] = CAPABILITY_SKIPS | DRAFT_ONLY
 
 
 @pytest.mark.parametrize(
@@ -31,12 +46,14 @@ EXPECTED_SKIPS: frozenset[str] = frozenset({"AH-CTK-110", "AH-CTK-111", "AH-CTK-
     ids=lambda v: v["id"],
 )
 def test_reference_harness_conformance(vector: dict) -> None:
-    result = asyncio.run(run_vector(ReferenceHarness(), vector))
+    result = asyncio.run(run_vector(ReferenceHarness(SPEC_VERSION_0_1), vector))
     if result.status == "skip":
         assert result.id in EXPECTED_SKIPS, (
             f"unexpected skip: {result.id} ({result.detail}) — update "
-            "EXPECTED_SKIPS only with a capability rationale"
+            "CAPABILITY_SKIPS only with a capability rationale"
         )
+        if result.id in DRAFT_ONLY:
+            assert result.detail == DRAFT_ONLY_SKIP
         pytest.skip(result.detail)
     assert result.status == "pass", "\n" + "\n".join(f"  - {f}" for f in result.failures)
 
@@ -44,18 +61,62 @@ def test_reference_harness_conformance(vector: dict) -> None:
 def test_skip_set_matches_manifest() -> None:
     skipped = set()
     for vector in load_vectors(_VECTORS):
-        result = asyncio.run(run_vector(ReferenceHarness(), vector))
+        result = asyncio.run(run_vector(ReferenceHarness(SPEC_VERSION_0_1), vector))
         if result.status == "skip":
             skipped.add(result.id)
     assert skipped == set(EXPECTED_SKIPS), (
         "expected-but-not-skipped vectors mean the manifest is stale"
     )
+    draft_only = {v["id"] for v in load_vectors(_VECTORS) if v.get("introduced_in") == "draft"}
+    assert draft_only == DRAFT_ONLY
+
+
+@pytest.mark.draft
+def test_draft_only_vectors_pass_under_the_draft() -> None:
+    """Advisory (the draft-tests job): the working test set for the next
+    version passes under the draft."""
+    draft = [v for v in load_vectors(_VECTORS) if v.get("introduced_in") == "draft"]
+    assert len(draft) == 17
+    failures = []
+    for vector in draft:
+        result = asyncio.run(run_vector(ReferenceHarness(SPEC_VERSION_DRAFT), vector))
+        if result.status != "pass":
+            failures.append(f"{result.id}: {result.status} {result.detail} {result.failures}")
+    assert not failures, "\n".join(failures)
+
+
+def test_a_harness_names_its_version() -> None:
+    """The runner refuses a harness that does not say which version it
+    builds under; there is no default."""
+    from typing import Any, ClassVar
+
+    from agent_hooks.ctk import Capability
+
+    class Nameless:
+        name = "nameless"
+        capabilities: ClassVar[frozenset[Capability]] = frozenset()
+
+        def setup(self, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError("setup must not be reached")
+
+        async def run(self) -> Any:
+            raise AssertionError("run must not be reached")
+
+        def teardown(self) -> None:
+            pass
+
+    vector = next(v for v in load_vectors(_VECTORS) if v["id"] == "AH-CTK-001")
+    with pytest.raises(ValueError, match="spec must name the specification version"):
+        asyncio.run(run_vector(Nameless(), vector))  # type: ignore[arg-type]
 
 
 def test_a_report_names_a_released_version_never_the_draft() -> None:
     """Running the working test set is development; the report a claim
     attaches names a released version, and the runner refuses the draft."""
-    results = [asyncio.run(run_vector(ReferenceHarness(), v)) for v in load_vectors(_VECTORS)]
+    results = [
+        asyncio.run(run_vector(ReferenceHarness(SPEC_VERSION_0_1), v))
+        for v in load_vectors(_VECTORS)
+    ]
     with pytest.raises(ValueError, match="cannot name agent-hooks/draft") as refused:
         conformance_report(SPEC_VERSION_DRAFT, results)
     assert str(refused.value) == DRAFT_NOT_CLAIMABLE
@@ -70,7 +131,7 @@ def test_a_report_names_a_released_version_never_the_draft() -> None:
     assert names == sorted(names)
     assert all(p.passed + p.failed + p.skipped == len(p.vectors) for p in report.parts)
     streaming = next(p for p in report.parts if p.part == "streaming/incremental")
-    assert streaming.skipped == 4 and {v.id for v in streaming.vectors} == set(EXPECTED_SKIPS)
+    assert streaming.skipped == 4 and {v.id for v in streaming.vectors} == set(CAPABILITY_SKIPS)
 
 
 def test_structural_harness_without_setup_declared_fails_the_vector() -> None:
@@ -82,6 +143,7 @@ def test_structural_harness_without_setup_declared_fails_the_vector() -> None:
 
     class Structural:
         name = "structural"
+        spec = SPEC_VERSION_0_1
         capabilities: ClassVar[frozenset[Capability]] = frozenset(
             {Capability.MODEL_CALLS, Capability.TOOL_CALLS, Capability.HOST_DECLARATION}
         )
@@ -112,6 +174,7 @@ def test_harness_with_an_invalid_surface_fails_the_vector() -> None:
 
     class BadSurface:
         name = "bad-surface"
+        spec = SPEC_VERSION_0_1
         capabilities: ClassVar[frozenset[Capability]] = frozenset(
             {
                 Capability.MODEL_CALLS,

@@ -32,9 +32,11 @@ from agent_hooks import _core
 from agent_hooks._marshal import dumps
 from agent_hooks._types import (
     SPEC_VERSION_DRAFT,
+    SUPPORTED_SPEC_WIRE_VERSIONS,
     EnforcementMode,
     InterceptionPoint,
     OnError,
+    is_supported_spec_version,
     require_spec_version,
 )
 from agent_hooks.composition import CompositionConfig, CompositionProfile
@@ -94,6 +96,9 @@ class ConformanceReport:
     failed: int
     skipped: int
 
+
+#: The skip reason of a draft-only vector under a released version.
+DRAFT_ONLY_SKIP = "draft-only vector; see #188"
 
 #: The one line every runner answers a report that names the draft.
 DRAFT_NOT_CLAIMABLE = (
@@ -614,6 +619,19 @@ async def run_vector(harness: Harness, vector: dict[str, Any]) -> VectorResult:
 
     def fail(failures: list[str]) -> VectorResult:
         return VectorResult(vid, title, "fail", failures=failures, part=part)
+
+    harness_spec = getattr(harness, "spec", None)
+    if not is_supported_spec_version(harness_spec):
+        raise ValueError(
+            f"harness {getattr(harness, 'name', '?')!r}: spec must name the specification "
+            f"version the harness builds under, one of {', '.join(SUPPORTED_SPEC_WIRE_VERSIONS)}; "
+            f"got {harness_spec!r}"
+        )
+    # A draft-only vector (introduced_in: draft) is part of the working
+    # test set for the next version and runs under the draft only.
+    # Binding tests to a draft revision is #188.
+    if vector.get("introduced_in") == "draft" and harness_spec != SPEC_VERSION_DRAFT:
+        return VectorResult(vid, title, "skip", detail=DRAFT_ONLY_SKIP, part=part)
 
     # §7.7.9: a harness with its own declaration is assessed against the
     # resolved document, so what ran is what a claim cites.

@@ -65,3 +65,9 @@ notice-rgx = "^# Copyright \\(c\\) Microsoft\\. All rights reserved\\."
 [tool.mypy]
 strict = true
 warn_unreachable = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "draft: runs under agent-hooks/draft or reads draft-only specification files; the advisory draft-tests job runs these and the required jobs skip them (-m 'not draft')",
+]
