@@ -43,6 +43,17 @@ under the draft). An unknown version is refused as before.
   (`"spec": "agent-hooks/0.1"`). The 0.1 text made the member
   optional; the SDKs require it under both versions by decision, since
   they now carry two versions (VERSIONING.md).
+- The gating tests run against 0.1. The released vectors (every vector
+  but `AH-CTK-144` to `AH-CTK-160`) carry `agent-hooks/0.1` and run
+  under 0.1 in every reference harness; the 17 draft-only vectors carry
+  `introduced_in: draft` and, with the SDK tests that read draft-only
+  spec files, run in the advisory `draft-tests` job. A harness names
+  the version it builds under (`spec`), the runner skips a draft-only
+  vector under a released version with `draft-only vector; see #188`,
+  and the reference harnesses take the version in their constructor
+  (the pytest plugin's reference run needs `--agent-hooks-spec`). The
+  golden fixtures and the reference declarations are 0.1 documents
+  again. Binding tests to a draft revision is #188.
 - Every CTK runner has the per-part conformance report as a function
   (`conformance_report` in Rust and Python, `conformanceReport` in
   TypeScript, `Runner.Report` in .NET, `Report` in Go). It takes the

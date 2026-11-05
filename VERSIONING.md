@@ -108,7 +108,9 @@ named selects the rules: the reserved reasons (`host_warning:*` is
 reserved under the draft only), the declaration contracts a loader
 accepts (1.0 under 0.1; 1.0 and 1.1 under the draft) and the failure
 posture (`on_error: continue` under the draft only). The draft is never
-claimed; a claim names a released version.
+claimed; a claim names a released version. The gating tests target the
+newest released version, and the draft-only tests run as an advisory
+job; binding tests to a draft revision is #188.
 
 `scripts/check-version-consistency.py` checks that the five SDKs agree,
 that every entry is a released version or the draft with a folder, that

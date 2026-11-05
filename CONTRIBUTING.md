@@ -35,6 +35,20 @@
   reaches it by naming `agent-hooks/draft`. Prose links cite the
   released text, `spec/0.1/`, and the draft for what 0.1 does not
   define.
+- **The gating tests target the newest released version.** Each
+  reference suite runs the released set of vectors under 0.1 and skips
+  the 17 draft-only vectors (`introduced_in: draft`) with the reason
+  `draft-only vector; see #188`. Those vectors and the SDK tests that
+  read draft-only files (the draft's inventories, examples and schemas)
+  run in the advisory `draft-tests` job, never in a required one, so a
+  draft change cannot turn a required check red. Mark such a test the
+  way its suite filters: a `draft_only_` name prefix in Rust
+  (`cargo test -- --skip draft_only`), the `draft` pytest marker
+  (`-m "not draft"`), a file under `sdk/typescript/test/draft/`,
+  `[Trait("Category", "draft")]` in .NET (`--filter "Category!=draft"`),
+  a `TestDraftOnly` name prefix in Go (`-skip DraftOnly`). The local
+  commands below run both sets. Binding tests to a draft revision is
+  #188.
 - **All five SDKs.** A contract change is not done until Rust core,
   Python, TypeScript, .NET, and Go agree; the Rust core is the single
   source of truth and the wrappers delegate to it.

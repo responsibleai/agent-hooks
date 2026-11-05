@@ -20,9 +20,18 @@ Two more core functions serve the host declaration parts (§7.7.9):
 A per-language runner is the ~60 lines below. Only steps 3 and 5 touch
 native code (the `Harness` protocol); everything else is a straight FFI
 call. `sdk/python/python/agent_hooks/ctk/runner.py` is the reference.
+A harness states the specification version it builds under
+(`harness.spec`, a wire string); the runner refuses a harness without
+one, and step 0 keeps the draft-only vectors out of a run under a
+released version. The gating runs are under 0.1, the newest released
+version; binding tests to a draft revision is #188.
 
 ```
 for each vector file in conformance/vectors/*.json:
+  0.  if vector.introduced_in == "draft" and harness.spec != "agent-hooks/draft":
+        yield {status:"skip", detail:"draft-only vector; see #188"}; continue
+      # the working test set for the next version runs under the draft only
+
   1.  skip = ctk_should_skip(vector, harness.capabilities)
       if skip: yield {status:"skip", detail:skip}; continue
 

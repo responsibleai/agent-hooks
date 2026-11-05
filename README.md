@@ -210,10 +210,12 @@ surface. There are no tiers. The report lists what ran, per part. A
 host may present its surface as a host declaration document, and a
 claim may cite that file. Claims live in
 [`conformance/CLAIMS.md`](conformance/CLAIMS.md). A conformance claim
-is not a security certification. The vectors are the working test set
-for the next specification version and run under `agent-hooks/draft`;
-a claim names a released version, and every runner refuses a report
-that names the draft.
+is not a security certification. The gating tests run the released
+vectors under 0.1, the newest released version; the 17 draft-only
+vectors, the working test set for the next version, and the tests that
+read draft-only files run in an advisory job. A claim names a released
+version, and every runner refuses a report that names the draft.
+Binding tests to a draft revision is #188.
 
 ## Install
 

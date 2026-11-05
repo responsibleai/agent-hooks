@@ -67,19 +67,25 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    python3 scripts/check-file-headers.py
    python3 -m unittest discover -s scripts -p "test_*.py"
    python3 scripts/stage-docs-site.py
-   root=spec/draft/schema/generated
-   mapfile -t refs < <(find "$root" -name '*.schema.json' | sed 's/^/-r=/')
-   ajv validate --spec=draft2020 -c ajv-formats -s conformance/vectors.schema.json \
-     "${refs[@]}" -d 'conformance/vectors/*.json'
+   python3 scripts/vectors-for-bundle.py grammar X.Y > /tmp/vectors-X.Y.schema.json
+   mapfile -t refs < <(find spec/X.Y/schema/generated -name '*.schema.json' -not -path '*/src/*' | sed 's/^/-r=/')
+   mapfile -t released < <(python3 scripts/vectors-for-bundle.py list X.Y)
+   ajv validate --spec=draft2020 -c ajv-formats -s /tmp/vectors-X.Y.schema.json \
+     "${refs[@]}" "${released[@]/#/-d=}"
    cd sdk/typescript && npm ci
    node scripts/check-schema-examples.mjs
    npx tsc -p ../../spec/X.Y/schema/src/tsconfig.json
    npx tsx scripts/generate-schemas.mts --check --spec X.Y
    ```
 
-   The vectors validate against the draft only until a cut bundle
-   carries the schemas the grammar references (`ci.yml`,
-   `RESOLVABLE_RELEASES`). The new folder passes the released-folder
+   The released set of vectors (every vector without
+   `introduced_in: draft`) validates against the newest released bundle
+   with the grammar rebased to it (`scripts/vectors-for-bundle.py`);
+   the draft-only vectors validate against the draft in the advisory
+   `draft-tests` job. A cut makes the new bundle the newest released
+   one, so the released set must carry its wire string when the cut
+   lands; how a test set binds to a version is #188. The new folder
+   passes the released-folder
    guard because it did not exist on `main`; after the merge it is
    frozen, and only new regular `.json` files under its
    `schema/examples/<Type>/` may be added.
@@ -176,13 +182,14 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    `--require-spec-tags`, when a released entry has no `spec/<X.Y>` tag
    on an ancestor of the tagged commit. So `spec/0.1` must be pushed
    before the next SDK tag; it goes on the commit that merges the 0.1
-   folder. That job also validates the conformance vectors against the
-   draft schemas (the vectors are the working test set for the next
-   version: the grammar references the draft's schema ids, the
-   documents carry `agent-hooks/draft`, and the vectors use documents
-   0.1 never defined) and the examples of every bundle against that
-   bundle's own schemas, because a release ships against 0.1 and the
-   draft.
+   folder. That job also validates the released set of vectors against
+   the newest released bundle and the examples of every released bundle
+   against their own schemas. The gating tests target the newest
+   released version everywhere: the SDK suites run the released set
+   under 0.1 and skip the 17 draft-only vectors (`introduced_in:
+   draft`, the working test set for the next version), and the
+   draft-only tests run in the advisory `draft-tests` job, never in a
+   required one. Binding tests to a draft revision is #188.
 2. Run the bench suite and compare against the latency budget in
    [ARCHITECTURE.md](ARCHITECTURE.md#latency-budget). CI does not gate
    on it; this step is the regression check.
