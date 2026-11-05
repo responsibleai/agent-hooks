@@ -44,9 +44,7 @@ are:
 ## Schema and wire impact
 
 Remove `declaration` and `surface.declaration_versions`.
-Add required `spec` field 
-Publish one
-`host-declaration.schema.json` per specification bundle. Reject removed
+Publish one `host-declaration.schema.json` per specification bundle. Reject removed
 fields rather than silently migrating documents.
 
 Current Format:
@@ -56,6 +54,7 @@ Current Format:
   "spec": "agent-hooks/draft",
   "declaration": "agent-hooks-declaration/1.1",
   "surface": {
+    "buffered_output": true,
     "declaration_versions": ["agent-hooks-declaration/1.0", "agent-hooks-declaration/1.1"]
   },
   "bindings": []
@@ -67,7 +66,9 @@ Proposed Format:
 ```json
 {
   "spec": "agent-hooks/draft",
-  "configuration": {"failure": {"on_error": "deny"}},
+  "surface": {
+    "buffered_output": true
+  },
   "bindings": []
 }
 ```
