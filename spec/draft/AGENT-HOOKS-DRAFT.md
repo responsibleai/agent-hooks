@@ -1093,7 +1093,7 @@ compatibility promise.
 experiment proposed for review. Existing SDK loaders, builders and CTK
 fixtures still implement the previous draft format; coordinated SDK/CTK
 implementation is deferred. These schema changes do not establish runtime
-conformance. See [P-6](../../docs/proposals/P-6-host-declaration-spec-versioning.md)
+conformance. See [P-6](https://github.com/CaitieM20/agent-hooks/pull/6)
 for the design comparison and `DECLARATION-VERSIONS.md` for the schema mapping.
 
 #### 7.7.3 Members and defaults
