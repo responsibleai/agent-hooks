@@ -202,6 +202,7 @@ export interface InputRequest extends HooksRequest {
  * The request at pre_model_call: model and messages are required (§4.2).
  * @example [pre-model-call.json](../examples/AgentContext/pre-model-call.json)
  * @example [pre-model-call-with-model-metadata.json](../examples/AgentContext/pre-model-call-with-model-metadata.json)
+ * @example [pre-model-call-with-tools.json](../examples/AgentContext/pre-model-call-with-tools.json)
  */
 export interface PreModelCallRequest extends HooksRequest {
   interception_point: InterceptionPoint.PreModelCall;
@@ -237,6 +238,7 @@ export interface PreToolCallRequest extends HooksRequest {
 /**
  * The request at post_tool_call: tool_call and tool_result are required (§4.2).
  * @example [post-tool-call.json](../examples/AgentContext/post-tool-call.json)
+ * @example [post-tool-call-error.json](../examples/AgentContext/post-tool-call-error.json)
  */
 export interface PostToolCallRequest extends HooksRequest {
   interception_point: InterceptionPoint.PostToolCall;

@@ -93,6 +93,12 @@ export interface DenyVerdict extends VerdictBase {
 /**
  * transform: proceed with the hook-specific replacement payload.
  * @additionalProperties false
+ * @example [transform-input.json](../examples/Verdict/transform-input.json)
+ * @example [transform-messages.json](../examples/Verdict/transform-messages.json)
+ * @example [transform-output.json](../examples/Verdict/transform-output.json)
+ * @example [transform-response.json](../examples/Verdict/transform-response.json)
+ * @example [transform-tool-args.json](../examples/Verdict/transform-tool-args.json)
+ * @example [transform-tool-result.json](../examples/Verdict/transform-tool-result.json)
  */
 export interface TransformVerdict<TTransform> extends VerdictBase {
   decision: Decision.Transform;
