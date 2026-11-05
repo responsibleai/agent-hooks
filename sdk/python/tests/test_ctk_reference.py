@@ -22,7 +22,10 @@ from agent_hooks.ctk import (
 )
 from agent_hooks.ctk.reference import ReferenceHarness
 
-_VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "0.1" / "vectors"
+_CONFORMANCE = pathlib.Path(__file__).resolve().parents[3] / "conformance"
+_VECTORS = _CONFORMANCE / "0.1" / "vectors"
+# Runner-defect tests need a successful declaration fixture; 0.1 has none.
+_DRAFT_VECTORS = _CONFORMANCE / "draft" / "vectors"
 
 # Pinned capability skips: Python ints are arbitrary precision, so the
 # reference harness declares every value-domain capability and no
@@ -157,7 +160,7 @@ def test_structural_harness_without_setup_declared_fails_the_vector() -> None:
         def teardown(self) -> None:
             pass
 
-    vector = next(v for v in load_vectors(_VECTORS) if v["id"] == "AH-CTK-120")
+    vector = next(v for v in load_vectors(_DRAFT_VECTORS) if v["id"] == "AH-CTK-120")
     result = asyncio.run(run_vector(Structural(), vector))  # type: ignore[arg-type]
     assert result.status == "fail"
     assert any("does not implement setup_declared" in f for f in result.failures)
@@ -196,7 +199,7 @@ def test_harness_with_an_invalid_surface_fails_the_vector() -> None:
         def teardown(self) -> None:
             pass
 
-    vector = next(v for v in load_vectors(_VECTORS) if v["id"] == "AH-CTK-120")
+    vector = next(v for v in load_vectors(_DRAFT_VECTORS) if v["id"] == "AH-CTK-120")
     result = asyncio.run(run_vector(BadSurface(), vector))  # type: ignore[arg-type]
     assert result.status == "fail"
     assert any("harness defect: host surface rejected" in f for f in result.failures)

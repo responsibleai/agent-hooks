@@ -277,9 +277,7 @@ def check_conformance(root: Path, versions: set[str]) -> list[str]:
 
     def expect_wire(rel: str, where: str, value: object, wire: str) -> None:
         if value != wire:
-            errors.append(
-                f"{rel}: {where} is {value!r}; the suite requires {wire}"
-            )
+            errors.append(f"{rel}: {where} is {value!r}; the suite requires {wire}")
 
     for version in sorted(versions | {"draft"}):
         suite = conformance / version
@@ -287,7 +285,7 @@ def check_conformance(root: Path, versions: set[str]) -> list[str]:
         schema_path = suite / "vectors.schema.json"
         schema = load(schema_path)
         expected_id = ID_ORIGIN + (
-            f"draft/conformance/vectors.schema.json"
+            "draft/conformance/vectors.schema.json"
             if version == "draft"
             else f"v{version}/conformance/vectors.schema.json"
         )

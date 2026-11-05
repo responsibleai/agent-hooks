@@ -52,11 +52,10 @@ fn declaration_error_classes_match_registry() {
     // `conformance/draft/vectors.schema.json` repeats the codes by hand in
     // `expect.load.class`; a class added to one file must reach the
     // other.
-    let schema: serde_json::Value =
-        serde_json::from_str(include_str!(
-            "../../../../conformance/draft/vectors.schema.json"
-        ))
-        .expect("conformance/draft/vectors.schema.json parses");
+    let schema: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../conformance/draft/vectors.schema.json"
+    ))
+    .expect("conformance/draft/vectors.schema.json parses");
     let schema_classes: Vec<String> = schema["$defs"]["expect"]["properties"]["load"]["properties"]
         ["class"]["enum"]
         .as_array()

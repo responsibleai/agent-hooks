@@ -124,9 +124,7 @@ def add_suite(root: Path, version: str) -> None:
     (suite / "vectors").mkdir(parents=True, exist_ok=True)
     published = "draft" if version == "draft" else f"v{version}"
     (suite / "vectors.schema.json").write_text(
-        json.dumps(
-            {"$id": f"{ID_ORIGIN}{published}/conformance/vectors.schema.json"}
-        ),
+        json.dumps({"$id": f"{ID_ORIGIN}{published}/conformance/vectors.schema.json"}),
         encoding="utf-8",
     )
     (suite / "vectors/AH-CTK-001.json").write_text(
@@ -448,11 +446,7 @@ class CheckTest(unittest.TestCase):
         self.assertIn(
             "conformance/0.1/vectors.schema.json has cross-version $ref "
             f"{ID_ORIGIN}draft/verdict.schema.json",
-            next(
-                error
-                for error in errors
-                if "has cross-version $ref" in error
-            ),
+            next(error for error in errors if "has cross-version $ref" in error),
         )
         self.assertTrue(
             any("conformance/golden/declaration.json:" in error for error in errors)
@@ -472,9 +466,7 @@ class CheckTest(unittest.TestCase):
     def test_empty_versioned_suite_fails(self) -> None:
         for path in (self.root / "conformance/0.1/vectors").glob("*.json"):
             path.unlink()
-        self.assertIn(
-            "conformance/0.1/vectors/ is empty", versions.check(self.root)
-        )
+        self.assertIn("conformance/0.1/vectors/ is empty", versions.check(self.root))
 
     def test_stale_references_fail(self) -> None:
         (self.root / "docs/old.md").write_text(

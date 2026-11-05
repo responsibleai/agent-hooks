@@ -862,7 +862,8 @@ public sealed class DeclarationTests
     [Fact]
     public void BuilderFromNodeRoundTripsEveryVectorDocument()
     {
-        var dir = Path.Combine(RepoRoot(), "conformance", "vectors");
+        // Builder fixtures cover every draft declaration document.
+        var dir = Path.Combine(RepoRoot(), "conformance", "draft", "vectors");
         var seen = 0;
         foreach (var vector in Runner.LoadVectors(dir))
         {
@@ -1085,7 +1086,7 @@ public sealed class DeclarationTests
 
         // The runner path: a harness shipping that document is assessed,
         // not failed, and the vector runs on its declared surface.
-        var vector = Runner.LoadVectors(Path.Combine(RepoRoot(), "conformance", "vectors"))
+        var vector = Runner.LoadVectors(Path.Combine(RepoRoot(), "conformance", "draft", "vectors"))
             .First(v => (string)v["id"]! == "AH-CTK-120");
         var result = await Runner.RunVectorAsync(new WithDeclaration(harness, document), vector);
         Assert.True(result.Status == "pass", $"{result.Status}: {string.Join("; ", result.Failures)}");

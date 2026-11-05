@@ -242,7 +242,8 @@ function seed(shape: Shape, ...values: Json[]): void {
 }
 
 function collectFromRepository(): void {
-  const vectorsDir = join(ROOT, "conformance", "vectors");
+  // The draft suite is the superset; released suites copy vectors from it.
+  const vectorsDir = join(ROOT, "conformance", "draft", "vectors");
   for (const f of readdirSync(vectorsDir)) {
     const v = JSON.parse(readFileSync(join(vectorsDir, f), "utf8")) as Obj;
     const scripts = [
