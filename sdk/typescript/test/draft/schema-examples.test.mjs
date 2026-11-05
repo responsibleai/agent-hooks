@@ -1,5 +1,8 @@
 // Copyright (c) Microsoft. All rights reserved.
 
+// Advisory (the draft-tests job): these tests copy the draft's schemas and
+// examples as fixtures, so they read draft-only files.
+
 import assert from "node:assert/strict";
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -13,7 +16,7 @@ import {
   schemaMapping,
   schemaRoot,
   validateExamples,
-} from "../scripts/check-schema-examples.mjs";
+} from "../../scripts/check-schema-examples.mjs";
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), "schema-examples-"));

@@ -732,6 +732,7 @@ export {
   MAX_TIMEOUT_MS,
   SUPPORTED_DECLARATION_VERSIONS,
   canonicalDeclaration,
+  acceptedDeclarationVersions,
   currentDeclarationVersion,
   declarationVersions,
   fullKnobSupport,

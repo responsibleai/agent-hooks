@@ -76,6 +76,9 @@ export interface ConformanceReport {
   skipped: number;
 }
 
+/** The skip reason of a draft-only vector under a released version. */
+export const DRAFT_ONLY_SKIP = "draft-only vector; see #188";
+
 /** The one line every runner answers a report that names the draft. */
 export const DRAFT_NOT_CLAIMABLE =
   "a conformance report cannot name agent-hooks/draft; the draft is never claimed: run the vectors for development and report a released version";
@@ -763,6 +766,21 @@ export async function runVector(
 ): Promise<VectorResult> {
   const v = vector as Record<string, JsonValue>;
   const vectorJson = JSON.stringify(vector);
+
+  const harnessSpec = requireSpecVersion(harness.spec, `harness ${harness.name} spec`);
+  // A draft-only vector (`introduced_in: draft`) is part of the working
+  // test set for the next version and runs under the draft only.
+  // Binding tests to a draft revision is #188.
+  if (v.introduced_in === "draft" && harnessSpec !== SPEC_VERSION_DRAFT) {
+    return {
+      id: v.id as string,
+      title: v.title as string,
+      part: (v.part as string | undefined) ?? undefined,
+      status: "skip",
+      detail: DRAFT_ONLY_SKIP,
+      failures: [],
+    };
+  }
 
   // §7.7.9: a harness with its own declaration is assessed against the
   // resolved document, so what ran is what a claim cites.

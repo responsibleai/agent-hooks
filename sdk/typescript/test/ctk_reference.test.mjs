@@ -1,6 +1,10 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-// CTK self-test: run all vectors against the ReferenceHarness.
+// CTK self-test: the vectors against the ReferenceHarness. The gating
+// run is under 0.1, the newest released version: the released set runs
+// and the draft-only vectors (`introduced_in: draft`) are skipped. The
+// draft-only run lives in test/draft/, which the advisory job runs.
+// Binding tests to a draft revision is #188.
 
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -10,6 +14,7 @@ import assert from "node:assert/strict";
 import { SPEC_VERSION_0_1, SPEC_VERSION_DRAFT } from "../dist/index.js";
 import {
   DRAFT_NOT_CLAIMABLE,
+  DRAFT_ONLY_SKIP,
   conformanceReport,
   loadVectors,
   runVector,
@@ -19,7 +24,7 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const vectorsDir = resolve(here, "../../../conformance/vectors");
 
-// Pinned skip set: a skip outside this manifest fails the
+// Pinned capability skips: a skip outside this manifest fails the
 // suite — the parity gate must not silently degrade to green when a
 // capability regresses or a new vector is quietly skipped.
 // JSON.parse rounds beyond-2^53 integers before any guard can see
@@ -28,7 +33,7 @@ const vectorsDir = resolve(here, "../../../conformance/vectors");
 // reference harness buffers caller-bound output and does not declare
 // incremental_output. The declaration parts (§7.7.9) run: the harness
 // declares host_declaration and builds every emitter through the loader.
-const EXPECTED_SKIPS = new Set([
+const CAPABILITY_SKIPS = new Set([
   "AH-CTK-090",
   "AH-CTK-091",
   "AH-CTK-095",
@@ -37,6 +42,9 @@ const EXPECTED_SKIPS = new Set([
   "AH-CTK-112",
   "AH-CTK-113",
 ]);
+// The draft-only vectors, skipped under 0.1 with DRAFT_ONLY_SKIP.
+const DRAFT_ONLY = new Set(Array.from({ length: 17 }, (_, i) => `AH-CTK-${144 + i}`));
+const EXPECTED_SKIPS = new Set([...CAPABILITY_SKIPS, ...DRAFT_ONLY]);
 
 const skipped = new Set();
 const results = [];
@@ -44,14 +52,15 @@ const vectors = loadVectors(vectorsDir);
 
 for (const v of vectors) {
   test(`ctk ${v.id} ${v.title}`, async () => {
-    const r = await runVector(new ReferenceHarness(), v);
+    const r = await runVector(new ReferenceHarness(SPEC_VERSION_0_1), v);
     results.push(r);
     if (r.status === "skip") {
       skipped.add(r.id);
       assert.ok(
         EXPECTED_SKIPS.has(r.id),
-        `unexpected skip: ${r.id} (${r.detail}) — update EXPECTED_SKIPS only with a capability rationale`,
+        `unexpected skip: ${r.id} (${r.detail}) — update CAPABILITY_SKIPS only with a capability rationale`,
       );
+      if (DRAFT_ONLY.has(r.id)) assert.equal(r.detail, DRAFT_ONLY_SKIP);
       return;
     }
     assert.equal(r.status, "pass", `\n  ${r.failures.join("\n  ")}`);
@@ -64,6 +73,8 @@ test("ctk skip set matches the manifest exactly", () => {
     [...EXPECTED_SKIPS].sort(),
     "expected-but-not-skipped vectors mean the manifest is stale",
   );
+  const draftOnly = vectors.filter((v) => v.introduced_in === "draft").map((v) => v.id);
+  assert.deepEqual(draftOnly.sort(), [...DRAFT_ONLY].sort());
 });
 
 test("a conformance report names a released version, never the draft", () => {
@@ -87,4 +98,22 @@ test("a conformance report names a released version, never the draft", () => {
   }
   const streaming = report.parts.find((p) => p.part === "streaming/incremental");
   assert.equal(streaming.skipped, 4);
+});
+
+test("a harness names the version it builds under", async () => {
+  const nameless = {
+    name: "nameless",
+    capabilities: new Set(),
+    setup() {
+      throw new Error("setup must not be reached");
+    },
+    async run() {
+      throw new Error("run must not be reached");
+    },
+    teardown() {},
+  };
+  await assert.rejects(
+    () => runVector(nameless, vectors[0]),
+    /harness nameless spec must name a supported specification version/,
+  );
 });

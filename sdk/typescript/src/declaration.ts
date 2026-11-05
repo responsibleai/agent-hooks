@@ -80,6 +80,12 @@ export function currentDeclarationVersion(spec: string): string {
   return DECLARATION_VERSIONS_BY_SPEC[requireSpecVersion(spec)].current;
 }
 
+/** The contract versions a loader under `spec` accepts (1.0 under 0.1;
+ * 1.0 and 1.1 under the draft). */
+export function acceptedDeclarationVersions(spec: string): readonly string[] {
+  return DECLARATION_VERSIONS_BY_SPEC[requireSpecVersion(spec)].supported;
+}
+
 /** Largest document the text and file paths accept, in bytes (§7.7.3). */
 export const MAX_DOCUMENT_BYTES = 1 << 20;
 
