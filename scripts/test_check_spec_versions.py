@@ -87,7 +87,7 @@ def conformance(root: Path) -> None:
     )
     write(
         "conformance/vectors/AH-CTK-001.json",
-        {"id": "AH-CTK-001", "host_declaration": {"spec": "agent-hooks/draft"}},
+        {"id": "AH-CTK-001", "host_declaration": {"spec": "agent-hooks/0.1"}},
     )
     write(
         "conformance/vectors/AH-CTK-002.json",
@@ -99,14 +99,22 @@ def conformance(root: Path) -> None:
     )
     write("conformance/vectors/AH-CTK-003.json", {"id": "AH-CTK-003"})
     write(
+        "conformance/vectors/AH-CTK-004.json",
+        {
+            "id": "AH-CTK-004",
+            "introduced_in": "draft",
+            "host_declaration": {"spec": "agent-hooks/draft"},
+        },
+    )
+    write(
         "conformance/golden/declaration.json",
-        {"fixtures": [{"id": "d1", "document": {"spec": "agent-hooks/draft"}}]},
+        {"fixtures": [{"id": "d1", "document": {"spec": "agent-hooks/0.1"}}]},
     )
     write(
         "conformance/golden/identity.json",
         {
-            "spec": "agent-hooks/draft",
-            "fixtures": [{"id": "i1", "ctx": {"spec": "agent-hooks/draft"}}],
+            "spec": "agent-hooks/0.1",
+            "fixtures": [{"id": "i1", "ctx": {"spec": "agent-hooks/0.1"}}],
         },
     )
 
@@ -382,18 +390,34 @@ class CheckTest(unittest.TestCase):
         )
         self.assertFalse(versions.admits({"pattern": "("}, "agent-hooks/0.1"))
 
-    def test_the_conformance_corpus_is_the_drafts(self) -> None:
+    def test_the_two_conformance_sets_name_their_versions(self) -> None:
         self.assertEqual(versions.check(self.root), [])
+        # A released-set vector naming the draft, a draft-only vector
+        # naming the release, an unknown introduced_in, and goldens off
+        # the released version.
         (self.root / "conformance/vectors/AH-CTK-001.json").write_text(
             json.dumps(
-                {"id": "AH-CTK-001", "host_declaration": {"spec": "agent-hooks/0.1"}}
+                {"id": "AH-CTK-001", "host_declaration": {"spec": "agent-hooks/draft"}}
             ),
             encoding="utf-8",
+        )
+        (self.root / "conformance/vectors/AH-CTK-004.json").write_text(
+            json.dumps(
+                {
+                    "id": "AH-CTK-004",
+                    "introduced_in": "draft",
+                    "host_declaration": {"spec": "agent-hooks/0.1"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        (self.root / "conformance/vectors/AH-CTK-005.json").write_text(
+            json.dumps({"id": "AH-CTK-005", "introduced_in": "0.2"}), encoding="utf-8"
         )
         identity = json.loads(
             (self.root / "conformance/golden/identity.json").read_text(encoding="utf-8")
         )
-        identity["fixtures"][0]["ctx"]["spec"] = "agent-hooks/0.1"
+        identity["fixtures"][0]["ctx"]["spec"] = "agent-hooks/draft"
         (self.root / "conformance/golden/identity.json").write_text(
             json.dumps(identity), encoding="utf-8"
         )
@@ -405,13 +429,16 @@ class CheckTest(unittest.TestCase):
             errors,
             [
                 "conformance/vectors/AH-CTK-001.json: host_declaration.spec is "
-                "'agent-hooks/0.1'; the vectors are the next version's test set and carry "
-                "agent-hooks/draft",
+                "'agent-hooks/draft'; a vector of the released set carries agent-hooks/0.1",
+                "conformance/vectors/AH-CTK-004.json: host_declaration.spec is "
+                "'agent-hooks/0.1'; a vector of the working test set (introduced_in: draft) "
+                "carries agent-hooks/draft",
+                "conformance/vectors/AH-CTK-005.json: introduced_in is '0.2', not draft "
+                "or a released bundle",
                 "conformance/golden/declaration.json: fixtures[0].document.spec is "
-                "None; the vectors are the next version's test set and carry agent-hooks/draft",
+                "None; a golden fixture carries agent-hooks/0.1",
                 "conformance/golden/identity.json: fixtures[0].ctx.spec is "
-                "'agent-hooks/0.1'; the vectors are the next version's test set and carry "
-                "agent-hooks/draft",
+                "'agent-hooks/draft'; a golden fixture carries agent-hooks/0.1",
             ],
         )
         (self.root / "conformance/golden/identity.json").unlink()

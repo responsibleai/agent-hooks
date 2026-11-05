@@ -2,6 +2,7 @@
   "id": "AH-CTK-151",
   "title": "§6.3.1, §9: the approval resolver raises on a liftable deny from a binding with on_error continue: still deny (resolved_by rejection), tool not invoked",
   "spec_clause": "6.3.1, 9, 10.3",
+  "introduced_in": "draft",
   "part": "failure_posture/continue",
   "capabilities": [
     "host_declaration",

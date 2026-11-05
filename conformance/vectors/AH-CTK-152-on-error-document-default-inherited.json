@@ -2,6 +2,7 @@
   "id": "AH-CTK-152",
   "title": "§7.7.3, §7.7.5: configuration.failure.on_error continue is inherited by a binding that states no on_error: the raise is substituted and recorded",
   "spec_clause": "6.3.1, 7.7.3, 7.7.5, 10.3",
+  "introduced_in": "draft",
   "part": "failure_posture/continue",
   "capabilities": [
     "host_declaration",

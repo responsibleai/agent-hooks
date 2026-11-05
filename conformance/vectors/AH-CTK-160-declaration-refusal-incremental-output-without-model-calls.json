@@ -2,6 +2,7 @@
   "id": "AH-CTK-160",
   "title": "§7.7.4: a surface naming incremental_output without model_calls, and so without both model points, is refused as inconsistent; incremental mediation happens at post_model_call",
   "spec_clause": "7.7.4, 7.7.6, 12.1",
+  "introduced_in": "draft",
   "part": "declaration/refusal",
   "capabilities": [
     "host_declaration"

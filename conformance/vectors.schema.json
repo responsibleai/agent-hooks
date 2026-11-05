@@ -24,6 +24,11 @@
       "type": "string",
       "description": "Section of AGENT-HOOKS-0.1 this vector verifies."
     },
+    "introduced_in": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$|^draft$",
+      "description": "The first specification version whose test set ships this vector. Absent means the vector is part of the released set, which the gating runs use against the newest released version. `draft` marks a vector of the working test set for the next version: it runs under agent-hooks/draft only, and a harness under a released version skips it with the reason \"draft-only vector; see #188\"."
+    },
     "mode": {
       "type": "string",
       "enum": [

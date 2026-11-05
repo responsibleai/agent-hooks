@@ -2,6 +2,7 @@
   "id": "AH-CTK-150",
   "title": "§6.3.1, §7: a managed interceptor reports cancelled under on_error continue: deny host_error:interceptor_failed, no substitution, tool not invoked",
   "spec_clause": "6.3.1, 7, 7.4, 10.3",
+  "introduced_in": "draft",
   "part": "failure_posture/continue",
   "capabilities": [
     "host_declaration",

@@ -2,6 +2,7 @@
   "id": "AH-CTK-157",
   "title": "§7.7.5: an on_error value outside {deny, continue} is refused as invalid_field",
   "spec_clause": "6.3.1, 7.7.5, 7.7.6",
+  "introduced_in": "draft",
   "part": "declaration/refusal",
   "capabilities": [
     "host_declaration"

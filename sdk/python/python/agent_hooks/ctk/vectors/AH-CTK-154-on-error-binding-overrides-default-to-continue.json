@@ -2,6 +2,7 @@
   "id": "AH-CTK-154",
   "title": "§7.7.5: a binding's on_error continue overrides an explicit document default of deny: the raise is substituted and recorded",
   "spec_clause": "6.3.1, 7.7.3, 7.7.5, 10.3",
+  "introduced_in": "draft",
   "part": "failure_posture/continue",
   "capabilities": [
     "host_declaration",

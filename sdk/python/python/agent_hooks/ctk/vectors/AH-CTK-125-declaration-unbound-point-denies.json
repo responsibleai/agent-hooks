@@ -10,7 +10,7 @@
   ],
   "host_declaration": {
     "declaration": "agent-hooks-declaration/1.0",
-    "spec": "agent-hooks/draft",
+    "spec": "agent-hooks/0.1",
     "bindings": [
       {
         "id": "only-tools",

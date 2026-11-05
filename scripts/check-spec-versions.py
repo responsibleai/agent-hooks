@@ -17,10 +17,14 @@ its own wire string, agent-hooks/<MAJOR.MINOR> or agent-hooks/draft:
 no file in a bundle carries another bundle's wire string, and every
 `spec` member schema in a bundle's schemas admits the bundle's own
 string, the draft's as a constant. The vectors under conformance/ are
-the working test set for the next version: every host declaration a
-vector offers as valid and every golden document and context carries
-agent-hooks/draft (a vector whose document is invalid on purpose,
-host_declaration_invalid: true, may carry any string).
+two sets: a vector with `introduced_in: draft` is part of the working
+test set for the next version and its valid host declaration names
+agent-hooks/draft; every other vector is part of the released set,
+which the gating runs use, and its valid document names the newest
+released version, as do the golden documents and contexts. A vector
+whose document is invalid on purpose (host_declaration_invalid: true)
+may carry any string, and `introduced_in`, when present, is draft or a
+released bundle.
 
 Every entry under spec/ is a regular file or directory whose name does
 not start with a dot: a symbolic link, a device or pipe, and a hidden
@@ -260,14 +264,19 @@ def check_bundle(root: Path, folder: Path) -> list[str]:
     return errors
 
 
-def check_conformance(root: Path) -> list[str]:
-    """The vectors under conformance/ are the working test set for the
-    next version: every host declaration a vector offers as valid, every
-    golden document and every golden context names the draft wire
-    string. A vector whose document is invalid on purpose
-    (host_declaration_invalid: true) may name any."""
+def check_conformance(root: Path, released: set[str]) -> list[str]:
+    """Two sets under conformance/: a vector with `introduced_in: draft`
+    belongs to the working test set for the next version and its valid
+    host declaration names agent-hooks/draft; every other vector belongs
+    to the released set, which the gating runs use, and its valid
+    document names a released version (`released`, the released bundle
+    names), as do the golden documents and contexts. A vector whose
+    document is invalid on purpose (host_declaration_invalid: true) may
+    name any."""
     errors: list[str] = []
     conformance = root / "conformance"
+    released_wires = sorted(f"agent-hooks/{v}" for v in released)
+    bundles = released | {"draft"}
 
     def load(path: Path) -> object:
         rel = path.relative_to(root).as_posix()
@@ -280,11 +289,12 @@ def check_conformance(root: Path) -> list[str]:
             errors.append(f"{rel} is invalid JSON: {exc}")
             return None
 
-    def expect_draft(rel: str, where: str, value: object) -> None:
-        if value != DRAFT_WIRE:
+    def expect(
+        rel: str, where: str, value: object, wires: list[str], which: str
+    ) -> None:
+        if value not in wires:
             errors.append(
-                f"{rel}: {where} is {value!r}; the vectors are the next "
-                f"version's test set and carry {DRAFT_WIRE}"
+                f"{rel}: {where} is {value!r}; {which} carries {' or '.join(wires)}"
             )
 
     vectors = conformance / "vectors"
@@ -294,16 +304,26 @@ def check_conformance(root: Path) -> list[str]:
         vector = load(path)
         if not isinstance(vector, dict):
             continue
+        rel = path.relative_to(root).as_posix()
+        introduced = vector.get("introduced_in")
+        if introduced is not None and introduced not in bundles:
+            errors.append(
+                f"{rel}: introduced_in is {introduced!r}, not draft or a released bundle"
+            )
+            continue
         document = vector.get("host_declaration")
         if (
             isinstance(document, dict)
             and vector.get("host_declaration_invalid") is not True
         ):
-            expect_draft(
-                path.relative_to(root).as_posix(),
-                "host_declaration.spec",
-                document.get("spec"),
-            )
+            if introduced == "draft":
+                wires, which = (
+                    [DRAFT_WIRE],
+                    "a vector of the working test set (introduced_in: draft)",
+                )
+            else:
+                wires, which = released_wires, "a vector of the released set"
+            expect(rel, "host_declaration.spec", document.get("spec"), wires, which)
     for name, member in (("declaration.json", "document"), ("identity.json", "ctx")):
         path = conformance / "golden" / name
         golden = load(path)
@@ -311,11 +331,17 @@ def check_conformance(root: Path) -> list[str]:
             continue
         rel = path.relative_to(root).as_posix()
         if "spec" in golden:
-            expect_draft(rel, "spec", golden["spec"])
+            expect(rel, "spec", golden["spec"], released_wires, "a golden file")
         for index, fixture in enumerate(golden.get("fixtures") or []):
             inner = fixture.get(member) if isinstance(fixture, dict) else None
             if isinstance(inner, dict):
-                expect_draft(rel, f"fixtures[{index}].{member}.spec", inner.get("spec"))
+                expect(
+                    rel,
+                    f"fixtures[{index}].{member}.spec",
+                    inner.get("spec"),
+                    released_wires,
+                    "a golden fixture",
+                )
     return errors
 
 
@@ -422,7 +448,8 @@ def check(root: Path) -> list[str]:
         if path.name != "README.md":
             errors.append(f"spec/{path.name} must live in a version folder")
 
-    errors.extend(check_conformance(root))
+    if versions:
+        errors.extend(check_conformance(root, {p.name for p in versions}))
     errors.extend(check_references(root, {p.name for p in versions}))
     return errors
 

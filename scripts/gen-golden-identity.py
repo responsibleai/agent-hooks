@@ -28,7 +28,7 @@ OUT = ROOT / "conformance" / "golden" / "identity.json"
 
 def ctx(ip: str, seq: int, extra: dict) -> dict:
     return {
-        "spec": "agent-hooks/draft",
+        "spec": "agent-hooks/0.1",
         "interception_point": ip,
         "timestamp": "2026-01-01T00:00:00.000Z",
         "sequence": seq,
@@ -426,7 +426,7 @@ def main() -> None:
     OUT.write_text(
         json.dumps(
             {
-                "spec": "agent-hooks/draft",
+                "spec": "agent-hooks/0.1",
                 "generator": "scripts/gen-golden-identity.py via Rust core",
                 "fixtures": out,
             },
