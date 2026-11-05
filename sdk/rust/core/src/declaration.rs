@@ -4056,12 +4056,24 @@ mod tests {
     }
 
     #[test]
-    fn host_declaration_examples_of_every_bundle_load() {
-        // Every standalone host declaration example of each supported
-        // bundle passes the document checks (steps 2 to 7) and names its
-        // own bundle's version in `spec`, so the examples and the loader
+    fn host_declaration_examples_of_every_released_bundle_load() {
+        for spec in SpecVersion::RELEASED {
+            host_declaration_examples_load(spec);
+        }
+    }
+
+    /// Advisory (the draft-tests job): the draft's examples.
+    #[test]
+    fn draft_only_host_declaration_examples_load() {
+        host_declaration_examples_load(&SpecVersion::Draft);
+    }
+
+    fn host_declaration_examples_load(spec: &SpecVersion) {
+        // Every standalone host declaration example of the bundle
+        // passes the document checks (steps 2 to 7) and names its own
+        // bundle's version in `spec`, so the examples and the loader
         // rules cannot drift apart. 0.1 defines contract 1.0 only.
-        for spec in SpecVersion::ALL {
+        {
             let examples = bundle_path(*spec).join("schema/examples");
             let folders: &[&str] = if spec.accepts_declaration(DECLARATION_VERSION) {
                 &["HostDeclaration10", "HostDeclaration11"]
@@ -4714,9 +4726,15 @@ mod tests {
 
     #[test]
     fn mirrored_enums_match_record_schema() {
-        for spec in SpecVersion::ALL {
+        for spec in SpecVersion::RELEASED {
             mirrored_enums_match_record_schema_of(*spec);
         }
+    }
+
+    /// Advisory (the draft-tests job): the draft's record schema.
+    #[test]
+    fn draft_only_mirrored_enums_match_record_schema() {
+        mirrored_enums_match_record_schema_of(SpecVersion::Draft);
     }
 
     fn mirrored_enums_match_record_schema_of(spec: SpecVersion) {

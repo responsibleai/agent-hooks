@@ -5,7 +5,8 @@
 //! every specification bundle this build supports. Guards the
 //! machine-readable registry against silent drift in either direction
 //! (a variant added without registering it, or a registry entry with
-//! no emitting code).
+//! no emitting code). The released bundles gate; the draft's inventories
+//! are checked by the `draft_only_*` tests, which the advisory job runs.
 
 use agent_hooks::{HostError, SpecVersion};
 use std::collections::BTreeSet;
@@ -13,8 +14,7 @@ use std::collections::BTreeSet;
 mod common;
 use common::{spec_file, spec_path};
 
-#[test]
-fn host_error_variants_match_reserved_reasons_registry() {
+fn emitted_host_errors() -> BTreeSet<String> {
     // Every variant, in declaration order. A new variant must be added
     // here AND to the draft bundle's reserved-reasons.json; this test is
     // the tripwire. 0.1 is frozen, so a new variant that 0.1 does not
@@ -37,41 +37,59 @@ fn host_error_variants_match_reserved_reasons_registry() {
     ];
     let emitted: BTreeSet<String> = variants.iter().map(|v| v.to_string()).collect();
     assert_eq!(emitted.len(), variants.len(), "duplicate reason strings");
+    emitted
+}
 
-    for spec in SpecVersion::ALL {
-        let registry: serde_json::Value =
-            serde_json::from_str(&spec_file(*spec, "reserved-reasons.json"))
-                .expect("reserved-reasons.json parses");
-        let registered: BTreeSet<String> = registry["reasons"]
-            .as_array()
-            .expect("reasons array")
-            .iter()
-            .map(|r| r["id"].as_str().expect("reason id").to_owned())
-            .collect();
-        assert_eq!(
-            emitted,
-            registered,
-            "core HostError strings and {}/reserved-reasons.json diverged",
+fn host_error_variants_match_registry_of(spec: SpecVersion) {
+    let registry: serde_json::Value =
+        serde_json::from_str(&spec_file(spec, "reserved-reasons.json"))
+            .expect("reserved-reasons.json parses");
+    let registered: BTreeSet<String> = registry["reasons"]
+        .as_array()
+        .expect("reasons array")
+        .iter()
+        .map(|r| r["id"].as_str().expect("reason id").to_owned())
+        .collect();
+    assert_eq!(
+        emitted_host_errors(),
+        registered,
+        "core HostError strings and {}/reserved-reasons.json diverged",
+        spec.bundle_dir()
+    );
+}
+
+#[test]
+fn host_error_variants_match_reserved_reasons_registry() {
+    for spec in SpecVersion::RELEASED {
+        host_error_variants_match_registry_of(*spec);
+    }
+}
+
+#[test]
+fn draft_only_host_error_variants_match_reserved_reasons_registry() {
+    host_error_variants_match_registry_of(SpecVersion::Draft);
+}
+
+/// §6.3: a released version without the failure posture has no
+/// warnings inventory, and the core reserves `host_warning:*` under the
+/// draft only.
+#[test]
+fn released_bundles_reserve_no_warnings() {
+    for spec in SpecVersion::RELEASED {
+        assert!(
+            !spec_path(*spec, "reserved-warnings.json").exists(),
+            "{}: carries reserved-warnings.json",
             spec.bundle_dir()
         );
+        assert!(!spec.reserves_host_warnings(), "{spec}");
     }
 }
 
 /// §6.3 registry consistency: the `host_warning:*` strings the core
-/// emits MUST be exactly the set in the bundle's `reserved-warnings.json`.
+/// emits MUST be exactly the set in the draft's `reserved-warnings.json`.
 #[test]
-fn host_warning_variants_match_reserved_warnings_registry() {
-    // The reserved warnings are the draft's (§11.1): the bundle of a
-    // version without the failure posture has no inventory, and the
-    // core reserves the prefix under the draft only.
-    for spec in SpecVersion::ALL {
-        assert_eq!(
-            spec_path(*spec, "reserved-warnings.json").exists(),
-            spec.reserves_host_warnings(),
-            "{}: reserved-warnings.json presence",
-            spec.bundle_dir()
-        );
-    }
+fn draft_only_host_warning_variants_match_reserved_warnings_registry() {
+    assert!(SpecVersion::Draft.reserves_host_warnings());
     let variants = [agent_hooks::HostWarning::ControlFailed];
     let emitted: BTreeSet<String> = variants.iter().map(|v| v.to_string()).collect();
     let registry: serde_json::Value =

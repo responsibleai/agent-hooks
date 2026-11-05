@@ -4,41 +4,50 @@
 //! loader emits MUST be exactly the set enumerated in
 //! `declaration-errors.json` of every specification bundle this build
 //! supports, in pipeline order. The tripwire against silent drift in
-//! either direction, like `reserved_reasons.rs` for §11.
+//! either direction, like `reserved_reasons.rs` for §11. The released
+//! bundles gate; the draft's inventory is checked by the `draft_only_*`
+//! test, which the advisory job runs.
 
 use agent_hooks::{DeclarationErrorClass, SpecVersion};
 
 mod common;
 use common::spec_file;
 
-#[test]
-fn declaration_error_classes_match_registry() {
-    let emitted: Vec<(String, u64)> = DeclarationErrorClass::ALL
+fn emitted_classes() -> Vec<(String, u64)> {
+    DeclarationErrorClass::ALL
         .iter()
         .enumerate()
         .map(|(i, c)| (c.code().to_owned(), i as u64 + 1))
+        .collect()
+}
+
+fn declaration_error_classes_match_registry_of(spec: SpecVersion) {
+    let registry: serde_json::Value =
+        serde_json::from_str(&spec_file(spec, "declaration-errors.json"))
+            .expect("declaration-errors.json parses");
+    let registered: Vec<(String, u64)> = registry["classes"]
+        .as_array()
+        .expect("classes array")
+        .iter()
+        .map(|c| {
+            (
+                c["id"].as_str().expect("class id").to_owned(),
+                c["step"].as_u64().expect("class step"),
+            )
+        })
         .collect();
-    for spec in SpecVersion::ALL {
-        let registry: serde_json::Value =
-            serde_json::from_str(&spec_file(*spec, "declaration-errors.json"))
-                .expect("declaration-errors.json parses");
-        let registered: Vec<(String, u64)> = registry["classes"]
-            .as_array()
-            .expect("classes array")
-            .iter()
-            .map(|c| {
-                (
-                    c["id"].as_str().expect("class id").to_owned(),
-                    c["step"].as_u64().expect("class step"),
-                )
-            })
-            .collect();
-        assert_eq!(
-            emitted,
-            registered,
-            "core DeclarationErrorClass codes and {}/declaration-errors.json diverged",
-            spec.bundle_dir()
-        );
+    assert_eq!(
+        emitted_classes(),
+        registered,
+        "core DeclarationErrorClass codes and {}/declaration-errors.json diverged",
+        spec.bundle_dir()
+    );
+}
+
+#[test]
+fn declaration_error_classes_match_registry() {
+    for spec in SpecVersion::RELEASED {
+        declaration_error_classes_match_registry_of(*spec);
     }
     // `conformance/vectors.schema.json` repeats the codes by hand in
     // `expect.load.class`; a class added to one file must reach the
@@ -53,7 +62,7 @@ fn declaration_error_classes_match_registry() {
         .iter()
         .map(|v| v.as_str().expect("class string").to_owned())
         .collect();
-    let codes: Vec<String> = emitted.iter().map(|(c, _)| c.clone()).collect();
+    let codes: Vec<String> = emitted_classes().iter().map(|(c, _)| c.clone()).collect();
     assert_eq!(
         schema_classes, codes,
         "conformance/vectors.schema.json expect.load.class enum and DeclarationErrorClass diverged"
@@ -63,4 +72,9 @@ fn declaration_error_classes_match_registry() {
         assert!(c.code().starts_with("declaration_error:"));
         assert_eq!(DeclarationErrorClass::from_code(c.code()), Some(c));
     }
+}
+
+#[test]
+fn draft_only_declaration_error_classes_match_registry() {
+    declaration_error_classes_match_registry_of(SpecVersion::Draft);
 }

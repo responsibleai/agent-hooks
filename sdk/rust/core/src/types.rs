@@ -42,6 +42,10 @@ impl SpecVersion {
     /// [`SUPPORTED_SPEC_VERSIONS`].
     pub const ALL: &'static [SpecVersion] = &[SpecVersion::V0_1, SpecVersion::Draft];
 
+    /// The released versions among [`Self::ALL`], oldest first: what
+    /// the gating tests run against. The draft is never among them.
+    pub const RELEASED: &'static [SpecVersion] = &[SpecVersion::V0_1];
+
     /// The entry of [`SUPPORTED_SPEC_VERSIONS`] and the `spec/<name>/`
     /// folder: `0.1` or `draft`.
     pub const fn name(self) -> &'static str {
@@ -859,6 +863,14 @@ mod version_constants_tests {
         assert_eq!(names, SUPPORTED_SPEC_VERSIONS);
         assert_eq!(SpecVersion::V0_1.wire(), SPEC_VERSION_0_1);
         assert_eq!(SpecVersion::Draft.wire(), SPEC_VERSION_DRAFT);
+        // The released versions are every supported one but the draft.
+        let released: Vec<SpecVersion> = SpecVersion::ALL
+            .iter()
+            .copied()
+            .filter(|v| *v != SpecVersion::Draft)
+            .collect();
+        assert_eq!(released, SpecVersion::RELEASED);
+        assert!(!SpecVersion::RELEASED.is_empty());
         for v in SpecVersion::ALL {
             assert_eq!(SpecVersion::from_wire(v.wire()), Some(*v));
             assert_eq!(SpecVersion::from_name(v.name()), Some(*v));

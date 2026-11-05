@@ -109,8 +109,9 @@ impl ScriptedInterceptor {
         // The script's verdict is read under the context's own version,
         // the same rules the emitter's §5 gate applies to it; a context
         // without one never reaches an interceptor (the envelope check
-        // ran), so the corpus version stands in.
-        let spec = SpecVersion::of_context(context).unwrap_or(CTK_SPEC);
+        // ran).
+        let spec = SpecVersion::of_context(context)
+            .expect("a context past the envelope check names its version");
         match wire.get("__ctk_fault__").and_then(Value::as_str) {
             // §7 isolation fault (TM-05): the trait takes &AgentContext,
             // so in-place mutation is statically impossible in Rust —
@@ -228,7 +229,8 @@ impl ApprovalResolver for ScriptedResolver {
             Some("reject") => crate::ApprovalOutcome::Reject,
             _ => crate::ApprovalOutcome::Unresolved,
         };
-        let spec = SpecVersion::of_context(request.context).unwrap_or(CTK_SPEC);
+        let spec = SpecVersion::of_context(request.context)
+            .expect("a context past the envelope check names its version");
         let verdict = out
             .get("verdict")
             .map(|v| crate::verdict_from_wire(v, spec).expect("malformed approval_script verdict"));
@@ -267,6 +269,13 @@ pub trait Harness: Send {
     /// Declared capability subset (§3.2), wire strings
     /// (`"model_calls"`, `"tool_calls"`, …).
     fn capabilities(&self) -> Vec<String>;
+
+    /// The specification version the harness builds its emitter and
+    /// contexts under ([`SpecVersion::V0_1`] or [`SpecVersion::Draft`]).
+    /// The runner skips a draft-only vector (`introduced_in: draft`)
+    /// for a harness under a released version, with the reason
+    /// [`DRAFT_ONLY_SKIP`].
+    fn spec(&self) -> SpecVersion;
 
     /// Declared §6.2 posture at the tool seam (§13.1): what the host
     /// does with the run after a `host_error:*` deny at
@@ -873,6 +882,22 @@ pub async fn run_vector(harness: &mut dyn Harness, vector: &Value) -> VectorResu
         failures,
     };
 
+    // A draft-only vector (`introduced_in: draft`) is part of the
+    // working test set for the next version and runs under the draft
+    // only. Binding tests to a draft revision is #188.
+    if vector.get("introduced_in").and_then(Value::as_str) == Some("draft")
+        && harness.spec() != SpecVersion::Draft
+    {
+        return VectorResult {
+            id,
+            title,
+            part,
+            status: "skip",
+            detail: DRAFT_ONLY_SKIP.to_owned(),
+            failures: Vec::new(),
+        };
+    }
+
     // §7.7.9: a harness with its own declaration is assessed against
     // the resolved document, so what ran is what a claim cites.
     let code_surface = harness.host_surface();
@@ -1038,6 +1063,9 @@ pub struct ConformanceReport {
     pub skipped: usize,
 }
 
+/// The skip reason of a draft-only vector under a released version.
+pub const DRAFT_ONLY_SKIP: &str = "draft-only vector; see #188";
+
 /// The one line every runner answers a report that names the draft.
 pub const DRAFT_NOT_CLAIMABLE: &str = "a conformance report cannot name agent-hooks/draft; the draft is never claimed: run the vectors for development and report a released version";
 
@@ -1095,8 +1123,9 @@ pub fn conformance_report(
 /// (`ctk/reference.declaration.json`) and binds the scripted
 /// interceptors through a `ctk.instance` kind, so the 51 field-based
 /// vectors exercise the loader too.
-#[derive(Default)]
 pub struct ReferenceHarness {
+    /// The version this harness builds its emitter and contexts under.
+    spec: SpecVersion,
     scenario: Value,
     emitter: Option<InterceptionEmitter>,
     builder: Option<AgentContextBuilder>,
@@ -1116,18 +1145,45 @@ type InstanceSlots = Arc<Mutex<Vec<Option<Box<dyn Interceptor>>>>>;
 /// surface a claim can cite.
 pub const REFERENCE_DECLARATION: &str = include_str!("ctk/reference.declaration.json");
 
-/// The specification version the conformance kit runs: the vectors,
-/// the golden files and the reference declaration are the draft
-/// corpus, and a harness builds its contexts under it.
-pub const CTK_SPEC: SpecVersion = SpecVersion::Draft;
-
 impl ReferenceHarness {
-    pub fn new() -> Self {
-        Self::default()
+    /// A reference harness under `spec`, the version it builds its
+    /// emitter and contexts under. The gating runs use the newest
+    /// released version; the advisory draft run uses the draft.
+    pub fn new(spec: SpecVersion) -> Self {
+        Self {
+            spec,
+            scenario: Value::Null,
+            emitter: None,
+            builder: None,
+            tool_log: Vec::new(),
+            session_counter: 0,
+            host_messages: Arc::new(Mutex::new(Vec::new())),
+        }
     }
 
-    fn document() -> Value {
-        serde_json::from_str(REFERENCE_DECLARATION).expect("reference declaration parses")
+    /// The reference document under this harness's version. The
+    /// committed file names 0.1 and contract 1.0; under another
+    /// version the document names that version and the contract
+    /// versions it accepts.
+    fn document(&self) -> Value {
+        let mut doc: Value =
+            serde_json::from_str(REFERENCE_DECLARATION).expect("reference declaration parses");
+        let base = match self.spec {
+            SpecVersion::Draft => "draft".to_owned(),
+            released => format!("v{}", released.name()),
+        };
+        doc["$schema"] = Value::String(format!(
+            "https://responsibleai.github.io/agent-hooks/schema/{base}/host-declaration-1.0.schema.json"
+        ));
+        doc["spec"] = Value::String(self.spec.wire().to_owned());
+        doc["surface"]["declaration_versions"] = Value::Array(
+            self.spec
+                .declaration_versions()
+                .iter()
+                .map(|v| Value::String((*v).to_owned()))
+                .collect(),
+        );
+        doc
     }
 
     /// The principal channel this host registers (§6.3): every
@@ -1150,13 +1206,13 @@ impl ReferenceHarness {
             .expect("host messages poisoned")
             .clear();
         self.session_counter += 1;
-        // The vectors are the working test set for the next version,
-        // carried under agent-hooks/draft: the harness builds its
-        // contexts under the draft, the version every vector document
-        // and the reference document name.
+        // Contexts follow the emitter's version: this harness's own
+        // under a field-based vector, the document's under a
+        // declaration vector.
+        let spec = emitter.spec();
         self.emitter = Some(emitter);
         self.builder = Some(AgentContextBuilder::new(
-            CTK_SPEC,
+            spec,
             "ref-agent",
             "reference-agent",
             &format!("sess-{}", self.session_counter),
@@ -1323,19 +1379,23 @@ impl Harness for ReferenceHarness {
         ]
     }
 
+    fn spec(&self) -> SpecVersion {
+        self.spec
+    }
+
     fn host_surface(&self) -> HostSurface {
         HostSurface::from_capabilities(self.capabilities(), ToolSeamPosture::Continue)
     }
 
     fn declaration(&self) -> Option<Value> {
-        Some(Self::document())
+        Some(self.document())
     }
 
     fn setup(&mut self, setup: VectorSetup) {
         // Field-based vector: write the vector's configuration into a
         // copy of the reference document and bind the interceptors by
         // index through the `ctk.instance` kind.
-        let mut doc = Self::document();
+        let mut doc = self.document();
         let cfg = doc["configuration"]
             .as_object_mut()
             .expect("configuration object");

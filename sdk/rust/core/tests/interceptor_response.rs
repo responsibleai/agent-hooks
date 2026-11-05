@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 use agent_hooks::{ffi_surface, HostError, InterceptorResponse};
-use agent_hooks::{SpecVersion, SPEC_VERSION_DRAFT};
+use agent_hooks::{SpecVersion, SPEC_VERSION_0_1};
 use serde_json::{json, Value};
 
 #[test]
@@ -12,7 +12,7 @@ fn shared_interceptor_response_fixtures() {
     .unwrap();
     for case in fixture["valid"].as_array().unwrap() {
         let parsed =
-            InterceptorResponse::from_json(case["input"].as_str().unwrap(), SpecVersion::Draft)
+            InterceptorResponse::from_json(case["input"].as_str().unwrap(), SpecVersion::V0_1)
                 .unwrap();
         assert_eq!(
             parsed.to_envelope_value(),
@@ -23,7 +23,7 @@ fn shared_interceptor_response_fixtures() {
     }
     for case in fixture["invalid"].as_array().unwrap() {
         let error = ffi_surface::normalize_interceptor_response(
-            SPEC_VERSION_DRAFT,
+            SPEC_VERSION_0_1,
             case["input"].as_str().unwrap(),
         )
         .unwrap_err();
@@ -46,7 +46,7 @@ fn shared_interceptor_response_fixtures() {
         }
         let bytes = agent_hooks::canonical_json(&input["extensions"]).len();
         assert_eq!(bytes, case["bytes"].as_u64().unwrap() as usize);
-        let result = InterceptorResponse::from_json(&input.to_string(), SpecVersion::Draft);
+        let result = InterceptorResponse::from_json(&input.to_string(), SpecVersion::V0_1);
         assert_eq!(
             result.is_ok(),
             case["valid"].as_bool().unwrap(),
@@ -70,10 +70,10 @@ fn strict_and_response_gates_agree_on_invalid_bare_verdicts() {
         r#"{"decision":"#,
     ] {
         assert_eq!(
-            ffi_surface::validate_verdict(SPEC_VERSION_DRAFT, input)
+            ffi_surface::validate_verdict(SPEC_VERSION_0_1, input)
                 .unwrap_err()
                 .0,
-            ffi_surface::normalize_interceptor_response(SPEC_VERSION_DRAFT, input)
+            ffi_surface::normalize_interceptor_response(SPEC_VERSION_0_1, input)
                 .unwrap_err()
                 .0
         );
@@ -87,7 +87,7 @@ fn parsed_metadata_rejects_unsafe_integers_and_excessive_depth() {
         "extensions": {"provider": {"receipt": {"n": 9_007_199_254_740_993_u64}}}
     });
     assert_eq!(
-        InterceptorResponse::from_wire(&value, SpecVersion::Draft)
+        InterceptorResponse::from_wire(&value, SpecVersion::V0_1)
             .unwrap_err()
             .0,
         HostError::VerdictInvalid
@@ -99,7 +99,7 @@ fn parsed_metadata_rejects_unsafe_integers_and_excessive_depth() {
     let value =
         json!({"verdict": {"decision": "allow"}, "extensions": {"provider": {"receipt": receipt}}});
     assert_eq!(
-        InterceptorResponse::from_wire(&value, SpecVersion::Draft)
+        InterceptorResponse::from_wire(&value, SpecVersion::V0_1)
             .unwrap_err()
             .0,
         HostError::VerdictInvalid
@@ -113,12 +113,12 @@ fn rejected_member_names_do_not_amplify_error_details() {
         json!({"verdict": {"decision": "allow"}, &key: null}),
         json!({"verdict": {"decision": "allow"}, "extensions": {&key: null}}),
     ] {
-        let (_, detail) = InterceptorResponse::from_wire(&input, SpecVersion::Draft).unwrap_err();
+        let (_, detail) = InterceptorResponse::from_wire(&input, SpecVersion::V0_1).unwrap_err();
         assert!(detail.len() < 256);
     }
     let input = format!(r#"{{"decision":"allow","{key}":1,"{key}":2}}"#);
     assert!(
-        InterceptorResponse::from_json(&input, SpecVersion::Draft)
+        InterceptorResponse::from_json(&input, SpecVersion::V0_1)
             .unwrap_err()
             .1
             .len()
