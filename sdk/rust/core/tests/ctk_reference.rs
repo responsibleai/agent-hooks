@@ -14,7 +14,10 @@ use agent_hooks::ctk::{
 use agent_hooks::SpecVersion;
 use serde_json::Value;
 
-const VECTORS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../conformance/0.1/vectors");
+const VECTORS: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../conformance/0.1/vectors"
+);
 
 /// Pinned capability skips: Rust holds i64 (int64_json) but serde_json
 /// coerces beyond-u64 vector literals at load (no bigint_json), and the
