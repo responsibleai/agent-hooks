@@ -1,9 +1,8 @@
 {
-  "id": "AH-CTK-148",
-  "title": "§6.3.1: on_error deny (explicit) and an interceptor that raises: deny host_error:interceptor_failed, unchanged from §6.3",
-  "spec_clause": "6.3, 6.3.1, 7.7.5, 10.3",
-  "introduced_in": "draft",
-  "part": "failure_posture/deny",
+  "id": "AH-CTK-094",
+  "title": "§10.3: a §6.3 failure deny carries the failing interceptor's index in decided_by (first_deny)",
+  "spec_clause": "6.3, 10.3",
+  "part": "record/decided_by",
   "capabilities": [
     "model_calls",
     "tool_calls"

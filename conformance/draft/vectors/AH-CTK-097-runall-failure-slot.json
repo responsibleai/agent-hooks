@@ -1,9 +1,8 @@
 {
-  "id": "AH-CTK-153",
-  "title": "§7.7.5: a binding's on_error deny overrides a document default of continue: the raise denies, tool not invoked",
-  "spec_clause": "6.3.1, 7.7.3, 7.7.5, 10.3",
-  "introduced_in": "draft",
-  "part": "failure_posture/deny",
+  "id": "AH-CTK-097",
+  "title": "run_all: per-interceptor §6.3 substitution — a failing interceptor denies its slot, others compose normally (reserved-reason detail is SDK-pinned)",
+  "spec_clause": "6.3, 7.4, 10.3",
+  "part": "composition/sequential_run_all",
   "capabilities": [
     "model_calls",
     "tool_calls"

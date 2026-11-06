@@ -81,8 +81,9 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    ```
 
    Each suite validates only against its matching schema bundle. SDK
-   runners currently use the released 0.1 suite; draft validation is
-   repository-level until SDK draft support is handled separately. The
+   runners use the released 0.1 suite by default. The advisory
+   `draft-tests` job separately runs draft-only IDs absent from that
+   released suite, without duplicating shared coverage. The
    new folder passes the released-folder guard because it did not exist
    on `main`; after the merge it is frozen, and only new regular `.json`
    files under its `schema/examples/<Type>/` may be added.

@@ -1,9 +1,8 @@
 {
-  "id": "AH-CTK-151",
-  "title": "§6.3.1, §9: the approval resolver raises on a liftable deny from a binding with on_error continue: still deny (resolved_by rejection), tool not invoked",
-  "spec_clause": "6.3.1, 9, 10.3",
-  "introduced_in": "draft",
-  "part": "failure_posture/continue",
+  "id": "AH-CTK-098",
+  "title": "§9 resolution validation: approve carrying a deny is verdict_invalid (consistency step), consultation recorded as rejection",
+  "spec_clause": "9, 10.3",
+  "part": "approval_seam",
   "capabilities": [
     "model_calls",
     "tool_calls"

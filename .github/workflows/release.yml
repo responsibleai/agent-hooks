@@ -95,12 +95,13 @@ jobs:
         run: python3 scripts/check-version-consistency.py --require-spec-tags
       - name: Specification folders are complete and references current
         run: python3 scripts/check-spec-versions.py
-      - name: Versioned conformance suites validate against matching schemas
+      - name: Released conformance suites validate against matching schemas
         run: |
           set -e
           validated=0
           for spec_dir in spec/*/; do
             name=$(basename "$spec_dir")
+            [ "$name" = "draft" ] && continue
             suite="conformance/$name"
             root="${spec_dir}schema/generated"
             [ -d "$root" ] || root="${spec_dir}schema"
@@ -121,11 +122,8 @@ jobs:
             validated=$((validated + 1))
           done
           [ "$validated" -gt 0 ] || { echo "::error::no versioned conformance suites validated"; exit 1; }
-      - name: Schema examples of every bundle validate against their own schemas
-        # The SDKs accept 0.1 contexts and documents beside the draft's,
-        # so a release ships against two bundles. Vectors and examples
-        # validate against their own version's schemas; this schema
-        # maintenance does not execute the draft SDK conformance suite.
+      - name: Schema examples of every released bundle validate against their own schemas
+        # Draft validation stays in CI, not in the release gate.
         run: |
           set -eu
           npm ci

@@ -7,21 +7,9 @@
     "model_calls",
     "tool_calls"
   ],
-  "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.0",
-    "spec": "agent-hooks/0.1",
-    "configuration": {
-      "mode": "evaluate_only"
-    },
-    "bindings": [
-      {
-        "id": "rewrite",
-        "kind": "ctk.scripted",
-        "config": {
-          "script": 0
-        }
-      }
-    ]
+  "composition": {
+    "profile": "sequential/first_deny",
+    "on_approval": "resume"
   },
   "scenario": {
     "input": {

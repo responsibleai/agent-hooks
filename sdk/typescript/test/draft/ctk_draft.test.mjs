@@ -13,12 +13,13 @@ import { SPEC_VERSION_DRAFT } from "../../dist/index.js";
 import { loadVectors, runVector, ReferenceHarness } from "../../dist/ctk/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const vectors = loadVectors(resolve(here, "../../../../conformance/vectors")).filter(
-  (v) => v.introduced_in === "draft",
+const released = new Set(loadVectors(resolve(here, "../../../../conformance/0.1/vectors")).map((v) => v.id));
+const vectors = loadVectors(resolve(here, "../../../../conformance/draft/vectors")).filter(
+  (v) => !released.has(v.id),
 );
 
-test("the draft-only set is the 17 vectors since 0.1", () => {
-  assert.equal(vectors.length, 17);
+test("the draft-only set is the 14 vectors absent from 0.1", () => {
+  assert.equal(vectors.length, 14);
 });
 
 for (const v of vectors) {

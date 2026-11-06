@@ -7,24 +7,6 @@
     "model_calls",
     "tool_calls"
   ],
-  "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.0",
-    "spec": "agent-hooks/0.1",
-    "configuration": {
-      "records": {
-        "max_buffered": 9007199254740991
-      }
-    },
-    "bindings": [
-      {
-        "id": "allow",
-        "kind": "ctk.scripted",
-        "config": {
-          "script": 0
-        }
-      }
-    ]
-  },
   "scenario": {
     "input": {
       "content": "send wire",

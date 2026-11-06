@@ -19,7 +19,7 @@ no file in a bundle carries another bundle's wire string, and every
 string, the draft's as a constant. Each conformance/<version>/ suite
 has a matching schema ID, only same-version external schema refs, and
 valid host declarations with the corresponding wire string. The golden
-documents and contexts remain draft fixtures.
+documents and contexts use the released 0.1 contract.
 
 Every entry under spec/ is a regular file or directory whose name does
 not start with a dot: a symbolic link, a device or pipe, and a hidden
@@ -352,7 +352,7 @@ def check_conformance(root: Path, versions: set[str]) -> list[str]:
             continue
         rel = path.relative_to(root).as_posix()
         if "spec" in golden:
-            expect_wire(rel, "spec", golden["spec"], DRAFT_WIRE)
+            expect_wire(rel, "spec", golden["spec"], "agent-hooks/0.1")
         for index, fixture in enumerate(golden.get("fixtures") or []):
             inner = fixture.get(member) if isinstance(fixture, dict) else None
             if isinstance(inner, dict):
@@ -360,7 +360,7 @@ def check_conformance(root: Path, versions: set[str]) -> list[str]:
                     rel,
                     f"fixtures[{index}].{member}.spec",
                     inner.get("spec"),
-                    DRAFT_WIRE,
+                    "agent-hooks/0.1",
                 )
     return errors
 

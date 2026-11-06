@@ -9,12 +9,11 @@
   "host_declaration_invalid": true,
   "host_declaration": {
     "declaration": "agent-hooks-declaration/1.0",
-    "spec": "agent-hooks/0.1",
-    "surface": {
-      "declaration_versions": [
-        "agent-hooks-declaration/0.1",
-        "agent-hooks-declaration/1.0"
-      ]
+    "spec": "agent-hooks/draft",
+    "configuration": {
+      "records": {
+        "max_buffered": 9007199254740992
+      }
     },
     "bindings": [
       {

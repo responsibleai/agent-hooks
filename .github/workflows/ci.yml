@@ -382,8 +382,8 @@ jobs:
           mapfile -t refs < <(find spec/draft/schema/generated -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
           data=()
           for v in "${vectors[@]}"; do data+=(-d "$v"); done
-          ajv validate --spec=draft2020 -c ajv-formats -s conformance/vectors.schema.json "${refs[@]}" "${data[@]}"
-          echo "validated ${#vectors[@]} draft-only vectors against spec/draft"
+          ajv validate --spec=draft2020 -c ajv-formats -s conformance/draft/vectors.schema.json "${refs[@]}" "${data[@]}"
+          echo "validated ${#vectors[@]} draft vectors against spec/draft"
       - name: Rust draft-only tests
         id: rust
         continue-on-error: true

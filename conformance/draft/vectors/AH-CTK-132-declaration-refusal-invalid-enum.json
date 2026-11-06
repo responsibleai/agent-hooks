@@ -9,7 +9,10 @@
   "host_declaration_invalid": true,
   "host_declaration": {
     "declaration": "agent-hooks-declaration/1.0",
-    "spec": "agent-hooks/0.1",
+    "spec": "agent-hooks/draft",
+    "configuration": {
+      "mode": "audit"
+    },
     "bindings": [
       {
         "id": "allow",

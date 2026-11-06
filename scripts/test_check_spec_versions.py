@@ -78,7 +78,7 @@ def bundle(root: Path, name: str, layout: str) -> Path:
 
 
 def conformance(root: Path) -> None:
-    """Versioned suites plus draft golden files."""
+    """Versioned suites plus released golden files."""
     (root / "conformance/golden").mkdir(parents=True)
     write = lambda relative, value: (root / relative).write_text(  # noqa: E731
         json.dumps(value) + "\n", encoding="utf-8"
@@ -108,13 +108,13 @@ def conformance(root: Path) -> None:
         )
     write(
         "conformance/golden/declaration.json",
-        {"fixtures": [{"id": "d1", "document": {"spec": "agent-hooks/draft"}}]},
+        {"fixtures": [{"id": "d1", "document": {"spec": "agent-hooks/0.1"}}]},
     )
     write(
         "conformance/golden/identity.json",
         {
-            "spec": "agent-hooks/draft",
-            "fixtures": [{"id": "i1", "ctx": {"spec": "agent-hooks/draft"}}],
+            "spec": "agent-hooks/0.1",
+            "fixtures": [{"id": "i1", "ctx": {"spec": "agent-hooks/0.1"}}],
         },
     )
 
@@ -294,7 +294,8 @@ class CheckTest(unittest.TestCase):
     def test_non_ascii_digit_folder_is_not_a_version(self) -> None:
         bundle(self.root, "0.Ù¡", "flat")
         self.assertIn(
-            "spec/0.Ù¡/ is not draft or a MAJOR.MINOR version", versions.check(self.root)
+            "spec/0.Ù¡/ is not draft or a MAJOR.MINOR version",
+            versions.check(self.root),
         )
 
     def test_invalid_json_is_reported(self) -> None:
@@ -430,7 +431,7 @@ class CheckTest(unittest.TestCase):
         identity = json.loads(
             (self.root / "conformance/golden/identity.json").read_text(encoding="utf-8")
         )
-        identity["fixtures"][0]["ctx"]["spec"] = "agent-hooks/0.1"
+        identity["fixtures"][0]["ctx"]["spec"] = "agent-hooks/draft"
         (self.root / "conformance/golden/identity.json").write_text(
             json.dumps(identity), encoding="utf-8"
         )

@@ -53,12 +53,8 @@ public sealed class CtkReferenceTests
         "AH-CTK-113",
     };
 
-    // The draft-only vectors, skipped under 0.1 with Runner.DraftOnlySkip.
-    private static readonly IReadOnlySet<string> DraftOnly =
-        Enumerable.Range(144, 17).Select(n => $"AH-CTK-{n}").ToHashSet();
-
     private static readonly IReadOnlySet<string> ExpectedSkips =
-        CapabilitySkips.Union(DraftOnly).ToHashSet();
+        CapabilitySkips;
 
     [Theory]
     [MemberData(nameof(Vectors))]
@@ -72,7 +68,6 @@ public sealed class CtkReferenceTests
                 ExpectedSkips.Contains(result.Id),
                 $"unexpected skip: {result.Id} ({result.Detail}) — update " +
                 "CapabilitySkips only with a capability rationale");
-            if (DraftOnly.Contains(result.Id)) Assert.Equal(Runner.DraftOnlySkip, result.Detail);
             return;
         }
         Assert.True(
@@ -117,10 +112,8 @@ public sealed class CtkReferenceTests
             skipped.SetEquals(ExpectedSkips),
             "expected-but-not-skipped vectors mean the manifest is stale: " +
             $"actual=[{string.Join(",", skipped)}]");
-        var draftOnly = Runner.LoadVectors(VectorsDir())
-            .Where(v => (string?)v["introduced_in"] == "draft")
-            .Select(v => (string)v["id"]!);
-        Assert.True(DraftOnly.SetEquals(draftOnly));
+        Assert.DoesNotContain(Runner.LoadVectors(VectorsDir()),
+            v => (string?)v["introduced_in"] == "draft");
     }
 
     /// <summary>Advisory (the draft-tests job): the working test set for
@@ -129,10 +122,13 @@ public sealed class CtkReferenceTests
     [Trait("Category", "draft")]
     public async Task DraftOnlyVectorsPassUnderTheDraft()
     {
-        var draft = Runner.LoadVectors(VectorsDir())
-            .Where(v => (string?)v["introduced_in"] == "draft")
+        var released = Runner.LoadVectors(VectorsDir())
+            .Select(v => (string)v["id"]!).ToHashSet();
+        var draftDir = Path.Combine(VectorsDir(), "..", "..", "draft", "vectors");
+        var draft = Runner.LoadVectors(draftDir)
+            .Where(v => !released.Contains((string)v["id"]!))
             .ToList();
-        Assert.Equal(17, draft.Count);
+        Assert.Equal(14, draft.Count);
         foreach (var v in draft)
         {
             var result = await Runner.RunVectorAsync(new ReferenceHarness(Spec.Draft), v);

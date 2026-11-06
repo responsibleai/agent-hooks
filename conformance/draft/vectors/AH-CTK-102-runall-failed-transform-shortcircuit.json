@@ -1,9 +1,8 @@
 {
-  "id": "AH-CTK-149",
-  "title": "§6.3.1: on_error deny (explicit) and an interceptor that returns a §5-invalid value: deny host_error:verdict_invalid, unchanged from §6.3",
-  "spec_clause": "6.3, 6.3.1, 7.7.5, 10.3",
-  "introduced_in": "draft",
-  "part": "failure_posture/deny",
+  "id": "AH-CTK-102",
+  "title": "run_all: a transform that fails to apply denies with host_error:transform_invalid and short-circuits the fold (§7.4)",
+  "spec_clause": "5.2, 7.4",
+  "part": "composition/sequential_run_all",
   "capabilities": [
     "model_calls",
     "tool_calls"

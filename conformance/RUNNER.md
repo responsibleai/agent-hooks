@@ -82,15 +82,17 @@ capability such as `int64_json` is honest surface, not a failure).
 
 Each SDK runner currently loads the released 0.1 suite from
 `conformance/0.1/vectors/` (or its packaged mirror). The separate
-`conformance/draft/` suite is validated by repository CI but is not yet
-an SDK conformance target. Each runner has the grouping as a function that takes the
+`conformance/draft/` suite is validated by repository CI. The advisory
+`draft-tests` job runs only its 14 vectors whose IDs are absent from the
+released suite; it does not rerun shared coverage under draft.
+Each runner has the grouping as a function that takes the
 specification version the claim names and the results:
 `conformance_report(spec, results)` in Rust and Python,
 `conformanceReport` in TypeScript, `Runner.Report` in .NET, `Report`
 in Go. It returns the parts in name order with their counts and
 totals. It refuses `agent-hooks/draft` with one line because the draft
-is not a released conformance claim. The SDK self-test runs only the
-0.1 suite for now; draft-suite SDK conformance runs are deferred.
+is not a released conformance claim. The default SDK self-test runs only the
+0.1 suite; draft-only checks are selected separately.
 
 The five reference harnesses ship a declaration/1.0 document naming
 `agent-hooks/0.1`, without draft-only failure-posture fields. Field-based

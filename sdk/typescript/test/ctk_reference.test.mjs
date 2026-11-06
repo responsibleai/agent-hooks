@@ -14,7 +14,6 @@ import assert from "node:assert/strict";
 import { SPEC_VERSION_0_1, SPEC_VERSION_DRAFT } from "../dist/index.js";
 import {
   DRAFT_NOT_CLAIMABLE,
-  DRAFT_ONLY_SKIP,
   conformanceReport,
   loadVectors,
   runVector,
@@ -43,9 +42,7 @@ const CAPABILITY_SKIPS = new Set([
   "AH-CTK-112",
   "AH-CTK-113",
 ]);
-// The draft-only vectors, skipped under 0.1 with DRAFT_ONLY_SKIP.
-const DRAFT_ONLY = new Set(Array.from({ length: 17 }, (_, i) => `AH-CTK-${144 + i}`));
-const EXPECTED_SKIPS = new Set([...CAPABILITY_SKIPS, ...DRAFT_ONLY]);
+const EXPECTED_SKIPS = CAPABILITY_SKIPS;
 
 const skipped = new Set();
 const results = [];
@@ -67,7 +64,6 @@ for (const v of vectors) {
         EXPECTED_SKIPS.has(r.id),
         `unexpected skip: ${r.id} (${r.detail}) — update CAPABILITY_SKIPS only with a capability rationale`,
       );
-      if (DRAFT_ONLY.has(r.id)) assert.equal(r.detail, DRAFT_ONLY_SKIP);
       return;
     }
     assert.equal(r.status, "pass", `\n  ${r.failures.join("\n  ")}`);
@@ -80,8 +76,7 @@ test("ctk skip set matches the manifest exactly", () => {
     [...EXPECTED_SKIPS].sort(),
     "expected-but-not-skipped vectors mean the manifest is stale",
   );
-  const draftOnly = vectors.filter((v) => v.introduced_in === "draft").map((v) => v.id);
-  assert.deepEqual(draftOnly.sort(), [...DRAFT_ONLY].sort());
+  assert.ok(vectors.every((v) => v.introduced_in !== "draft"));
 });
 
 test("a conformance report names a released version, never the draft", () => {

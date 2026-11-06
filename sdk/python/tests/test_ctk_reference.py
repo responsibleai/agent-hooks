@@ -15,12 +15,11 @@ import pytest
 from agent_hooks import SPEC_VERSION_0_1, SPEC_VERSION_DRAFT
 from agent_hooks.ctk import (
     DRAFT_NOT_CLAIMABLE,
-    DRAFT_ONLY_SKIP,
     conformance_report,
     load_vectors,
     run_vector,
 )
-from agent_hooks.ctk.reference import ReferenceHarness
+from agent_hooks.ctk.reference import REFERENCE_DECLARATION, ReferenceHarness
 
 _CONFORMANCE = pathlib.Path(__file__).resolve().parents[3] / "conformance"
 _VECTORS = _CONFORMANCE / "0.1" / "vectors"
@@ -36,9 +35,7 @@ _VECTORS = _CONFORMANCE / "0.1" / "vectors"
 CAPABILITY_SKIPS: frozenset[str] = frozenset(
     {"AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113"}
 )
-# The draft-only vectors, skipped under 0.1 with DRAFT_ONLY_SKIP.
-DRAFT_ONLY: frozenset[str] = frozenset(f"AH-CTK-{n}" for n in range(144, 161))
-EXPECTED_SKIPS: frozenset[str] = CAPABILITY_SKIPS | DRAFT_ONLY
+EXPECTED_SKIPS: frozenset[str] = CAPABILITY_SKIPS
 
 
 def test_reference_declaration_uses_released_specification() -> None:
@@ -65,8 +62,6 @@ def test_reference_harness_conformance(vector: dict) -> None:
             f"unexpected skip: {result.id} ({result.detail}) — update "
             "CAPABILITY_SKIPS only with a capability rationale"
         )
-        if result.id in DRAFT_ONLY:
-            assert result.detail == DRAFT_ONLY_SKIP
         pytest.skip(result.detail)
     assert result.status == "pass", "\n" + "\n".join(f"  - {f}" for f in result.failures)
 
@@ -80,16 +75,18 @@ def test_skip_set_matches_manifest() -> None:
     assert skipped == set(EXPECTED_SKIPS), (
         "expected-but-not-skipped vectors mean the manifest is stale"
     )
-    draft_only = {v["id"] for v in load_vectors(_VECTORS) if v.get("introduced_in") == "draft"}
-    assert draft_only == DRAFT_ONLY
+    assert not any(v.get("introduced_in") == "draft" for v in load_vectors(_VECTORS))
 
 
 @pytest.mark.draft
 def test_draft_only_vectors_pass_under_the_draft() -> None:
     """Advisory (the draft-tests job): the working test set for the next
     version passes under the draft."""
-    draft = [v for v in load_vectors(_VECTORS) if v.get("introduced_in") == "draft"]
-    assert len(draft) == 17
+    released_ids = {v["id"] for v in load_vectors(_VECTORS)}
+    draft = [
+        v for v in load_vectors(_CONFORMANCE / "draft" / "vectors") if v["id"] not in released_ids
+    ]
+    assert len(draft) == 14
     failures = []
     for vector in draft:
         result = asyncio.run(run_vector(ReferenceHarness(SPEC_VERSION_DRAFT), vector))
