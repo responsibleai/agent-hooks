@@ -15,17 +15,17 @@
 # an already-published version (e.g. new platform wheels).
 #
 # Publishing setup (one-time, per registry):
-#   PyPI   â€” trusted publishing (OIDC): add this repo/workflow as a
+#   PyPI   — trusted publishing (OIDC): add this repo/workflow as a
 #            publisher for project `agent-hooks-sdk` at
 #            https://pypi.org/manage/project/agent-hooks-sdk/settings/publishing/
 #            (no token; the `id-token: write` permission below is the
 #            credential).
-#   crates â€” trusted publishing (OIDC): configure the publisher on the
+#   crates — trusted publishing (OIDC): configure the publisher on the
 #            crate (repo responsibleai/agent-hooks, workflow release.yml,
 #            environment release) at
 #            https://crates.io/crates/agent-hooks-sdk/settings ->
 #            Trusted Publishing. No token.
-#   npm    â€” trusted publishing (OIDC): configure a trusted publisher
+#   npm    — trusted publishing (OIDC): configure a trusted publisher
 #            on the package (repo responsibleai/agent-hooks, workflow
 #            release.yml, environment release) at
 #            npmjs.com > package > Settings > Trusted Publisher.
@@ -39,13 +39,13 @@
 #            once "Allow npm dist-tag" is on for the package's
 #            publisher. Until then that step warns and the tag is
 #            added by hand (RELEASING.md).
-#   NuGet  â€” trusted publishing (OIDC): configure a Trusted Publishing
+#   NuGet  — trusted publishing (OIDC): configure a Trusted Publishing
 #            policy on nuget.org (repo responsibleai/agent-hooks,
 #            workflow release.yml, environment release); the NuGet/login
 #            action exchanges the workflow OIDC token for a short-lived
 #            key. Set the non-sensitive NUGET_USER secret to the
 #            nuget.org username that owns the policy.
-#   Go     â€” no registry: the module proxy serves the git tag directly.
+#   Go     — no registry: the module proxy serves the git tag directly.
 name: release
 
 on:
@@ -68,7 +68,7 @@ jobs:
   # Runs first, on the tag and on every dry run: the SDKs' version
   # surfaces agree, every supported specification version has a
   # spec/<version>/ folder and every released one its tag, the
-  # conformance vectors validate against the draft, and the examples of
+  # conformance vectors validate against their matching schemas, and examples of
   # every bundle validate against that bundle's schemas. Every build job
   # depends on it.
   spec-gate:
@@ -123,11 +123,9 @@ jobs:
           [ "$validated" -gt 0 ] || { echo "::error::no versioned conformance suites validated"; exit 1; }
       - name: Schema examples of every bundle validate against their own schemas
         # The SDKs accept 0.1 contexts and documents beside the draft's,
-        # so a release ships against two bundles. The vectors above prove
-        # the draft; the 0.1 examples, which carry agent-hooks/0.1, are
-        # the instances that prove the frozen 0.1 schemas still validate
-        # with the validator this release pins. The draft's examples run
-        # here too, as in ci.yml.
+        # so a release ships against two bundles. Vectors and examples
+        # validate against their own version's schemas; this schema
+        # maintenance does not execute the draft SDK conformance suite.
         run: |
           set -eu
           npm ci
@@ -294,7 +292,7 @@ jobs:
         run: |
           V=$(cargo pkgid -p agent-hooks-sdk | sed 's/.*[#@]//')
           if curl -sf https://index.crates.io/ag/en/agent-hooks-sdk | grep -q "\"vers\":\"$V\""; then
-            echo "agent-hooks-sdk $V already on crates.io â€” skipping"
+            echo "agent-hooks-sdk $V already on crates.io — skipping"
           else
             cargo publish --locked -p agent-hooks-sdk
           fi
@@ -433,7 +431,7 @@ jobs:
               echo "::error::$name has no native artifact"; exit 1
             fi
             if npm view "$name@$V" version >/dev/null 2>&1; then
-              echo "$name@$V already on npm â€” skipping"
+              echo "$name@$V already on npm — skipping"
               channel_packages+=("$name")
             elif (cd "$dir" && npm publish --access public --tag latest); then
               channel_packages+=("$name")
@@ -443,7 +441,7 @@ jobs:
               # package fails its first OIDC publish. Fail soft: consumers
               # tolerate a missing optionalDependency; bootstrap the
               # package manually, then rerun this workflow (idempotent).
-              echo "::warning::$name@$V first publish failed â€” bootstrap the new package on npmjs.com (one-time token publish), configure its trusted publisher, then rerun"
+              echo "::warning::$name@$V first publish failed — bootstrap the new package on npmjs.com (one-time token publish), configure its trusted publisher, then rerun"
             else
               exit 1
             fi

@@ -1,6 +1,6 @@
 {
   "id": "AH-CTK-129",
-  "title": "Â§7.7.6: a document written for another wire major is refused as spec_unsupported",
+  "title": "§7.7.6: a document written for another wire major is refused as spec_unsupported",
   "spec_clause": "7.7.6",
   "part": "declaration/refusal",
   "capabilities": [

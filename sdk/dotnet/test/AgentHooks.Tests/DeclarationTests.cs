@@ -862,8 +862,8 @@ public sealed class DeclarationTests
     [Fact]
     public void BuilderFromNodeRoundTripsEveryVectorDocument()
     {
-        // Builder fixtures cover every draft declaration document.
-        var dir = Path.Combine(RepoRoot(), "conformance", "draft", "vectors");
+        // Builder fixtures cover every released declaration document.
+        var dir = Path.Combine(RepoRoot(), "conformance", "0.1", "vectors");
         var seen = 0;
         foreach (var vector in Runner.LoadVectors(dir))
         {
@@ -872,7 +872,7 @@ public sealed class DeclarationTests
             var rebuilt = Runner.BuilderFromNode(doc).ToNode();
             Assert.True(JsonNode.DeepEquals(doc, rebuilt), $"{vector["id"]}: builder rebuilt a different document");
         }
-        Assert.Equal(41, seen);
+        Assert.Equal(27, seen);
     }
 
     [Fact]
@@ -1086,7 +1086,7 @@ public sealed class DeclarationTests
 
         // The runner path: a harness shipping that document is assessed,
         // not failed, and the vector runs on its declared surface.
-        var vector = Runner.LoadVectors(Path.Combine(RepoRoot(), "conformance", "draft", "vectors"))
+        var vector = Runner.LoadVectors(Path.Combine(RepoRoot(), "conformance", "0.1", "vectors"))
             .First(v => (string)v["id"]! == "AH-CTK-120");
         var result = await Runner.RunVectorAsync(new WithDeclaration(harness, document), vector);
         Assert.True(result.Status == "pass", $"{result.Status}: {string.Join("; ", result.Failures)}");

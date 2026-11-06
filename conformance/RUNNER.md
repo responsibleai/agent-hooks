@@ -10,12 +10,12 @@ and is exposed through every binding as four functions:
 | `ctk_scripted_resolve(rules, ctx, identity)` | Evaluate `approval_script`; returns `{outcome, context_identity, verdict?}` |
 | `ctk_assert(vector, recorded, run_record)` | Run all `expect` assertions; returns `{id, title, part, status, failures}` |
 
-Two more core functions serve the host declaration parts (Â§7.7.9):
+Two more core functions serve the host declaration parts (§7.7.9):
 
 | Function | Purpose |
 | --- | --- |
 | `declaration_versions()` | `{current, supported, spec_supported, by_spec}`: the contract versions the core writes and accepts, overall and per specification version (`by_spec["0.1"]`, `by_spec["draft"]`) |
-| `declaration_resolve(document, host)` | Steps 2 to 10 of Â§7.7.6 against `{surface, identity_providers, approval_resolvers, approval_redactors, kinds}`; returns the resolved declaration or a `declaration_error:*` code with JSON findings |
+| `declaration_resolve(document, host)` | Steps 2 to 10 of §7.7.6 against `{surface, identity_providers, approval_resolvers, approval_redactors, kinds}`; returns the resolved declaration or a `declaration_error:*` code with JSON findings |
 
 A per-language runner is the ~60 lines below. Only steps 3 and 5 touch
 native code (the `Harness` protocol); everything else is a straight FFI
@@ -42,10 +42,10 @@ for each vector file in conformance/0.1/vectors/*.json:
   3.  harness.setup(vector.scenario, interceptors,
                     vector.approval_script?.length ? resolver : null,   # [] registers NO resolver
                     vector.mode ?? "enforce",
-                    vector.composition ?? sequential/first_deny+stop,   # Â§7.2
-                    "identity_provider" in vector ? vector.identity_provider : "jcs-sha256")  # Â§10.1
+                    vector.composition ?? sequential/first_deny+stop,   # §7.2
+                    "identity_provider" in vector ? vector.identity_provider : "jcs-sha256")  # §10.1
 
-  3b. if "host_declaration" in vector:                                # Â§7.7.9, see HARNESS.md
+  3b. if "host_declaration" in vector:                                # §7.7.9, see HARNESS.md
         registry = ctk registry over harness.host_surface()           # ctk.scripted, ctk.managed,
         paths_equivalent = resolve the document from value, JSON,     #   ctk-fault, ctk-scripted, ctk-redact
                            a temp file and the builder; compare
@@ -62,20 +62,20 @@ for each vector file in conformance/0.1/vectors/*.json:
   5.  yield ctk_assert(vector, recorded,
                        {outcome:rr.outcome, final_output:rr.final_output,
                         tool_invocations:rr.tool_invocations, error:rr.error,
-                        host_messages:rr.host_messages, # messages the host delivered to the principal (Â§6.3.1)
+                        host_messages:rr.host_messages, # messages the host delivered to the principal (§6.3.1)
                         identities:rr.identities,      # (input, enforced) per emission
-                        records:rr.records,            # wire-shaped Â§10.3 records
-                        postures:{                     # harness *declarations* (Â§13.1),
-                          tool_seam_host_error:        # not observed behavior â€” they
+                        records:rr.records,            # wire-shaped §10.3 records
+                        postures:{                     # harness *declarations* (§13.1),
+                          tool_seam_host_error:        # not observed behavior — they
                             harness.tool_seam_host_error  # select run_outcome_by_posture
                               ?? "continue"}})            # (HARNESS.md "Postures")
 ```
 
-## The conformance report (Â§13.1)
+## The conformance report (§13.1)
 
 Group the yielded results by each vector's `part` tag
 (`composition/parallel_strictest`, `approval_seam`,
-`identity_provider`, â€¦) and list pass/fail/skip per part: that grouping
+`identity_provider`, …) and list pass/fail/skip per part: that grouping
 **is** the conformance report a claim attaches (see
 [`CLAIMS.md`](CLAIMS.md)). Skips must show their reason (a missing
 capability such as `int64_json` is honest surface, not a failure).
@@ -90,7 +90,15 @@ specification version the claim names and the results:
 in Go. It returns the parts in name order with their counts and
 totals. It refuses `agent-hooks/draft` with one line because the draft
 is not a released conformance claim. The SDK self-test runs only the
-0.1 suite for now; draft SDK support is deferred.
+0.1 suite for now; draft-suite SDK conformance runs are deferred.
+
+The five reference harnesses ship a declaration/1.0 document naming
+`agent-hooks/0.1`, without draft-only failure-posture fields. Field-based
+vectors run through that released declaration; declaration-based fixtures use
+their loaded emitter's specification for generated contexts. Shared builder
+and runner-defect fixtures also come from the 0.1 suite, not a second draft
+copy. SDK unit tests for draft-only runtime behavior and version boundaries
+remain separate from released conformance coverage.
 
 The `Harness` interface (native, per language) is documented in
 [`HARNESS.md`](HARNESS.md). Each SDK ships this runner under

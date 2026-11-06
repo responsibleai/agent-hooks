@@ -19,6 +19,7 @@ import {
   loadVectors,
   runVector,
   ReferenceHarness,
+  REFERENCE_DECLARATION,
 } from "../dist/ctk/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -49,6 +50,12 @@ const EXPECTED_SKIPS = new Set([...CAPABILITY_SKIPS, ...DRAFT_ONLY]);
 const skipped = new Set();
 const results = [];
 const vectors = loadVectors(vectorsDir);
+
+test("reference declaration uses the released specification", () => {
+  assert.equal(REFERENCE_DECLARATION.spec, SPEC_VERSION_0_1);
+  assert.equal(REFERENCE_DECLARATION.declaration, "agent-hooks-declaration/1.0");
+  assert.deepEqual(REFERENCE_DECLARATION.surface.declaration_versions, ["agent-hooks-declaration/1.0"]);
+});
 
 for (const v of vectors) {
   test(`ctk ${v.id} ${v.title}`, async () => {

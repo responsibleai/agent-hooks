@@ -16,6 +16,17 @@ namespace AgentHooks.Tests;
 
 public sealed class CtkReferenceTests
 {
+    [Fact]
+    public void ReferenceDeclarationUsesReleasedSpecification()
+    {
+        var document = ReferenceHarness.Document();
+        Assert.Equal(Spec.V01, (string?)document["spec"]);
+        Assert.Equal("agent-hooks-declaration/1.0", (string?)document["declaration"]);
+        var versions = (JsonArray)document["surface"]!["declaration_versions"]!;
+        Assert.Single(versions);
+        Assert.Equal("agent-hooks-declaration/1.0", (string?)versions[0]);
+    }
+
     private static string VectorsDir()
     {
         var here = Path.GetDirectoryName(typeof(CtkReferenceTests).Assembly.Location)!;

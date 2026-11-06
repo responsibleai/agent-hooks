@@ -1,6 +1,6 @@
 {
   "id": "AH-CTK-128",
-  "title": "Â§7.7.2: a document without a declaration version is refused as version_unsupported",
+  "title": "§7.7.2: a document without a declaration version is refused as version_unsupported",
   "spec_clause": "7.7.2, 7.7.6",
   "part": "declaration/refusal",
   "capabilities": [

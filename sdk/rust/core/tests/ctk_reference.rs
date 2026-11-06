@@ -20,7 +20,7 @@ const VECTORS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../conformance
 /// coerces beyond-u64 vector literals at load (no bigint_json), and the
 /// reference harness buffers caller-bound output, so it does not
 /// declare incremental_output and skips the streaming/incremental part
-/// (Â§12.1 exception). Exact ids, not a count: the parity gate must fail
+/// (§12.1 exception). Exact ids, not a count: the parity gate must fail
 /// when the skip set drifts in either direction.
 const CAPABILITY_SKIPS: &[&str] = &[
     "AH-CTK-091",
@@ -32,6 +32,19 @@ const CAPABILITY_SKIPS: &[&str] = &[
 
 fn draft_only(vector: &Value) -> bool {
     vector.get("introduced_in").and_then(Value::as_str) == Some("draft")
+}
+
+#[test]
+fn reference_declaration_uses_released_specification() {
+    let document: serde_json::Value =
+        serde_json::from_str(REFERENCE_DECLARATION).expect("reference declaration");
+    assert_eq!(CTK_SPEC, SpecVersion::V0_1);
+    assert_eq!(document["spec"], CTK_SPEC.wire());
+    assert_eq!(document["declaration"], "agent-hooks-declaration/1.0");
+    assert_eq!(
+        document["surface"]["declaration_versions"],
+        serde_json::json!(["agent-hooks-declaration/1.0"])
+    );
 }
 
 #[tokio::test]

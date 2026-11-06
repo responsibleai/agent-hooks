@@ -1,6 +1,6 @@
 {
   "id": "AH-CTK-130",
-  "title": "Â§7.7.6: an unknown top-level member is refused as unknown_field, never ignored",
+  "title": "§7.7.6: an unknown top-level member is refused as unknown_field, never ignored",
   "spec_clause": "7.7.6, 7.7.2",
   "part": "declaration/refusal",
   "capabilities": [

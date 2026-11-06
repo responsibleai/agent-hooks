@@ -24,15 +24,13 @@ from agent_hooks.ctk.reference import ReferenceHarness
 
 _CONFORMANCE = pathlib.Path(__file__).resolve().parents[3] / "conformance"
 _VECTORS = _CONFORMANCE / "0.1" / "vectors"
-# Runner-defect tests need a successful declaration fixture; 0.1 has none.
-_DRAFT_VECTORS = _CONFORMANCE / "draft" / "vectors"
 
 # Pinned capability skips: Python ints are arbitrary precision, so the
 # reference harness declares every value-domain capability and no
-# value-domain vector may skip. The streaming/incremental part (Â§12.1
+# value-domain vector may skip. The streaming/incremental part (§12.1
 # exception) skips because the reference harness buffers caller-bound
 # output and does not declare incremental_output. The declaration/*
-# parts (Â§7.7.9) run: the harness declares host_declaration and builds
+# parts (§7.7.9) run: the harness declares host_declaration and builds
 # every emitter through the loader. Any other skip means a capability
 # regressed or a vector was quietly excluded; both must fail the suite.
 CAPABILITY_SKIPS: frozenset[str] = frozenset(
@@ -41,6 +39,18 @@ CAPABILITY_SKIPS: frozenset[str] = frozenset(
 # The draft-only vectors, skipped under 0.1 with DRAFT_ONLY_SKIP.
 DRAFT_ONLY: frozenset[str] = frozenset(f"AH-CTK-{n}" for n in range(144, 161))
 EXPECTED_SKIPS: frozenset[str] = CAPABILITY_SKIPS | DRAFT_ONLY
+
+
+def test_reference_declaration_uses_released_specification() -> None:
+    assert REFERENCE_DECLARATION["spec"] == SPEC_VERSION_0_1
+    assert REFERENCE_DECLARATION["declaration"] == "agent-hooks-declaration/1.0"
+    assert REFERENCE_DECLARATION["surface"]["declaration_versions"] == [
+        "agent-hooks-declaration/1.0"
+    ]
+
+
+def test_packaged_vectors_match_released_suite() -> None:
+    assert load_vectors() == load_vectors(_VECTORS)
 
 
 @pytest.mark.parametrize(
@@ -52,7 +62,7 @@ def test_reference_harness_conformance(vector: dict) -> None:
     result = asyncio.run(run_vector(ReferenceHarness(SPEC_VERSION_0_1), vector))
     if result.status == "skip":
         assert result.id in EXPECTED_SKIPS, (
-            f"unexpected skip: {result.id} ({result.detail}) â€” update "
+            f"unexpected skip: {result.id} ({result.detail}) — update "
             "CAPABILITY_SKIPS only with a capability rationale"
         )
         if result.id in DRAFT_ONLY:
@@ -160,7 +170,7 @@ def test_structural_harness_without_setup_declared_fails_the_vector() -> None:
         def teardown(self) -> None:
             pass
 
-    vector = next(v for v in load_vectors(_DRAFT_VECTORS) if v["id"] == "AH-CTK-120")
+    vector = next(v for v in load_vectors(_VECTORS) if v["id"] == "AH-CTK-120")
     result = asyncio.run(run_vector(Structural(), vector))  # type: ignore[arg-type]
     assert result.status == "fail"
     assert any("does not implement setup_declared" in f for f in result.failures)
@@ -199,7 +209,7 @@ def test_harness_with_an_invalid_surface_fails_the_vector() -> None:
         def teardown(self) -> None:
             pass
 
-    vector = next(v for v in load_vectors(_DRAFT_VECTORS) if v["id"] == "AH-CTK-120")
+    vector = next(v for v in load_vectors(_VECTORS) if v["id"] == "AH-CTK-120")
     result = asyncio.run(run_vector(BadSurface(), vector))  # type: ignore[arg-type]
     assert result.status == "fail"
     assert any("harness defect: host surface rejected" in f for f in result.failures)
@@ -217,7 +227,7 @@ def test_prove_paths_keeps_a_null_binding_config() -> None:
     )
     doc = {
         "declaration": "agent-hooks-declaration/1.0",
-        "spec": SPEC_VERSION_DRAFT,
+        "spec": SPEC_VERSION_0_1,
         "bindings": [{"id": "a", "kind": "com.example.x", "config": None}],
     }
     assert prove_paths(doc, reg, "test") == (True, "")

@@ -1,6 +1,6 @@
 {
   "id": "AH-CTK-144",
-  "title": "Â§6.3.1: on_error deny (explicit) and a hanging interceptor: deny host_error:interceptor_timeout in the failing slot, tool not invoked",
+  "title": "§6.3.1: on_error deny (explicit) and a hanging interceptor: deny host_error:interceptor_timeout in the failing slot, tool not invoked",
   "spec_clause": "6.3, 6.3.1, 7.7.5, 10.3",
   "introduced_in": "draft",
   "part": "failure_posture/deny",

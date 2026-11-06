@@ -28,7 +28,7 @@ README = "| [0.1](0.1/) | row |\n| [draft](draft/) | row |\n"
 
 
 def header(status: str, version: str) -> str:
-    return f"# spec\n\n> **Status:** {status} Â· **Version:** `{version}` Â· **Date:** 2026-10-22\n"
+    return f"# spec\n\n> **Status:** {status} · **Version:** `{version}` · **Date:** 2026-10-22\n"
 
 
 ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"

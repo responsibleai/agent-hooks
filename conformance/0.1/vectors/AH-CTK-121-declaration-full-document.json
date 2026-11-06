@@ -1,0 +1,209 @@
+{
+  "id": "AH-CTK-121",
+  "title": "§7.7: a full declaration (parallel/unanimous, two bindings, resolver by reference, explicit surface) loads and its resolved composition is what the record stamps",
+  "spec_clause": "7.7.3, 7.7.4, 7.7.8, 7.5",
+  "part": "declaration/load",
+  "capabilities": [
+    "host_declaration",
+    "model_calls",
+    "tool_calls"
+  ],
+  "host_declaration": {
+    "declaration": "agent-hooks-declaration/1.0",
+    "spec": "agent-hooks/0.1",
+    "id": "ctk-full",
+    "host": {
+      "name": "ctk",
+      "version": "1"
+    },
+    "extensions": {
+      "ctk": {
+        "vector": "AH-CTK-121"
+      }
+    },
+    "configuration": {
+      "mode": "enforce",
+      "composition": {
+        "profile": "parallel/unanimous",
+        "on_disagreement": "approval"
+      },
+      "identity_provider": "jcs-sha256",
+      "approval": {
+        "resolver": "ctk-scripted",
+        "redactor": null
+      },
+      "posture": {
+        "tool_seam_host_error": "continue"
+      },
+      "timeouts": {
+        "interceptor_ms": 5000,
+        "approval_resolver_ms": 30000
+      },
+      "records": {
+        "max_buffered": 10000
+      }
+    },
+    "surface": {
+      "interception_points": [
+        "agent_startup",
+        "input",
+        "pre_model_call",
+        "post_model_call",
+        "pre_tool_call",
+        "post_tool_call",
+        "output",
+        "agent_shutdown"
+      ],
+      "capabilities": [
+        "host_declaration",
+        "model_calls",
+        "tool_calls"
+      ],
+      "profiles": {
+        "parallel/unanimous": {
+          "on_disagreement": [
+            "approval",
+            "deny"
+          ]
+        }
+      },
+      "buffered_output": true,
+      "declaration_versions": [
+        "agent-hooks-declaration/1.0"
+      ]
+    },
+    "bindings": [
+      {
+        "id": "a",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        }
+      },
+      {
+        "id": "b",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 1
+        }
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "ok"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow",
+          "result_labels": [
+            "ctk:seen-a"
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "deny",
+          "reason": "ctk:requires_approval",
+          "approval": {}
+        }
+      }
+    ]
+  ],
+  "approval_script": [
+    {
+      "resolve": {
+        "outcome": "approve",
+        "verdict": {
+          "decision": "allow"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "load": {
+      "outcome": "accepted"
+    },
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      },
+      {
+        "interception_point": "post_tool_call"
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "declaration": "agent-hooks-declaration/1.0",
+          "composition.profile": "parallel/unanimous",
+          "composition.on_disagreement": "approval",
+          "interceptors_registered": 2,
+          "verdicts[0].name": "a",
+          "verdicts[1].name": "b",
+          "verdicts[1].decision": "deny",
+          "resolved_by": "approval",
+          "verdict.decision": "allow"
+        },
+        "absent": [
+          "composition.on_approval",
+          "composition.on_transform_conflict"
+        ]
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://x"
+        }
+      }
+    ],
+    "run_outcome": "completed",
+    "final_output": "done"
+  }
+}

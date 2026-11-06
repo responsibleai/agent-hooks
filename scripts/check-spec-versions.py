@@ -48,8 +48,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 HEADER = re.compile(
-    r"^> \*\*Status:\*\* (?P<status>[A-Za-z]+) Â· \*\*Version:\*\* `(?P<version>[^`]+)`"
-    r" Â· \*\*Date:\*\* (?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\s*$",
+    r"^> \*\*Status:\*\* (?P<status>[A-Za-z]+) · \*\*Version:\*\* `(?P<version>[^`]+)`"
+    r" · \*\*Date:\*\* (?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\s*$",
     re.M,
 )
 ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"
@@ -145,7 +145,7 @@ def check_text(root: Path, folder: Path) -> list[str]:
     match = HEADER.search(text)
     if not match:
         return [
-            f"{rel}/{expected} has no '> **Status:** ... Â· **Version:** `...` Â· **Date:** ...' line"
+            f"{rel}/{expected} has no '> **Status:** ... · **Version:** `...` · **Date:** ...' line"
         ]
     status, version = match.group("status"), match.group("version")
     if folder.name == "draft":

@@ -49,7 +49,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    on purpose (`grep -rn 'spec/<previous>/' --exclude-dir=spec .`).
    Machine consumers read `spec/draft/` and do not move.
 5. In `CHANGELOG.md`, rename the "Unreleased specification" section to
-   "Specification X.Y â€” YYYY-MM-DD" and start a new empty one. In each
+   "Specification X.Y — YYYY-MM-DD" and start a new empty one. In each
    proposal whose text is in the cut, change `(in draft)` to
    `(released in X.Y)` on its Status line.
 6. The site needs no edit: the `pages` workflow publishes every version

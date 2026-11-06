@@ -1,6 +1,6 @@
 {
   "id": "AH-CTK-104",
-  "title": "an interceptor that mutates its received context cannot affect enforcement, identity, or sibling interceptors (Â§7, TM-05)",
+  "title": "an interceptor that mutates its received context cannot affect enforcement, identity, or sibling interceptors (§7, TM-05)",
   "spec_clause": "7",
   "part": "enforcement/isolation",
   "capabilities": [

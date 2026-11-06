@@ -65,11 +65,9 @@ public static class Runner
 
     /// <summary>Group <paramref name="results"/> by <c>part</c> into the
     /// report a claim attaches, under <paramref name="spec"/>, the released
-    /// version the claim names (a wire string). The vectors under
-    /// <c>conformance/</c> are the working test set for the next version,
-    /// carried under <c>agent-hooks/draft</c> because they exercise
-    /// behaviour no released version has; running them is fine, but a
-    /// report that names the draft throws an <see cref="ArgumentException"/>
+    /// version the claim names (a wire string). SDK self-tests use
+    /// <c>conformance/0.1/vectors/</c>. The separate draft suite is not a
+    /// released claim; a report naming it throws an <see cref="ArgumentException"/>
     /// with <see cref="DraftNotClaimable"/>, since no claim names it.</summary>
     public static ConformanceReport Report(string spec, IEnumerable<VectorResult> results)
     {

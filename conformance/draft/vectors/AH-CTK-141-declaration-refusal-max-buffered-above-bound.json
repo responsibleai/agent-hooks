@@ -1,6 +1,6 @@
 {
   "id": "AH-CTK-141",
-  "title": "Â§7.7.3: records.max_buffered above 2^53 - 1 is refused as invalid_field at /configuration/records/max_buffered",
+  "title": "§7.7.3: records.max_buffered above 2^53 - 1 is refused as invalid_field at /configuration/records/max_buffered",
   "spec_clause": "7.7.3, 7.7.6, 4.4",
   "part": "declaration/refusal",
   "capabilities": [

@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-# Supply chain: least privilege â€” jobs only read the repo.
+# Supply chain: least privilege — jobs only read the repo.
 permissions:
   contents: read
 
@@ -290,7 +290,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
 
   # Cross-platform build+test of the core and one FFI consumer
-  # Advisory: not in the required-check set yet â€” required
+  # Advisory: not in the required-check set yet — required
   # names must be stable and always-reporting (see CONTRIBUTING.md).
   rust-xplat:
     strategy:
@@ -460,7 +460,7 @@ jobs:
           done
 
   # Workflow files were ungated until a duplicate mapping key invalidated
-  # release.yml for every event (PR #25) â€” actionlint gates them now, and
+  # release.yml for every event (PR #25) — actionlint gates them now, and
   # the version surfaces are checked for agreement (VERSIONING.md).
   # Advisory: not in the required-check set yet (names must prove stable).
   lint:

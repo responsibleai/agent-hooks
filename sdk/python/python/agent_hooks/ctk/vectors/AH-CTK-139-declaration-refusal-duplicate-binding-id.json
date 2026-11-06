@@ -1,24 +1,28 @@
 {
-  "id": "AH-CTK-157",
-  "title": "§7.7.5: an on_error value outside {deny, continue} is refused as invalid_field",
-  "spec_clause": "6.3.1, 7.7.5, 7.7.6",
-  "introduced_in": "draft",
+  "id": "AH-CTK-139",
+  "title": "§7.7.5: two bindings with one id are refused as inconsistent",
+  "spec_clause": "7.7.5, 7.7.6",
   "part": "declaration/refusal",
   "capabilities": [
     "host_declaration"
   ],
-  "host_declaration_invalid": true,
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.1",
-    "spec": "agent-hooks/draft",
+    "declaration": "agent-hooks-declaration/1.0",
+    "spec": "agent-hooks/0.1",
     "bindings": [
       {
-        "id": "allow",
+        "id": "a",
         "kind": "ctk.scripted",
         "config": {
           "script": 0
-        },
-        "on_error": "ignore"
+        }
+      },
+      {
+        "id": "a",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        }
       }
     ]
   },
@@ -50,7 +54,7 @@
   "expect": {
     "load": {
       "outcome": "refused",
-      "class": "declaration_error:invalid_field"
+      "class": "declaration_error:inconsistent"
     }
   }
 }

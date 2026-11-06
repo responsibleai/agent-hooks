@@ -1,6 +1,6 @@
 {
   "id": "AH-CTK-132",
-  "title": "Â§7.7.6: a value outside a closed set is refused as invalid_field",
+  "title": "§7.7.6: a value outside a closed set is refused as invalid_field",
   "spec_clause": "7.7.6, 8",
   "part": "declaration/refusal",
   "capabilities": [
