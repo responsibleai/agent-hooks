@@ -4,7 +4,13 @@ import json
 from pathlib import Path
 
 import pytest
-from agent_hooks import AgentHooksCoreError, Decision, InterceptorResponse, canonical_json
+from agent_hooks import (
+    SPEC_VERSION_0_1,
+    AgentHooksCoreError,
+    Decision,
+    InterceptorResponse,
+    canonical_json,
+)
 
 FIXTURE = json.loads(
     (Path(__file__).parents[3] / "conformance" / "golden" / "interceptor-response.json").read_text()
@@ -13,7 +19,7 @@ FIXTURE = json.loads(
 
 @pytest.mark.parametrize("case", FIXTURE["valid"], ids=lambda case: case["name"])
 def test_shared_valid_responses(case: dict[str, str]) -> None:
-    response = InterceptorResponse.parse(case["input"])
+    response = InterceptorResponse.parse(case["input"], SPEC_VERSION_0_1)
     assert response.verdict.decision in Decision
     assert json.loads(
         json.dumps(
@@ -24,13 +30,13 @@ def test_shared_valid_responses(case: dict[str, str]) -> None:
             separators=(",", ":"),
         )
     ) == json.loads(case["normalized"])
-    assert InterceptorResponse.parse(response.to_wire()) == response
+    assert InterceptorResponse.parse(response.to_wire(), SPEC_VERSION_0_1) == response
 
 
 @pytest.mark.parametrize("case", FIXTURE["invalid"], ids=lambda case: case["name"])
 def test_shared_invalid_responses(case: dict[str, str]) -> None:
     with pytest.raises(AgentHooksCoreError) as error:
-        InterceptorResponse.parse(case["input"])
+        InterceptorResponse.parse(case["input"], SPEC_VERSION_0_1)
     assert error.value.code == FIXTURE["invalid_error"]
 
 
@@ -43,16 +49,16 @@ def test_metadata_boundaries(case: dict) -> None:
     size = len(canonical_json(extensions).encode())
     assert size == case["bytes"]
     if case["valid"]:
-        InterceptorResponse.parse(value)
+        InterceptorResponse.parse(value, SPEC_VERSION_0_1)
     else:
         with pytest.raises(AgentHooksCoreError) as error:
-            InterceptorResponse.parse(value)
+            InterceptorResponse.parse(value, SPEC_VERSION_0_1)
         assert error.value.code == FIXTURE["invalid_error"]
 
 
 def test_serialization_prefers_bare_verdict_without_metadata() -> None:
-    response = InterceptorResponse.parse({"decision": "allow"})
+    response = InterceptorResponse.parse({"decision": "allow"}, SPEC_VERSION_0_1)
     assert response.to_wire() == {"decision": "allow"}
     assert InterceptorResponse.parse(
-        {"verdict": {"decision": "allow"}, "extensions": {}}
+        {"verdict": {"decision": "allow"}, "extensions": {}}, SPEC_VERSION_0_1
     ).to_wire() == {"decision": "allow"}

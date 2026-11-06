@@ -33,7 +33,7 @@ dev = ["agent-hooks-sdk[ctk]", "mypy>=2.2.0", "ruff>=0.15.21", "maturin>=1.14.1,
 
 [project.urls]
 Homepage = "https://github.com/responsibleai/agent-hooks"
-Specification = "https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md"
+Specification = "https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md"
 
 [project.entry-points.pytest11]
 agent_hooks_ctk = "agent_hooks.ctk.plugin"
@@ -65,3 +65,9 @@ notice-rgx = "^# Copyright \\(c\\) Microsoft\\. All rights reserved\\."
 [tool.mypy]
 strict = true
 warn_unreachable = true
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+markers = [
+  "draft: runs under agent-hooks/draft or reads draft-only specification files; the advisory draft-tests job runs these and the required jobs skip them (-m 'not draft')",
+]

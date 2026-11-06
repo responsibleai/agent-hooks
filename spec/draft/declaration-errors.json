@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://responsibleai.github.io/agent-hooks/schema/v0.1/declaration-errors.json",
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/declaration-errors.json",
   "title": "Agent Hooks — host declaration refusal classes",
   "description": "The closed set of declaration_error:* classes a loader reports when it refuses a host declaration document (AGENT-HOOKS-0.1 §7.7.6). A refusal is a construction error, never a verdict: no emitter exists yet, so there is no record or §11 reason to carry it. Classes are listed in pipeline order; a loader reports exactly one class per document, the first step that fails.",
   "classes": [
@@ -22,7 +22,7 @@
     {
       "id": "declaration_error:spec_unsupported",
       "step": 4,
-      "cause": "spec is present with another wire major, a minor above the loader's, or a malformed value."
+      "cause": "spec is missing, names no specification version the loader supports, or is a malformed value."
     },
     {
       "id": "declaration_error:unknown_field",

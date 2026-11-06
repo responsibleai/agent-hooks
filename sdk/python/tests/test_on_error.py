@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 from agent_hooks import (
     DECLARATION_VERSION,
+    SPEC_VERSION_DRAFT,
     SUPPORTED_DECLARATION_VERSIONS,
     ApprovalOutcome,
     ApprovalRequest,
@@ -50,7 +51,7 @@ V1_0 = "agent-hooks-declaration/1.0"
 
 
 def _ctx() -> AgentContext:
-    b = AgentContextBuilder(agent_id="a", framework="test", session_id="s")
+    b = AgentContextBuilder(spec=SPEC_VERSION_DRAFT, agent_id="a", framework="test", session_id="s")
     return b.pre_tool_call(call_id="tc", name="http_get", args={"url": "evil"})
 
 
@@ -96,7 +97,9 @@ class Escalates:
 
 def _with_notifier(**kw: Any) -> tuple[InterceptionEmitter, list[ControlFailureNotice]]:
     notices: list[ControlFailureNotice] = []
-    em = InterceptionEmitter(**kw).set_control_failure_notifier(notices.append)
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT, **kw).set_control_failure_notifier(
+        notices.append
+    )
     return em, notices
 
 
@@ -219,7 +222,7 @@ def test_deny_is_the_default_and_unchanged(interceptor: Any, reason: str, timeou
 
 
 def test_continue_without_a_notifier_is_refused_at_registration() -> None:
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     with pytest.raises(RegistrationError, match="control failure notifier") as info:
         em.register(Allow(), "x", on_error=OnError.CONTINUE)
     assert "x:" in info.value.detail
@@ -246,7 +249,7 @@ def test_notifier_failure_withdraws_the_continuation() -> None:
     def boom(_n: ControlFailureNotice) -> None:
         raise RuntimeError("channel down")
 
-    em = InterceptionEmitter().set_control_failure_notifier(boom)
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT).set_control_failure_notifier(boom)
     em.register(Raises(), "defender", on_error=OnError.CONTINUE)
     r = _emit(em)
     assert not r.proceeds
@@ -436,7 +439,7 @@ def test_an_interceptor_cannot_emit_the_reserved_warning() -> None:
         def intercept(self, _c: AgentContext) -> dict[str, Any]:
             return {"decision": "allow", "warnings": [{"reason": "host_warning:control_failed"}]}
 
-    em = InterceptionEmitter().register(Spoofer(), "spoofer")
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT).register(Spoofer(), "spoofer")
     r = _emit(em)
     assert not r.proceeds
     assert r.verdict.reason == "host_error:verdict_invalid"
@@ -532,11 +535,11 @@ def test_managed_raise_and_wrong_return_are_failures_not_crashes() -> None:
         def intercept_managed(self, _c: AgentContext, _b: float | None) -> Any:
             return {"decision": "allow"}
 
-    em = InterceptionEmitter().register_managed(Panics(), "p")
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT).register_managed(Panics(), "p")
     r = _emit(em)
     assert r.verdict.reason == "host_error:interceptor_failed"
     assert r.verdict.message == "RuntimeError"
-    em = InterceptionEmitter().register_managed(Wrong(), "w")
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT).register_managed(Wrong(), "w")
     r = _emit(em)
     assert r.verdict.reason == "host_error:verdict_invalid"
     assert r.verdict.message is not None and "ManagedInterceptorOutcome" in r.verdict.message
@@ -608,6 +611,7 @@ def test_document_default_inherited_and_overridden() -> None:
     notices: list[ControlFailureNotice] = []
     doc = {
         "declaration": DECLARATION_VERSION,
+        "spec": SPEC_VERSION_DRAFT,
         "configuration": {"failure": {"on_error": "continue"}},
         "bindings": [
             {"id": "inherits", "kind": "com.example.raises"},
@@ -633,6 +637,7 @@ def test_document_default_inherited_and_overridden() -> None:
     # Absent document default: deny, and a binding may still opt in.
     doc = {
         "declaration": DECLARATION_VERSION,
+        "spec": SPEC_VERSION_DRAFT,
         "bindings": [{"id": "flaky", "kind": "com.example.raises", "on_error": "continue"}],
     }
     em = _load(doc, _registry([]))
@@ -655,6 +660,7 @@ def test_binding_context_carries_the_resolved_on_error() -> None:
     _load(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "configuration": {"failure": {"on_error": "continue"}},
             "bindings": [
                 {"id": "a", "kind": "com.example.capture"},
@@ -670,6 +676,7 @@ def test_binding_context_carries_the_resolved_on_error() -> None:
 def test_a_1_0_document_loads_unchanged() -> None:
     doc = {
         "declaration": V1_0,
+        "spec": SPEC_VERSION_DRAFT,
         "configuration": {"composition": {"profile": "sequential/run_all"}},
         "bindings": [
             {"id": "flaky", "kind": "com.example.raises"},
@@ -700,6 +707,7 @@ def test_a_1_0_loader_refuses_a_1_1_document() -> None:
     ).kind("com.example.allow", lambda _c, _x: Allow())
     doc_1_1 = {
         "declaration": DECLARATION_VERSION,
+        "spec": SPEC_VERSION_DRAFT,
         "bindings": [{"id": "a", "kind": "com.example.allow"}],
     }
     e = _refusal(doc_1_1, reg)
@@ -721,6 +729,7 @@ def test_a_1_0_loader_refuses_a_1_1_document() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [{"id": "a", "kind": "com.example.allow", "on_error": "ignore"}],
             },
             DeclarationErrorClass.INVALID_FIELD,
@@ -729,6 +738,7 @@ def test_a_1_0_loader_refuses_a_1_1_document() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "configuration": {"failure": {"on_error": "allow"}},
                 "bindings": [],
             },
@@ -738,6 +748,7 @@ def test_a_1_0_loader_refuses_a_1_1_document() -> None:
         (
             {
                 "declaration": V1_0,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [{"id": "a", "kind": "com.example.allow", "on_error": "continue"}],
             },
             DeclarationErrorClass.UNKNOWN_FIELD,
@@ -746,6 +757,7 @@ def test_a_1_0_loader_refuses_a_1_1_document() -> None:
         (
             {
                 "declaration": V1_0,
+                "spec": SPEC_VERSION_DRAFT,
                 "configuration": {"failure": {"on_error": "deny"}},
                 "bindings": [],
             },
@@ -755,6 +767,7 @@ def test_a_1_0_loader_refuses_a_1_1_document() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "configuration": {"failure": {"on_timeout": "continue"}},
                 "bindings": [],
             },
@@ -775,6 +788,7 @@ def test_on_error_refusals(
 def test_continue_in_a_document_needs_a_notifier_on_the_registry() -> None:
     doc = {
         "declaration": DECLARATION_VERSION,
+        "spec": SPEC_VERSION_DRAFT,
         "bindings": [{"id": "flaky", "kind": "com.example.raises", "on_error": "continue"}],
     }
     e = _refusal(doc, _registry())
@@ -784,6 +798,7 @@ def test_continue_in_a_document_needs_a_notifier_on_the_registry() -> None:
     # Inherited from the document default: the pointer names it.
     doc = {
         "declaration": DECLARATION_VERSION,
+        "spec": SPEC_VERSION_DRAFT,
         "configuration": {"failure": {"on_error": "continue"}},
         "bindings": [{"id": "flaky", "kind": "com.example.raises"}],
     }
@@ -800,7 +815,7 @@ def test_continue_in_a_document_needs_a_notifier_on_the_registry() -> None:
 
 def test_builder_writes_the_1_1_members() -> None:
     b = (
-        DeclarationBuilder()
+        DeclarationBuilder(SPEC_VERSION_DRAFT)
         .failure_on_error(OnError.CONTINUE)
         .bind("a", "com.example.raises")
         .bind("b", "com.example.raises", on_error=OnError.DENY)
@@ -827,7 +842,9 @@ def test_builder_writes_the_1_1_members() -> None:
         == reg.resolve(HostDeclaration.from_value(doc)).canonical_json()
     )
     # A wrong value is refused like a file.
-    e = _refusal(DeclarationBuilder().failure_on_error("sometimes").to_value(), reg)
+    e = _refusal(
+        DeclarationBuilder(SPEC_VERSION_DRAFT).failure_on_error("sometimes").to_value(), reg
+    )
     assert e.error_class is DeclarationErrorClass.INVALID_FIELD
 
 
@@ -848,6 +865,7 @@ def test_managed_kind_through_a_declaration_receives_the_binding_bound() -> None
     em = _load(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "configuration": {"timeouts": {"interceptor_ms": 4000}},
             "bindings": [
                 {
@@ -873,6 +891,7 @@ def test_managed_kind_through_a_declaration_receives_the_binding_bound() -> None
     e = _refusal(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "bindings": [{"id": "scan", "kind": "com.example.scanner"}],
         },
         reg,
@@ -899,3 +918,24 @@ def test_approval_outcome_unchanged_by_on_error() -> None:
     assert r.resolved_by == "approval"
     assert r.verdicts[0].substituted_for is None
     assert notices == []
+
+
+def test_continue_needs_an_emitter_under_the_draft() -> None:
+    # 0.1 defines no failure posture: a continue registration is refused
+    # with the version that has one named; deny registrations work.
+    from agent_hooks import SPEC_VERSION_0_1
+
+    em = InterceptionEmitter(spec=SPEC_VERSION_0_1)
+    em.set_control_failure_notifier(lambda _n: None)
+    with pytest.raises(
+        RegistrationError, match=r"agent-hooks/0\.1 does not define.*agent-hooks/draft"
+    ):
+        em.register(Raises(), name="x", on_error=OnError.CONTINUE)
+    em.register(Allow(), name="y", on_error=OnError.DENY)
+    ctx = AgentContextBuilder(spec=SPEC_VERSION_0_1, agent_id="a", framework="t", session_id="s")
+    r = _emit(em, ctx.pre_tool_call(call_id="tc", name="t", args={}))
+    assert r.verdict.decision is Decision.ALLOW
+    assert r.interceptors_registered == 1
+    # Under the draft the same registration is accepted.
+    draft, _ = _with_notifier()
+    draft.register(Raises(), name="x", on_error=OnError.CONTINUE)

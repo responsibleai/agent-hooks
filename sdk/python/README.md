@@ -1,7 +1,7 @@
 # agent-hooks (Python SDK)
 
 Python implementation of
-[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md):
+[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md):
 interception-point enums, `AgentContext` builder, `Verdict` types, host-side
 `InterceptionEmitter` with the four composition profiles, the pluggable
 identity-provider seam, and the Conformance Test Kit.
@@ -10,7 +10,7 @@ identity-provider seam, and the Conformance Test Kit.
 > boundary: the host framework is fully trusted, interceptors run in-process
 > with full data access, and no complete-mediation claim is made. Read
 > [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
-> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
+> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
 > before relying on it.
 
 ```bash
@@ -21,10 +21,19 @@ pip install --pre "agent-hooks-sdk[ctk]"
 ## Host (framework adapter) usage
 
 ```python
-from agent_hooks import AgentContextBuilder, InterceptionBlocked, InterceptionEmitter
+from agent_hooks import (
+    SPEC_VERSION_0_1,
+    AgentContextBuilder,
+    InterceptionBlocked,
+    InterceptionEmitter,
+)
 
-builder = AgentContextBuilder(agent_id="my-agent", framework="my-fw", session_id="s-1")
-emitter = InterceptionEmitter().register(MyPolicy())
+# The host names the specification version it runs under, here 0.1;
+# SPEC_VERSION_DRAFT selects the draft. There is no default.
+builder = AgentContextBuilder(
+    spec=SPEC_VERSION_0_1, agent_id="my-agent", framework="my-fw", session_id="s-1"
+)
+emitter = InterceptionEmitter(spec=SPEC_VERSION_0_1).register(MyPolicy())
 
 await emitter.emit(builder.agent_startup(tools_registered=["http_get"]))
 ctx = builder.pre_tool_call(call_id="tc-1", name="http_get", args={"url": url})
@@ -81,7 +90,7 @@ emitter = InterceptionEmitter.from_declaration_path("agent-hooks.declaration.jso
 ```
 
 `from_declaration_json(text, registry)`, `from_declaration_value(obj, registry)`
-and `from_declaration(HostDeclaration.builder().mode("enforce").bind(...).build(),
+and `from_declaration(HostDeclaration.builder(SPEC_VERSION_0_1).mode("enforce").bind(...).build(),
 registry)` build the same emitter from JSON text, a parsed value or code; equal
 documents yield byte-identical records. A document that names anything the registry cannot
 honour is refused before any emission with `DeclarationError`, which carries
@@ -92,8 +101,12 @@ sink and `take_records` stay open. Every record stamps `declaration` with the
 contract version, and `emitter.declaration` holds the resolved document whose
 `canonical_json()` is the equivalence oracle.
 
-`DECLARATION_VERSION` and `SUPPORTED_DECLARATION_VERSIONS` name the contract
-versions this SDK writes and accepts; they sit next to `SPEC_VERSION`.
+`DECLARATION_VERSION` and `SUPPORTED_DECLARATION_VERSIONS` name the newest
+contract version and the set this SDK accepts; `current_declaration_version(spec)`
+names what a builder writes for a given specification version (1.0 under 0.1,
+1.1 under the draft). They sit next to `SUPPORTED_SPEC_VERSIONS` and the wire
+strings `SPEC_VERSION_0_1` and `SPEC_VERSION_DRAFT`, the specification versions
+this SDK supports; a document names its version in the required `spec` member.
 
 ## Interceptor usage
 
@@ -123,6 +136,8 @@ does not skips the `declaration/*` vectors with a stated reason. Then:
 
 ```bash
 pytest --agent-hooks-harness=my_pkg:MyHarness
+# or the built-in reference harness, under the version it should run
+pytest --agent-hooks-spec=agent-hooks/0.1
 ```
 
 The vectors ship inside the wheel; pass `--agent-hooks-vectors=<dir>` only to

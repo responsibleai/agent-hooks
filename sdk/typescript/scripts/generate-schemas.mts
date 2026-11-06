@@ -45,7 +45,15 @@ const SPEC = specArg >= 0 && specArg + 1 < process.argv.length ? process.argv[sp
 const SCHEMA_DIR = `spec/${SPEC}/schema`;
 const SRC = join(ROOT, "spec", SPEC, "schema", "src");
 const OUT = join(ROOT, "spec", SPEC, "schema", "generated");
-const ID_BASE = "https://responsibleai.github.io/agent-hooks/schema/v0.1/";
+// Published identity of the bundle's schemas. The draft publishes under
+// schema/draft/ (mutable); a released version X.Y publishes under
+// schema/vX.Y/ (immutable). --id-base <url> overrides both.
+const ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/";
+const idBaseArg = process.argv.indexOf("--id-base");
+const ID_BASE =
+  idBaseArg >= 0 && idBaseArg + 1 < process.argv.length
+    ? process.argv[idBaseArg + 1]
+    : ID_ORIGIN + (SPEC === "draft" ? "draft/" : `v${SPEC}/`);
 const DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
 
 const SETTINGS: TJS.PartialArgs = {
@@ -208,10 +216,24 @@ function perPointSchemas(master: Schema): Map<string, Schema> {
   return files;
 }
 
+/** Whether the bundle's source defines the type a root is generated from.
+ *  A released bundle may predate a type, such as declaration 1.1 before 0.2. */
+function defines(root: Root): boolean {
+  if (root.type === "*") return true;
+  const generator = TJS.buildGenerator(programFor(root.source), SETTINGS);
+  return generator !== null && generator.getUserSymbols().includes(root.type);
+}
+
 /** Every output file's text, keyed by its path under spec/<version>/schema/generated/. */
 function render(): Map<string, string> {
   const files = new Map<string, Schema>();
-  for (const root of ROOTS) files.set(root.file, generateRoot(root));
+  for (const root of ROOTS) {
+    if (!defines(root)) {
+      console.log(`${SCHEMA_DIR}/src/${root.source} does not define ${root.type}; ${root.file} is not generated for this bundle`);
+      continue;
+    }
+    files.set(root.file, generateRoot(root));
+  }
   for (const [file, schema] of perPointSchemas(files.get(MASTER)!)) files.set(file, schema);
   return new Map([...files].map(([file, schema]) => [file, JSON.stringify(schema, null, 2) + "\n"]));
 }

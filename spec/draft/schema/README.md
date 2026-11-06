@@ -1,9 +1,14 @@
 # Schema source and generated output
 
-This is the draft specification's schema folder. Edit `src/` here;
-`npm run generate:schema` and `npm run check:schema` target this folder by
-default. SDKs and the Python mirror are pinned to
-[`spec/0.1.0/schema/`](../../0.1.0/schema/) for now.
+This is the draft specification's schema folder, and this file is the
+one to follow for editing, generating and checking schemas. Edit `src/`
+here; `npm run generate:schema` and `npm run check:schema` target this
+folder by default. A bundle cut from the draft keeps the copy of this
+file that stood at its cut; that copy describes a frozen folder and is
+never edited. 0.1 predates the source layout and has no copy. SDK
+development and the Python mirror read this folder; an SDK release
+names the specification versions it supports in
+`SUPPORTED_SPEC_VERSIONS` (VERSIONING.md).
 
 The TypeScript files in `src/` are the editable schema source.
 `generated/` contains the committed, normative JSON Schemas consumed by
@@ -38,8 +43,8 @@ Refresh the Python mirror as in
 [`schema-drift.yml`](../../../.github/workflows/schema-drift.yml):
 
 ```bash
-cp spec/0.1.0/schema/generated/*.schema.json sdk/python/python/agent_hooks/schema/
-cp spec/0.1.0/schema/generated/strict-contexts/*.schema.json sdk/python/python/agent_hooks/schema/agent-context/
+cp spec/draft/schema/generated/*.schema.json sdk/python/python/agent_hooks/schema/
+cp spec/draft/schema/generated/strict-contexts/*.schema.json sdk/python/python/agent_hooks/schema/agent-context/
 ```
 
 Run these copy commands from the repository root after generation.
@@ -50,12 +55,14 @@ for source annotations and the broader SDK test matrix.
 
 ## Filesystem paths are not public schema identities
 
-This layout does not change validation semantics, `$id`, or public URLs.
-Published schemas remain under
-`https://responsibleai.github.io/agent-hooks/schema/v0.1/`, with per-point
-schemas at `agent-context/<interception_point>.schema.json`.
-The Pages workflow copies `generated/strict-contexts/` to that existing
-`agent-context/` URL path, and publishes only generated JSON, never `src/`
+This layout does not change validation semantics. The draft's schemas
+carry `$id` values under
+`https://responsibleai.github.io/agent-hooks/schema/draft/`, with per-point
+schemas at `agent-context/<interception_point>.schema.json`; that path is
+mutable and changes with the draft. A released version X.Y publishes under
+`schema/vX.Y/`, which never changes once published. The generator sets the
+base from the bundle it targets (`--spec`), and the Pages workflow publishes
+each file at the path its own `$id` names, generated JSON only, never `src/`
 or this README.
 
 References resolve relative to `$id`, not to the renamed checkout directory.

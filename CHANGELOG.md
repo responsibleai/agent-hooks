@@ -1,59 +1,79 @@
 # Changelog
 
-User-visible changes to the spec and SDKs. Versioning rules:
-[VERSIONING.md](VERSIONING.md).
+User-visible changes, in two kinds of section: a specification
+version ("Specification X.Y", one per `spec/<X.Y>/` folder) and an SDK
+release (one per root tag). Versioning rules: [VERSIONING.md](VERSIONING.md).
 
-## Unreleased
+## Unreleased SDK (next tag v0.1.0-beta.4)
 
+Spec: 0.1 and draft. The SDKs support both specification versions
+side by side: `SUPPORTED_SPEC_VERSIONS` is `["0.1", "draft"]` in every
+core (`Spec.SupportedVersions` in .NET, `SupportedSpecVersions` in Go),
+with the wire strings `SPEC_VERSION_0_1` (`agent-hooks/0.1`) and
+`SPEC_VERSION_DRAFT` (`agent-hooks/draft`; `Spec.V01` and `Spec.Draft`,
+`SpecVersion01` and `SpecVersionDraft`). The version a context or a
+document names selects the rules it is checked by: the envelope, the
+strict per-point check, the identity rules, the reserved reasons
+(`host_warning:*` under the draft only), the declaration errors and the
+declaration contracts a loader accepts (1.0 under 0.1; 1.0 and 1.1
+under the draft). An unknown version is refused as before.
+
+- Breaking SDK API change: the context builder requires the spec
+  version; hosts pass `agent-hooks/0.1` or `agent-hooks/draft`. The
+  emitter takes the same required first argument, or runs the version
+  its host declaration names (the document's `spec` member is now
+  required). There is no default. A context of another version than
+  the emitter's is refused as `host_error:context_invalid`;
+  `on_error: continue` is accepted only under the draft. Signatures:
+  Rust `AgentContextBuilder::new(spec, agent_id, framework, session_id)`
+  and `InterceptionEmitter::new(spec, mode, resolver)` with a
+  `SpecVersion`; TypeScript
+  `new AgentContextBuilder({ spec, agentId, framework, sessionId })` and
+  `new InterceptionEmitter(spec, mode?, resolver?, timeoutMs?)`; Python
+  `AgentContextBuilder(spec=..., agent_id=..., framework=..., session_id=...)`
+  and `InterceptionEmitter(spec=..., ...)`; .NET
+  `new AgentContextBuilder(spec, agentId, framework, sessionId)` and
+  `new InterceptionEmitter(spec, mode, resolver, timeout)`; Go
+  `NewAgentContextBuilder(spec, agentID, framework, sessionID)` and
+  `NewInterceptionEmitter(spec, mode, resolver)`. The declaration
+  builder takes the version too and fills the contract version from it
+  (1.0 under 0.1, 1.1 under the draft).
+- A host declaration document must name its spec version; documents
+  written for 0.1 without `spec` are refused and need one line added
+  (`"spec": "agent-hooks/0.1"`). The 0.1 text made the member
+  optional; the SDKs require it under both versions by decision, since
+  they now carry two versions (VERSIONING.md).
+- The gating tests run against 0.1. The released vectors (every vector
+  but `AH-CTK-144` to `AH-CTK-160`) carry `agent-hooks/0.1` and run
+  under 0.1 in every reference harness; the 17 draft-only vectors carry
+  `introduced_in: draft` and, with the SDK tests that read draft-only
+  spec files, run in the advisory `draft-tests` job. A harness names
+  the version it builds under (`spec`), the runner skips a draft-only
+  vector under a released version with `draft-only vector; see #188`,
+  and the reference harnesses take the version in their constructor
+  (the pytest plugin's reference run needs `--agent-hooks-spec`). The
+  golden fixtures and the reference declarations are 0.1 documents
+  again. Binding tests to a draft revision is #188.
+- Every CTK runner has the per-part conformance report as a function
+  (`conformance_report` in Rust and Python, `conformanceReport` in
+  TypeScript, `Runner.Report` in .NET, `Report` in Go). It takes the
+  specification version the claim names and refuses `agent-hooks/draft`
+  with one line: the vectors under `conformance/` are the working test
+  set for the next version, and no claim names the draft. The Python
+  and .NET vector results gain `part`.
+- `SPEC_VERSION` and the FFI's `ah_spec_version()` are gone; the FFI
+  gates take the version first (`ah_validate_verdict(spec, json)`,
+  `ah_normalize_interceptor_response`, `ah_compose_aggregate`,
+  `ah_managed_outcome`), and the wrappers' verdict, response and
+  aggregate functions take it as their last argument. The Rust core's
+  `declaration_versions()` JSON gains `spec_supported` and `by_spec`
+  (the contract versions each specification version accepts), which
+  the wrapper tests pin their constants to.
 - Windows x64 FFI/NuGet builds use a pinned nightly Rust compiler and rebuild
   the standard library with strong stack protection. CI and release builds
   require matching-PDB BinSkim BA2014 and CFG passes for the exact DLL.
   Other SDK toolchains and non-Windows builds are unchanged.
 
-## 0.1.0-beta.4 — 2026-10-22 — tag `v0.1.0-beta.4`
-
-- Spec §6.3.1 adds one failure posture knob, `on_error`, with the
-  values `deny` (the default) and `continue`. It covers the three
-  interceptor failures of §6.3 (raise or panic, timeout, invalid
-  verdict) and nothing else: context, cancellation, transform,
-  approval and `no_interceptor` failures and an explicit deny stay
-  fail closed with no knob. Under `continue` the host substitutes, in
-  the failing slot, an allow carrying the warning
-  `host_warning:control_failed` with the message
-  `<binding id>: <host_error reason>; host continued`; the warning
-  joins the §7.3 union, `target` is unchanged, and the host tells the
-  principal (the user in an interactive session, otherwise the agent)
-  that the control failed and the host continued. Host code does not
-  change the default; the posture is set in the declaration or at
-  registration and a host running under it states `on_error:
-  continue` in its §13.3 claim. §7 adds timeout ownership: an
-  interceptor that runs external work may own its deadline through
-  the new managed-interceptor outcome type (`verdict`, `timeout`,
-  `cancelled`, `failed`); it receives the resolved bound, cleans up
-  before it reports `timeout`, and a `cancelled` outcome is never a
-  timeout and never continues.
-- Host declaration contract `agent-hooks-declaration/1.1`
-  (`spec/schema/generated/host-declaration-1.1.schema.json`): the binding
-  envelope gains the OPTIONAL member `on_error` and `configuration`
-  gains `failure.on_error`, the document default bindings inherit.
-  1.0 stays accepted and loads unchanged; `on_error` under a 1.0
-  version string is refused as `declaration_error:unknown_field`. The
-  resolved form fills `on_error` on every binding and
-  `failure.on_error` for every document, 1.0 included. The migration
-  step is written in `spec/DECLARATION-VERSIONS.md`, with the next
-  tag `v0.1.0-beta.4` accepting {1.0, 1.1} and current 1.1. Sealing
-  covers the failure posture.
-- Interception record (§10.3, `spec/schema/generated/interception-record.schema.json`):
-  the per-verdict summary gains `substituted_for`, present iff the
-  slot is the substituted allow, carrying the `host_error:*` reason
-  the deny would have had; `verdicts` is required on any record where
-  a substitution happened. `decided_by` follows the pure-allow rule
-  for a substituted allow.
-- New closed file `spec/reserved-warnings.json` (§11.1), first entry
-  `host_warning:control_failed`. Interceptors MUST NOT emit
-  `host_warning:*` warning reasons; the §5 gate and
-  `spec/schema/generated/verdict.schema.json` reject them as
-  `host_error:verdict_invalid`.
 - .NET SDK: additive public API for the posture: `OnError`,
   `BindOptions.OnError`, `BindingContext.OnError` with the previous
   constructors and `Deconstruct` kept as forwarding overloads,
@@ -77,6 +97,101 @@ User-visible changes to the spec and SDKs. Versioning rules:
   `expect.host_messages_must_contain`, and `RunRecord.host_messages`;
   a vector document validates against the schema of the version it
   writes. Claims gain the `on_error: continue` disclosure. Additive.
+
+## Unreleased specification
+
+The draft, `spec/draft/AGENT-HOOKS-DRAFT.md`, holds these changes since
+0.1. They ship as specification 0.2 when it is cut. The draft is the
+version `draft`, wire string `agent-hooks/draft`; it changes without
+notice and is never claimed. The SDKs implement it beside 0.1, and a
+host reaches it by naming `agent-hooks/draft`.
+
+- The draft's wire string is `agent-hooks/draft` (§4.1): the context
+  schema pins `spec` to that constant, and every draft example, the
+  conformance vectors, the golden fixtures and the reference
+  declarations carry it. The host declaration's `spec` member is
+  REQUIRED (§7.7.2, §7.7.3): a document names the specification
+  version it is written for, and the loader reads it by that version's
+  rules and accepted contract set (1.0 under 0.1; 1.0 and 1.1 under the
+  draft); a missing or unknown value is `declaration_error:spec_unsupported`.
+- Spec §7.7.4 (draft) states that `incremental_output` requires both
+  model points and `model_calls`, not only `buffered_output: false`:
+  incremental mediation happens at `post_model_call` (§12.1). The §7.7.6
+  consistency step lists the rule. The Rust loader refuses a document
+  that names `incremental_output` without `model_calls` as
+  `declaration_error:inconsistent`, and a host surface that names it
+  without both model points as `declaration_error:surface_unsupported`.
+  The other SDKs load through the Rust core and inherit both findings.
+  Vector `AH-CTK-160` pins the refusal, and a Rust test loads every
+  draft host declaration example through the loader; it found two draft
+  examples whose stated profile set did not admit the default
+  `on_approval`, now fixed by stating the composition.
+- Spec §6.3.1 adds one failure posture knob, `on_error`, with the
+  values `deny` (the default) and `continue`. It covers the three
+  interceptor failures of §6.3 (raise or panic, timeout, invalid
+  verdict) and nothing else: context, cancellation, transform,
+  approval and `no_interceptor` failures and an explicit deny stay
+  fail closed with no knob. Under `continue` the host substitutes, in
+  the failing slot, an allow carrying the warning
+  `host_warning:control_failed` with the message
+  `<binding id>: <host_error reason>; host continued`; the warning
+  joins the §7.3 union, `target` is unchanged, and the host tells the
+  principal (the user in an interactive session, otherwise the agent)
+  that the control failed and the host continued. Host code does not
+  change the default; the posture is set in the declaration or at
+  registration and a host running under it states `on_error:
+  continue` in its §13.3 claim. §7 adds timeout ownership: an
+  interceptor that runs external work may own its deadline through
+  the new managed-interceptor outcome type (`verdict`, `timeout`,
+  `cancelled`, `failed`); it receives the resolved bound, cleans up
+  before it reports `timeout`, and a `cancelled` outcome is never a
+  timeout and never continues.
+- Host declaration contract `agent-hooks-declaration/1.1`
+  (`spec/draft/schema/generated/host-declaration-1.1.schema.json`): the binding
+  envelope gains the OPTIONAL member `on_error` and `configuration`
+  gains `failure.on_error`, the document default bindings inherit.
+  1.0 stays accepted and loads unchanged; `on_error` under a 1.0
+  version string is refused as `declaration_error:unknown_field`. The
+  resolved form fills `on_error` on every binding and
+  `failure.on_error` for every document, 1.0 included. The migration
+  step is written in `spec/draft/DECLARATION-VERSIONS.md`, with the next
+  tag `v0.1.0-beta.4` accepting {1.0, 1.1} and current 1.1. Sealing
+  covers the failure posture.
+- Interception record (§10.3, `spec/draft/schema/generated/interception-record.schema.json`):
+  the per-verdict summary gains `substituted_for`, present iff the
+  slot is the substituted allow, carrying the `host_error:*` reason
+  the deny would have had; `verdicts` is required on any record where
+  a substitution happened. `decided_by` follows the pure-allow rule
+  for a substituted allow.
+- New closed file `spec/draft/reserved-warnings.json` (§11.1), first entry
+  `host_warning:control_failed`. Interceptors MUST NOT emit
+  `host_warning:*` warning reasons; the §5 gate and
+  `spec/draft/schema/generated/verdict.schema.json` reject them as
+  `host_error:verdict_invalid`.
+- Schema source and generated output: the draft's JSON Schemas are
+  generated from TypeScript under `spec/draft/schema/src/` into
+  `spec/draft/schema/generated/`, with the per-point context schemas in
+  `strict-contexts/`, and carry `$id` values under `schema/draft/`.
+  0.1 keeps its schemas flat under `spec/0.1/schema/` with `$id` values
+  under `schema/v0.1/`.
+- Standalone JSON examples for every schema under
+  `spec/draft/schema/examples/<Type>/`, validated against the draft's
+  own schemas in CI.
+
+## Specification 0.1 — 2026-10-22
+
+- The first released specification: the text the SDKs shipped against
+  at the `v0.1.0-beta.3` tag, read into `spec/0.1/AGENT-HOOKS-0.1.md`
+  unchanged except for its header line, which says Released, version
+  `0.1`, 2026-10-22. Wire string `agent-hooks/0.1`; host declaration
+  contract `agent-hooks-declaration/1.0`. The bundle has the draft's
+  layout: `schema/src/` is the draft source with everything after 0.1
+  removed, `schema/generated/` is generated from it with `$id` values
+  under `schema/v0.1/` and is instance-equivalent to the tag's
+  hand-written schemas (0 disagreements over 316,605 instances), and
+  `schema/examples/` holds the 34 draft examples that validate against
+  it. The tag `spec/0.1` marks the commit that merged the folder. The
+  folder is frozen; later changes are in the draft.
 
 ## 0.1.0-beta.3 — 2026-10-22 — tag `v0.1.0-beta.3`
 

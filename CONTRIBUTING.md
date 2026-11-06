@@ -23,12 +23,32 @@
   the schema source under `spec/draft/schema/src/`, then regenerate the
   JSON under `spec/draft/schema/generated/` (see [Schema source](#schema-source));
   the `drift` check regenerates the draft schemas and the vendored copies
-  and fails on any difference. Released folders such as `spec/0.1.0/`
+  and fails on any difference. Released folders such as `spec/0.1/`
   are immutable; see [spec/README.md](spec/README.md).
-- **SDKs are pinned to `spec/0.1.0/` for now.** SDK code, tests,
-  vendored schemas, conformance-vector validation, and version checks
-  read `spec/0.1.0/`. How SDK development should track future
-  specification versions is still to be decided.
+- **The SDKs support 0.1 and the draft side by side.**
+  `SUPPORTED_SPEC_VERSIONS` is `["0.1", "draft"]` in every core; the
+  Rust tests, the `drift` mirror copy and
+  `scripts/check-version-consistency.py` read every supported bundle,
+  and CI steps that check schemas and vectors loop over every bundle. A
+  breaking draft change is implemented under the draft's rules
+  (`SpecVersion::Draft` in the Rust core) and leaves 0.1 alone; a host
+  reaches it by naming `agent-hooks/draft`. Prose links cite the
+  released text, `spec/0.1/`, and the draft for what 0.1 does not
+  define.
+- **The gating tests target the newest released version.** Each
+  reference suite runs the released set of vectors under 0.1 and skips
+  the 17 draft-only vectors (`introduced_in: draft`) with the reason
+  `draft-only vector; see #188`. Those vectors and the SDK tests that
+  read draft-only files (the draft's inventories, examples and schemas)
+  run in the advisory `draft-tests` job, never in a required one, so a
+  draft change cannot turn a required check red. Mark such a test the
+  way its suite filters: a `draft_only_` name prefix in Rust
+  (`cargo test -- --skip draft_only`), the `draft` pytest marker
+  (`-m "not draft"`), a file under `sdk/typescript/test/draft/`,
+  `[Trait("Category", "draft")]` in .NET (`--filter "Category!=draft"`),
+  a `TestDraftOnly` name prefix in Go (`-skip DraftOnly`). The local
+  commands below run both sets. Binding tests to a draft revision is
+  #188.
 - **All five SDKs.** A contract change is not done until Rust core,
   Python, TypeScript, .NET, and Go agree; the Rust core is the single
   source of truth and the wrappers delegate to it.
@@ -38,7 +58,10 @@
 Each specification folder's JSON Schemas under `spec/<version>/schema/generated/`
 are generated from the TypeScript in `spec/<version>/schema/src/`. Edit
 only `spec/draft/schema/src/`; the generator targets `draft` unless
-`--spec <version>` names another folder. The JSON stays the normative artifact: it is
+`--spec <version>` names another folder. The `lint` job runs the drift
+check for the draft and, with `--spec`, for every released bundle that
+has `schema/src/`, so a frozen source keeps generating its frozen
+output; 0.1 has no source and is named and skipped. The JSON stays the normative artifact: it is
 what validators, the conformance kit and the SDK mirrors consume. Do not
 edit it by hand; the `lint` and `drift` checks fail on any byte that
 differs from the generated text.
@@ -70,12 +93,13 @@ npm run check:schema         # type-check the source, then fail on any drift
 npm run check:schema:equivalence -- --old origin/main   # differential validation against another revision
 ```
 
-After a change, regenerate. The Python mirror stays pinned to the
-released schemas: refresh it the way the `drift` workflow does (copy
-`spec/0.1.0/schema/generated/*.schema.json` into
-`sdk/python/python/agent_hooks/schema/` and `generated/strict-contexts/*.schema.json`
-into its existing `agent-context/` subdirectory), and commit the
-source, the JSON and the mirror together. When a shape changes, also run
+After a change, regenerate. The Python mirror holds one folder per
+supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`
+and `schema/draft/`), each with that bundle's generated schemas and the
+per-point context schemas under `agent-context/`: refresh it the way the
+`drift` workflow does (the "Refresh the vendored copies" step in
+`.github/workflows/schema-drift.yml`), and commit the source, the JSON
+and the mirror together. When a shape changes, also run
 the `schema-lint` steps from `.github/workflows/ci.yml` (ajv compiles
 every schema and validates the vectors) and the equivalence script
 against `origin/main` to see which instances change verdict.

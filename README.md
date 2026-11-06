@@ -1,9 +1,12 @@
 # agent-hooks
 
-> Status: Beta. Spec: [AGENT-HOOKS-0.1](spec/0.1.0/AGENT-HOOKS-0.1.md), wire
-> version `agent-hooks/0.1`. Host declaration contract:
-> `agent-hooks-declaration/1.1` (1.0 still accepted)
-> ([version table](spec/0.1.0/DECLARATION-VERSIONS.md)).
+> Status: Beta. Spec: the SDKs support two specification versions,
+> [0.1](spec/0.1/AGENT-HOOKS-0.1.md), the released specification, wire
+> string `agent-hooks/0.1`, and the [draft](spec/draft/AGENT-HOOKS-DRAFT.md),
+> wire string `agent-hooks/draft`, which changes without notice and is
+> never claimed. A host names the version it emits; there is no default.
+> Host declaration contract: `agent-hooks-declaration/1.1` under the draft,
+> `1.0` under 0.1 ([version table](spec/draft/DECLARATION-VERSIONS.md)).
 
 Agent Hooks is the interception contract between an agent host and the
 controls that govern it. It fixes eight points in the agent loop, the
@@ -17,7 +20,7 @@ is trusted, interceptors run in-process with full data access, and the
 eight points do not promise complete mediation. It is a control plane,
 not a telemetry plane: every verdict binds the host, and passive
 observation is out of scope. See [SECURITY.md](SECURITY.md) and
-[spec §1.4](spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
+[spec §1.4](spec/0.1/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
 
 ## Points and verdicts
 
@@ -76,14 +79,20 @@ carries no declaration, is not sealed, and its records are unchanged.
 
 The host declaration (spec §7.7) is one JSON document that states the
 host's configuration, its declared surface and its interceptor
-bindings. It is a versioned contract of its own,
-`agent-hooks-declaration/1.1`, separate from the wire version and from
-package versions. Enterprise settings channels can carry it unchanged.
+bindings. It is a versioned contract of its own, separate from the wire
+version and from package versions: 0.1 defines
+`agent-hooks-declaration/1.0`, and the SDKs also accept the draft's 1.1,
+which adds the failure posture. The document names the specification
+version it is written for in `spec` (`agent-hooks/0.1` or
+`agent-hooks/draft`); the SDKs require that member under both
+versions, so a document written for 0.1 without it is refused and
+needs that one line added. Enterprise settings channels can carry it
+unchanged.
 
 ```json
 {
-  "$schema": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.1.schema.json",
-  "declaration": "agent-hooks-declaration/1.1",
+  "$schema": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.0.schema.json",
+  "declaration": "agent-hooks-declaration/1.0",
   "spec": "agent-hooks/0.1",
   "id": "prod-eu-strict",
   "host": { "name": "example-runtime", "version": "3.2.0" },
@@ -93,7 +102,6 @@ package versions. Enterprise settings channels can carry it unchanged.
     "identity_provider": "jcs-sha256",
     "approval": { "resolver": "operator-queue", "redactor": "strip-secrets" },
     "posture": { "tool_seam_host_error": "continue" },
-    "failure": { "on_error": "deny" },
     "timeouts": { "interceptor_ms": 5000, "approval_resolver_ms": 30000 },
     "records": { "max_buffered": 10000 }
   },
@@ -153,7 +161,7 @@ emitter = InterceptionEmitter.from_declaration_path("agent-hooks.declaration.jso
 A document that names a point, profile, capability, provider or kind
 the code cannot honour is refused at load, before any emission, with
 one of eleven `declaration_error:*` classes
-([`spec/0.1.0/declaration-errors.json`](spec/0.1.0/declaration-errors.json)).
+([`spec/0.1/declaration-errors.json`](spec/0.1/declaration-errors.json)).
 Nothing is narrowed or applied in part. A loader refuses a version it
 does not accept and names the versions it does. Once built, the emitter
 is sealed, and every record it writes carries the contract version.
@@ -202,7 +210,12 @@ surface. There are no tiers. The report lists what ran, per part. A
 host may present its surface as a host declaration document, and a
 claim may cite that file. Claims live in
 [`conformance/CLAIMS.md`](conformance/CLAIMS.md). A conformance claim
-is not a security certification.
+is not a security certification. The gating tests run the released
+vectors under 0.1, the newest released version; the 17 draft-only
+vectors, the working test set for the next version, and the tests that
+read draft-only files run in an advisory job. A claim names a released
+version, and every runner refuses a report that names the draft.
+Binding tests to a draft revision is #188.
 
 ## Install
 
@@ -221,22 +234,35 @@ version. See [RELEASING.md](RELEASING.md).
 
 The spec is versioned `MAJOR.MINOR`, the declaration contract
 `MAJOR.MINOR`, and the packages by semver, each on its own axis. Every
-SDK exports the spec version, the current declaration version and the
-accepted set: `SPEC_VERSION`, `DECLARATION_VERSION` and
-`SUPPORTED_DECLARATION_VERSIONS` in Rust, Python and TypeScript;
-`SpecVersion`, `DeclarationVersion` and `SupportedDeclarationVersions`
-in Go; `Spec.Version`, `Declaration.Version` and
-`Declaration.SupportedVersions` in .NET. See
-[VERSIONING.md](VERSIONING.md) and
-[spec/0.1.0/DECLARATION-VERSIONS.md](spec/0.1.0/DECLARATION-VERSIONS.md).
+SDK supports two specification versions, 0.1 and the draft, and exports
+their wire strings and the supported set: `SPEC_VERSION_0_1`,
+`SPEC_VERSION_DRAFT` and `SUPPORTED_SPEC_VERSIONS` (`["0.1", "draft"]`)
+in Rust, Python and TypeScript; `SpecVersion01`, `SpecVersionDraft` and
+`SupportedSpecVersions` in Go; `Spec.V01`, `Spec.Draft` and
+`Spec.SupportedVersions` in .NET; beside the current declaration version
+and the accepted set (`DECLARATION_VERSION` and
+`SUPPORTED_DECLARATION_VERSIONS`, `DeclarationVersion` and
+`SupportedDeclarationVersions`, `Declaration.Version` and
+`Declaration.SupportedVersions`). A host names the version when it
+builds its emitter and its context builder, or in its host
+declaration's `spec` member; there is no default, and an emitter
+refuses a context of another version. The version named selects the
+rules: `host_warning:*` is reserved, declaration 1.1 is accepted and
+`on_error: continue` exists under the draft only. The draft is never
+claimed. See [VERSIONING.md](VERSIONING.md) and
+[spec/draft/DECLARATION-VERSIONS.md](spec/draft/DECLARATION-VERSIONS.md).
 
 ## Read next
 
-- [`spec/README.md`](spec/README.md): released specification versions
-  and the draft. The latest release is
-  [`spec/0.1.0/AGENT-HOOKS-0.1.md`](spec/0.1.0/AGENT-HOOKS-0.1.md);
-  [`spec/0.1.0/schema/`](spec/0.1.0/schema/) separates editable source from
-  the normative JSON Schemas in [`generated/`](spec/0.1.0/schema/generated/).
+- [`spec/README.md`](spec/README.md): specification versions. The
+  released specification is 0.1,
+  [`spec/0.1/AGENT-HOOKS-0.1.md`](spec/0.1/AGENT-HOOKS-0.1.md), the text
+  the SDKs shipped against at `v0.1.0-beta.3`. The draft,
+  [`spec/draft/AGENT-HOOKS-DRAFT.md`](spec/draft/AGENT-HOOKS-DRAFT.md), is
+  the working text and the version `draft` (`agent-hooks/draft`); its
+  [`schema/`](spec/draft/schema/) separates the
+  TypeScript source from the generated JSON Schemas in
+  [`generated/`](spec/draft/schema/generated/).
 - [`docs/IMPLEMENTING.md`](docs/IMPLEMENTING.md): what it means to
   implement Agent Hooks in a harness or gateway.
 - [`conformance/HARNESS.md`](conformance/HARNESS.md): how to write a

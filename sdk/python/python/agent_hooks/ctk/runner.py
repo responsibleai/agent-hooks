@@ -30,7 +30,15 @@ from typing import Any
 
 from agent_hooks import _core
 from agent_hooks._marshal import dumps
-from agent_hooks._types import EnforcementMode, InterceptionPoint, OnError
+from agent_hooks._types import (
+    SPEC_VERSION_DRAFT,
+    SUPPORTED_SPEC_WIRE_VERSIONS,
+    EnforcementMode,
+    InterceptionPoint,
+    OnError,
+    is_supported_spec_version,
+    require_spec_version,
+)
 from agent_hooks.composition import CompositionConfig, CompositionProfile
 from agent_hooks.context import AgentContext
 from agent_hooks.ctk.harness import Harness, LoadRecord, RunOutcome, RunRecord, Scenario
@@ -59,6 +67,75 @@ class VectorResult:
     status: str  # "pass" | "fail" | "skip"
     detail: str = ""
     failures: list[str] = field(default_factory=list)
+    #: Declared-surface tag (§13.1); grouping results by it is the
+    #: conformance report. Empty when the vector carries none.
+    part: str = ""
+
+
+@dataclass(slots=True)
+class PartReport:
+    """One part of a conformance report (§13.1): the vectors that carry
+    one ``part`` tag, with their counts."""
+
+    part: str
+    passed: int
+    failed: int
+    skipped: int
+    vectors: list[VectorResult]
+
+
+@dataclass(slots=True)
+class ConformanceReport:
+    """The conformance report a claim attaches (§13.1, §13.3): the results
+    grouped by ``part``, under the specification version the claim names.
+    Parts are in name order; each keeps its vectors in run order."""
+
+    spec: str
+    parts: list[PartReport]
+    passed: int
+    failed: int
+    skipped: int
+
+
+#: The skip reason of a draft-only vector under a released version.
+DRAFT_ONLY_SKIP = "draft-only vector; see #188"
+
+#: The one line every runner answers a report that names the draft.
+DRAFT_NOT_CLAIMABLE = (
+    "a conformance report cannot name agent-hooks/draft; the draft is never "
+    "claimed: run the vectors for development and report a released version"
+)
+
+
+def conformance_report(spec: str, results: list[VectorResult]) -> ConformanceReport:
+    """Group ``results`` by ``part`` into the report a claim attaches,
+    under ``spec``, the released version the claim names (a wire
+    string). The vectors under ``conformance/`` are the working test set
+    for the next version, carried under ``agent-hooks/draft`` because
+    they exercise behaviour no released version has; running them is
+    fine, but a report that names the draft raises :class:`ValueError`
+    with :data:`DRAFT_NOT_CLAIMABLE`, since no claim names it."""
+    spec = require_spec_version(spec)
+    if spec == SPEC_VERSION_DRAFT:
+        raise ValueError(DRAFT_NOT_CLAIMABLE)
+    parts: dict[str, PartReport] = {}
+    for result in results:
+        part = parts.setdefault(result.part, PartReport(result.part, 0, 0, 0, []))
+        if result.status == "pass":
+            part.passed += 1
+        elif result.status == "skip":
+            part.skipped += 1
+        else:
+            part.failed += 1
+        part.vectors.append(result)
+    ordered = [parts[name] for name in sorted(parts)]
+    return ConformanceReport(
+        spec=spec,
+        parts=ordered,
+        passed=sum(p.passed for p in ordered),
+        failed=sum(p.failed for p in ordered),
+        skipped=sum(p.skipped for p in ordered),
+    )
 
 
 def load_vectors(directory: str | pathlib.Path | None = None) -> list[dict[str, Any]]:
@@ -537,10 +614,24 @@ def _code_surface(harness: Harness) -> HostSurface:
 
 async def run_vector(harness: Harness, vector: dict[str, Any]) -> VectorResult:
     vid, title = vector["id"], vector["title"]
+    part = str(vector.get("part") or "")
     vector_json = dumps(vector)
 
     def fail(failures: list[str]) -> VectorResult:
-        return VectorResult(vid, title, "fail", failures=failures)
+        return VectorResult(vid, title, "fail", failures=failures, part=part)
+
+    harness_spec = getattr(harness, "spec", None)
+    if not is_supported_spec_version(harness_spec):
+        raise ValueError(
+            f"harness {getattr(harness, 'name', '?')!r}: spec must name the specification "
+            f"version the harness builds under, one of {', '.join(SUPPORTED_SPEC_WIRE_VERSIONS)}; "
+            f"got {harness_spec!r}"
+        )
+    # A draft-only vector (introduced_in: draft) is part of the working
+    # test set for the next version and runs under the draft only.
+    # Binding tests to a draft revision is #188.
+    if vector.get("introduced_in") == "draft" and harness_spec != SPEC_VERSION_DRAFT:
+        return VectorResult(vid, title, "skip", detail=DRAFT_ONLY_SKIP, part=part)
 
     # §7.7.9: a harness with its own declaration is assessed against the
     # resolved document, so what ran is what a claim cites.
@@ -567,7 +658,7 @@ async def run_vector(harness: Harness, vector: dict[str, Any]) -> VectorResult:
 
     skip = json.loads(_core.ctk_should_skip(vector_json, dumps(caps)))
     if skip is not None:
-        return VectorResult(vid, title, "skip", detail=skip)
+        return VectorResult(vid, title, "skip", detail=skip, part=part)
 
     scenario = Scenario.from_wire(vector["scenario"])
     scripts = _Scripts(vector)
@@ -655,6 +746,7 @@ async def run_vector(harness: Harness, vector: dict[str, Any]) -> VectorResult:
         status=result["status"],
         detail=result.get("detail", ""),
         failures=result.get("failures", []),
+        part=str(result.get("part") or part),
     )
 
 

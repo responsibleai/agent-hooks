@@ -20,6 +20,9 @@ import type {
 
 export {
   assessHarness,
+  conformanceReport,
+  DRAFT_NOT_CLAIMABLE,
+  DRAFT_ONLY_SKIP,
   loadVectors,
   runVector,
   runVectors,
@@ -27,7 +30,7 @@ export {
   builderFromValue,
   provePaths,
 } from "./runner";
-export type { AssessedSurface } from "./runner";
+export type { AssessedSurface, ConformanceReport, PartReport } from "./runner";
 export { ReferenceHarness, REFERENCE_DECLARATION } from "./reference";
 
 /** Host-declared capability subset (§3.2, §13.1): the closed list of
@@ -104,6 +107,13 @@ export interface RunRecord {
 export interface Harness {
   readonly name: string;
   readonly capabilities: ReadonlySet<Capability>;
+
+  /** The specification version the harness builds its emitter and
+   * contexts under (`SPEC_VERSION_0_1` or `SPEC_VERSION_DRAFT`). The
+   * runner skips a draft-only vector (`introduced_in: draft`) for a
+   * harness under a released version, with the reason
+   * {@link DRAFT_ONLY_SKIP}. */
+  readonly spec: string;
 
   /** Declared §6.2 posture at the tool seam (§13.1): what the host does
    * with the run after a `host_error:*` deny at

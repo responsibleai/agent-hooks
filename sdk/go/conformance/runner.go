@@ -27,6 +27,83 @@ import (
 // VectorResult is the outcome of one vector run.
 type VectorResult = agenthooks.CtkVectorResult
 
+// PartReport is one part of a conformance report (§13.1): the vectors
+// that carry one part tag, with their counts. A vector without a tag
+// sits under the empty part.
+type PartReport struct {
+	Part    string
+	Passed  int
+	Failed  int
+	Skipped int
+	Vectors []VectorResult
+}
+
+// ConformanceReport is the report a claim attaches (§13.1, §13.3): the
+// results grouped by part, under the specification version the claim
+// names. Parts are in name order; each keeps its vectors in run order.
+type ConformanceReport struct {
+	Spec    string
+	Parts   []PartReport
+	Passed  int
+	Failed  int
+	Skipped int
+}
+
+// DraftOnlySkip is the skip reason of a draft-only vector under a
+// released version.
+const DraftOnlySkip = "draft-only vector; see #188"
+
+// ErrDraftNotClaimable is the one line every runner answers a report
+// that names the draft.
+var ErrDraftNotClaimable = errors.New("a conformance report cannot name agent-hooks/draft; the draft is never claimed: run the vectors for development and report a released version")
+
+// Report groups results by part into the report a claim attaches, under
+// spec, the released version the claim names (a wire string). The
+// vectors under conformance/ are the working test set for the next
+// version, carried under agent-hooks/draft because they exercise
+// behaviour no released version has; running them is fine, but a report
+// that names the draft is refused with ErrDraftNotClaimable, since no
+// claim names it.
+func Report(spec string, results []VectorResult) (ConformanceReport, error) {
+	if err := agenthooks.RequireSpecVersion(spec); err != nil {
+		return ConformanceReport{}, err
+	}
+	if spec == agenthooks.SpecVersionDraft {
+		return ConformanceReport{}, ErrDraftNotClaimable
+	}
+	byPart := map[string]*PartReport{}
+	for _, r := range results {
+		part := byPart[r.Part]
+		if part == nil {
+			part = &PartReport{Part: r.Part}
+			byPart[r.Part] = part
+		}
+		switch r.Status {
+		case "pass":
+			part.Passed++
+		case "skip":
+			part.Skipped++
+		default:
+			part.Failed++
+		}
+		part.Vectors = append(part.Vectors, r)
+	}
+	names := make([]string, 0, len(byPart))
+	for name := range byPart {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	report := ConformanceReport{Spec: spec}
+	for _, name := range names {
+		part := *byPart[name]
+		report.Parts = append(report.Parts, part)
+		report.Passed += part.Passed
+		report.Failed += part.Failed
+		report.Skipped += part.Skipped
+	}
+	return report, nil
+}
+
 // LoadVectors globs conformance/vectors/AH-CTK-*.json under dir in
 // sorted order.
 func LoadVectors(dir string) ([]map[string]any, error) {
@@ -241,6 +318,17 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 	vectorJSON := mustJSON(vector)
 	id, _ := vector["id"].(string)
 	title, _ := vector["title"].(string)
+	part, _ := vector["part"].(string)
+
+	if err := agenthooks.RequireSpecVersion(h.Spec()); err != nil {
+		return VectorResult{}, fmt.Errorf("harness %q Spec() must name the specification version the harness builds under: %w", h.Name(), err)
+	}
+	// A draft-only vector (introduced_in: draft) is part of the working
+	// test set for the next version and runs under the draft only.
+	// Binding tests to a draft revision is #188.
+	if introduced, _ := vector["introduced_in"].(string); introduced == "draft" && h.Spec() != agenthooks.SpecVersionDraft {
+		return VectorResult{ID: id, Title: title, Part: part, Status: "skip", Detail: DraftOnlySkip}, nil
+	}
 
 	// §13.1 posture declaration; a Harness that does not implement the
 	// optional declarer interface declares the spec default.
@@ -258,7 +346,7 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 	if d, ok := h.(DeclarationDeclarer); ok && d.Declaration() != nil {
 		resolved, err := cachedResolvedSurface(d.Declaration(), surface)
 		if err != nil {
-			return VectorResult{ID: id, Title: title, Status: "fail",
+			return VectorResult{ID: id, Title: title, Part: part, Status: "fail",
 				Failures: []string{fmt.Sprintf("harness declaration refused: %v", err)}}, nil
 		}
 		caps, posture, onError = resolved.caps, resolved.posture, resolved.onError
@@ -271,7 +359,7 @@ func RunVector(ctx context.Context, h Harness, vector map[string]any) (VectorRes
 	if reason, err := agenthooks.CtkShouldSkip(vectorJSON, caps); err != nil {
 		return VectorResult{}, err
 	} else if reason != "" {
-		return VectorResult{ID: id, Title: title, Status: "skip", Detail: reason}, nil
+		return VectorResult{ID: id, Title: title, Part: part, Status: "skip", Detail: reason}, nil
 	}
 
 	scenRaw, _ := vector["scenario"].(map[string]any)

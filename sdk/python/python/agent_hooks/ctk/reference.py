@@ -25,13 +25,23 @@ import uuid
 from importlib.resources import files
 from typing import Any, ClassVar
 
-from agent_hooks._types import ControlFailureNotice, EnforcementMode
+from agent_hooks._types import (
+    SPEC_VERSION_DRAFT,
+    ControlFailureNotice,
+    EnforcementMode,
+    require_spec_version,
+)
 from agent_hooks.approval import ApprovalResolver
 from agent_hooks.composition import CompositionConfig
 from agent_hooks.context import AgentContext, AgentContextBuilder
 from agent_hooks.ctk.harness import Capability, RunOutcome, RunRecord, Scenario
 from agent_hooks.ctk.scripted import redact_paths
-from agent_hooks.declaration import BindingContext, HostRegistry, HostSurface
+from agent_hooks.declaration import (
+    BindingContext,
+    HostRegistry,
+    HostSurface,
+    accepted_declaration_versions,
+)
 from agent_hooks.emitter import InterceptionEmitter
 from agent_hooks.exceptions import InterceptionBlocked
 from agent_hooks.interceptor import Interceptor
@@ -61,7 +71,12 @@ class ReferenceHarness:
     )
     tool_seam_host_error = "continue"
 
-    def __init__(self) -> None:
+    def __init__(self, spec: str) -> None:
+        """A reference harness under ``spec``, the version it builds its
+        emitter and contexts under. The gating runs use the newest
+        released version; the advisory draft run uses the draft."""
+        #: The version this harness builds under.
+        self.spec: str = require_spec_version(spec, "spec")
         self._scenario: Scenario | None = None
         self._emitter: InterceptionEmitter | None = None
         self._builder: AgentContextBuilder | None = None
@@ -88,7 +103,23 @@ class ReferenceHarness:
         )
 
     def declaration(self) -> dict[str, Any]:
-        return copy.deepcopy(REFERENCE_DECLARATION)
+        """The reference document under this harness's version: the
+        committed file names 0.1 and contract 1.0; under another version
+        the document names that version and the contract versions it
+        accepts."""
+        doc = copy.deepcopy(REFERENCE_DECLARATION)
+        folder = (
+            "draft"
+            if self.spec == SPEC_VERSION_DRAFT
+            else "v" + self.spec.removeprefix("agent-hooks/")
+        )
+        doc["$schema"] = (
+            "https://responsibleai.github.io/agent-hooks/schema/"
+            f"{folder}/host-declaration-1.0.schema.json"
+        )
+        doc["spec"] = self.spec
+        doc["surface"]["declaration_versions"] = list(accepted_declaration_versions(self.spec))
+        return doc
 
     def setup(
         self,
@@ -159,7 +190,10 @@ class ReferenceHarness:
         self._tool_log = []
         self._host_messages = []
         self._emitter = emitter
+        # Contexts follow the emitter's version: this harness's own under
+        # a field-based vector, the document's under a declaration vector.
         self._builder = AgentContextBuilder(
+            spec=emitter.spec,
             agent_id="ref-agent",
             framework="reference-agent",
             session_id=str(uuid.uuid4()),

@@ -70,14 +70,18 @@ func ApplyTransformToContext(actx AgentContext, path string, value any) (AgentCo
 	return result, json.Unmarshal([]byte(out), &result)
 }
 
-// ValidateVerdict validates an interceptor's wire return per §5.
+// ValidateVerdict validates an interceptor's wire return per §5 of the
+// specification version spec names (the context's wire string).
 // Implemented by the Rust core.
-func ValidateVerdict(v Verdict) error {
+func ValidateVerdict(v Verdict, spec string) error {
+	if err := RequireSpecVersion(spec); err != nil {
+		return err
+	}
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	_, err = nativeValidateVerdict(string(b))
+	_, err = nativeValidateVerdict(spec, string(b))
 	return err
 }
 

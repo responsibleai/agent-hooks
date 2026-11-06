@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ import (
 // from two emitters compare byte for byte.
 func fixedCtx(point InterceptionPoint, seq int64) AgentContext {
 	ctx := AgentContext{
-		"spec":               SpecVersion,
+		"spec":               SpecVersionDraft,
 		"interception_point": string(point),
 		"timestamp":          "2026-10-09T00:00:00.000Z",
 		"sequence":           seq,
@@ -123,8 +124,8 @@ func testRegistry(t *testing.T) *HostRegistry {
 
 func testDocument() map[string]any {
 	return map[string]any{
-		"declaration": DeclarationVersion,
-		"id":          "test-doc",
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
+		"id": "test-doc",
 		"configuration": map[string]any{
 			"composition":       map[string]any{"profile": "parallel/strictest"},
 			"identity_provider": "hmac-sha256-k1",
@@ -155,6 +156,141 @@ func declErr(t *testing.T, err error) *DeclarationError {
 		t.Fatalf("want *DeclarationError, got %T: %v", err, err)
 	}
 	return de
+}
+
+func TestSpecVersionsMatchTheCore(t *testing.T) {
+	out, err := nativeDeclarationVersions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var v struct {
+		Spec          *string  `json:"spec"`
+		SpecSupported []string `json:"spec_supported"`
+		BySpec        map[string]struct {
+			Current   string   `json:"current"`
+			Supported []string `json:"supported"`
+		} `json:"by_spec"`
+	}
+	if err := json.Unmarshal([]byte(out), &v); err != nil {
+		t.Fatal(err)
+	}
+	if v.Spec != nil {
+		t.Errorf("the core names a default version %q; there is none", *v.Spec)
+	}
+	if !reflect.DeepEqual(v.SpecSupported, SupportedSpecVersions) {
+		t.Errorf("core spec_supported %v, Go %v", v.SpecSupported, SupportedSpecVersions)
+	}
+	if !reflect.DeepEqual(SupportedSpecVersions, []string{"0.1", "draft"}) ||
+		!reflect.DeepEqual(SupportedSpecWireVersions, []string{SpecVersion01, SpecVersionDraft}) {
+		t.Errorf("supported versions %v %v", SupportedSpecVersions, SupportedSpecWireVersions)
+	}
+	// What each specification version defines, pinned to the core.
+	if len(v.BySpec) != len(SupportedSpecVersions) {
+		t.Fatalf("by_spec %v", v.BySpec)
+	}
+	for _, name := range SupportedSpecVersions {
+		current, accepted, err := DeclarationVersionsFor("agent-hooks/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if current != v.BySpec[name].Current || !reflect.DeepEqual(accepted, v.BySpec[name].Supported) {
+			t.Errorf("%s: Go %s %v, core %+v", name, current, accepted, v.BySpec[name])
+		}
+	}
+	if current, _, _ := DeclarationVersionsFor(SpecVersion01); current != DeclarationVersion10 {
+		t.Errorf("0.1 current = %s", current)
+	}
+	if _, _, err := DeclarationVersionsFor("agent-hooks/0.2"); !errors.Is(err, ErrSpecVersionUnsupported) {
+		t.Errorf("0.2 accepted: %v", err)
+	}
+}
+
+func TestAVersionIsRequiredEverywhere(t *testing.T) {
+	for _, bad := range []string{"", "0.1", "agent-hooks/0.2", "agent-hooks/DRAFT"} {
+		for name, f := range map[string]func(){
+			"builder":             func() { NewAgentContextBuilder(bad, "a", "x", "s") },
+			"emitter":             func() { NewInterceptionEmitter(bad, Enforce, nil) },
+			"declaration builder": func() { NewDeclarationBuilder(bad) },
+		} {
+			func() {
+				defer func() {
+					r := recover()
+					if r == nil {
+						t.Errorf("%s accepted %q", name, bad)
+						return
+					}
+					if msg := fmt.Sprint(r); !strings.Contains(msg, "SupportedSpecVersions") || !strings.Contains(msg, SpecVersionDraft) {
+						t.Errorf("%s %q: message %q names no supported versions", name, bad, msg)
+					}
+				}()
+				f()
+			}()
+		}
+	}
+	for _, spec := range []string{SpecVersion01, SpecVersionDraft} {
+		b := NewAgentContextBuilder(spec, "a", "x", "s")
+		if b.Spec() != spec || b.Input("hi", "user")["spec"] != spec {
+			t.Errorf("%s: builder stamps %v", spec, b.Input("hi", "user")["spec"])
+		}
+		if NewInterceptionEmitter(spec, Enforce, nil).Spec() != spec {
+			t.Errorf("%s: emitter spec", spec)
+		}
+	}
+}
+
+func TestTheContractVersionADocumentMayCarryIsItsSpecVersions(t *testing.T) {
+	reg := testRegistry(t)
+	// 0.1 defines 1.0 alone; the draft defines both. A document without
+	// `spec` names no version and is refused at step 4.
+	_, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
+		"declaration": DeclarationVersion, "spec": SpecVersion01, "bindings": []any{},
+	}, reg)
+	var de *DeclarationError
+	if !errors.As(err, &de) || de.Class != DeclarationVersionUnsupported || !reflect.DeepEqual(de.Accepted, []string{DeclarationVersion10}) {
+		t.Fatalf("1.1 under 0.1: %v", err)
+	}
+	if !strings.Contains(err.Error(), "agent-hooks/draft accepts it") {
+		t.Errorf("detail %q names no accepting version", err.Error())
+	}
+	_, err = NewInterceptionEmitterFromDeclarationValue(map[string]any{
+		"declaration": DeclarationVersion10, "bindings": []any{},
+	}, reg)
+	if !errors.As(err, &de) || de.Class != DeclarationSpecUnsupported || !strings.Contains(err.Error(), "spec is missing") {
+		t.Fatalf("unversioned: %v", err)
+	}
+	// The builder writes the newest contract version of its own version.
+	if v := NewDeclarationBuilder(SpecVersion01).Value(); v["declaration"] != DeclarationVersion10 || v["spec"] != SpecVersion01 {
+		t.Errorf("0.1 builder: %v", v)
+	}
+	if v := NewDeclarationBuilder(SpecVersionDraft).Value(); v["declaration"] != DeclarationVersion {
+		t.Errorf("draft builder: %v", v)
+	}
+	_, err = NewInterceptionEmitterFromDeclarationValue(
+		NewDeclarationBuilder(SpecVersion01).FailureOnError(OnErrorContinue).Value(), reg)
+	if !errors.As(err, &de) || de.Class != DeclarationUnknownField {
+		t.Errorf("on_error under 0.1: %v", err)
+	}
+	// An emitter built from a 0.1 document runs 0.1: a draft context is
+	// refused, a 0.1 context runs.
+	em, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
+		"declaration": DeclarationVersion10, "spec": SpecVersion01,
+		"bindings": []any{map[string]any{"id": "allow", "kind": "com.example.scripted", "config": map[string]any{"decision": "allow"}}},
+	}, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if em.Spec() != SpecVersion01 || em.Declaration().Spec != SpecVersion01 {
+		t.Errorf("emitter spec %s %s", em.Spec(), em.Declaration().Spec)
+	}
+	rec, err := em.EmitUnchecked(context.Background(), fixedCtx(PreToolCall, 0))
+	if err != nil || rec.Verdict.Reason != string(ErrContextInvalid) {
+		t.Errorf("draft context under a 0.1 emitter: %+v %v", rec.Verdict, err)
+	}
+	ctx := NewAgentContextBuilder(SpecVersion01, "a", "x", "s").PreToolCall("tc", "t", map[string]any{})
+	rec, err = em.EmitUnchecked(context.Background(), ctx)
+	if err != nil || !rec.Proceeds() {
+		t.Errorf("0.1 context under a 0.1 emitter: %+v %v", rec.Verdict, err)
+	}
 }
 
 func TestDeclarationVersionsMatchTheCore(t *testing.T) {
@@ -188,7 +324,7 @@ func TestThreePathsProduceIdenticalRecords(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	built, err := NewDeclarationBuilder().
+	built, err := NewDeclarationBuilder(SpecVersionDraft).
 		ID("test-doc").
 		Composition(StrictestComposition("")).
 		IdentityProvider("hmac-sha256-k1").
@@ -274,7 +410,7 @@ func TestThreePathsProduceIdenticalRecords(t *testing.T) {
 }
 
 func TestCodePathRecordsCarryNoDeclaration(t *testing.T) {
-	em := NewInterceptionEmitter(Enforce, nil)
+	em := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	em.Register(scripted{AllowVerdict})
 	if em.Declaration() != nil || em.Sealed() {
 		t.Fatal("code-path emitter must not be declaration-built")
@@ -290,7 +426,7 @@ func TestCodePathRecordsCarryNoDeclaration(t *testing.T) {
 }
 
 func TestRegisterAtFiltersPointsAndNamesVerdicts(t *testing.T) {
-	em := NewInterceptionEmitter(Enforce, nil)
+	em := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	if _, err := em.SetComposition(RunAllComposition()); err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +453,7 @@ func TestRegisterAtFiltersPointsAndNamesVerdicts(t *testing.T) {
 func TestPointWithoutBindingDeniesNoInterceptor(t *testing.T) {
 	reg := testRegistry(t)
 	doc := map[string]any{
-		"declaration": DeclarationVersion,
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 		"bindings": []any{
 			map[string]any{"id": "only-tools", "kind": "com.example.scripted",
 				"config": map[string]any{"decision": "allow"}, "at": []any{"pre_tool_call"}},
@@ -390,7 +526,7 @@ func TestBindingRejectedByErrorPanicAndNil(t *testing.T) {
 		"nil":   {"id": "x", "kind": "com.example.nothing"},
 	}
 	for name, binding := range cases {
-		doc := map[string]any{"declaration": DeclarationVersion, "bindings": []any{binding}}
+		doc := map[string]any{"declaration": DeclarationVersion, "spec": SpecVersionDraft, "bindings": []any{binding}}
 		_, err := NewInterceptionEmitterFromDeclarationValue(doc, reg)
 		de := declErr(t, err)
 		if de.Class != DeclarationBindingRejected {
@@ -451,7 +587,7 @@ func TestMalformedClasses(t *testing.T) {
 	if _, err := ParseDeclaration([]byte{'{', 0xFF, '}'}); declErr(t, err).Class != DeclarationMalformed {
 		t.Error("invalid UTF-8 bytes must be malformed")
 	}
-	_, err := DeclarationFromValue(map[string]any{"declaration": DeclarationVersion, "bindings": []any{}, "extensions": map[string]any{"x": math.NaN()}})
+	_, err := DeclarationFromValue(map[string]any{"declaration": DeclarationVersion, "spec": SpecVersionDraft, "bindings": []any{}, "extensions": map[string]any{"x": math.NaN()}})
 	if de := declErr(t, err); de.Class != DeclarationMalformed || !strings.Contains(de.Error(), "cannot serialize") {
 		t.Errorf("NaN on the value path: %v", err)
 	}
@@ -461,7 +597,7 @@ func TestOneClassPerDocumentInPipelineOrder(t *testing.T) {
 	reg := testRegistry(t)
 	base := func() map[string]any {
 		return map[string]any{
-			"declaration": DeclarationVersion,
+			"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 			"bindings": []any{map[string]any{"id": "a", "kind": "com.example.scripted",
 				"config": map[string]any{"decision": "allow"}}},
 		}
@@ -545,7 +681,7 @@ func TestInvalidHostSurfaceIsAWrapperDefect(t *testing.T) {
 	s := DefaultHostSurface().WithPoints(PreToolCall)
 	reg := NewHostRegistry(s)
 	_ = reg.Kind("com.example.scripted", verdictFrom)
-	_, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{"declaration": DeclarationVersion, "bindings": []any{}}, reg)
+	_, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{"declaration": DeclarationVersion, "spec": SpecVersionDraft, "bindings": []any{}}, reg)
 	var ce *CoreError
 	if !errors.As(err, &ce) || ce.Code != "marshal_error" {
 		t.Fatalf("want marshal_error CoreError, got %T %v", err, err)
@@ -635,7 +771,7 @@ func TestDeclaredTimeoutsBoundInterceptorAndResolver(t *testing.T) {
 
 	// A per-binding bound overrides the document-wide one.
 	em, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
-		"declaration":   DeclarationVersion,
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 		"configuration": map[string]any{"timeouts": map[string]any{"interceptor_ms": 60000}},
 		"bindings": []any{
 			map[string]any{"id": "slow", "kind": "com.example.slow", "timeout_ms": 20},
@@ -649,7 +785,7 @@ func TestDeclaredTimeoutsBoundInterceptorAndResolver(t *testing.T) {
 
 	// approval_resolver_ms bounds the resolver on its own.
 	em, err = NewInterceptionEmitterFromDeclarationValue(map[string]any{
-		"declaration": DeclarationVersion,
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 		"configuration": map[string]any{
 			"approval": map[string]any{"resolver": "slow-queue"},
 			"timeouts": map[string]any{"interceptor_ms": 60000, "approval_resolver_ms": 20},
@@ -664,7 +800,7 @@ func TestDeclaredTimeoutsBoundInterceptorAndResolver(t *testing.T) {
 
 	// timeout_ms: null is unbounded and written out in the resolved form.
 	em, err = NewInterceptionEmitterFromDeclarationValue(map[string]any{
-		"declaration":   DeclarationVersion,
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 		"configuration": map[string]any{"timeouts": map[string]any{"interceptor_ms": nil}},
 		"bindings":      []any{map[string]any{"id": "esc", "kind": "com.example.escalate"}},
 	}, reg)
@@ -687,8 +823,8 @@ func TestResolverGetsCopiesOfHostAndConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	em, err := NewInterceptionEmitterFromDeclarationValue(map[string]any{
-		"declaration": DeclarationVersion,
-		"host":        map[string]any{"name": "h", "version": "1"},
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
+		"host": map[string]any{"name": "h", "version": "1"},
 		"bindings": []any{
 			map[string]any{"id": "m", "kind": "com.example.mutate", "config": map[string]any{"a": 1}, "at": []any{"pre_tool_call"}},
 		},
@@ -710,7 +846,7 @@ func TestResolverGetsCopiesOfHostAndConfig(t *testing.T) {
 
 func TestResolveDeclarationSurfaceTakesCitedNamesAsRegistered(t *testing.T) {
 	decl, err := DeclarationFromValue(map[string]any{
-		"declaration":   DeclarationVersion,
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 		"configuration": map[string]any{"identity_provider": "hmac-sha256-k1", "approval": map[string]any{"resolver": "queue"}},
 		"bindings":      []any{map[string]any{"id": "a", "kind": "com.example.anything"}},
 	})
@@ -724,13 +860,13 @@ func TestResolveDeclarationSurfaceTakesCitedNamesAsRegistered(t *testing.T) {
 	if !reflect.DeepEqual(resolved.Surface.Capabilities, []string{"host_declaration", "model_calls", "tool_calls"}) {
 		t.Errorf("surface filled from the host: %v", resolved.Surface.Capabilities)
 	}
-	if resolved.Version() != DeclarationVersion || resolved.Spec != SpecVersion {
+	if resolved.Version() != DeclarationVersion || resolved.Spec != SpecVersionDraft {
 		t.Errorf("resolved header = %s %s", resolved.Version(), resolved.Spec)
 	}
 }
 
 func TestBuilderWritesNullForZeroValues(t *testing.T) {
-	v := NewDeclarationBuilder().
+	v := NewDeclarationBuilder(SpecVersionDraft).
 		IdentityProvider("").
 		ApprovalResolver("").
 		InterceptorTimeoutMs(0).
@@ -824,7 +960,7 @@ func TestGoldenDeclarationsResolveByteForByte(t *testing.T) {
 }
 
 func TestRegisterAtRefusesAnEmptyPointList(t *testing.T) {
-	em := NewInterceptionEmitter(Enforce, nil)
+	em := NewInterceptionEmitter(SpecVersionDraft, Enforce, nil)
 	if err := em.RegisterAt(scripted{AllowVerdict}, "", []InterceptionPoint{}); err == nil {
 		t.Fatal("an empty non-nil at must be refused")
 	}
@@ -842,7 +978,7 @@ func TestRegisterAtRefusesAnEmptyPointList(t *testing.T) {
 func TestMaxBufferedAtTheCoreBoundLoads(t *testing.T) {
 	reg := testRegistry(t)
 	doc := map[string]any{
-		"declaration":   DeclarationVersion,
+		"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 		"configuration": map[string]any{"records": map[string]any{"max_buffered": json.Number("9007199254740991")}},
 		"bindings": []any{
 			map[string]any{"id": "a", "kind": "com.example.scripted", "config": map[string]any{"decision": "allow"}},
@@ -882,7 +1018,7 @@ func TestConfigIntegerAtTheCoreBoundLoads(t *testing.T) {
 	reg := testRegistry(t)
 	doc := func(key string) map[string]any {
 		return map[string]any{
-			"declaration": DeclarationVersion,
+			"declaration": DeclarationVersion, "spec": SpecVersionDraft,
 			"bindings": []any{
 				map[string]any{
 					"id":     "a",

@@ -3,7 +3,7 @@
 //! agent-hooks: framework-neutral agent control contract.
 //!
 //! This crate is the **canonical implementation** of
-//! [AGENT-HOOKS-0.1](../../../spec/0.1.0/AGENT-HOOKS-0.1.md). The Python,
+//! [AGENT-HOOKS-0.1](../../../spec/0.1/AGENT-HOOKS-0.1.md). The Python,
 //! TypeScript, .NET, and Go SDKs bind to it via FFI so that
 //! `canonical_json`, `context_identity`, transform application, verdict
 //! validation, and verdict combination have exactly one implementation.
@@ -24,7 +24,7 @@
 //! host's code can honour, and [`InterceptionEmitter::from_declaration`]
 //! (or the path, JSON and value forms) builds the emitter. The
 //! document is a versioned contract of its own ([`DECLARATION_VERSION`],
-//! [`SUPPORTED_DECLARATION_VERSIONS`]), independent of [`SPEC_VERSION`].
+//! [`SUPPORTED_DECLARATION_VERSIONS`]), independent of the wire version ([`SpecVersion`]).
 //!
 //! # Trust model
 //!
@@ -35,7 +35,7 @@
 //! complete-mediation claim is made. Conformance is not a security
 //! certification. See
 //! [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
-//! and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
+//! and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
 //!
 //! # Decision runtimes behind an interceptor
 //!
@@ -98,8 +98,8 @@ pub use types::{
     AgentContext, ApprovalOutcome, ApprovalRequest, ApprovalResolution, ApprovalResolver,
     ControlFailureNotice, ControlFailureNotifier, Decision, EnforcementMode, Evidence, HostError,
     HostWarning, InterceptionPoint, InterceptionRecord, Interceptor, ManagedInterceptor,
-    ManagedInterceptorOutcome, OnError, Transform, Verdict, VerdictSummary, Warning,
-    DECLARATION_VERSION, EVIDENCE_MAX_BYTES, JCS_SHA256, SPEC_VERSION,
-    SUPPORTED_DECLARATION_VERSIONS,
+    ManagedInterceptorOutcome, OnError, SpecVersion, Transform, Verdict, VerdictSummary, Warning,
+    DECLARATION_1_0, DECLARATION_VERSION, EVIDENCE_MAX_BYTES, JCS_SHA256, SPEC_VERSION_0_1,
+    SPEC_VERSION_DRAFT, SUPPORTED_DECLARATION_VERSIONS, SUPPORTED_SPEC_VERSIONS,
 };
 pub use verdict::from_wire as verdict_from_wire;

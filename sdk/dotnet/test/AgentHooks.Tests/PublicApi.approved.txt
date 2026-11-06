@@ -15,7 +15,8 @@ sealed class AgentContextBuilder
     AgentContext PreModelCall(string modelId, JsonArray messages, JsonArray? tools = null, string? requestId = null)
     AgentContext PreToolCall(string callId, string name, JsonObject args)
     AgentContextBuilder WithL2(string key, JsonNode? value)
-    AgentContextBuilder(string agentId, string framework, string sessionId, string? agentName = null, string? agentVersion = null, string? sessionStartedAt = null)
+    AgentContextBuilder(string spec, string agentId, string framework, string sessionId, string? agentName = null, string? agentVersion = null, string? sessionStartedAt = null)
+    string Spec { get; }
 sealed class AgentHooksCoreException : InvalidOperationException
     AgentHooksCoreException(string code, string detail)
     string Code { get; }
@@ -81,16 +82,16 @@ sealed record class BindingContext : IEquatable<BindingContext>
     void Deconstruct(out string Id, out string Kind, out IReadOnlySet<InterceptionPoint> At, out TimeSpan? Timeout, out HostInfo? Host, out string DeclarationVersion)
     void Deconstruct(out string Id, out string Kind, out IReadOnlySet<InterceptionPoint> At, out TimeSpan? Timeout, out HostInfo? Host, out string DeclarationVersion, out OnError OnError)
 static class Canonical
-    static InterceptorResponse ParseInterceptorResponse(JsonNode response)
-    static InterceptorResponse ParseInterceptorResponse(string responseJson)
+    static InterceptorResponse ParseInterceptorResponse(JsonNode response, string spec)
+    static InterceptorResponse ParseInterceptorResponse(string responseJson, string spec)
     static JsonNode? ApplyTransform(JsonNode? target, string path, JsonNode? value)
     static JsonObject ApplyTransformCtx(AgentContext ctx, string path, JsonNode? value)
-    static JsonObject ComposeAggregate(CompositionConfig composition, JsonArray verdicts)
+    static JsonObject ComposeAggregate(CompositionConfig composition, JsonArray verdicts, string spec)
     static JsonObject Finalize(AgentContext ctx, JsonNode verdict, EnforcementMode mode, JsonObject options)
     static string ContextIdentity(AgentContext ctx)
     static string Json(JsonNode? node)
     static void ValidateTransformCtx(AgentContext ctx, string path, JsonNode? value)
-    static void ValidateVerdict(JsonNode verdict)
+    static void ValidateVerdict(JsonNode verdict, string spec)
 sealed record class CompositionConfig : IEquatable<CompositionConfig>
     CompositionConfig(CompositionProfile Profile, OnApproval? OnApproval = null, SynthesisPolicy? OnDisagreement = null, SynthesisPolicy? OnTransformConflict = null)
     CompositionProfile Profile { get; init; }
@@ -146,8 +147,10 @@ static class Declaration
     const int MaxDetailLength = 512
     const int MaxDocumentBytes = 1048576
     const string Version = "agent-hooks-declaration/1.1"
+    static IReadOnlyList<string> AcceptedVersionsFor(string spec)
     static readonly IReadOnlyList<string> Capabilities
     static readonly IReadOnlyList<string> SupportedVersions
+    static string CurrentVersionFor(string spec)
 sealed class DeclarationBuilder
     DeclarationBuilder ApprovalRedactor(string? name)
     DeclarationBuilder ApprovalResolver(string? name)
@@ -174,7 +177,7 @@ sealed class DeclarationBuilder
     DeclarationBuilder SurfaceProfile(CompositionProfile profile, KnobSupport knobs)
     DeclarationBuilder ToolSeamHostError(ToolSeamPosture posture)
     DeclarationBuilder Version(string version)
-    DeclarationBuilder()
+    DeclarationBuilder(string spec)
     HostDeclaration Build()
     JsonObject ToNode()
     static DeclarationBuilder Empty()
@@ -240,7 +243,7 @@ sealed record class Evidence : IEquatable<Evidence>
     void Deconstruct(out string? Artefact, out IReadOnlyDictionary<string, string>? VerificationPointers)
 sealed class HostDeclaration
     ResolvedDeclaration Resolve(HostRegistry registry)
-    static DeclarationBuilder Builder()
+    static DeclarationBuilder Builder(string spec)
     static HostDeclaration FromJson(string text)
     static HostDeclaration FromNode(JsonNode? node)
     static HostDeclaration FromPath(string path)
@@ -339,7 +342,7 @@ sealed class InterceptionEmitter
     InterceptionEmitter SetIdentityProvider(IdentityProvider provider)
     InterceptionEmitter SetMaxRecords(int max)
     InterceptionEmitter SetRecordSink(Action<InterceptionRecord> sink)
-    InterceptionEmitter(EnforcementMode mode = EnforcementMode.Enforce, IApprovalResolver? resolver = null, TimeSpan? timeout = null)
+    InterceptionEmitter(string spec, EnforcementMode mode = EnforcementMode.Enforce, IApprovalResolver? resolver = null, TimeSpan? timeout = null)
     InterceptionRecord RecordHostFailure(InterceptionPoint point, string? detail = null, string? sessionId = null, long? sequence = null, string? timestamp = null)
     List<InterceptionRecord> TakeRecords()
     ResolvedDeclaration? Declaration { get; }
@@ -351,6 +354,7 @@ sealed class InterceptionEmitter
     static InterceptionEmitter FromDeclarationNode(JsonNode? node, HostRegistry registry)
     static InterceptionEmitter FromDeclarationPath(string path, HostRegistry registry)
     static readonly TimeSpan DefaultTimeout
+    string Spec { get; }
 enum InterceptionPoint : int
     AgentStartup = 0
     Input = 1
@@ -504,8 +508,13 @@ sealed class ResolvedDeclaration
     string? Id { get; }
     string? IdentityProvider { get; }
 static class Spec
+    const string Draft = "agent-hooks/draft"
     const string JcsSha256 = "jcs-sha256"
-    const string Version = "agent-hooks/0.1"
+    const string V01 = "agent-hooks/0.1"
+    static bool IsSupported(string? wire)
+    static readonly IReadOnlyList<string> SupportedVersions
+    static readonly IReadOnlyList<string> SupportedWireVersions
+    static string Require(string? wire, string paramName = "spec")
 enum SynthesisPolicy : int
     Deny = 0
     Approval = 1
@@ -568,7 +577,7 @@ sealed record class Verdict : IEquatable<Verdict>
     string? Message { get; init; }
     string? Reason { get; init; }
     void Deconstruct(out Decision Decision, out string? Reason, out string? Message, out IReadOnlyList<Warning>? Warnings, out JsonObject? Approval, out Transform? Transform, out Evidence? Evidence, out IReadOnlyList<string>? ResultLabels)
-    void Validate()
+    void Validate(string spec)
 sealed record class VerdictSummary : IEquatable<VerdictSummary>
     Decision Decision { get; init; }
     JsonObject ToWire()

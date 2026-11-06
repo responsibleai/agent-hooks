@@ -26,6 +26,9 @@ import {
   Interceptor,
   InterceptionBlocked,
   JsonValue,
+  SPEC_VERSION_DRAFT,
+  acceptedDeclarationVersions,
+  requireSpecVersion,
 } from "../index";
 import { AgentContextBuilder } from "../builder";
 import { InterceptionEmitter } from "../emitter";
@@ -43,6 +46,14 @@ export const REFERENCE_DECLARATION: Readonly<Record<string, JsonValue>> = Object
 
 export class ReferenceHarness implements Harness {
   readonly name = "reference-agent";
+  /** The version this harness builds its emitter and contexts under. */
+  readonly spec: string;
+
+  /** A reference harness under `spec`. The gating runs use the newest
+   * released version; the advisory draft run uses the draft. */
+  constructor(spec: string) {
+    this.spec = requireSpecVersion(spec, "spec");
+  }
   // host_declaration: every emitter is built through the loader.
   // JSON.parse rounds integers beyond 2^53 before any guard can run,
   // so neither int64_json nor bigint_json is declared (§4.4).
@@ -66,8 +77,16 @@ export class ReferenceHarness implements Harness {
     return HostSurface.fromCapabilities(this.capabilities, "continue");
   }
 
+  /** The reference document under this harness's version: the committed
+   * file names 0.1 and contract 1.0; under another version the document
+   * names that version and the contract versions it accepts. */
   declaration(): JsonValue {
-    return JSON.parse(JSON.stringify(REFERENCE_DECLARATION)) as JsonValue;
+    const doc = JSON.parse(JSON.stringify(REFERENCE_DECLARATION)) as Record<string, JsonValue>;
+    const folder = this.spec === SPEC_VERSION_DRAFT ? "draft" : `v${this.spec.slice("agent-hooks/".length)}`;
+    doc.$schema = `https://responsibleai.github.io/agent-hooks/schema/${folder}/host-declaration-1.0.schema.json`;
+    doc.spec = this.spec;
+    (doc.surface as Record<string, JsonValue>).declaration_versions = [...acceptedDeclarationVersions(this.spec)];
+    return doc;
   }
 
   /** The principal channel this host registers (§6.3.1): every
@@ -84,7 +103,10 @@ export class ReferenceHarness implements Harness {
     this.toolLog = [];
     this.hostMessages = [];
     this.emitter = emitter;
+    // Contexts follow the emitter's version: this harness's own under a
+    // field-based vector, the document's under a declaration vector.
     this.builder = new AgentContextBuilder({
+      spec: emitter.spec,
       agentId: "ref-agent",
       framework: "reference-agent",
       sessionId: randomUUID(),
