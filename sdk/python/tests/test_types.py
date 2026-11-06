@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from agent_hooks import Decision, HostError, InterceptionPoint, Transform, Verdict, Warning
 
@@ -131,13 +133,21 @@ class TestVerdict:
             Verdict.from_wire({"decision": "allow", "warnings": [{"reason": "host_error:x"}]})
 
     @pytest.mark.parametrize("reason", ["host_warning:control_failed", "host_warning:x"])
-    def test_interceptor_cannot_emit_reserved_warning(self, reason: str) -> None:
-        # §11.1: host_warning:* is the host's; an interceptor that
-        # writes it spoofs a substitution.
-        with pytest.raises(ValueError, match="host_warning"):
-            Verdict.from_wire({"decision": "allow", "warnings": [{"reason": reason}]})
-        with pytest.raises(ValueError, match="host_warning"):
-            Verdict.warn(reason=reason)
+    def test_reserved_warning_is_the_drafts_gate(self, reason: str) -> None:
+        # §11.1: under the draft host_warning:* is the host's; an
+        # interceptor that writes it spoofs a substitution. 0.1 reserves
+        # host_error:* only. The value type carries either; the core's §5
+        # gate decides under the emitter's version.
+        from agent_hooks import SPEC_VERSION_0_1, SPEC_VERSION_DRAFT, _core
+
+        wire = {"decision": "allow", "warnings": [{"reason": reason}]}
+        assert Verdict.from_wire(wire).warnings[0].reason == reason
+        assert Verdict.warn(reason=reason).warnings[0].reason == reason
+        assert json.loads(_core.validate_verdict(SPEC_VERSION_0_1, json.dumps(wire)))
+        with pytest.raises(_core.AgentHooksCoreError, match="host_warning"):
+            _core.validate_verdict(SPEC_VERSION_DRAFT, json.dumps(wire))
+        with pytest.raises(ValueError, match="host_error"):
+            Verdict.warn(reason="host_error:x")
         # A reason that merely starts with the letters is not reserved.
         assert Verdict.warn(reason="host_warnings").warnings[0].reason == "host_warnings"
 

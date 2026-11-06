@@ -1,7 +1,9 @@
 # Tag-driven release pipeline.
 #
-# Trigger: push a tag `v*` (e.g. v0.1.0-alpha.2) — one tag releases the
-# spec + all five SDKs together (VERSIONING.md). The release-tags
+# Trigger: push a tag `v*` (e.g. v0.1.0-alpha.2). One tag releases all
+# five SDKs together; the specification releases on its own train
+# (VERSIONING.md). The first job checks that the SDKs' supported
+# specification versions name frozen folders. The release-tags
 # ruleset limits `v*` tag creation to repository admins and
 # maintainers. Or run manually: dry_run=true builds everything and
 # skips attestation and every upload; dry_run=false publishes only when
@@ -63,8 +65,91 @@ env:
   DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
 
 jobs:
+  # Runs first, on the tag and on every dry run: the SDKs' version
+  # surfaces agree, every supported specification version has a
+  # spec/<version>/ folder and every released one its tag, the
+  # conformance vectors validate against the draft, and the examples of
+  # every bundle validate against that bundle's schemas. Every build job
+  # depends on it.
+  spec-gate:
+    name: Specification gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tag check below needs the history and the spec/<X.Y> tags.
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: "22" }
+      # The same pinned ajv-cli ci.yml uses; no vendored copy exists, so
+      # the gate fetches it from npm by version.
+      - run: npm install -g ajv-cli@5.0.0 ajv-formats@3.0.1
+      - name: SDK version surfaces, supported specification versions and their tags agree
+        # Every released version the SDKs support must carry the tag
+        # spec/<X.Y> on an ancestor of this commit, so an SDK tag cannot
+        # claim a specification version that was never released. The
+        # draft is supported too and has no tag.
+        run: python3 scripts/check-version-consistency.py --require-spec-tags
+      - name: Specification folders are complete and references current
+        run: python3 scripts/check-spec-versions.py
+      - name: Released vectors validate against the newest released bundle
+        # The gating tests target the newest released version. The
+        # released set of vectors (every vector without introduced_in:
+        # draft) validates against that bundle with the grammar rebased
+        # to its schema ids (scripts/vectors-for-bundle.py). The
+        # draft-only vectors are the working test set for the next
+        # version and run in ci.yml's advisory draft-tests job, never
+        # here. Binding tests to a draft revision is #188.
+        run: |
+          set -eu
+          version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          version=$(for dir in spec/*/; do basename "$dir"; done | grep -E "$version_pattern" | sort -V | tail -1)
+          if [ -z "$version" ]; then
+            echo "::error::no released spec/<MAJOR.MINOR>/ folder"
+            exit 1
+          fi
+          grammar="$RUNNER_TEMP/vectors-$version.schema.json"
+          python3 scripts/vectors-for-bundle.py grammar "$version" > "$grammar"
+          mapfile -t vectors < <(python3 scripts/vectors-for-bundle.py list "$version")
+          if [ "${#vectors[@]}" -eq 0 ]; then
+            echo "::error::no released vectors under conformance/vectors"
+            exit 1
+          fi
+          root="spec/$version/schema/generated"
+          [ -d "$root" ] || root="spec/$version/schema"
+          mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+          data=()
+          for v in "${vectors[@]}"; do data+=(-d "$v"); done
+          ajv validate --spec=draft2020 -c ajv-formats -s "$grammar" "${refs[@]}" "${data[@]}"
+          echo "validated ${#vectors[@]} released vectors against spec/$version"
+      - name: Schema examples of every released bundle validate against their own schemas
+        # The 0.1 examples, which carry agent-hooks/0.1, prove the frozen
+        # 0.1 schemas still validate with the validator this release
+        # pins. The draft's examples are the draft's own business and run
+        # in ci.yml, not in a release gate.
+        run: |
+          set -eu
+          npm ci
+          version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          checked=0
+          for dir in ../../spec/*/; do
+            version=$(basename "$dir")
+            [[ $version =~ $version_pattern ]] || continue
+            node scripts/check-schema-examples.mjs "$version"
+            checked=$((checked + 1))
+          done
+          if [ "$checked" -eq 0 ]; then
+            echo "::error::no released spec/<MAJOR.MINOR>/ folder"
+            exit 1
+          fi
+        working-directory: sdk/typescript
+
   python-wheels:
     name: Python wheel (${{ matrix.platform }})
+    needs: spec-gate
     strategy:
       fail-fast: false
       matrix:
@@ -109,6 +194,7 @@ jobs:
 
   python-sdist:
     runs-on: ubuntu-latest
+    needs: spec-gate
     permissions:
       contents: read
     steps:
@@ -177,6 +263,7 @@ jobs:
 
   rust:
     runs-on: ubuntu-latest
+    needs: spec-gate
     environment: release
     permissions:
       contents: read
@@ -218,6 +305,7 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ steps.cratesio-auth.outputs.token }}
 
   typescript-build:
+    needs: spec-gate
     strategy:
       fail-fast: false
       matrix:
@@ -375,6 +463,7 @@ jobs:
 
   ffi-build:
     timeout-minutes: 25
+    needs: spec-gate
     strategy:
       fail-fast: false
       matrix:
@@ -488,6 +577,7 @@ jobs:
   # the tagged tree builds as a module consumer would see it.
   go:
     runs-on: ubuntu-latest
+    needs: spec-gate
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master; toolchain pinned via sdk/rust/rust-toolchain.toml
@@ -496,7 +586,7 @@ jobs:
         working-directory: sdk/rust
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.22" }
-      - run: go build ./... && go test ./...
+      - run: go build ./... && go test ./... -skip 'DraftOnly'
         working-directory: sdk/go
         env:
           CGO_LDFLAGS: -L${{ github.workspace }}/sdk/rust/target/release -lagent_hooks_ffi

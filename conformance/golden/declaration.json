@@ -9,7 +9,8 @@
             "kind": "com.example.allow"
           }
         ],
-        "declaration": "agent-hooks-declaration/1.0"
+        "declaration": "agent-hooks-declaration/1.0",
+        "spec": "agent-hooks/0.1"
       },
       "expect": {
         "canonical_json": "{\"bindings\":[{\"at\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"config\":{},\"id\":\"allow\",\"kind\":\"com.example.allow\",\"on_error\":\"deny\",\"timeout_ms\":5000}],\"configuration\":{\"approval\":{\"redactor\":null,\"resolver\":null},\"composition\":{\"on_approval\":\"stop\",\"profile\":\"sequential/first_deny\"},\"failure\":{\"on_error\":\"deny\"},\"identity_provider\":\"jcs-sha256\",\"mode\":\"enforce\",\"posture\":{\"tool_seam_host_error\":\"continue\"},\"records\":{\"max_buffered\":null},\"timeouts\":{\"approval_resolver_ms\":5000,\"interceptor_ms\":5000}},\"declaration\":\"agent-hooks-declaration/1.0\",\"extensions\":{},\"spec\":\"agent-hooks/0.1\",\"surface\":{\"buffered_output\":true,\"capabilities\":[\"host_declaration\",\"int64_json\",\"model_calls\",\"tool_calls\"],\"declaration_versions\":[\"agent-hooks-declaration/1.0\"],\"interception_points\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"profiles\":{\"parallel/strictest\":{\"on_transform_conflict\":[\"approval\",\"deny\"]},\"parallel/unanimous\":{\"on_disagreement\":[\"approval\",\"deny\"]},\"sequential/first_deny\":{\"on_approval\":[\"resume\",\"stop\"]},\"sequential/run_all\":{}}}}"
@@ -232,7 +233,8 @@
             "interceptor_ms": null
           }
         },
-        "declaration": "agent-hooks-declaration/1.0"
+        "declaration": "agent-hooks-declaration/1.0",
+        "spec": "agent-hooks/0.1"
       },
       "expect": {
         "canonical_json": "{\"bindings\":[{\"at\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"config\":{},\"id\":\"allow\",\"kind\":\"com.example.allow\",\"on_error\":\"deny\",\"timeout_ms\":null}],\"configuration\":{\"approval\":{\"redactor\":null,\"resolver\":null},\"composition\":{\"profile\":\"sequential/run_all\"},\"failure\":{\"on_error\":\"deny\"},\"identity_provider\":null,\"mode\":\"enforce\",\"posture\":{\"tool_seam_host_error\":\"continue\"},\"records\":{\"max_buffered\":null},\"timeouts\":{\"approval_resolver_ms\":null,\"interceptor_ms\":null}},\"declaration\":\"agent-hooks-declaration/1.0\",\"extensions\":{},\"spec\":\"agent-hooks/0.1\",\"surface\":{\"buffered_output\":true,\"capabilities\":[\"host_declaration\",\"int64_json\",\"model_calls\",\"tool_calls\"],\"declaration_versions\":[\"agent-hooks-declaration/1.0\"],\"interception_points\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"profiles\":{\"parallel/strictest\":{\"on_transform_conflict\":[\"approval\",\"deny\"]},\"parallel/unanimous\":{\"on_disagreement\":[\"approval\",\"deny\"]},\"sequential/first_deny\":{\"on_approval\":[\"resume\",\"stop\"]},\"sequential/run_all\":{}}}}"
@@ -288,7 +290,8 @@
             ],
             "team": "sec"
           }
-        }
+        },
+        "spec": "agent-hooks/0.1"
       },
       "expect": {
         "canonical_json": "{\"bindings\":[{\"at\":[\"pre_tool_call\",\"output\"],\"config\":{},\"id\":\"a\",\"kind\":\"com.example.egress\",\"on_error\":\"deny\",\"timeout_ms\":null},{\"at\":[\"agent_startup\",\"input\",\"output\",\"agent_shutdown\"],\"config\":{},\"id\":\"b\",\"kind\":\"com.example.allow\",\"on_error\":\"deny\",\"timeout_ms\":5000},{\"at\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"config\":{},\"id\":\"c\",\"kind\":\"com.example.audit-log\",\"on_error\":\"deny\",\"timeout_ms\":1}],\"configuration\":{\"approval\":{\"redactor\":null,\"resolver\":\"operator-queue\"},\"composition\":{\"on_transform_conflict\":\"approval\",\"profile\":\"parallel/strictest\"},\"failure\":{\"on_error\":\"deny\"},\"identity_provider\":\"jcs-sha256\",\"mode\":\"enforce\",\"posture\":{\"tool_seam_host_error\":\"continue\"},\"records\":{\"max_buffered\":null},\"timeouts\":{\"approval_resolver_ms\":5000,\"interceptor_ms\":5000}},\"declaration\":\"agent-hooks-declaration/1.0\",\"extensions\":{\"acme\":{\"list\":[1,2.5,\"x\",null,true],\"team\":\"sec\"}},\"spec\":\"agent-hooks/0.1\",\"surface\":{\"buffered_output\":true,\"capabilities\":[\"host_declaration\",\"int64_json\",\"model_calls\",\"tool_calls\"],\"declaration_versions\":[\"agent-hooks-declaration/1.0\"],\"interception_points\":[\"agent_startup\",\"input\",\"pre_model_call\",\"post_model_call\",\"pre_tool_call\",\"post_tool_call\",\"output\",\"agent_shutdown\"],\"profiles\":{\"parallel/strictest\":{\"on_transform_conflict\":[\"approval\",\"deny\"]},\"parallel/unanimous\":{\"on_disagreement\":[\"approval\",\"deny\"]},\"sequential/first_deny\":{\"on_approval\":[\"resume\",\"stop\"]},\"sequential/run_all\":{}}}}"

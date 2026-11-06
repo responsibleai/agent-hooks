@@ -1,7 +1,7 @@
 # agent-hooks (Go SDK)
 
 Go implementation of
-[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md)
+[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md)
 over the canonical Rust core (`libagent_hooks_ffi` via cgo):
 interception points, `AgentContextBuilder`, `Verdict` types,
 host-side `InterceptionEmitter` with the four composition profiles,
@@ -11,7 +11,7 @@ the identity-provider seam, and the CTK runner.
 > boundary: the host framework is fully trusted, interceptors run in-process
 > with full data access, and no complete-mediation claim is made. Read
 > [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
-> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
+> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
 > before relying on it.
 
 ```bash
@@ -27,9 +27,11 @@ cd sdk/go && CGO_ENABLED=1 go build ./...
 ```go
 import "github.com/responsibleai/agent-hooks/sdk/go/agenthooks"
 
-e := agenthooks.NewInterceptionEmitter(agenthooks.Enforce, nil)
+// The host names the specification version it runs under, here 0.1;
+// agenthooks.SpecVersionDraft selects the draft. There is no default.
+e := agenthooks.NewInterceptionEmitter(agenthooks.SpecVersion01, agenthooks.Enforce, nil)
 e.Register(myPolicy{}) // implements Intercept(ctx, AgentContext) (Verdict, error)
-b := agenthooks.NewAgentContextBuilder("my-agent", "my-fw", "s-1")
+b := agenthooks.NewAgentContextBuilder(agenthooks.SpecVersion01, "my-agent", "my-fw", "s-1")
 
 ctx := b.PreToolCall("tc-1", "http_get", map[string]any{"url": url})
 rec, err := e.EmitUnchecked(context.Background(), ctx)
@@ -69,11 +71,14 @@ off by the emitter's timer.
 A host can load its configuration, declared surface and interceptor
 bindings from a host declaration document (spec section 7.7) instead of
 calling the setters. The document is a versioned contract of its own,
-`agent-hooks-declaration/1.1` (1.0 documents still load unchanged),
-separate from the wire version. The module exports
-`agenthooks.DeclarationVersion` and
-`agenthooks.SupportedDeclarationVersions`; `DeclarationVersions()`
-reads the same values from the Rust core.
+`agent-hooks-declaration/1.1` under the draft and 1.0 under 0.1 (a 1.0
+document loads under both), separate from the wire version the document
+names in its required `spec` member. The module exports
+`agenthooks.DeclarationVersion`, `agenthooks.SupportedDeclarationVersions`
+and `DeclarationVersionsFor(spec)`, beside `agenthooks.SupportedSpecVersions`
+and the wire strings `agenthooks.SpecVersion01` and
+`agenthooks.SpecVersionDraft`, the specification versions it supports;
+`DeclarationVersions()` reads the core's values.
 
 The host registers in code what a document may reference: its surface,
 kind resolvers (one Go func per binding kind), custom identity
@@ -99,7 +104,7 @@ if err := reg.ApprovalResolver("operator-queue", queue); err != nil {
 // Three construction paths, one loader, the same records:
 e, err := agenthooks.NewInterceptionEmitterFromDeclarationPath("agent-hooks.declaration.json", reg)
 e, err = agenthooks.NewInterceptionEmitterFromDeclarationJSON([]byte(text), reg)
-decl, err := agenthooks.NewDeclarationBuilder().
+decl, err := agenthooks.NewDeclarationBuilder(agenthooks.SpecVersion01).
 	Composition(agenthooks.StrictestComposition("")).
 	ApprovalResolver("operator-queue").
 	Bind("egress", "com.example.egress", map[string]any{"allow_hosts": []string{"internal.example"}},

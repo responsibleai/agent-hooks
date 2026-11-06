@@ -28,17 +28,24 @@ import {
   MAX_DOCUMENT_BYTES,
   SUPPORTED_DECLARATION_VERSIONS,
   canonicalDeclaration,
+  currentDeclarationVersion,
   declarationVersions,
+  AgentContextBuilder,
+  SPEC_VERSION_0_1,
+  SPEC_VERSION_DRAFT,
+  SUPPORTED_SPEC_VERSIONS,
 } from "../dist/index.js";
 import { builderFromValue } from "../dist/ctk/index.js";
 
 // 1.0 documents: they load unchanged under the 1.1 loader (§7.7.2).
 const V = "agent-hooks-declaration/1.0";
-// The current contract version, which the builder writes by default.
+// The current contract version, which a draft builder writes by default.
 const V11 = "agent-hooks-declaration/1.1";
+// These tests run under the draft, the version that defines 1.1.
+const DRAFT = SPEC_VERSION_DRAFT;
 
 const ctx = (point = "pre_tool_call", seq = 0) => ({
-  spec: "agent-hooks/0.1",
+  spec: DRAFT,
   interception_point: point,
   timestamp: "t",
   sequence: seq,
@@ -49,7 +56,7 @@ const ctx = (point = "pre_tool_call", seq = 0) => ({
 });
 
 const startup = (seq = 0) => ({
-  spec: "agent-hooks/0.1",
+  spec: DRAFT,
   interception_point: "agent_startup",
   timestamp: "t",
   sequence: seq,
@@ -74,6 +81,7 @@ function registry(extra = (r) => r) {
 
 const minimal = () => ({
   declaration: V,
+  spec: DRAFT,
   bindings: [{ id: "allow", kind: "com.example.allow" }],
 });
 
@@ -113,8 +121,75 @@ test("declaration version constants match the core", () => {
   const v = declarationVersions();
   assert.equal(DECLARATION_VERSION, v.current);
   assert.deepEqual([...SUPPORTED_DECLARATION_VERSIONS], v.supported);
+  assert.deepEqual([...SUPPORTED_SPEC_VERSIONS], v.spec_supported);
+  assert.deepEqual([...SUPPORTED_SPEC_VERSIONS], ["0.1", "draft"]);
+  assert.equal(SPEC_VERSION_0_1, "agent-hooks/0.1");
+  assert.equal(SPEC_VERSION_DRAFT, "agent-hooks/draft");
   assert.equal(DECLARATION_VERSION, V11);
   assert.deepEqual([...SUPPORTED_DECLARATION_VERSIONS], [V, V11]);
+  // What each specification version defines, pinned to the core.
+  assert.deepEqual(Object.keys(v.by_spec).sort(), [...SUPPORTED_SPEC_VERSIONS].sort());
+  for (const name of SUPPORTED_SPEC_VERSIONS) {
+    assert.equal(currentDeclarationVersion(`agent-hooks/${name}`), v.by_spec[name].current);
+  }
+  assert.equal(currentDeclarationVersion(SPEC_VERSION_0_1), V);
+  assert.equal(currentDeclarationVersion(SPEC_VERSION_DRAFT), V11);
+  assert.throws(() => currentDeclarationVersion("agent-hooks/0.2"), RangeError);
+});
+
+test("a version is required everywhere and must be supported", () => {
+  for (const bad of [undefined, null, "", "0.1", "agent-hooks/0.2", "agent-hooks/DRAFT"]) {
+    assert.throws(
+      () => new AgentContextBuilder({ spec: bad, agentId: "a", framework: "x", sessionId: "s" }),
+      (e) => e instanceof RangeError && /SUPPORTED_SPEC_VERSIONS/.test(e.message) && /agent-hooks\/draft/.test(e.message),
+      String(bad),
+    );
+    assert.throws(() => new InterceptionEmitter(bad), RangeError, String(bad));
+    assert.throws(() => new DeclarationBuilder(bad), RangeError, String(bad));
+  }
+  assert.throws(() => new AgentContextBuilder({ agentId: "a", framework: "x", sessionId: "s" }), RangeError);
+  for (const spec of [SPEC_VERSION_0_1, SPEC_VERSION_DRAFT]) {
+    const b = new AgentContextBuilder({ spec, agentId: "a", framework: "x", sessionId: "s" });
+    assert.equal(b.spec, spec);
+    assert.equal(b.input("hi").spec, spec);
+    assert.equal(new InterceptionEmitter(spec).spec, spec);
+  }
+});
+
+test("the contract version a document may carry is its specification version's", () => {
+  // 0.1 defines 1.0 alone; the draft defines both. A document without
+  // `spec` names no version and is refused at step 4.
+  const under01 = { declaration: V11, spec: DRAFT, spec: SPEC_VERSION_0_1, bindings: [] };
+  const err = refused(() => HostDeclaration.fromValue(under01), DeclarationErrorClass.VersionUnsupported, "/declaration");
+  assert.deepEqual(err.accepted, [V]);
+  assert.match(err.message, /agent-hooks\/draft accepts it/);
+  const d10 = InterceptionEmitter.fromDeclarationValue({ declaration: V, spec: SPEC_VERSION_0_1, bindings: [] }, registry());
+  assert.equal(d10.declaration.spec, SPEC_VERSION_0_1);
+  assert.equal(d10.spec, SPEC_VERSION_0_1);
+  assert.ok(InterceptionEmitter.fromDeclarationValue({ declaration: V, spec: DRAFT, bindings: [] }, registry()));
+  const unversioned = { declaration: V, bindings: [] };
+  const e = refused(() => HostDeclaration.fromValue(unversioned), DeclarationErrorClass.SpecUnsupported, "/spec");
+  assert.match(e.message, /spec is missing/);
+  // The builder writes the newest contract version of its own version.
+  assert.equal(new DeclarationBuilder(SPEC_VERSION_0_1).toValue().declaration, V);
+  assert.equal(new DeclarationBuilder(SPEC_VERSION_0_1).toValue().spec, SPEC_VERSION_0_1);
+  assert.equal(new DeclarationBuilder(DRAFT).toValue().declaration, V11);
+  assert.equal(new DeclarationBuilder(SPEC_VERSION_0_1).build().version, V);
+  refused(
+    () => new DeclarationBuilder(SPEC_VERSION_0_1).failureOnError("continue").build(),
+    DeclarationErrorClass.UnknownField,
+    "/configuration/failure",
+  );
+  // An emitter built from a 0.1 document runs 0.1: a draft context is
+  // refused, a 0.1 context runs.
+  const em = InterceptionEmitter.fromDeclarationValue({ declaration: V, spec: SPEC_VERSION_0_1, bindings: [{ id: "allow", kind: "com.example.allow" }] }, registry());
+  return (async () => {
+    const r = await em.emitUnchecked(ctx());
+    assert.equal(r.verdict.reason, "host_error:context_invalid");
+    const b = new AgentContextBuilder({ spec: SPEC_VERSION_0_1, agentId: "a", framework: "x", sessionId: "s" });
+    const ok = await em.emitUnchecked(b.preToolCall("tc", "t", { url: "x" }));
+    assert.ok(ok.proceeds ?? ok.verdict.decision === "allow");
+  })();
 });
 
 test("capability vocabulary is the closed list", () => {
@@ -140,7 +215,7 @@ test("minimal document loads with every default filled", () => {
   const em = InterceptionEmitter.fromDeclarationValue(minimal(), registry());
   const d = em.declaration;
   assert.equal(d.declaration, V);
-  assert.equal(d.spec, "agent-hooks/0.1");
+  assert.equal(d.spec, DRAFT);
   assert.deepEqual(d.configuration.composition, {
     profile: "sequential/first_deny",
     on_approval: "stop",
@@ -158,7 +233,7 @@ test("minimal document loads with every default filled", () => {
 
 test("value, JSON, file and builder paths resolve to one canonical form", async () => {
   const doc = {
-    declaration: V,
+    declaration: V, spec: DRAFT,
     configuration: { composition: { profile: "parallel/strictest" }, timeouts: { interceptor_ms: 4000 } },
     bindings: [
       { id: "audit", kind: "com.example.allow", timeout_ms: 2000 },
@@ -171,7 +246,7 @@ test("value, JSON, file and builder paths resolve to one canonical form", async 
   try {
     const path = join(dir, "decl.json");
     writeFileSync(path, text, "utf8");
-    const builder = HostDeclaration.builder()
+    const builder = HostDeclaration.builder(DRAFT)
       .version(V)
       .composition({ profile: "parallel/strictest" })
       .interceptorTimeoutMs(4000)
@@ -208,7 +283,7 @@ test("builderFromValue keeps an explicit config: null", () => {
   // `null` is a value the spec allows for `config`; only an absent
   // member takes the `{}` default. The builder path must agree with
   // the value path, as it does in the Rust runner.
-  const doc = { declaration: V, bindings: [{ id: "a", kind: "com.example.allow", config: null }] };
+  const doc = { declaration: V, spec: DRAFT, bindings: [{ id: "a", kind: "com.example.allow", config: null }] };
   const reg = registry();
   const viaValue = InterceptionEmitter.fromDeclarationValue(doc, reg);
   const viaBuilder = InterceptionEmitter.fromDeclaration(builderFromValue(doc).build(), reg);
@@ -217,7 +292,7 @@ test("builderFromValue keeps an explicit config: null", () => {
 });
 
 const configKey = (key) =>
-  `{"declaration":"${V}","bindings":[{"id":"a","kind":"com.example.allow","config":{"key":${key}}}]}`;
+  `{"declaration":"${V}","spec":"${DRAFT}","bindings":[{"id":"a","kind":"com.example.allow","config":{"key":${key}}}]}`;
 
 test("an integer above 2^53 - 1 anywhere in the document is refused at its pointer", () => {
   // #129: `config` is opaque to the loader except for the integer
@@ -254,8 +329,7 @@ test("an integer at the bound (2^53 - 1) inside a binding config loads and canon
 });
 
 test("builder writes what a file would and is validated like one", () => {
-  const b = new DeclarationBuilder()
-    .spec("agent-hooks/0.1")
+  const b = new DeclarationBuilder(SPEC_VERSION_0_1)
     .id("prod")
     .host("example-runtime", "3.2.0")
     .mode(EnforcementMode.EvaluateOnly)
@@ -275,7 +349,8 @@ test("builder writes what a file would and is validated like one", () => {
     .bind("a", "com.example.allow", { x: 1 })
     .extension("acme", { note: "kept verbatim" });
   const value = b.toValue();
-  assert.equal(value.declaration, V11);
+  assert.equal(value.declaration, V);
+  assert.equal(value.spec, SPEC_VERSION_0_1);
   assert.deepEqual(value.host, { name: "example-runtime", version: "3.2.0" });
   assert.deepEqual(value.configuration.composition, {
     profile: "parallel/unanimous",
@@ -287,7 +362,7 @@ test("builder writes what a file would and is validated like one", () => {
   assert.deepEqual(em.declaration.extensions, { acme: { note: "kept verbatim" } });
   // An unknown member set through raw() is refused like a file.
   refused(
-    () => new DeclarationBuilder().raw("policy", {}).build(),
+    () => new DeclarationBuilder(DRAFT).raw("policy", {}).build(),
     DeclarationErrorClass.UnknownField,
     "/policy",
   );
@@ -300,7 +375,7 @@ test("records stamp declaration iff declaration-built; code path is unchanged", 
   const r1 = await declared.emitUnchecked(ctx());
   assert.equal(r1.declaration, V);
   assert.equal(r1.verdicts[0].name, "allow");
-  const legacy = new InterceptionEmitter();
+  const legacy = new InterceptionEmitter(DRAFT);
   legacy.register(allow);
   const r2 = await legacy.emitUnchecked(ctx());
   assert.ok(!("declaration" in r2));
@@ -315,7 +390,7 @@ test("records stamp declaration iff declaration-built; code path is unchanged", 
 
 test("per-point bindings count and index only what runs at the point", async () => {
   const doc = {
-    declaration: V,
+    declaration: V, spec: DRAFT,
     bindings: [
       { id: "a", kind: "com.example.deny", at: ["pre_tool_call"] },
       { id: "b", kind: "com.example.allow" },
@@ -335,7 +410,7 @@ test("per-point bindings count and index only what runs at the point", async () 
 });
 
 test("register(at) filters the code path the same way", async () => {
-  const em = new InterceptionEmitter();
+  const em = new InterceptionEmitter(DRAFT);
   em.register(denyAll, "a", ["pre_tool_call"]).register(allow, "b");
   const s = await em.emitUnchecked(startup(0));
   assert.equal(s.interceptors_registered, 1);
@@ -348,7 +423,7 @@ test("register(at) filters the code path the same way", async () => {
 
 test("a surface point with no binding denies host_error:no_interceptor", async () => {
   const doc = {
-    declaration: V,
+    declaration: V, spec: DRAFT,
     bindings: [{ id: "only-tools", kind: "com.example.allow", at: ["pre_tool_call"] }],
   };
   const em = InterceptionEmitter.fromDeclarationValue(doc, registry());
@@ -374,7 +449,7 @@ test("a declaration-built emitter is sealed", () => {
 
 test("writing through emitter.declaration changes nothing", async () => {
   const doc = {
-    declaration: V,
+    declaration: V, spec: DRAFT,
     bindings: [
       { id: "a", kind: "com.example.deny" },
       { id: "b", kind: "com.example.allow" },
@@ -414,7 +489,7 @@ test("a kind resolver cannot widen its binding through the context", async () =>
     }),
   );
   const doc = {
-    declaration: V,
+    declaration: V, spec: DRAFT,
     bindings: [{ id: "narrow", kind: "com.example.widen", at: ["pre_tool_call"] }],
   };
   const em = InterceptionEmitter.fromDeclarationValue(doc, reg);
@@ -429,7 +504,7 @@ test("a kind resolver cannot widen its binding through the context", async () =>
 });
 
 test("register(at) refuses an empty point set", () => {
-  const em = new InterceptionEmitter();
+  const em = new InterceptionEmitter(DRAFT);
   assert.throws(() => em.register(allow, "a", []), RangeError);
   assert.throws(() => em.register(allow, "a", new Set()), RangeError);
   assert.equal(em.records.length, 0);
@@ -442,16 +517,16 @@ test("the builder refuses a __proto__ key the same way the value path does", () 
     "/extensions/__proto__",
   );
   refused(
-    () => new DeclarationBuilder().bind("allow", "com.example.allow").extension("__proto__", 1).build(),
+    () => new DeclarationBuilder(DRAFT).bind("allow", "com.example.allow").extension("__proto__", 1).build(),
     DeclarationErrorClass.InvalidField,
     "/extensions/__proto__",
   );
   refused(
-    () => new DeclarationBuilder().bind("allow", "com.example.allow").raw("__proto__", {}).build(),
+    () => new DeclarationBuilder(DRAFT).bind("allow", "com.example.allow").raw("__proto__", {}).build(),
     DeclarationErrorClass.UnknownField,
     "/__proto__",
   );
-  const built = new DeclarationBuilder().raw("__proto__", {}).toValue();
+  const built = new DeclarationBuilder(DRAFT).raw("__proto__", {}).toValue();
   assert.ok(Object.hasOwn(built, "__proto__"));
 });
 
@@ -479,11 +554,16 @@ test("version_unsupported: reserved major, missing, higher minor, non-string", (
 });
 
 test("spec_unsupported", () => {
-  refused(
-    () => HostDeclaration.fromValue({ ...minimal(), spec: "agent-hooks/9.0" }),
-    DeclarationErrorClass.SpecUnsupported,
-    "/spec",
-  );
+  for (const bad of ["agent-hooks/9.0", "agent-hooks/0.0", "agent-hooks/DRAFT", 1]) {
+    refused(
+      () => HostDeclaration.fromValue({ ...minimal(), spec: bad }),
+      DeclarationErrorClass.SpecUnsupported,
+      "/spec",
+    );
+  }
+  const unversioned = minimal();
+  delete unversioned.spec;
+  refused(() => HostDeclaration.fromValue(unversioned), DeclarationErrorClass.SpecUnsupported, "/spec");
 });
 
 test("unknown_field at the top level and nested", () => {
@@ -540,7 +620,7 @@ test("inconsistent: unconsulted knob, floor, duplicate id", () => {
   refused(
     () =>
       HostDeclaration.fromValue({
-        declaration: V,
+        declaration: V, spec: DRAFT,
         bindings: [
           { id: "a", kind: "com.example.allow" },
           { id: "a", kind: "com.example.allow" },
@@ -598,7 +678,7 @@ test("surface_unsupported against a narrowed host surface", () => {
   refused(
     () =>
       InterceptionEmitter.fromDeclarationValue(
-        { declaration: V, bindings: [{ id: "a", kind: "com.example.allow", at: ["pre_tool_call"] }] },
+        { declaration: V, spec: DRAFT, bindings: [{ id: "a", kind: "com.example.allow", at: ["pre_tool_call"] }] },
         narrow,
       ),
     DeclarationErrorClass.Inconsistent,
@@ -637,7 +717,7 @@ test("reference_unresolved, kind_unknown, binding_rejected", () => {
   refused(
     () =>
       InterceptionEmitter.fromDeclarationValue(
-        { declaration: V, bindings: [{ id: "x", kind: "com.example.nonexistent" }] },
+        { declaration: V, spec: DRAFT, bindings: [{ id: "x", kind: "com.example.nonexistent" }] },
         registry(),
       ),
     DeclarationErrorClass.KindUnknown,
@@ -655,7 +735,7 @@ test("reference_unresolved, kind_unknown, binding_rejected", () => {
     () =>
       InterceptionEmitter.fromDeclarationValue(
         {
-          declaration: V,
+          declaration: V, spec: DRAFT,
           bindings: [
             { id: "a", kind: "com.example.counting" },
             { id: "b", kind: "com.example.nonexistent" },
@@ -679,7 +759,7 @@ test("reference_unresolved, kind_unknown, binding_rejected", () => {
   const e1 = refused(
     () =>
       InterceptionEmitter.fromDeclarationValue(
-        { declaration: V, bindings: [{ id: "t", kind: "com.example.throws", config: { secret: "s3" } }] },
+        { declaration: V, spec: DRAFT, bindings: [{ id: "t", kind: "com.example.throws", config: { secret: "s3" } }] },
         bad,
       ),
     DeclarationErrorClass.BindingRejected,
@@ -690,7 +770,7 @@ test("reference_unresolved, kind_unknown, binding_rejected", () => {
   const e2 = refused(
     () =>
       InterceptionEmitter.fromDeclarationValue(
-        { declaration: V, bindings: [{ id: "w", kind: "com.example.wrong" }] },
+        { declaration: V, spec: DRAFT, bindings: [{ id: "w", kind: "com.example.wrong" }] },
         bad,
       ),
     DeclarationErrorClass.BindingRejected,
@@ -702,7 +782,7 @@ test("reference_unresolved, kind_unknown, binding_rejected", () => {
   const e3 = refused(
     () =>
       InterceptionEmitter.fromDeclarationValue(
-        { declaration: V, bindings: [{ id: "p", kind: "com.example.async" }] },
+        { declaration: V, spec: DRAFT, bindings: [{ id: "p", kind: "com.example.async" }] },
         asyncReg,
       ),
     DeclarationErrorClass.BindingRejected,
@@ -721,7 +801,7 @@ test("a resolver message is bounded in the findings and in the message alike", (
   const e = refused(
     () =>
       InterceptionEmitter.fromDeclarationValue(
-        { declaration: V, bindings: [{ id: "l", kind: "com.example.loud" }] },
+        { declaration: V, spec: DRAFT, bindings: [{ id: "l", kind: "com.example.loud" }] },
         loud,
       ),
     DeclarationErrorClass.BindingRejected,
@@ -739,7 +819,7 @@ test("a resolver message is bounded in the findings and in the message alike", (
 });
 
 test("register(at) refuses an unknown point name at call time", () => {
-  const em = new InterceptionEmitter();
+  const em = new InterceptionEmitter(DRAFT);
   assert.throws(
     () => em.register(allow, "x", ["pre_tool_cal"]),
     (err) => err instanceof RangeError && /unknown interception point "pre_tool_cal"/.test(err.message),
@@ -854,7 +934,7 @@ test("custom provider, resolver and redactor are taken from the registry", async
   );
   const em = InterceptionEmitter.fromDeclarationValue(
     {
-      declaration: V,
+      declaration: V, spec: DRAFT,
       configuration: {
         identity_provider: "hmac-sha256-k1",
         approval: { resolver: "queue", redactor: "strip" },
@@ -884,7 +964,7 @@ test("approval_resolver_ms bounds the resolver", async () => {
   );
   const em = InterceptionEmitter.fromDeclarationValue(
     {
-      declaration: V,
+      declaration: V, spec: DRAFT,
       configuration: { approval: { resolver: "slow" }, timeouts: { approval_resolver_ms: 20 } },
       bindings: [{ id: "e", kind: "com.example.escalate" }],
     },
@@ -901,7 +981,7 @@ test("per-binding timeout_ms bounds that interceptor only", async () => {
   );
   const em = InterceptionEmitter.fromDeclarationValue(
     {
-      declaration: V,
+      declaration: V, spec: DRAFT,
       configuration: { composition: { profile: "sequential/run_all" } },
       bindings: [
         { id: "slow", kind: "com.example.slow", timeout_ms: 20 },
@@ -946,7 +1026,7 @@ function postureRegistry(extra = (r) => r) {
 
 test("on_error: a 1.0 document resolves to deny everywhere and keeps its version", async () => {
   const doc = {
-    declaration: V,
+    declaration: V, spec: DRAFT,
     configuration: { composition: { profile: "sequential/run_all" } },
     bindings: [
       { id: "flaky", kind: "com.example.flaky" },
@@ -977,7 +1057,7 @@ test("on_error: binding member and document default resolve as §7.7.5 says", ()
   );
   const em = InterceptionEmitter.fromDeclarationValue(
     {
-      declaration: V11,
+      declaration: V11, spec: DRAFT,
       configuration: { failure: { on_error: "continue" } },
       bindings: [
         { id: "inherits", kind: "com.example.see" },
@@ -998,7 +1078,7 @@ test("on_error: binding member and document default resolve as §7.7.5 says", ()
   // An explicit document default of deny with a binding that opens it.
   const em2 = InterceptionEmitter.fromDeclarationValue(
     {
-      declaration: V11,
+      declaration: V11, spec: DRAFT,
       configuration: { failure: { on_error: "deny" } },
       bindings: [{ id: "opens", kind: "com.example.see", on_error: "continue" }],
     },
@@ -1016,7 +1096,7 @@ test("on_error: declared continue substitutes, declared deny does not, and the p
   const { reg, notices } = postureRegistry();
   const em = InterceptionEmitter.fromDeclarationValue(
     {
-      declaration: V11,
+      declaration: V11, spec: DRAFT,
       configuration: { composition: { profile: "sequential/run_all" }, failure: { on_error: "continue" } },
       bindings: [
         { id: "flaky", kind: "com.example.flaky" },
@@ -1045,7 +1125,7 @@ test("on_error: declared continue substitutes, declared deny does not, and the p
   assert.equal(notices[0].message, "flaky: host_error:interceptor_failed; host continued");
   // Alone, the continuation proceeds with decided_by null.
   const em2 = InterceptionEmitter.fromDeclarationValue(
-    { declaration: V11, bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "continue" }] },
+    { declaration: V11, spec: DRAFT, bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "continue" }] },
     reg,
   );
   const r2 = await em2.emitUnchecked(ctx("pre_tool_call", 1));
@@ -1062,7 +1142,7 @@ test("on_error: continue without a registry notifier is binding_rejected at the 
   refused(
     () =>
       InterceptionEmitter.fromDeclarationValue(
-        { declaration: V11, bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "continue" }] },
+        { declaration: V11, spec: DRAFT, bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "continue" }] },
         noChannel,
       ),
     DeclarationErrorClass.BindingRejected,
@@ -1073,7 +1153,7 @@ test("on_error: continue without a registry notifier is binding_rejected at the 
     () =>
       InterceptionEmitter.fromDeclarationValue(
         {
-          declaration: V11,
+          declaration: V11, spec: DRAFT,
           configuration: { failure: { on_error: "continue" } },
           bindings: [{ id: "flaky", kind: "com.example.flaky" }],
         },
@@ -1086,7 +1166,7 @@ test("on_error: continue without a registry notifier is binding_rejected at the 
   // Deny needs no channel.
   InterceptionEmitter.fromDeclarationValue(
     {
-      declaration: V11,
+      declaration: V11, spec: DRAFT,
       configuration: { failure: { on_error: "deny" } },
       bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "deny" }],
     },
@@ -1095,7 +1175,7 @@ test("on_error: continue without a registry notifier is binding_rejected at the 
   // With the channel the same document loads.
   const { reg } = postureRegistry();
   InterceptionEmitter.fromDeclarationValue(
-    { declaration: V11, bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "continue" }] },
+    { declaration: V11, spec: DRAFT, bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "continue" }] },
     reg,
   );
   assert.throws(() => new HostRegistry(HostSurface.sdkDefault()).controlFailureNotifier("nope"), HostRegistryError);
@@ -1105,12 +1185,12 @@ test("on_error: refusal classes for the 1.1 members", () => {
   // Outside the closed set: invalid_field at the member.
   for (const bad of ["ignore", "Continue", true, null]) {
     refused(
-      () => HostDeclaration.fromValue({ declaration: V11, bindings: [{ id: "a", kind: "com.example.allow", on_error: bad }] }),
+      () => HostDeclaration.fromValue({ declaration: V11, spec: DRAFT, bindings: [{ id: "a", kind: "com.example.allow", on_error: bad }] }),
       DeclarationErrorClass.InvalidField,
       "/bindings/0/on_error",
     );
     refused(
-      () => HostDeclaration.fromValue({ ...minimal(), declaration: V11, configuration: { failure: { on_error: bad } } }),
+      () => HostDeclaration.fromValue({ ...minimal(), declaration: V11, spec: DRAFT, configuration: { failure: { on_error: bad } } }),
       DeclarationErrorClass.InvalidField,
       "/configuration/failure/on_error",
     );
@@ -1118,7 +1198,7 @@ test("on_error: refusal classes for the 1.1 members", () => {
   // Under a 1.0 version string: unknown_field; the document opts in by
   // writing 1.1.
   refused(
-    () => HostDeclaration.fromValue({ declaration: V, bindings: [{ id: "a", kind: "com.example.allow", on_error: "continue" }] }),
+    () => HostDeclaration.fromValue({ declaration: V, spec: DRAFT, bindings: [{ id: "a", kind: "com.example.allow", on_error: "continue" }] }),
     DeclarationErrorClass.UnknownField,
     "/bindings/0/on_error",
   );
@@ -1129,7 +1209,7 @@ test("on_error: refusal classes for the 1.1 members", () => {
   );
   // An unknown member inside failure is unknown at that level.
   refused(
-    () => HostDeclaration.fromValue({ ...minimal(), declaration: V11, configuration: { failure: { on_timeout: "deny" } } }),
+    () => HostDeclaration.fromValue({ ...minimal(), declaration: V11, spec: DRAFT, configuration: { failure: { on_timeout: "deny" } } }),
     DeclarationErrorClass.UnknownField,
     "/configuration/failure/on_timeout",
   );
@@ -1172,7 +1252,7 @@ test("managed kinds: resolver output, name collision, the resolved bound", async
 
   const em = InterceptionEmitter.fromDeclarationValue(
     {
-      declaration: V11,
+      declaration: V11, spec: DRAFT,
       configuration: { composition: { profile: "sequential/run_all" } },
       bindings: [
         { id: "bounded", kind: "com.example.proc", timeout_ms: 250, on_error: "continue" },
@@ -1207,7 +1287,7 @@ test("managed kinds: resolver output, name collision, the resolved bound", async
   refused(
     () =>
       InterceptionEmitter.fromDeclarationValue(
-        { declaration: V11, bindings: [{ id: "a", kind: "com.example.wrong", config: {} }] },
+        { declaration: V11, spec: DRAFT, bindings: [{ id: "a", kind: "com.example.wrong", config: {} }] },
         registry((r) => r.managedKind("com.example.wrong", () => allow)),
       ),
     DeclarationErrorClass.BindingRejected,
@@ -1216,7 +1296,7 @@ test("managed kinds: resolver output, name collision, the resolved bound", async
   refused(
     () =>
       InterceptionEmitter.fromDeclarationValue(
-        { declaration: V11, bindings: [{ id: "a", kind: "com.example.wrong", config: {} }] },
+        { declaration: V11, spec: DRAFT, bindings: [{ id: "a", kind: "com.example.wrong", config: {} }] },
         registry((r) => r.kind("com.example.wrong", () => managed)),
       ),
     DeclarationErrorClass.BindingRejected,
@@ -1225,7 +1305,7 @@ test("managed kinds: resolver output, name collision, the resolved bound", async
 });
 
 test("builder: failureOnError and bindWith write the 1.1 members; the builder path agrees with the value path", () => {
-  const b = new DeclarationBuilder()
+  const b = new DeclarationBuilder(DRAFT)
     .failureOnError("continue")
     .bindWith("flaky", "com.example.flaky", {}, { onError: "deny", timeoutMs: 100, at: ["output", "input"] })
     .bindWith("second", "com.example.allow");
@@ -1250,7 +1330,7 @@ test("builder: failureOnError and bindWith write the 1.1 members; the builder pa
   assert.equal(viaValue.declaration.bindings[1].on_error, "continue");
   // Written under 1.0 the builder's output is refused like a file.
   refused(
-    () => new DeclarationBuilder().version(V).failureOnError("deny").bind("a", "com.example.allow").build(),
+    () => new DeclarationBuilder(DRAFT).version(V).failureOnError("deny").bind("a", "com.example.allow").build(),
     DeclarationErrorClass.UnknownField,
     "/configuration/failure",
   );
@@ -1259,7 +1339,7 @@ test("builder: failureOnError and bindWith write the 1.1 members; the builder pa
 test("sealed emitter: the notifier is a host channel, the registration options are not", () => {
   const { reg } = postureRegistry();
   const em = InterceptionEmitter.fromDeclarationValue(
-    { declaration: V11, bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "continue" }] },
+    { declaration: V11, spec: DRAFT, bindings: [{ id: "flaky", kind: "com.example.flaky", on_error: "continue" }] },
     reg,
   );
   em.setControlFailureNotifier(() => {});

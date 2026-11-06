@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agent_hooks import _core
-from agent_hooks._types import Verdict
+from agent_hooks._types import Verdict, require_spec_version
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,8 +21,10 @@ class InterceptorResponse:
     extensions: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def parse(cls, value: str | dict[str, Any]) -> InterceptorResponse:
-        """Parse a bare Verdict or response envelope through the Rust gate.
+    def parse(cls, value: str | dict[str, Any], spec: str) -> InterceptorResponse:
+        """Parse a bare Verdict or response envelope through the Rust gate,
+        under the specification version ``spec`` names (the context's
+        wire string).
 
         Pass raw JSON text when duplicate-member detection is required.
         """
@@ -32,7 +34,9 @@ class InterceptorResponse:
             if isinstance(value, str)
             else json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
         )
-        normalized = json.loads(_core.normalize_interceptor_response(text))
+        normalized = json.loads(
+            _core.normalize_interceptor_response(require_spec_version(spec), text)
+        )
         verdict = normalized["verdict"]
         if verdict["decision"] == "transform":
             verdict["transform"].setdefault("value", None)

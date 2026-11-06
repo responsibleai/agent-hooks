@@ -20,8 +20,8 @@ collaborators hold access roles only and are not listed here.
 
 - **Design decisions** in the classes listed in
   [docs/proposals/README.md](docs/proposals/README.md) require a
-  written proposal (P-NNN) decided by the maintainers. Everything else
-  is decided by ordinary PR review.
+  written proposal (`P-<PR>`, numbered by its pull request) decided by
+  the maintainers. Everything else is decided by ordinary PR review.
 - **Change gating:** `main` is protected — every change lands by PR
   with all required status checks (build/test across the five SDKs,
   schema drift, CodeQL) passing; linear history; no force pushes.

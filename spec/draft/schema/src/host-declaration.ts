@@ -324,12 +324,12 @@ interface HostDeclarationBase {
   /** Ignored by the loader; kept for editors. */
   $schema?: string;
   /**
-   * OPTIONAL. The wire version the document was written for; the loader's
-   * major, and a minor no greater than the loader's. Defaults to the loader's
-   * SPEC_VERSION.
-   * @pattern ^agent-hooks/[0-9]+\.[0-9]+$
+   * REQUIRED. The specification version the document is written for
+   * (§7.7.2): this version's wire string. A document written for a
+   * released version names that version's own string instead, and is
+   * read by that version's rules.
    */
-  spec?: string;
+  spec: "agent-hooks/draft";
   /**
    * OPTIONAL. An operator label for logs. Never stamped on records.
    * @pattern ^[a-z0-9][a-z0-9._-]{0,63}$
@@ -354,7 +354,7 @@ interface HostDeclarationBase {
  * A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that
  * fixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface
  * (§13.1) and its interceptor bindings. The document is a versioned contract of
- * its own, separate from the wire version agent-hooks/0.1 and from package
+ * its own, separate from the wire version agent-hooks/draft and from package
  * versions; this file describes agent-hooks-declaration/1.0. Every object is
  * closed except bindings[].config and the values under extensions. This schema
  * is self-contained so a settings validator can use it alone. Rules it cannot
@@ -385,7 +385,7 @@ export interface HostDeclaration10 extends HostDeclarationBase {
  * A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that
  * fixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface
  * (§13.1) and its interceptor bindings. The document is a versioned contract of
- * its own, separate from the wire version agent-hooks/0.1 and from package
+ * its own, separate from the wire version agent-hooks/draft and from package
  * versions; this file describes agent-hooks-declaration/1.1. 1.1 adds two
  * OPTIONAL members over 1.0: configuration.failure.on_error, the document
  * default failure posture, and bindings[].on_error, the per-binding posture

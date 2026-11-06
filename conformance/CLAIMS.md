@@ -6,7 +6,7 @@
 > not test adversarial bypass, does not assure that the production
 > code path matches the harness, and says nothing about the
 > interceptors registered in production. See [`SECURITY.md`](../SECURITY.md)
-> and [spec §1.4](../spec/0.1.0/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
+> and [spec §1.4](../spec/0.1/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals).
 
 A host is **conformant** when it passes 100% of the CTK vectors
 applicable to its **declared surface** (spec §13.1): its capability
@@ -43,6 +43,16 @@ A claim MAY cite a host declaration document (spec §7.7). It then cites
 the file whose resolved surface the CTK run used, at the claimed
 commit, and that document carries an explicit `surface`. The claim
 tuple is unchanged; name the file in the Notes column.
+
+A claim names a released specification version. The vectors under
+`conformance/` are the working test set for the next version and run
+under `agent-hooks/draft`, which no claim names; every SDK runner
+refuses a conformance report that does ([RUNNER.md](RUNNER.md)).
+
+The three rows below predate per-version conformance: each ran the kit
+as it stood at the commit it cites, not a test set frozen with a
+specification version. Per-version test sets and claim digests are
+[#184](https://github.com/responsibleai/agent-hooks/issues/184).
 
 | Framework | Adapter version | Spec | Capabilities | Profiles | Identity provider | SDK | Report | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

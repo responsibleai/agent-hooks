@@ -20,14 +20,18 @@ from typing import Any
 import pytest
 from agent_hooks import (
     DECLARATION_VERSION,
-    SPEC_VERSION,
+    SPEC_VERSION_0_1,
+    SPEC_VERSION_DRAFT,
     SUPPORTED_DECLARATION_VERSIONS,
+    SUPPORTED_SPEC_VERSIONS,
+    SUPPORTED_SPEC_WIRE_VERSIONS,
     ApprovalOutcome,
     ApprovalRequest,
     ApprovalResolution,
     BindingContext,
     CompositionConfig,
     CompositionProfile,
+    DeclarationBuilder,
     DeclarationError,
     DeclarationErrorClass,
     EmitterSealed,
@@ -41,6 +45,8 @@ from agent_hooks import (
     SynthesisPolicy,
     Verdict,
     _core,
+    accepted_declaration_versions,
+    current_declaration_version,
 )
 from agent_hooks.context import AgentContext, AgentContextBuilder
 from agent_hooks.declaration import MAX_DEPTH, MAX_DOCUMENT_BYTES, valid_kind, valid_reference
@@ -108,6 +114,7 @@ def registry() -> HostRegistry:
 def document() -> dict[str, Any]:
     return {
         "declaration": DECLARATION_VERSION,
+        "spec": SPEC_VERSION_DRAFT,
         "id": "test-doc",
         "configuration": {
             "composition": {"profile": "parallel/strictest"},
@@ -129,7 +136,9 @@ def document() -> dict[str, Any]:
 
 
 def run_session(em: InterceptionEmitter) -> list[dict[str, Any]]:
-    b = AgentContextBuilder(agent_id="a1", framework="test-host", session_id="s1")
+    b = AgentContextBuilder(
+        spec=SPEC_VERSION_DRAFT, agent_id="a1", framework="test-host", session_id="s1"
+    )
 
     async def go() -> list[dict[str, Any]]:
         out = []
@@ -164,9 +173,86 @@ def test_constants_match_the_core() -> None:
     assert versions == {
         "current": DECLARATION_VERSION,
         "supported": list(SUPPORTED_DECLARATION_VERSIONS),
+        "spec_supported": list(SUPPORTED_SPEC_VERSIONS),
+        "by_spec": {
+            name: {
+                "current": current_declaration_version(f"agent-hooks/{name}"),
+                "supported": list(accepted_declaration_versions(f"agent-hooks/{name}")),
+            }
+            for name in SUPPORTED_SPEC_VERSIONS
+        },
     }
     assert DECLARATION_VERSION in SUPPORTED_DECLARATION_VERSIONS
-    assert DECLARATION_VERSION != SPEC_VERSION
+    assert SUPPORTED_SPEC_VERSIONS == ("0.1", "draft")
+    assert SUPPORTED_SPEC_WIRE_VERSIONS == (SPEC_VERSION_0_1, SPEC_VERSION_DRAFT)
+    assert current_declaration_version(SPEC_VERSION_0_1) == "agent-hooks-declaration/1.0"
+    assert current_declaration_version(SPEC_VERSION_DRAFT) == DECLARATION_VERSION
+    with pytest.raises(ValueError, match="SUPPORTED_SPEC_VERSIONS"):
+        current_declaration_version("agent-hooks/0.2")
+
+
+def test_a_version_is_required_everywhere() -> None:
+    for bad in (None, "", "0.1", "agent-hooks/0.2", "agent-hooks/DRAFT"):
+        with pytest.raises(ValueError, match=r"agent-hooks/0\.1, agent-hooks/draft"):
+            AgentContextBuilder(spec=bad, agent_id="a", framework="x", session_id="s")  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="SUPPORTED_SPEC_VERSIONS"):
+            InterceptionEmitter(spec=bad)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="SUPPORTED_SPEC_VERSIONS"):
+            DeclarationBuilder(bad)  # type: ignore[arg-type]
+    with pytest.raises(TypeError):
+        AgentContextBuilder(agent_id="a", framework="x", session_id="s")  # type: ignore[call-arg]
+    with pytest.raises(TypeError):
+        InterceptionEmitter()  # type: ignore[call-arg]
+    for spec in (SPEC_VERSION_0_1, SPEC_VERSION_DRAFT):
+        b = AgentContextBuilder(spec=spec, agent_id="a", framework="x", session_id="s")
+        assert b.spec == spec
+        assert b.input(content="hi", role="user")["spec"] == spec
+        assert InterceptionEmitter(spec=spec).spec == spec
+
+
+def test_the_contract_version_a_document_may_carry_is_its_spec_versions() -> None:
+    # 0.1 defines 1.0 alone; the draft defines both. A document without
+    # `spec` names no version and is refused at step 4.
+    reg = registry()
+    e = refusal({"declaration": DECLARATION_VERSION, "spec": SPEC_VERSION_0_1, "bindings": []}, reg)
+    assert e.error_class is DeclarationErrorClass.VERSION_UNSUPPORTED
+    assert e.accepted == ("agent-hooks-declaration/1.0",)
+    assert "agent-hooks/draft accepts it" in str(e)
+    e = refusal({"declaration": "agent-hooks-declaration/1.0", "bindings": []}, reg)
+    assert e.error_class is DeclarationErrorClass.SPEC_UNSUPPORTED
+    assert e.findings[0].pointer == "/spec"
+    assert "spec is missing" in str(e)
+    em = InterceptionEmitter.from_declaration_value(
+        {
+            "declaration": "agent-hooks-declaration/1.0",
+            "spec": SPEC_VERSION_0_1,
+            "bindings": [
+                {"id": "allow", "kind": "com.example.scripted", "config": {"decision": "allow"}}
+            ],
+        },
+        reg,
+    )
+    assert em.spec == SPEC_VERSION_0_1
+    assert em.declaration is not None and em.declaration.spec == SPEC_VERSION_0_1
+    # The builder writes the newest contract version of its own version.
+    assert DeclarationBuilder(SPEC_VERSION_0_1).to_value() == {
+        "spec": SPEC_VERSION_0_1,
+        "bindings": [],
+        "declaration": "agent-hooks-declaration/1.0",
+    }
+    assert DeclarationBuilder(SPEC_VERSION_DRAFT).to_value()["declaration"] == DECLARATION_VERSION
+    e = refusal(DeclarationBuilder(SPEC_VERSION_0_1).failure_on_error("continue").to_value(), reg)
+    assert e.error_class is DeclarationErrorClass.UNKNOWN_FIELD
+    # The emitter runs the document's version: a draft context is refused,
+    # a 0.1 context runs.
+    b = AgentContextBuilder(spec=SPEC_VERSION_0_1, agent_id="a", framework="x", session_id="s")
+    draft_ctx = AgentContextBuilder(
+        spec=SPEC_VERSION_DRAFT, agent_id="a", framework="x", session_id="s"
+    )
+    r = asyncio.run(em.emit_unchecked(draft_ctx.input(content="hi", role="user")))
+    assert r.verdict.reason == "host_error:context_invalid"
+    r = asyncio.run(em.emit_unchecked(b.input(content="hi", role="user")))
+    assert r.verdict.decision.value == "allow"
 
 
 def test_three_paths_produce_identical_records(tmp_path: pathlib.Path) -> None:
@@ -180,7 +266,7 @@ def test_three_paths_produce_identical_records(tmp_path: pathlib.Path) -> None:
     from_json = InterceptionEmitter.from_declaration_json(text, reg)
     from_path = InterceptionEmitter.from_declaration_path(path, reg)
     built = (
-        HostDeclaration.builder()
+        HostDeclaration.builder(SPEC_VERSION_DRAFT)
         .id("test-doc")
         .composition(CompositionConfig.strictest(SynthesisPolicy.DENY))
         .identity_provider("hmac-sha256-k1")
@@ -235,7 +321,7 @@ def test_three_paths_produce_identical_records(tmp_path: pathlib.Path) -> None:
 
 
 def test_code_path_records_carry_no_declaration() -> None:
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     em.register(Scripted(Verdict.allow()))
     records = run_session(em)
     for r in records:
@@ -247,7 +333,7 @@ def test_code_path_records_carry_no_declaration() -> None:
 
 
 def test_register_at_filters_points_and_names_verdicts() -> None:
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     em.register(Scripted(Verdict.deny(reason="x:deny")), name="gate", at=["pre_tool_call"])
     em.register(Scripted(Verdict.allow()), name="audit")
     records = run_session(em)
@@ -266,7 +352,7 @@ def test_register_at_filters_points_and_names_verdicts() -> None:
 def test_register_refuses_an_empty_at() -> None:
     # The declaration path refuses an empty ``at`` as invalid_field; the
     # code path must not register an interceptor that never runs.
-    em = InterceptionEmitter()
+    em = InterceptionEmitter(spec=SPEC_VERSION_DRAFT)
     with pytest.raises(ValueError, match="at least one interception point"):
         em.register(Scripted(Verdict.allow()), at=[])
     assert em._interceptors == []
@@ -276,6 +362,7 @@ def test_point_without_binding_denies_no_interceptor() -> None:
     em = load(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "bindings": [
                 {
                     "id": "a",
@@ -298,6 +385,7 @@ def test_minimal_document_resolves_to_spec_defaults() -> None:
     em = load(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "bindings": [
                 {"id": "allow", "kind": "com.example.scripted", "config": {"decision": "allow"}}
             ],
@@ -306,7 +394,7 @@ def test_minimal_document_resolves_to_spec_defaults() -> None:
     r = em.declaration
     assert r is not None
     assert r.version == DECLARATION_VERSION
-    assert r.spec == SPEC_VERSION
+    assert r.spec == SPEC_VERSION_DRAFT
     assert r.mode is EnforcementMode.ENFORCE
     assert r.composition == CompositionConfig.default()
     assert r.identity_provider == "jcs-sha256"
@@ -343,7 +431,9 @@ def test_sealed_emitter_refuses_reconfiguration() -> None:
     with pytest.raises(EmitterSealed, match="set_max_records"):
         em.set_max_records(1)
     # The constructor path is not sealed.
-    InterceptionEmitter().register(Scripted(Verdict.allow())).set_max_records(1)
+    InterceptionEmitter(spec=SPEC_VERSION_DRAFT).register(
+        Scripted(Verdict.allow())
+    ).set_max_records(1)
 
 
 # ---- refusal classes -------------------------------------------------------------
@@ -353,6 +443,7 @@ def test_binding_rejected_by_raise_and_by_non_interceptor() -> None:
     e = refusal(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "bindings": [
                 {"id": "ok", "kind": "com.example.scripted", "config": {"decision": "allow"}},
                 {
@@ -373,6 +464,7 @@ def test_binding_rejected_by_raise_and_by_non_interceptor() -> None:
     e = refusal(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "bindings": [{"id": "boom", "kind": "com.example.raises"}],
         }
     )
@@ -382,6 +474,7 @@ def test_binding_rejected_by_raise_and_by_non_interceptor() -> None:
     e = refusal(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "bindings": [{"id": "n", "kind": "com.example.not-an-interceptor"}],
         }
     )
@@ -456,17 +549,30 @@ def test_malformed_text_and_values() -> None:
     assert info.value.error_class is DeclarationErrorClass.MALFORMED
     # The value path refuses what the wire cannot carry.
     e = refusal(
-        {"declaration": DECLARATION_VERSION, "bindings": [], "extensions": {"x": float("nan")}}
+        {
+            "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
+            "bindings": [],
+            "extensions": {"x": float("nan")},
+        }
     )
     assert e.error_class is DeclarationErrorClass.MALFORMED
     assert "cannot serialize" in e.findings[0].detail
-    e = refusal({"declaration": DECLARATION_VERSION, "bindings": [], "extensions": {"x": object()}})
+    e = refusal(
+        {
+            "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
+            "bindings": [],
+            "extensions": {"x": object()},
+        }
+    )
     assert e.error_class is DeclarationErrorClass.MALFORMED
     # json.dumps would coerce a non-string key to text; no JSON text can
     # carry such a value, so the value path refuses it.
     e = refusal(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "bindings": [{"id": "a", "kind": "com.example.scripted", "config": {1: "allow"}}],
         }
     )
@@ -478,7 +584,12 @@ def test_malformed_text_and_values() -> None:
     deep: Any = "leaf"
     for _ in range(100):
         deep = {"x": deep}
-    doc = {"declaration": DECLARATION_VERSION, "bindings": [], "extensions": {"x": deep}}
+    doc = {
+        "declaration": DECLARATION_VERSION,
+        "spec": SPEC_VERSION_DRAFT,
+        "bindings": [],
+        "extensions": {"x": deep},
+    }
     e = refusal(doc)
     assert e.error_class is DeclarationErrorClass.MALFORMED
     assert f"nesting deeper than {MAX_DEPTH}" in e.findings[0].detail
@@ -490,7 +601,14 @@ def test_malformed_text_and_values() -> None:
     # Deep enough to exhaust the interpreter's stack if walked or dumped.
     for _ in range(3000):
         deep = {"x": deep}
-    e = refusal({"declaration": DECLARATION_VERSION, "bindings": [], "extensions": {"x": deep}})
+    e = refusal(
+        {
+            "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
+            "bindings": [],
+            "extensions": {"x": deep},
+        }
+    )
     assert e.error_class is DeclarationErrorClass.MALFORMED
 
 
@@ -498,7 +616,12 @@ def test_non_ascii_document_is_measured_in_utf8_on_every_path(tmp_path: pathlib.
     # The 1 MiB bound (§7.7.3) is a byte count on the UTF-8 text. A
     # value serialized with ``\\uXXXX`` escapes would be three times as
     # wide for this content and refused on the value path alone.
-    base = {"declaration": DECLARATION_VERSION, "bindings": [], "extensions": {"x": ""}}
+    base = {
+        "declaration": DECLARATION_VERSION,
+        "spec": SPEC_VERSION_DRAFT,
+        "bindings": [],
+        "extensions": {"x": ""},
+    }
     room = MAX_DOCUMENT_BYTES - len(json.dumps(base, separators=(",", ":")).encode("utf-8"))
     doc = {**base, "extensions": {"x": "\u00e9" * (room // 2)}}
     text = json.dumps(doc, ensure_ascii=False, separators=(",", ":"))
@@ -511,7 +634,10 @@ def test_non_ascii_document_is_measured_in_utf8_on_every_path(tmp_path: pathlib.
     assert reg.resolve(HostDeclaration.from_json(text)).canonical_json() == canon
     assert reg.resolve(HostDeclaration.from_path(path)).canonical_json() == canon
     built = (
-        HostDeclaration.builder().raw("bindings", []).extension("x", doc["extensions"]["x"]).build()
+        HostDeclaration.builder(SPEC_VERSION_DRAFT)
+        .raw("bindings", [])
+        .extension("x", doc["extensions"]["x"])
+        .build()
     )
     assert reg.resolve(built).canonical_json() == canon
     # One byte over is refused on every path with one class.
@@ -529,7 +655,12 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
     # takes strict UTF-8, so the wrapper refuses before conversion
     # rather than leaking UnicodeEncodeError.
     reg = registry()
-    doc = {"declaration": DECLARATION_VERSION, "bindings": [], "extensions": {"x": "\ud800"}}
+    doc = {
+        "declaration": DECLARATION_VERSION,
+        "spec": SPEC_VERSION_DRAFT,
+        "bindings": [],
+        "extensions": {"x": "\ud800"},
+    }
     e = refusal(doc)
     assert e.error_class is DeclarationErrorClass.MALFORMED
     assert "UTF-8" in e.findings[0].detail
@@ -565,13 +696,19 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
             "/spec",
         ),
         (
-            {"declaration": DECLARATION_VERSION, "bindings": [], "policy": {}},
+            {
+                "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
+                "bindings": [],
+                "policy": {},
+            },
             DeclarationErrorClass.UNKNOWN_FIELD,
             "/policy",
         ),
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [],
                 "configuration": {
                     "composition": {"profile": "sequential/run_all", "on_timeout": 1}
@@ -583,6 +720,7 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [],
                 "configuration": {"mode": "audit"},
             },
@@ -592,6 +730,7 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [
                     {
                         "id": "a",
@@ -606,6 +745,7 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [],
                 "configuration": {
                     "composition": {"profile": "sequential/run_all", "on_approval": "resume"}
@@ -617,6 +757,7 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [],
                 "surface": {
                     "interception_points": [
@@ -636,6 +777,7 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [
                     {"id": "a", "kind": "com.example.scripted", "config": {"decision": "allow"}},
                     {"id": "a", "kind": "com.example.scripted", "config": {"decision": "allow"}},
@@ -647,6 +789,7 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [],
                 "surface": {
                     "declaration_versions": [DECLARATION_VERSION, "agent-hooks-declaration/0.1"]
@@ -658,6 +801,7 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [],
                 "surface": {
                     "capabilities": ["host_declaration", "model_calls", "tool_calls", "streaming"]
@@ -669,6 +813,7 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [],
                 "configuration": {"posture": {"tool_seam_host_error": "terminate"}},
             },
@@ -678,6 +823,7 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [],
                 "configuration": {"identity_provider": "hmac-sha256-k9"},
             },
@@ -687,6 +833,7 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [],
                 "configuration": {"approval": {"resolver": "nobody"}},
             },
@@ -696,6 +843,7 @@ def test_lone_surrogate_is_malformed_on_text_and_value_paths() -> None:
         (
             {
                 "declaration": DECLARATION_VERSION,
+                "spec": SPEC_VERSION_DRAFT,
                 "bindings": [{"id": "x", "kind": "com.example.none"}],
             },
             DeclarationErrorClass.KIND_UNKNOWN,
@@ -720,8 +868,8 @@ def test_each_refusal_class_names_its_pointer(
 
 
 def test_one_class_per_document_in_pipeline_order() -> None:
-    # A document breaking steps 3, 5, 6, 7 and 10 at once reports the
-    # earliest step only; fixing each in turn walks the pipeline.
+    # A document breaking steps 3, 4, 5, 6, 7 and 10 at once reports
+    # the earliest step only; fixing each in turn walks the pipeline.
     reg = registry()
     doc: dict[str, Any] = {
         "declaration": "agent-hooks-declaration/0.1",
@@ -733,7 +881,10 @@ def test_one_class_per_document_in_pipeline_order() -> None:
         "bindings": [{"id": "x", "kind": "com.example.none"}],
     }
     assert refusal(doc, reg).error_class is DeclarationErrorClass.VERSION_UNSUPPORTED
+    # Step 4: the document names no specification version.
     doc["declaration"] = DECLARATION_VERSION
+    assert refusal(doc, reg).error_class is DeclarationErrorClass.SPEC_UNSUPPORTED
+    doc["spec"] = SPEC_VERSION_DRAFT
     assert refusal(doc, reg).error_class is DeclarationErrorClass.UNKNOWN_FIELD
     del doc["policy"]
     assert refusal(doc, reg).error_class is DeclarationErrorClass.INVALID_FIELD
@@ -755,6 +906,7 @@ def test_config_integer_at_the_bound_loads_and_above_is_refused() -> None:
     reg = registry()
     doc: dict[str, Any] = {
         "declaration": DECLARATION_VERSION,
+        "spec": SPEC_VERSION_DRAFT,
         "bindings": [
             {
                 "id": "a",
@@ -782,7 +934,7 @@ def test_builder_is_validated_like_a_file() -> None:
     # The builder writes an unconsulted knob out; the loader refuses it
     # with the class a file gets (§7.7.7), and no emitter exists.
     built = (
-        HostDeclaration.builder()
+        HostDeclaration.builder(SPEC_VERSION_DRAFT)
         .composition(
             CompositionConfig(
                 profile=CompositionConfig.run_all().profile,
@@ -800,7 +952,7 @@ def test_builder_is_validated_like_a_file() -> None:
     e = refusal(built.as_value())
     assert e.error_class is DeclarationErrorClass.INCONSISTENT
     # An unknown member set through raw() is unknown_field, as in a file.
-    e = refusal(HostDeclaration.builder().raw("policy", {}).to_value())
+    e = refusal(HostDeclaration.builder(SPEC_VERSION_DRAFT).raw("policy", {}).to_value())
     assert e.error_class is DeclarationErrorClass.UNKNOWN_FIELD
 
 
@@ -811,13 +963,14 @@ def test_builder_writes_config_verbatim_including_null() -> None:
     reg = registry()
     doc = {
         "declaration": DECLARATION_VERSION,
+        "spec": SPEC_VERSION_DRAFT,
         "bindings": [
             {"id": "a", "kind": "com.example.scripted", "config": None},
             {"id": "b", "kind": "com.example.scripted"},
         ],
     }
     built = (
-        HostDeclaration.builder()
+        HostDeclaration.builder(SPEC_VERSION_DRAFT)
         .bind("a", "com.example.scripted", None)
         .bind("b", "com.example.scripted")
         .build()
@@ -884,6 +1037,7 @@ def test_invalid_host_surface_is_a_programming_error() -> None:
     em = load(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "configuration": {"posture": {"tool_seam_host_error": "terminate"}},
             "bindings": [],
         },
@@ -891,12 +1045,14 @@ def test_invalid_host_surface_is_a_programming_error() -> None:
     )
     assert em.declaration is not None
     assert em.declaration.configuration["posture"]["tool_seam_host_error"] == "terminate"
-    e = refusal({"declaration": DECLARATION_VERSION, "bindings": []}, reg)
+    e = refusal(
+        {"declaration": DECLARATION_VERSION, "spec": SPEC_VERSION_DRAFT, "bindings": []}, reg
+    )
     assert e.error_class is DeclarationErrorClass.SURFACE_UNSUPPORTED
 
 
 def test_surface_absent_resolves_to_the_hosts_own_surface() -> None:
-    em = load({"declaration": DECLARATION_VERSION, "bindings": []})
+    em = load({"declaration": DECLARATION_VERSION, "spec": SPEC_VERSION_DRAFT, "bindings": []})
     assert em.declaration is not None
     assert em.declaration.surface == {
         "interception_points": [p.value for p in InterceptionPoint],
@@ -942,20 +1098,22 @@ def test_declared_timeouts_bound_interceptor_and_resolver() -> None:
     em = load(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "configuration": {"timeouts": {"interceptor_ms": 20, "approval_resolver_ms": 20}},
             "bindings": [{"id": "slow", "kind": "com.example.slow"}],
         },
         reg,
     )
-    ctx = AgentContextBuilder(agent_id="a", framework="h", session_id="s").input(
-        content="hi", role="user"
-    )
+    ctx = AgentContextBuilder(
+        spec=SPEC_VERSION_DRAFT, agent_id="a", framework="h", session_id="s"
+    ).input(content="hi", role="user")
     r = asyncio.run(em.emit_unchecked(ctx))
     assert r.verdict.reason == "host_error:interceptor_timeout"
 
     em = load(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "configuration": {
                 "approval": {"resolver": "slow-queue"},
                 "timeouts": {"interceptor_ms": 1000, "approval_resolver_ms": 20},
@@ -964,9 +1122,9 @@ def test_declared_timeouts_bound_interceptor_and_resolver() -> None:
         },
         reg,
     )
-    ctx = AgentContextBuilder(agent_id="a", framework="h", session_id="s").input(
-        content="hi", role="user"
-    )
+    ctx = AgentContextBuilder(
+        spec=SPEC_VERSION_DRAFT, agent_id="a", framework="h", session_id="s"
+    ).input(content="hi", role="user")
     r = asyncio.run(em.emit_unchecked(ctx))
     assert r.verdict.reason == "host_error:approval_resolver_failed"
     assert r.resolved_by == "rejection"
@@ -979,7 +1137,7 @@ def test_record_host_failure_stamps_declaration_and_counts_the_point() -> None:
     assert r.interceptors_registered == 2
     r = em.record_host_failure(InterceptionPoint.INPUT, "TypeError", session_id="s")
     assert r.interceptors_registered == 1
-    legacy = InterceptionEmitter().register(Scripted(Verdict.allow()))
+    legacy = InterceptionEmitter(spec=SPEC_VERSION_DRAFT).register(Scripted(Verdict.allow()))
     assert legacy.record_host_failure(InterceptionPoint.INPUT).declaration is None
 
 
@@ -994,6 +1152,7 @@ def test_binding_context_carries_the_resolved_facts() -> None:
     load(
         {
             "declaration": DECLARATION_VERSION,
+            "spec": SPEC_VERSION_DRAFT,
             "host": {"name": "example-runtime", "version": "3.2.0"},
             "configuration": {"timeouts": {"interceptor_ms": 4000}},
             "bindings": [
@@ -1016,6 +1175,7 @@ def test_binding_context_carries_the_resolved_facts() -> None:
 def test_mutating_resolver_leaves_the_resolved_declaration_unchanged() -> None:
     doc = {
         "declaration": DECLARATION_VERSION,
+        "spec": SPEC_VERSION_DRAFT,
         "host": {"name": "example-runtime", "version": "3.2.0"},
         "bindings": [
             {"id": "a", "kind": "com.example.mutates", "config": {"decision": "allow", "t": 1}}

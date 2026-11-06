@@ -8,7 +8,7 @@
  * (§7.1, §8, §10.1, §13.1), its declared surface (§13.1) and its
  * interceptor bindings. It is a versioned contract of its own
  * (`agent-hooks-declaration/<major>.<minor>`, §7.7.2), separate from
- * the wire version `SPEC_VERSION` and from the package version.
+ * the wire version (`agent-hooks/<version>`) and from the package version.
  *
  * Every normative check lives in the Rust core. This module does the
  * two things only the wrapper can do: read a file (step 1 of §7.7.6)
@@ -32,9 +32,12 @@ import {
   ManagedInterceptor,
   OnApproval,
   OnError,
+  SPEC_VERSION_DRAFT,
   SynthesisPolicy,
   findNonFinite,
+  isSupportedSpecVersion,
   nonFiniteDetail,
+  requireSpecVersion,
 } from "./index";
 import { AgentHooksCoreError, native } from "./native";
 
@@ -46,11 +49,42 @@ export const DECLARATION_VERSION = "agent-hooks-declaration/1.1";
 
 /** Every contract version the loader accepts (§7.7.2), oldest first.
  * Any other `declaration` value is refused as
- * `declaration_error:version_unsupported`. */
+ * `declaration_error:version_unsupported`. The set a given document may
+ * carry is its specification version's
+ * ({@link currentDeclarationVersion}). */
 export const SUPPORTED_DECLARATION_VERSIONS: readonly string[] = Object.freeze([
   "agent-hooks-declaration/1.0",
   DECLARATION_VERSION,
 ]);
+
+/** The contract versions each specification version defines (§7.7.2),
+ * by wire string: 0.1 defines 1.0; the draft defines 1.0 and 1.1. A
+ * test pins it to the core's `declaration_versions().by_spec`. */
+const DECLARATION_VERSIONS_BY_SPEC: Readonly<
+  Record<string, { readonly current: string; readonly supported: readonly string[] }>
+> = Object.freeze({
+  "agent-hooks/0.1": Object.freeze({
+    current: "agent-hooks-declaration/1.0",
+    supported: Object.freeze(["agent-hooks-declaration/1.0"]),
+  }),
+  "agent-hooks/draft": Object.freeze({
+    current: DECLARATION_VERSION,
+    supported: SUPPORTED_DECLARATION_VERSIONS,
+  }),
+});
+
+/** The newest declaration contract version the specification version
+ * `spec` (a wire string) defines: what {@link DeclarationBuilder} writes
+ * when the document says nothing else. */
+export function currentDeclarationVersion(spec: string): string {
+  return DECLARATION_VERSIONS_BY_SPEC[requireSpecVersion(spec)].current;
+}
+
+/** The contract versions a loader under `spec` accepts (1.0 under 0.1;
+ * 1.0 and 1.1 under the draft). */
+export function acceptedDeclarationVersions(spec: string): readonly string[] {
+  return DECLARATION_VERSIONS_BY_SPEC[requireSpecVersion(spec)].supported;
+}
 
 /** Largest document the text and file paths accept, in bytes (§7.7.3). */
 export const MAX_DOCUMENT_BYTES = 1 << 20;
@@ -711,9 +745,10 @@ export class HostDeclaration {
     return HostDeclaration.fromJson(text);
   }
 
-  /** A builder for the code path (§7.7.7). */
-  static builder(): DeclarationBuilder {
-    return new DeclarationBuilder();
+  /** A builder for the code path (§7.7.7), for a document written for
+   * the specification version `spec` (a wire string). */
+  static builder(spec: string): DeclarationBuilder {
+    return new DeclarationBuilder(spec);
   }
 
   /** The document's own `declaration` value. */
@@ -835,9 +870,20 @@ export function resolveSurfaceOnly(
   return JSON.parse(resolved) as ResolvedDeclaration;
 }
 
-/** The contract versions the core writes and accepts (§7.7.2). */
-export function declarationVersions(): { current: string; supported: string[] } {
-  return JSON.parse(native.declarationVersions()) as { current: string; supported: string[] };
+/** The contract versions the core writes and accepts (§7.7.2), the
+ * specification versions it supports, and what each of those defines. */
+export function declarationVersions(): {
+  current: string;
+  supported: string[];
+  spec_supported: string[];
+  by_spec: Record<string, { current: string; supported: string[] }>;
+} {
+  return JSON.parse(native.declarationVersions()) as {
+    current: string;
+    supported: string[];
+    spec_supported: string[];
+    by_spec: Record<string, { current: string; supported: string[] }>;
+  };
 }
 
 // ---- builder (code path) ----------------------------------------------------
@@ -865,23 +911,40 @@ function plain(): Record<string, JsonValue> {
  * the same function, with the same classes, as a file. */
 export class DeclarationBuilder {
   private readonly doc: Record<string, JsonValue>;
+  /** Whether an absent `declaration` is filled at build time with the
+   * newest contract version the document's `spec` defines. */
+  private defaults = true;
 
-  /** A builder with `declaration` set to {@link DECLARATION_VERSION}
-   * and an empty `bindings` array. */
-  constructor() {
+  /** A builder for a document written for the specification version
+   * `spec` (a wire string, {@link SPEC_VERSION_0_1} or
+   * {@link SPEC_VERSION_DRAFT}): `spec` set, `bindings` empty, and
+   * `declaration` filled at build time with
+   * {@link currentDeclarationVersion} unless {@link version} names one. */
+  constructor(spec: string) {
     this.doc = plain();
-    this.doc["declaration"] = DECLARATION_VERSION;
+    this.doc["spec"] = requireSpecVersion(spec, "DeclarationBuilder spec");
     this.doc["bindings"] = [];
   }
 
-  /** A builder with no member set at all, not even `declaration` or
-   * `bindings`. For harnesses that must express an incomplete
-   * document; a host wants the constructor. */
+  /** A builder with no member set at all, not even `spec`,
+   * `declaration` or `bindings`. For harnesses that must express an
+   * incomplete document; a host wants the constructor. */
   static empty(): DeclarationBuilder {
-    const b = new DeclarationBuilder();
-    delete b.doc["declaration"];
+    const b = new DeclarationBuilder(SPEC_VERSION_DRAFT);
+    delete b.doc["spec"];
     delete b.doc["bindings"];
+    b.defaults = false;
     return b;
+  }
+
+  /** The document with the build-time default applied. */
+  private finished(): Record<string, JsonValue> {
+    const doc = JSON.parse(JSON.stringify(this.doc)) as Record<string, JsonValue>;
+    const spec = doc["spec"];
+    if (this.defaults && !("declaration" in doc) && isSupportedSpecVersion(spec)) {
+      doc["declaration"] = currentDeclarationVersion(spec);
+    }
+    return doc;
   }
 
   private configuration(): Record<string, JsonValue> {
@@ -906,12 +969,17 @@ export class DeclarationBuilder {
     return fresh;
   }
 
-  /** `declaration` (defaults to {@link DECLARATION_VERSION}). */
+  /** `declaration`. Unset, the builder writes the newest contract
+   * version its `spec` defines ({@link currentDeclarationVersion}): 1.0
+   * under 0.1, 1.1 under the draft. */
   version(v: string): this {
     this.doc["declaration"] = v;
     return this;
   }
 
+  /** `spec`, the specification version the document is written for
+   * (§7.7.2); the constructor sets it. A document without it is
+   * refused. */
   spec(v: string): this {
     this.doc["spec"] = v;
     return this;
@@ -1078,11 +1146,11 @@ export class DeclarationBuilder {
 
   /** The document as built, before validation. A copy. */
   toValue(): Record<string, JsonValue> {
-    return JSON.parse(JSON.stringify(this.doc)) as Record<string, JsonValue>;
+    return this.finished();
   }
 
   /** Validate (steps 2 to 7) through {@link HostDeclaration.fromValue}. */
   build(): HostDeclaration {
-    return HostDeclaration.fromValue(this.doc);
+    return HostDeclaration.fromValue(this.finished());
   }
 }

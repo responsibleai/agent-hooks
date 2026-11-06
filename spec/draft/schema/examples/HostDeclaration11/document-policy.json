@@ -1,6 +1,6 @@
 {
   "declaration": "agent-hooks-declaration/1.1",
-  "spec": "agent-hooks/0.1",
+  "spec": "agent-hooks/draft",
   "id": "document-policy",
   "configuration": {
     "identity_provider": null,

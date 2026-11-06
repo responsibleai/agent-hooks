@@ -2,6 +2,7 @@
   "id": "AH-CTK-149",
   "title": "§6.3.1: on_error deny (explicit) and an interceptor that returns a §5-invalid value: deny host_error:verdict_invalid, unchanged from §6.3",
   "spec_clause": "6.3, 6.3.1, 7.7.5, 10.3",
+  "introduced_in": "draft",
   "part": "failure_posture/deny",
   "capabilities": [
     "host_declaration",
@@ -10,6 +11,7 @@
   ],
   "host_declaration": {
     "declaration": "agent-hooks-declaration/1.1",
+    "spec": "agent-hooks/draft",
     "bindings": [
       {
         "id": "broken",

@@ -1,5 +1,5 @@
 {
-  "spec": "agent-hooks/0.1",
+  "spec": "agent-hooks/draft",
   "interception_point": "agent_shutdown",
   "timestamp": "2026-10-30T16:00:07Z",
   "sequence": 7,

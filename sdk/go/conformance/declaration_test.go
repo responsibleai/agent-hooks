@@ -17,13 +17,13 @@ import (
 // same outcome on every construction path.
 func TestProvePathsAgreesOnShapesWithoutATypedForm(t *testing.T) {
 	sc := scriptsOf(map[string]any{"interceptor_script": []any{}})
-	reg, err := sc.registry(NewReferenceHarness().HostSurface())
+	reg, err := sc.registry(NewReferenceHarness(agenthooks.SpecVersion01).HostSurface())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Run("config null", func(t *testing.T) {
 		doc := map[string]any{
-			"declaration": agenthooks.DeclarationVersion,
+			"declaration": agenthooks.DeclarationVersion, "spec": agenthooks.SpecVersionDraft,
 			"bindings": []any{
 				map[string]any{"id": "a", "kind": "ctk.scripted", "config": nil},
 			},
@@ -42,7 +42,7 @@ func TestProvePathsAgreesOnShapesWithoutATypedForm(t *testing.T) {
 	})
 	t.Run("empty knob set", func(t *testing.T) {
 		doc := map[string]any{
-			"declaration": agenthooks.DeclarationVersion,
+			"declaration": agenthooks.DeclarationVersion, "spec": agenthooks.SpecVersionDraft,
 			"surface": map[string]any{
 				"profiles": map[string]any{
 					"sequential/first_deny": map[string]any{"on_approval": []any{}},
@@ -70,7 +70,7 @@ func TestProvePathsAgreesOnShapesWithoutATypedForm(t *testing.T) {
 // TestReferenceSetupKeysIdentityOnTheName: a custom-named provider
 // with no Compute is an error, not a silent jcs-sha256.
 func TestReferenceSetupKeysIdentityOnTheName(t *testing.T) {
-	h := NewReferenceHarness()
+	h := NewReferenceHarness(agenthooks.SpecVersion01)
 	comp := agenthooks.CompositionConfig{Profile: agenthooks.SequentialFirstDeny, OnApproval: agenthooks.OnApprovalStop}
 	err := h.Setup(Scenario{}, nil, nil, agenthooks.Enforce, comp,
 		&agenthooks.IdentityProvider{Name: "hmac-sha256-k1"}, nil)
@@ -90,7 +90,7 @@ func TestReferenceSetupKeysIdentityOnTheName(t *testing.T) {
 // refuses the integer token at step 6 (section 7.7.6).
 func TestScriptedConfigIndexBounds(t *testing.T) {
 	sc := scriptsOf(map[string]any{"interceptor_script": []any{[]any{}}})
-	reg, err := sc.registry(NewReferenceHarness().HostSurface())
+	reg, err := sc.registry(NewReferenceHarness(agenthooks.SpecVersion01).HostSurface())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestScriptedConfigIndexBounds(t *testing.T) {
 		{"1", "out of range"},
 	} {
 		doc := map[string]any{
-			"declaration": agenthooks.DeclarationVersion,
+			"declaration": agenthooks.DeclarationVersion, "spec": agenthooks.SpecVersionDraft,
 			"bindings": []any{
 				map[string]any{"id": "a", "kind": "ctk.scripted", "config": map[string]any{"script": json.Number(tc.script)}},
 			},
@@ -121,7 +121,7 @@ func TestScriptedConfigIndexBounds(t *testing.T) {
 // the same canonical form on every construction path.
 func TestBuilderPathCarriesTheFailurePosture(t *testing.T) {
 	sc := scriptsOf(map[string]any{"interceptor_scripts": []any{[]any{}, []any{}}})
-	reg, err := sc.registry(NewReferenceHarness().HostSurface())
+	reg, err := sc.registry(NewReferenceHarness(agenthooks.SpecVersion01).HostSurface())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestBuilderPathCarriesTheFailurePosture(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc := map[string]any{
-		"declaration":   agenthooks.DeclarationVersion,
+		"declaration": agenthooks.DeclarationVersion, "spec": agenthooks.SpecVersionDraft,
 		"configuration": map[string]any{"failure": map[string]any{"on_error": "continue"}},
 		"bindings": []any{
 			map[string]any{"id": "a", "kind": "ctk.scripted", "config": map[string]any{"script": json.Number("0")}, "on_error": "deny"},

@@ -1,6 +1,6 @@
 {
-  "$schema": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.1.schema.json",
-  "declaration": "agent-hooks-declaration/1.1",
+  "$schema": "https://responsibleai.github.io/agent-hooks/schema/v0.1/host-declaration-1.0.schema.json",
+  "declaration": "agent-hooks-declaration/1.0",
   "spec": "agent-hooks/0.1",
   "id": "reference-agent",
   "host": { "name": "reference-agent", "version": "0.1.0" },
@@ -10,7 +10,6 @@
     "identity_provider": "jcs-sha256",
     "approval": { "resolver": null, "redactor": null },
     "posture": { "tool_seam_host_error": "continue" },
-    "failure": { "on_error": "deny" },
     "timeouts": { "interceptor_ms": 5000, "approval_resolver_ms": 5000 },
     "records": { "max_buffered": null }
   },
@@ -27,7 +26,7 @@
       "parallel/unanimous": { "on_disagreement": ["approval", "deny"] }
     },
     "buffered_output": true,
-    "declaration_versions": ["agent-hooks-declaration/1.0", "agent-hooks-declaration/1.1"]
+    "declaration_versions": ["agent-hooks-declaration/1.0"]
   },
   "bindings": [],
   "extensions": {}

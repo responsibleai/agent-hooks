@@ -10,7 +10,7 @@ public class RecordSemanticsTests
 {
     private static AgentContext Ctx() => new((JsonObject)JsonNode.Parse("""
         {
-          "spec": "agent-hooks/0.1",
+          "spec": "agent-hooks/draft",
           "interception_point": "pre_tool_call",
           "timestamp": "2026-01-01T00:00:00Z",
           "sequence": 0,
@@ -34,7 +34,7 @@ public class RecordSemanticsTests
     [Fact]
     public async Task EnvelopeMissingConditionalFailsClosedPreDispatch()
     {
-        var em = new InterceptionEmitter();
+        var em = new InterceptionEmitter(Spec.Draft);
         var i = new Allow();
         em.Register(i);
         var ctx = Ctx();
@@ -58,7 +58,7 @@ public class RecordSemanticsTests
     [Fact]
     public async Task CustomProviderFailureFailsClosedTypeNameOnly()
     {
-        var em = new InterceptionEmitter();
+        var em = new InterceptionEmitter(Spec.Draft);
         em.SetIdentityProvider(IdentityProvider.Custom(
             "myco-hash", _ => throw new InvalidOperationException("SECRET-PAYLOAD")));
         em.Register(new Allow());
@@ -72,7 +72,7 @@ public class RecordSemanticsTests
     [Fact]
     public async Task NamesAndCountOnRecord()
     {
-        var em = new InterceptionEmitter();
+        var em = new InterceptionEmitter(Spec.Draft);
         em.SetComposition(CompositionConfig.RunAll());
         em.Register(new Allow(), "pii-scan").Register(new Allow());
         var r = await em.EmitUncheckedAsync(Ctx());
@@ -97,7 +97,7 @@ public class HostFailureTests
         // §10.3 host projection failure: the host could not construct a
         // context at all; the synthesized record is the rejection shape
         // with the host's envelope facts.
-        var em = new InterceptionEmitter();
+        var em = new InterceptionEmitter(Spec.Draft);
         em.Register(new Allow());
         var r = em.RecordHostFailure(
             InterceptionPoint.PreToolCall,
@@ -128,7 +128,7 @@ public class HostFailureTests
     [Fact]
     public void RecordHostFailureDefaultsAreTheUnknownValues()
     {
-        var em = new InterceptionEmitter();
+        var em = new InterceptionEmitter(Spec.Draft);
         var r = em.RecordHostFailure(InterceptionPoint.Output);
         Assert.Equal("", r.SessionId);
         Assert.Equal(-1, r.Sequence);
@@ -143,7 +143,7 @@ public class HostFailureTests
         // §8: synthesis still records in evaluate_only — records are the
         // point — and the mode member keeps the record from implying a
         // block happened.
-        var em = new InterceptionEmitter(EnforcementMode.EvaluateOnly);
+        var em = new InterceptionEmitter(Spec.Draft, EnforcementMode.EvaluateOnly);
         var seen = new List<InterceptionRecord>();
         em.SetRecordSink(seen.Add);
         var r = em.RecordHostFailure(InterceptionPoint.PreToolCall, detail: "TypeError");
@@ -157,7 +157,7 @@ public class HostFailureTests
     {
         // §10.3: the synthesized verdict crosses the same payload-free
         // projection as every combined verdict.
-        var em = new InterceptionEmitter();
+        var em = new InterceptionEmitter(Spec.Draft);
         var r = em.RecordHostFailure(
             InterceptionPoint.PreToolCall, detail: new string('x', 300));
         Assert.NotNull(r.Verdict.Message);

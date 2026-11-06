@@ -2,6 +2,7 @@
   "id": "AH-CTK-159",
   "title": "§6.3.1, §7.3: run_all with one binding that continues and one that denies: the deny wins, the control_failed warning is still in the union, substituted_for is on the continuing slot, the principal is told",
   "spec_clause": "6.3.1, 7.3, 7.4, 10.3",
+  "introduced_in": "draft",
   "part": "failure_posture/continue",
   "capabilities": [
     "host_declaration",
@@ -10,6 +11,7 @@
   ],
   "host_declaration": {
     "declaration": "agent-hooks-declaration/1.1",
+    "spec": "agent-hooks/draft",
     "configuration": {
       "composition": {
         "profile": "sequential/run_all"

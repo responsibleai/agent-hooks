@@ -14,9 +14,24 @@ using System.Text.Json.Nodes;
 
 namespace AgentHooks.Conformance;
 
+/// <summary>The outcome of one vector run. <see cref="Part"/> is the
+/// vector's declared-surface tag (§13.1); grouping results by it is the
+/// conformance report. Empty when the vector carries none.</summary>
 public sealed record VectorResult(
     string Id, string Title, string Status,
-    string Detail, IReadOnlyList<string> Failures);
+    string Detail, IReadOnlyList<string> Failures, string Part = "");
+
+/// <summary>One part of a conformance report (§13.1): the vectors that
+/// carry one <c>part</c> tag, with their counts.</summary>
+public sealed record PartReport(
+    string Part, int Passed, int Failed, int Skipped, IReadOnlyList<VectorResult> Vectors);
+
+/// <summary>The conformance report a claim attaches (§13.1, §13.3): the
+/// results grouped by <c>part</c>, under the specification version the
+/// claim names. Parts are in name order; each keeps its vectors in run
+/// order.</summary>
+public sealed record ConformanceReport(
+    string Spec, IReadOnlyList<PartReport> Parts, int Passed, int Failed, int Skipped);
 
 /// <summary>What loading a vector's host declaration produced
 /// (§7.7.9): <c>accepted</c> or <c>refused</c>, the
@@ -40,6 +55,40 @@ public static class Runner
 {
     private static readonly JsonSerializerOptions Compact = new() { WriteIndented = false };
 
+    /// <summary>The skip reason of a draft-only vector under a released version.</summary>
+    public const string DraftOnlySkip = "draft-only vector; see #188";
+
+    /// <summary>The one line every runner answers a report that names the draft.</summary>
+    public const string DraftNotClaimable =
+        "a conformance report cannot name agent-hooks/draft; the draft is never claimed: " +
+        "run the vectors for development and report a released version";
+
+    /// <summary>Group <paramref name="results"/> by <c>part</c> into the
+    /// report a claim attaches, under <paramref name="spec"/>, the released
+    /// version the claim names (a wire string). The vectors under
+    /// <c>conformance/</c> are the working test set for the next version,
+    /// carried under <c>agent-hooks/draft</c> because they exercise
+    /// behaviour no released version has; running them is fine, but a
+    /// report that names the draft throws an <see cref="ArgumentException"/>
+    /// with <see cref="DraftNotClaimable"/>, since no claim names it.</summary>
+    public static ConformanceReport Report(string spec, IEnumerable<VectorResult> results)
+    {
+        var wire = Spec.Require(spec);
+        if (wire == Spec.Draft) throw new ArgumentException(DraftNotClaimable, nameof(spec));
+        var parts = results
+            .GroupBy(r => r.Part)
+            .OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => new PartReport(
+                g.Key,
+                g.Count(r => r.Status == "pass"),
+                g.Count(r => r.Status != "pass" && r.Status != "skip"),
+                g.Count(r => r.Status == "skip"),
+                g.ToList()))
+            .ToList();
+        return new ConformanceReport(
+            wire, parts, parts.Sum(p => p.Passed), parts.Sum(p => p.Failed), parts.Sum(p => p.Skipped));
+    }
+
     public static IEnumerable<JsonObject> LoadVectors(string directory)
     {
         var files = Directory.EnumerateFiles(directory, "AH-CTK-*.json").OrderBy(p => p).ToList();
@@ -56,7 +105,15 @@ public static class Runner
     {
         var id = (string)vector["id"]!;
         var title = (string)vector["title"]!;
+        var part = (string?)vector["part"] ?? "";
         var vectorJson = vector.ToJsonString(Compact);
+
+        Spec.Require(harness.Spec, "harness.Spec");
+        // A draft-only vector (introduced_in: draft) is part of the working
+        // test set for the next version and runs under the draft only.
+        // Binding tests to a draft revision is #188.
+        if ((string?)vector["introduced_in"] == "draft" && harness.Spec != Spec.Draft)
+            return new VectorResult(id, title, "skip", DraftOnlySkip, [], part);
 
         // §7.7.9: a harness with its own declaration is assessed against
         // the resolved document, so what ran is what a claim cites.
@@ -72,7 +129,7 @@ public static class Runner
             var assessed = AssessOwnDeclaration(own, codeSurface);
             if (assessed.Refused is { } refused)
                 return new VectorResult(id, title, "fail", "",
-                    [$"harness declaration refused: {refused}"]);
+                    [$"harness declaration refused: {refused}"], part);
             capabilities = assessed.Capabilities;
             posture = assessed.Posture;
             onError = assessed.OnError;
@@ -90,7 +147,7 @@ public static class Runner
         var skip = JsonNode.Parse(
             Native.CtkShouldSkip(vectorJson, caps.ToJsonString(Compact)));
         if (skip is JsonValue sv && sv.TryGetValue(out string? reason))
-            return new VectorResult(id, title, "skip", reason!, []);
+            return new VectorResult(id, title, "skip", reason!, [], part);
 
         var scenario = Scenario.FromWire((JsonObject)vector["scenario"]!);
         var scripts = new Scripts(vector);
@@ -139,7 +196,7 @@ public static class Runner
             catch (Exception e)
             {
                 return new VectorResult(id, title, "fail", "",
-                    [$"harness.RunAsync raised: {e}"]);
+                    [$"harness.RunAsync raised: {e}"], part);
             }
             finally
             {
@@ -161,7 +218,7 @@ public static class Runner
             catch (Exception e)
             {
                 return new VectorResult(id, title, "fail", "",
-                    [$"harness.RunAsync raised: {e}"]);
+                    [$"harness.RunAsync raised: {e}"], part);
             }
             finally
             {
@@ -186,7 +243,8 @@ public static class Runner
             (string?)result["title"] ?? title,
             (string)result["status"]!,
             (string?)result["detail"] ?? "",
-            (result["failures"] as JsonArray)?.Select(n => (string)n!).ToList() ?? []);
+            (result["failures"] as JsonArray)?.Select(n => (string)n!).ToList() ?? [],
+            (string?)result["part"] ?? "");
     }
 
     /// <summary>What a harness's own declaration resolves to: the

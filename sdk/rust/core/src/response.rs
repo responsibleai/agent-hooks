@@ -2,7 +2,7 @@
 
 //! Optional hosted/cross-process interceptor response envelope (§5.5).
 
-use crate::types::{HostError, Verdict};
+use crate::types::{HostError, SpecVersion, Verdict};
 use serde::de::{self, DeserializeSeed, MapAccess, SeqAccess, Visitor};
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -24,7 +24,7 @@ pub struct InterceptorResponse {
 impl InterceptorResponse {
     /// Parse a JSON value. Use [`from_json`] when duplicate-member rejection
     /// must be enforced on raw transport text.
-    pub fn from_wire(raw: &Value) -> Result<Self, (HostError, String)> {
+    pub fn from_wire(raw: &Value, spec: SpecVersion) -> Result<Self, (HostError, String)> {
         crate::verdict::check_json_domain(raw)?;
         let Some(obj) = raw.as_object() else {
             return Err((
@@ -34,7 +34,7 @@ impl InterceptorResponse {
         };
         if !obj.contains_key("verdict") {
             return Ok(Self {
-                verdict: crate::verdict::from_wire(raw)?,
+                verdict: crate::verdict::from_wire(raw, spec)?,
                 extensions: BTreeMap::new(),
             });
         }
@@ -47,7 +47,7 @@ impl InterceptorResponse {
                 ));
             }
         }
-        let verdict = crate::verdict::from_wire(&obj["verdict"])?;
+        let verdict = crate::verdict::from_wire(&obj["verdict"], spec)?;
         let extensions = match obj.get("extensions") {
             None => None,
             Some(value @ Value::Object(object)) => {
@@ -101,7 +101,7 @@ impl InterceptorResponse {
 
     /// Reject duplicates during JSON parsing and unsafe metadata integer tokens
     /// before `from_wire` checks depth, metadata I-JSON, Verdict semantics and size.
-    pub fn from_json(text: &str) -> Result<Self, (HostError, String)> {
+    pub fn from_json(text: &str, spec: SpecVersion) -> Result<Self, (HostError, String)> {
         let raw = parse_checked(text)?;
         if raw.get("verdict").is_some() {
             let members: BTreeMap<String, &serde_json::value::RawValue> =
@@ -118,7 +118,7 @@ impl InterceptorResponse {
                     .map_err(|(_, detail)| (HostError::VerdictInvalid, detail))?;
             }
         }
-        Self::from_wire(&raw)
+        Self::from_wire(&raw, spec)
     }
 
     /// Always serialize the normalized envelope shape.
@@ -243,11 +243,13 @@ pub(crate) fn parse_checked(text: &str) -> Result<Value, (HostError, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::SpecVersion;
     use serde_json::json;
 
     #[test]
     fn bare_verdict_normalizes() {
-        let response = InterceptorResponse::from_json(r#"{"decision":"allow"}"#).unwrap();
+        let response =
+            InterceptorResponse::from_json(r#"{"decision":"allow"}"#, SpecVersion::Draft).unwrap();
         assert_eq!(response.verdict.decision, crate::Decision::Allow);
         assert_eq!(
             response.to_envelope_value(),
@@ -264,7 +266,7 @@ mod tests {
                 "receipt": {"evaluationId": "e1"}, "requestId": "r1"
             }}
         });
-        let response = InterceptorResponse::from_wire(&raw).unwrap();
+        let response = InterceptorResponse::from_wire(&raw, SpecVersion::Draft).unwrap();
         assert_eq!(response.to_wire_value(), raw);
     }
 
@@ -278,7 +280,10 @@ mod tests {
             r#"{"verdict":{"decision":"allow"},"extensions":{"Bad-Name":{}}}"#,
             r#"{"verdict":{"decision":"allow"},"verdict":{"decision":"deny"}}"#,
         ] {
-            assert!(InterceptorResponse::from_json(raw).is_err(), "{raw}");
+            assert!(
+                InterceptorResponse::from_json(raw, SpecVersion::Draft).is_err(),
+                "{raw}"
+            );
         }
     }
 
@@ -288,6 +293,6 @@ mod tests {
             "verdict": {"decision": "allow"},
             "extensions": {"provider": {"padding": "x".repeat(RESPONSE_METADATA_MAX_BYTES)}}
         });
-        assert!(InterceptorResponse::from_wire(&raw).is_err());
+        assert!(InterceptorResponse::from_wire(&raw, SpecVersion::Draft).is_err());
     }
 }

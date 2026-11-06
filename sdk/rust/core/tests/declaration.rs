@@ -7,6 +7,8 @@
 use agent_hooks::declaration::{
     resolve, HostSurface, KnobSupport, TimeoutSupport, ToolSeamPosture,
 };
+use agent_hooks::SpecVersion;
+use agent_hooks::SPEC_VERSION_DRAFT as DRAFT;
 use agent_hooks::{
     AgentContext, AgentContextBuilder, ApprovalOutcome, ApprovalRequest, ApprovalResolution,
     ApprovalResolver, BindingOptions, CompositionConfig, CompositionProfile, ControlFailureNotice,
@@ -94,7 +96,7 @@ fn registry() -> HostRegistry {
 
 fn document() -> Value {
     json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "id": "test-doc",
         "configuration": {
             "composition": { "profile": "parallel/strictest" },
@@ -111,7 +113,7 @@ fn document() -> Value {
 }
 
 async fn run_session(em: &mut InterceptionEmitter) -> Vec<String> {
-    let mut b = AgentContextBuilder::new("a1", "test-host", "s1")
+    let mut b = AgentContextBuilder::new(em.spec(), "a1", "test-host", "s1")
         .with_timestamp_provider(|| "2026-10-09T00:00:00.000Z".to_owned());
     let mut out = Vec::new();
     for mut ctx in [
@@ -150,7 +152,7 @@ async fn three_paths_produce_identical_records() {
     let mut from_value = InterceptionEmitter::from_declaration_value(doc.clone(), &reg).unwrap();
     let mut from_json = InterceptionEmitter::from_declaration_json(&text, &reg).unwrap();
     let mut from_path = InterceptionEmitter::from_declaration_path(&path, &reg).unwrap();
-    let built = HostDeclaration::builder()
+    let built = HostDeclaration::builder(SpecVersion::Draft)
         .id("test-doc")
         .composition(CompositionConfig::strictest(SynthesisPolicy::Deny))
         .identity_provider(Some("hmac-sha256-k1"))
@@ -220,7 +222,7 @@ async fn three_paths_produce_identical_records() {
 
 #[tokio::test]
 async fn code_path_records_carry_no_declaration_and_unchanged_bytes() {
-    let mut em = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+    let mut em = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
     em.register(Box::new(Scripted(Verdict::allow())));
     let records = run_session(&mut em).await;
     for s in &records {
@@ -238,7 +240,7 @@ async fn code_path_records_carry_no_declaration_and_unchanged_bytes() {
 
 #[tokio::test]
 async fn register_at_filters_points_and_names_verdicts() {
-    let mut em = InterceptionEmitter::new(EnforcementMode::Enforce, None);
+    let mut em = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
     em.register_at(
         Box::new(Scripted(Verdict::deny(Some("x:deny".into()), None))),
         Some("gate".into()),
@@ -269,7 +271,7 @@ async fn register_at_filters_points_and_names_verdicts() {
 #[tokio::test]
 async fn point_without_binding_denies_no_interceptor() {
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "bindings": [{ "id": "a", "kind": "com.example.scripted", "config": { "decision": "allow" }, "at": ["pre_tool_call"] }]
     });
     let mut em = InterceptionEmitter::from_declaration_value(doc, &registry()).unwrap();
@@ -308,7 +310,7 @@ fn sealed_emitter_refuses_reconfiguration() {
 #[test]
 fn binding_rejected_by_error_and_by_panic() {
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "bindings": [
             { "id": "ok", "kind": "com.example.scripted", "config": { "decision": "allow" } },
             { "id": "bad", "kind": "com.example.scripted", "config": { "decision": "maybe", "secret": "hunter2" } }
@@ -325,7 +327,7 @@ fn binding_rejected_by_error_and_by_panic() {
     );
 
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "bindings": [{ "id": "boom", "kind": "com.example.panics" }]
     });
     let e = InterceptionEmitter::from_declaration_value(doc, &registry()).unwrap_err();
@@ -380,7 +382,7 @@ fn config_integers_stay_inside_the_canonical_domain() {
     let reg = registry();
     let doc = |key: u64| {
         json!({
-            "declaration": DECLARATION_VERSION,
+            "declaration": DECLARATION_VERSION, "spec": DRAFT,
             "bindings": [{
                 "id": "a",
                 "kind": "com.example.scripted",
@@ -416,8 +418,8 @@ fn config_integers_stay_inside_the_canonical_domain() {
 
 #[test]
 fn one_class_per_document_in_pipeline_order() {
-    // A document breaking steps 3, 5, 6, 7 and 10 at once reports the
-    // earliest step only; fixing each in turn walks the pipeline.
+    // A document breaking steps 3, 4, 5, 6, 7 and 10 at once reports
+    // the earliest step only; fixing each in turn walks the pipeline.
     let reg = registry();
     let mut doc = json!({
         "declaration": "agent-hooks-declaration/0.1",
@@ -431,7 +433,10 @@ fn one_class_per_document_in_pipeline_order() {
             .class
     };
     assert_eq!(class(&doc), DeclarationErrorClass::VersionUnsupported);
+    // Step 4: the document names no specification version.
     doc["declaration"] = json!(DECLARATION_VERSION);
+    assert_eq!(class(&doc), DeclarationErrorClass::SpecUnsupported);
+    doc["spec"] = json!(DRAFT);
     assert_eq!(class(&doc), DeclarationErrorClass::UnknownField);
     doc.as_object_mut().unwrap().remove("policy");
     assert_eq!(class(&doc), DeclarationErrorClass::InvalidField);
@@ -485,12 +490,13 @@ async fn declared_timeouts_bound_interceptor_and_resolver() {
         .approval_resolver("slow-queue", Box::new(SlowResolver))
         .unwrap();
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "configuration": { "timeouts": { "interceptor_ms": 20, "approval_resolver_ms": 20 } },
         "bindings": [{ "id": "slow", "kind": "com.example.slow" }]
     });
     let mut em = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap();
-    let mut ctx = AgentContextBuilder::new("a", "h", "s").input(json!("hi"), "user");
+    let mut ctx =
+        AgentContextBuilder::new(SpecVersion::Draft, "a", "h", "s").input(json!("hi"), "user");
     let r = em.emit_unchecked(&mut ctx).await;
     assert_eq!(
         r.verdict.reason.as_deref(),
@@ -498,7 +504,7 @@ async fn declared_timeouts_bound_interceptor_and_resolver() {
     );
 
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "configuration": {
             "approval": { "resolver": "slow-queue" },
             "timeouts": { "interceptor_ms": 1000, "approval_resolver_ms": 20 }
@@ -506,7 +512,8 @@ async fn declared_timeouts_bound_interceptor_and_resolver() {
         "bindings": [{ "id": "esc", "kind": "com.example.escalate" }]
     });
     let mut em = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap();
-    let mut ctx = AgentContextBuilder::new("a", "h", "s").input(json!("hi"), "user");
+    let mut ctx =
+        AgentContextBuilder::new(SpecVersion::Draft, "a", "h", "s").input(json!("hi"), "user");
     let r = em.emit_unchecked(&mut ctx).await;
     assert_eq!(
         r.verdict.reason.as_deref(),
@@ -582,8 +589,14 @@ fn registry_with_notifier(notices: Option<Notices>) -> HostRegistry {
     }
 }
 
+/// A context under the draft, the version the 1.1 documents of these
+/// tests run under.
 fn pre_tool_ctx() -> AgentContext {
-    AgentContextBuilder::new("a", "h", "s").pre_tool_call("tc", "t", json!({"url": "x"}))
+    AgentContextBuilder::new(SpecVersion::Draft, "a", "h", "s").pre_tool_call(
+        "tc",
+        "t",
+        json!({"url": "x"}),
+    )
 }
 
 #[tokio::test]
@@ -592,7 +605,7 @@ async fn declared_on_error_inherited_and_overridden_per_binding() {
     let reg = registry_with_notifier(Some(notices.clone()));
     // Document default continue; "strict" overrides to deny.
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "configuration": {
             "composition": { "profile": "sequential/run_all" },
             "failure": { "on_error": "continue" }
@@ -621,7 +634,7 @@ async fn declared_on_error_inherited_and_overridden_per_binding() {
     assert_eq!(notices.lock().unwrap()[0].binding, "best-effort");
 
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "configuration": { "failure": { "on_error": "continue" } },
         "bindings": [
             { "id": "strict", "kind": "com.example.failing", "on_error": "deny" }
@@ -639,7 +652,7 @@ async fn declared_on_error_inherited_and_overridden_per_binding() {
 
     // Default absent, binding opts in.
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "bindings": [
             { "id": "soft", "kind": "com.example.failing", "on_error": "continue" }
         ]
@@ -658,6 +671,7 @@ async fn previous_minor_document_keeps_its_meaning() {
     let reg = registry_with_notifier(None);
     let doc = json!({
         "declaration": "agent-hooks-declaration/1.0",
+        "spec": agent_hooks::SPEC_VERSION_0_1,
         "bindings": [{ "id": "f", "kind": "com.example.failing" }]
     });
     let mut em = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap();
@@ -665,7 +679,14 @@ async fn previous_minor_document_keeps_its_meaning() {
         em.declaration().unwrap().bindings()[0].on_error,
         OnError::Deny
     );
-    let r = em.emit_unchecked(&mut pre_tool_ctx()).await;
+    // The emitter runs the document's version and its contexts say so.
+    assert_eq!(em.spec(), SpecVersion::V0_1);
+    let mut ctx = AgentContextBuilder::new(SpecVersion::V0_1, "a", "h", "s").pre_tool_call(
+        "tc",
+        "t",
+        json!({"url": "x"}),
+    );
+    let r = em.emit_unchecked(&mut ctx).await;
     assert!(!r.proceeds());
     assert_eq!(
         r.verdict.reason.as_deref(),
@@ -676,6 +697,13 @@ async fn previous_minor_document_keeps_its_meaning() {
         r.declaration.as_deref(),
         Some("agent-hooks-declaration/1.0")
     );
+    // The draft context of the other tests does not belong to this
+    // emitter.
+    let r = em.emit_unchecked(&mut pre_tool_ctx()).await;
+    assert_eq!(
+        r.verdict.reason.as_deref(),
+        Some("host_error:context_invalid")
+    );
 }
 
 #[test]
@@ -685,7 +713,7 @@ fn continue_without_a_notifier_refuses_the_document() {
     // the document wrote.
     let reg = registry_with_notifier(None);
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "bindings": [{ "id": "soft", "kind": "com.example.failing", "on_error": "continue" }]
     });
     let e = InterceptionEmitter::from_declaration_value(doc, &reg).unwrap_err();
@@ -697,7 +725,7 @@ fn continue_without_a_notifier_refuses_the_document() {
     );
     // Inherited from the document default: the finding points there.
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "configuration": { "failure": { "on_error": "continue" } },
         "bindings": [{ "id": "soft", "kind": "com.example.failing" }]
     });
@@ -707,7 +735,7 @@ fn continue_without_a_notifier_refuses_the_document() {
     // The binding wrote `continue` itself while the default is also
     // `continue`: the pointer follows the document, not the value.
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "configuration": { "failure": { "on_error": "continue" } },
         "bindings": [
             { "id": "strict", "kind": "com.example.failing", "on_error": "deny" },
@@ -720,7 +748,7 @@ fn continue_without_a_notifier_refuses_the_document() {
     assert_eq!(e.findings[0].pointer, "/bindings/1/on_error");
     // Every offending binding is reported, in array order.
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "configuration": { "failure": { "on_error": "continue" } },
         "bindings": [
             { "id": "a", "kind": "com.example.failing" },
@@ -736,7 +764,7 @@ fn continue_without_a_notifier_refuses_the_document() {
     // The check runs before any kind resolver (step 8 before step 11):
     // a resolver that panics in an earlier binding never runs.
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "bindings": [
             { "id": "first", "kind": "com.example.panics" },
             { "id": "soft", "kind": "com.example.failing", "on_error": "continue" }
@@ -748,7 +776,7 @@ fn continue_without_a_notifier_refuses_the_document() {
     // And before the names of steps 9 and 10: an unknown kind in the
     // same document is not what the refusal reports.
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "bindings": [
             { "id": "soft", "kind": "com.example.failing", "on_error": "continue" },
             { "id": "nobody", "kind": "com.example.unknown" }
@@ -758,7 +786,7 @@ fn continue_without_a_notifier_refuses_the_document() {
     assert_eq!(e.class, DeclarationErrorClass::SurfaceUnsupported);
     // Deny needs no channel.
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "configuration": { "failure": { "on_error": "deny" } },
         "bindings": [{ "id": "f", "kind": "com.example.failing" }]
     });
@@ -766,7 +794,7 @@ fn continue_without_a_notifier_refuses_the_document() {
     // With the channel registered the same documents load.
     let reg = registry_with_notifier(Some(Arc::new(Mutex::new(Vec::new()))));
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "configuration": { "failure": { "on_error": "continue" } },
         "bindings": [{ "id": "soft", "kind": "com.example.failing" }]
     });
@@ -775,7 +803,7 @@ fn continue_without_a_notifier_refuses_the_document() {
 
 #[test]
 fn builder_writes_on_error_like_a_file() {
-    let built = HostDeclaration::builder()
+    let built = HostDeclaration::builder(SpecVersion::Draft)
         .failure_on_error(OnError::Continue)
         .bind_with(
             "strict",
@@ -797,7 +825,7 @@ fn builder_writes_on_error_like_a_file() {
         .unwrap();
     assert_eq!(built.version(), DECLARATION_VERSION);
     let parsed = HostDeclaration::from_value(json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "configuration": { "failure": { "on_error": "continue" } },
         "bindings": [
             { "id": "strict", "kind": "com.example.scripted", "config": {"decision": "allow"}, "on_error": "deny" },
@@ -846,7 +874,7 @@ async fn managed_kind_receives_the_declared_bound() {
         .control_failure_notifier(|_| {});
     assert!(reg.names().kinds.contains("com.example.scanner"));
     let doc = json!({
-        "declaration": DECLARATION_VERSION,
+        "declaration": DECLARATION_VERSION, "spec": DRAFT,
         "bindings": [{
             "id": "scanner", "kind": "com.example.scanner",
             "timeout_ms": 250, "on_error": "continue"

@@ -76,7 +76,7 @@ public sealed class DeclarationTests
     {
         var o = (JsonObject)JsonNode.Parse($$"""
             {
-              "spec": "agent-hooks/0.1",
+              "spec": "agent-hooks/draft",
               "interception_point": "{{point}}",
               "timestamp": "2026-01-01T00:00:00Z",
               "sequence": {{sequence}},
@@ -104,7 +104,7 @@ public sealed class DeclarationTests
     private const string V10 = "agent-hooks-declaration/1.0";
 
     private static string Minimal(string kind = "com.example.allow") => $$"""
-        {"declaration": "agent-hooks-declaration/1.0",
+        {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
          "bindings": [{"id": "allow", "kind": "{{kind}}"}]}
         """;
 
@@ -118,19 +118,111 @@ public sealed class DeclarationTests
         Assert.Equal(
             Declaration.SupportedVersions,
             ((JsonArray)core["supported"]!).Select(n => (string)n!).ToList());
-        Assert.NotEqual(Spec.Version, Declaration.Version);
+        Assert.False(core.ContainsKey("spec"), "no default version");
+        Assert.Equal(
+            Spec.SupportedVersions,
+            ((JsonArray)core["spec_supported"]!).Select(n => (string)n!).ToList());
+        Assert.Equal(["0.1", "draft"], Spec.SupportedVersions);
+        Assert.Equal([Spec.V01, Spec.Draft], Spec.SupportedWireVersions);
+        // What each specification version defines, pinned to the core.
+        var bySpec = (JsonObject)core["by_spec"]!;
+        Assert.Equal(Spec.SupportedVersions.Order(), bySpec.Select(kv => kv.Key).Order());
+        foreach (var name in Spec.SupportedVersions)
+        {
+            var wire = "agent-hooks/" + name;
+            Assert.Equal(Declaration.CurrentVersionFor(wire), (string)bySpec[name]!["current"]!);
+            Assert.Equal(
+                Declaration.AcceptedVersionsFor(wire),
+                ((JsonArray)bySpec[name]!["supported"]!).Select(n => (string)n!).ToList());
+        }
+        Assert.Equal(V10, Declaration.CurrentVersionFor(Spec.V01));
+        Assert.Equal(Declaration.Version, Declaration.CurrentVersionFor(Spec.Draft));
+        Assert.Throws<ArgumentException>(() => Declaration.CurrentVersionFor("agent-hooks/0.2"));
     }
 
     [Fact]
-    public void ErrorClassesMatchTheInventory()
+    public void AVersionIsRequiredEverywhereAndMustBeSupported()
+    {
+        foreach (var bad in new[] { null, "", "0.1", "agent-hooks/0.2", "agent-hooks/DRAFT" })
+        {
+            var e = Assert.Throws<ArgumentException>(() => new AgentContextBuilder(bad!, "a", "x", "s"));
+            Assert.Contains("Spec.SupportedVersions", e.Message);
+            Assert.Contains("agent-hooks/draft", e.Message);
+            Assert.Throws<ArgumentException>(() => new InterceptionEmitter(bad!));
+            Assert.Throws<ArgumentException>(() => new DeclarationBuilder(bad!));
+        }
+        foreach (var spec in new[] { Spec.V01, Spec.Draft })
+        {
+            var b = new AgentContextBuilder(spec, "a", "x", "s");
+            Assert.Equal(spec, b.Spec);
+            Assert.Equal(spec, (string?)b.Input("hi").Json["spec"]);
+            Assert.Equal(spec, new InterceptionEmitter(spec).Spec);
+        }
+    }
+
+    [Fact]
+    public async Task TheContractVersionADocumentMayCarryIsItsSpecVersions()
+    {
+        // 0.1 defines 1.0 alone; the draft defines both. A document without
+        // `spec` names no version and is refused at step 4.
+        var under01 = $$"""{"declaration": "{{Declaration.Version}}", "spec": "{{Spec.V01}}", "bindings": []}""";
+        var e = Assert.Throws<DeclarationException>(
+            () => InterceptionEmitter.FromDeclarationJson(under01, Registry()));
+        Assert.Equal(DeclarationErrorClass.VersionUnsupported, e.Class);
+        Assert.Equal([V10], e.Accepted);
+        Assert.Contains("agent-hooks/draft accepts it", e.Findings[0].Detail);
+        var unversioned = $$"""{"declaration": "{{V10}}", "bindings": []}""";
+        e = Assert.Throws<DeclarationException>(
+            () => InterceptionEmitter.FromDeclarationJson(unversioned, Registry()));
+        Assert.Equal(DeclarationErrorClass.SpecUnsupported, e.Class);
+        Assert.Equal("/spec", e.Findings[0].Pointer);
+        Assert.Contains("spec is missing", e.Findings[0].Detail);
+        // The builder writes the newest contract version of its own version.
+        Assert.Equal(V10, (string?)new DeclarationBuilder(Spec.V01).ToNode()["declaration"]);
+        Assert.Equal(Spec.V01, (string?)new DeclarationBuilder(Spec.V01).ToNode()["spec"]);
+        Assert.Equal(Declaration.Version, (string?)new DeclarationBuilder(Spec.Draft).ToNode()["declaration"]);
+        e = Assert.Throws<DeclarationException>(
+            () => InterceptionEmitter.FromDeclaration(
+                new DeclarationBuilder(Spec.V01).FailureOnError(OnError.Continue).Build(), Registry()));
+        Assert.Equal(DeclarationErrorClass.UnknownField, e.Class);
+        // An emitter built from a 0.1 document runs 0.1: a draft context is
+        // refused, a 0.1 context runs.
+        var em = InterceptionEmitter.FromDeclarationJson(
+            $$"""{"declaration": "{{V10}}", "spec": "{{Spec.V01}}", "bindings": [{"id": "allow", "kind": "com.example.allow"}]}""",
+            Registry());
+        Assert.Equal(Spec.V01, em.Spec);
+        Assert.Equal(Spec.V01, em.Declaration!.Spec);
+        var r = await em.EmitUncheckedAsync(Ctx());
+        Assert.Equal(HostError.ContextInvalid, r.Verdict.Reason);
+        var b = new AgentContextBuilder(Spec.V01, "a", "x", "s");
+        var ok = await em.EmitUncheckedAsync(b.PreToolCall("tc", "t", new JsonObject()));
+        Assert.True(ok.Proceeds);
+    }
+
+    private static void ErrorClassesMatchTheInventoryOf(string bundle)
     {
         var inventory = JsonNode.Parse(File.ReadAllText(
-            Path.Combine(RepoRoot(), "spec", "0.1.0", "declaration-errors.json")))!;
+            Path.Combine(RepoRoot(), "spec", bundle, "declaration-errors.json")))!;
         var ids = ((JsonArray)inventory["classes"]!).Select(c => (string)c!["id"]!).ToList();
         var codes = Enum.GetValues<DeclarationErrorClass>().Select(c => c.ToCode()).ToList();
         Assert.Equal(ids, codes);
         foreach (var code in codes)
             Assert.Equal(code, DeclarationErrorClassExtensions.FromCode(code)!.Value.ToCode());
+    }
+
+    [Fact]
+    public void ErrorClassesMatchTheInventory()
+    {
+        // The released bundle's inventory gates (VERSIONING.md).
+        ErrorClassesMatchTheInventoryOf("0.1");
+    }
+
+    /// <summary>Advisory (the draft-tests job): the draft's inventory.</summary>
+    [Fact]
+    [Trait("Category", "draft")]
+    public void DraftOnlyErrorClassesMatchTheInventory()
+    {
+        ErrorClassesMatchTheInventoryOf("draft");
     }
 
     [Fact]
@@ -170,7 +262,7 @@ public sealed class DeclarationTests
     [Fact]
     public async Task CodePathRecordsCarryNoDeclaration()
     {
-        var em = new InterceptionEmitter();
+        var em = new InterceptionEmitter(Spec.Draft);
         em.Register(new Scripted(Verdict.Allow));
         Assert.Null(em.Declaration);
         var r = await em.EmitUncheckedAsync(Ctx());
@@ -184,7 +276,7 @@ public sealed class DeclarationTests
     public void HostFailureRecordStampsTheDeclaration()
     {
         var em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "bindings": [{"id": "a", "kind": "com.example.allow", "at": ["pre_tool_call"]},
                           {"id": "b", "kind": "com.example.allow"}]}
             """, Registry());
@@ -201,7 +293,7 @@ public sealed class DeclarationTests
         // does too; a 1.0 document pairs with Version("...1.0").
         var doc = (JsonObject)JsonNode.Parse("""
             {
-              "declaration": "agent-hooks-declaration/1.1",
+              "declaration": "agent-hooks-declaration/1.1", "spec": "agent-hooks/draft",
               "configuration": {
                 "composition": {"profile": "parallel/strictest"},
                 "timeouts": {"interceptor_ms": 4000}
@@ -216,7 +308,7 @@ public sealed class DeclarationTests
         try
         {
             File.WriteAllText(path, doc.ToJsonString());
-            var builder = HostDeclaration.Builder()
+            var builder = HostDeclaration.Builder(Spec.Draft)
                 .Composition(new CompositionConfig(CompositionProfile.ParallelStrictest))
                 .InterceptorTimeoutMs(4000)
                 .Bind("audit", "com.example.allow", new JsonObject { ["sink"] = "stdout" }, timeoutMs: 2000)
@@ -261,7 +353,7 @@ public sealed class DeclarationTests
     public async Task PerPointBindingsCountTheListAtThePoint()
     {
         var em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "bindings": [{"id": "a", "kind": "com.example.deny", "at": ["pre_tool_call"]},
                           {"id": "b", "kind": "com.example.allow"}]}
             """, Registry());
@@ -283,7 +375,7 @@ public sealed class DeclarationTests
     public async Task UnboundPointDeniesNoInterceptor()
     {
         var em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "bindings": [{"id": "only-tools", "kind": "com.example.allow", "at": ["pre_tool_call"]}]}
             """, Registry());
         var r = await em.EmitUncheckedAsync(Ctx("input"));
@@ -298,7 +390,7 @@ public sealed class DeclarationTests
     public async Task ZeroBindingsIsTheWrittenDownEmptyDenyHost()
     {
         var em = InterceptionEmitter.FromDeclarationJson(
-            """{"declaration": "agent-hooks-declaration/1.0", "bindings": []}""", Registry());
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "bindings": []}""", Registry());
         var r = await em.EmitUncheckedAsync(Ctx("agent_startup"));
         Assert.Equal(HostError.NoInterceptor, r.Verdict.Reason);
         Assert.Equal(V10, r.Declaration);
@@ -307,7 +399,7 @@ public sealed class DeclarationTests
     [Fact]
     public async Task RegisterAtOnTheCodePathFiltersByPoint()
     {
-        var em = new InterceptionEmitter();
+        var em = new InterceptionEmitter(Spec.Draft);
         var a = new Scripted(Verdict.Allow);
         em.Register(a, "tools-only", new HashSet<InterceptionPoint> { InterceptionPoint.PreToolCall });
         var input = await em.EmitUncheckedAsync(Ctx("input"));
@@ -325,7 +417,7 @@ public sealed class DeclarationTests
     public async Task EvaluateOnlyFromDeclarationValidatesButDoesNotApply()
     {
         var em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "configuration": {"mode": "evaluate_only"},
              "bindings": [{"id": "rewrite", "kind": "com.example.rewrite"}]}
             """, Registry());
@@ -352,7 +444,7 @@ public sealed class DeclarationTests
             })
             .Kind("com.example.escalate", (_, _) => new Scripted(Verdict.Escalate("check")));
         var em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "configuration": {
                "identity_provider": "myco-hash",
                "approval": {"resolver": "operator-queue", "redactor": "strip-secrets"}
@@ -375,7 +467,7 @@ public sealed class DeclarationTests
             .Kind("com.example.escalate", (_, _) => new Scripted(Verdict.Escalate("check")))
             .ApprovalResolver("slow-queue", new SlowApprover(TimeSpan.FromSeconds(1)));
         var slow = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "configuration": {"timeouts": {"interceptor_ms": 5000}},
              "bindings": [{"id": "slow", "kind": "com.example.slow", "timeout_ms": 50}]}
             """, reg);
@@ -383,7 +475,7 @@ public sealed class DeclarationTests
         Assert.Equal(HostError.InterceptorTimeout, r.Verdict.Reason);
 
         var resolver = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "configuration": {
                "approval": {"resolver": "slow-queue"},
                "timeouts": {"interceptor_ms": 5000, "approval_resolver_ms": 50}
@@ -400,7 +492,7 @@ public sealed class DeclarationTests
     public void MaxBufferedRecordsBoundsTheBuffer()
     {
         var em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "configuration": {"records": {"max_buffered": 2}},
              "bindings": [{"id": "allow", "kind": "com.example.allow"}]}
             """, Registry());
@@ -453,67 +545,67 @@ public sealed class DeclarationTests
             DeclarationErrorClass.SpecUnsupported, "/spec",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "policy": {}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "policy": {}, "bindings": []}""",
             DeclarationErrorClass.UnknownField, "/policy",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "configuration": {"composition": {"profile": "sequential/run_all", "on_timeout": "deny"}}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "configuration": {"composition": {"profile": "sequential/run_all", "on_timeout": "deny"}}, "bindings": []}""",
             DeclarationErrorClass.UnknownField, "/configuration/composition/on_timeout",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "configuration": {"mode": "audit"}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "configuration": {"mode": "audit"}, "bindings": []}""",
             DeclarationErrorClass.InvalidField, "/configuration/mode",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "configuration": {"timeouts": {"interceptor_ms": 5000.0}}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "configuration": {"timeouts": {"interceptor_ms": 5000.0}}, "bindings": []}""",
             DeclarationErrorClass.InvalidField, "/configuration/timeouts/interceptor_ms",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "configuration": {"records": {"max_buffered": 9007199254740992}}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "configuration": {"records": {"max_buffered": 9007199254740992}}, "bindings": []}""",
             DeclarationErrorClass.InvalidField, "/configuration/records/max_buffered",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "bindings": [{"id": "a", "kind": "com.example.allow", "config": {"key": 9007199254740992}}]}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "bindings": [{"id": "a", "kind": "com.example.allow", "config": {"key": 9007199254740992}}]}""",
             DeclarationErrorClass.InvalidField, "/bindings/0/config/key",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "configuration": {"composition": {"profile": "sequential/run_all", "on_approval": "resume"}}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "configuration": {"composition": {"profile": "sequential/run_all", "on_approval": "resume"}}, "bindings": []}""",
             DeclarationErrorClass.Inconsistent, "/configuration/composition/on_approval",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "surface": {"interception_points": ["agent_startup", "input", "pre_model_call", "post_model_call", "output"]}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "surface": {"interception_points": ["agent_startup", "input", "pre_model_call", "post_model_call", "output"]}, "bindings": []}""",
             DeclarationErrorClass.Inconsistent, "/surface/interception_points",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "bindings": [{"id": "a", "kind": "com.example.allow"}, {"id": "a", "kind": "com.example.allow"}]}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "bindings": [{"id": "a", "kind": "com.example.allow"}, {"id": "a", "kind": "com.example.allow"}]}""",
             DeclarationErrorClass.Inconsistent, "/bindings/1/id",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "surface": {"declaration_versions": ["agent-hooks-declaration/0.1", "agent-hooks-declaration/1.0"]}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "surface": {"declaration_versions": ["agent-hooks-declaration/0.1", "agent-hooks-declaration/1.0"]}, "bindings": []}""",
             DeclarationErrorClass.SurfaceUnsupported, "/surface/declaration_versions",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "configuration": {"posture": {"tool_seam_host_error": "terminate"}}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "configuration": {"posture": {"tool_seam_host_error": "terminate"}}, "bindings": []}""",
             DeclarationErrorClass.SurfaceUnsupported, "/configuration/posture/tool_seam_host_error",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "configuration": {"identity_provider": "hmac-sha256-k1"}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "configuration": {"identity_provider": "hmac-sha256-k1"}, "bindings": []}""",
             DeclarationErrorClass.ReferenceUnresolved, "/configuration/identity_provider",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "configuration": {"approval": {"resolver": "operator-queue"}}, "bindings": []}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "configuration": {"approval": {"resolver": "operator-queue"}}, "bindings": []}""",
             DeclarationErrorClass.ReferenceUnresolved, "/configuration/approval/resolver",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "bindings": [{"id": "x", "kind": "com.example.nonexistent"}]}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "bindings": [{"id": "x", "kind": "com.example.nonexistent"}]}""",
             DeclarationErrorClass.KindUnknown, "/bindings/0/kind",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "bindings": [{"id": "ok", "kind": "com.example.allow"}, {"id": "bad", "kind": "com.example.throws"}]}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "bindings": [{"id": "ok", "kind": "com.example.allow"}, {"id": "bad", "kind": "com.example.throws"}]}""",
             DeclarationErrorClass.BindingRejected, "/bindings/1",
         ],
         [
-            """{"declaration": "agent-hooks-declaration/1.0", "bindings": [{"id": "bad", "kind": "com.example.none"}]}""",
+            """{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "bindings": [{"id": "bad", "kind": "com.example.none"}]}""",
             DeclarationErrorClass.BindingRejected, "/bindings/0",
         ],
     ];
@@ -551,7 +643,7 @@ public sealed class DeclarationTests
         // The SDK default surface emits the floor only; a document that
         // lists the tool points and claims tool_calls asks for more.
         var e = Assert.Throws<DeclarationException>(() => InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "surface": {
                "interception_points": ["agent_startup", "input", "pre_tool_call", "post_tool_call", "output", "agent_shutdown"],
                "capabilities": ["host_declaration", "tool_calls"]
@@ -573,7 +665,7 @@ public sealed class DeclarationTests
     public void BindingRejectedNamesTheBindingAndNeverTheConfig()
     {
         var e = Assert.Throws<DeclarationException>(() => InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "bindings": [{"id": "bad", "kind": "com.example.throws", "config": {"token": "SECRET-VALUE"}}]}
             """, Registry()));
         Assert.Equal(DeclarationErrorClass.BindingRejected, e.Class);
@@ -598,7 +690,7 @@ public sealed class DeclarationTests
     [InlineData("not json")]
     [InlineData("[]")]
     [InlineData("null")]
-    [InlineData("""{"declaration": "agent-hooks-declaration/1.0", "declaration": "agent-hooks-declaration/1.0", "bindings": []}""")]
+    [InlineData("""{"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft", "bindings": []}""")]
     public void MalformedTextIsRefusedBeforeTheVersionCheck(string text)
     {
         var e = Assert.Throws<DeclarationException>(
@@ -732,7 +824,7 @@ public sealed class DeclarationTests
     [Fact]
     public void BuilderWritesWhatItIsToldAndIsValidatedLikeAFile()
     {
-        var doc = HostDeclaration.Builder()
+        var doc = HostDeclaration.Builder(Spec.Draft)
             .Id("prod-eu")
             .Host("example-runtime", "3.2.0")
             .Mode(EnforcementMode.Enforce)
@@ -762,7 +854,7 @@ public sealed class DeclarationTests
         Assert.Equal(DeclarationErrorClass.Inconsistent, e.Class);
         Assert.Contains(e.Findings, f => f.Pointer == "/configuration/composition/on_transform_conflict");
 
-        var unknown = HostDeclaration.Builder().Raw("policy", new JsonObject()).Build();
+        var unknown = HostDeclaration.Builder(Spec.Draft).Raw("policy", new JsonObject()).Build();
         var u = Assert.Throws<DeclarationException>(() => InterceptionEmitter.FromDeclaration(unknown, Registry()));
         Assert.Equal(DeclarationErrorClass.UnknownField, u.Class);
     }
@@ -779,7 +871,7 @@ public sealed class DeclarationTests
             var rebuilt = Runner.BuilderFromNode(doc).ToNode();
             Assert.True(JsonNode.DeepEquals(doc, rebuilt), $"{vector["id"]}: builder rebuilt a different document");
         }
-        Assert.Equal(40, seen);
+        Assert.Equal(41, seen);
     }
 
     [Fact]
@@ -789,13 +881,13 @@ public sealed class DeclarationTests
         // builder must not collapse it into the default `{}`, or a file
         // that states it could not be rebuilt (§7.7.7).
         var doc = (JsonObject)JsonNode.Parse("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "bindings": [
                {"id": "a", "kind": "com.example.allow", "config": null},
                {"id": "b", "kind": "com.example.allow"}
              ]}
             """)!;
-        var builder = HostDeclaration.Builder()
+        var builder = HostDeclaration.Builder(Spec.Draft)
             .Version(V10)
             .Bind("a", "com.example.allow", config: null)
             .Bind("b", "com.example.allow");
@@ -817,7 +909,7 @@ public sealed class DeclarationTests
     {
         // The four construction paths must agree on a stated null.
         var doc = (JsonObject)JsonNode.Parse("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "bindings": [{"id": "a", "kind": "com.example.allow", "config": null}]}
             """)!;
         var (equivalent, detail) = Runner.ProvePaths(doc, Registry(), "null-config");
@@ -836,7 +928,7 @@ public sealed class DeclarationTests
         // literal beyond u64 are refused at the token's pointer on the
         // text and the node path alike, with a value-free detail.
         const string Template = """
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "bindings": [{"id": "allow", "kind": "com.example.allow", "config": {"key": KEY}}]}
             """;
         var atBound = Template.Replace("KEY", "9007199254740991");
@@ -874,7 +966,7 @@ public sealed class DeclarationTests
         // cleanly and stay a bound. The ulong clamp in Declaration stays
         // as defence should the bound ever widen.
         var em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "configuration": {"records": {"max_buffered": 9007199254740991}},
              "bindings": [{"id": "allow", "kind": "com.example.allow"}]}
             """, Registry());
@@ -898,7 +990,7 @@ public sealed class DeclarationTests
             return new Scripted(Verdict.Deny("ctk:dangerous_tool"));
         });
         var em = InterceptionEmitter.FromDeclarationJson("""
-            {"declaration": "agent-hooks-declaration/1.0",
+            {"declaration": "agent-hooks-declaration/1.0", "spec": "agent-hooks/draft",
              "bindings": [{"id": "deny", "kind": "com.example.widen", "at": ["pre_tool_call"]}]}
             """, reg);
         Assert.Equal([InterceptionPoint.PreToolCall], em.Declaration!.Bindings[0].At);
@@ -950,7 +1042,7 @@ public sealed class DeclarationTests
     [Fact]
     public void ReferenceDeclarationResolvesAgainstTheHarnessSurface()
     {
-        var harness = new ReferenceHarness();
+        var harness = new ReferenceHarness(Spec.V01);
         Assert.Contains(Capability.HostDeclaration, harness.Capabilities);
         var resolved = HostDeclaration.FromNode(harness.Declaration).ResolveSurfaceOnly(harness.HostSurface);
         Assert.Equal(
@@ -968,7 +1060,7 @@ public sealed class DeclarationTests
     [Fact]
     public async Task HarnessDeclarationWithReferencesResolvesSurfaceOnly()
     {
-        var harness = new ReferenceHarness();
+        var harness = new ReferenceHarness(Spec.V01);
         var document = (JsonObject)harness.Declaration!.DeepClone();
         ((JsonObject)document["configuration"]!)["identity_provider"] = "hmac-sha256-k1";
         document["bindings"] = new JsonArray(new JsonObject
@@ -1013,6 +1105,7 @@ public sealed class DeclarationTests
     {
         public string Name => inner.Name;
         public IReadOnlySet<Capability> Capabilities => inner.Capabilities;
+        public string Spec => inner.Spec;
         public string ToolSeamHostError => inner.ToolSeamHostError;
         public HostSurface HostSurface => inner.HostSurface;
         public JsonObject? Declaration => declaration;

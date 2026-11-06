@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 
 	"github.com/responsibleai/agent-hooks/sdk/go/agenthooks"
 )
@@ -44,6 +45,9 @@ func referenceDocument() map[string]any {
 // ReferenceHarness is a ~120-line conformant host used as the CTK
 // self-test target.
 type ReferenceHarness struct {
+	// spec is the version this harness builds its emitter and contexts
+	// under.
+	spec     string
 	scenario Scenario
 	emitter  *agenthooks.InterceptionEmitter
 	builder  *agenthooks.AgentContextBuilder
@@ -65,8 +69,42 @@ func (h *ReferenceHarness) principalChannel(registry *agenthooks.HostRegistry) e
 	})
 }
 
-// NewReferenceHarness returns a fresh harness instance.
-func NewReferenceHarness() *ReferenceHarness { return &ReferenceHarness{} }
+// NewReferenceHarness returns a fresh harness under spec, the version it
+// builds its emitter and contexts under (agenthooks.SpecVersion01 or
+// agenthooks.SpecVersionDraft). The gating runs use the newest released
+// version; the advisory draft run uses the draft.
+func NewReferenceHarness(spec string) *ReferenceHarness {
+	if err := agenthooks.RequireSpecVersion(spec); err != nil {
+		panic("NewReferenceHarness: " + err.Error())
+	}
+	return &ReferenceHarness{spec: spec}
+}
+
+// Spec implements Harness.
+func (h *ReferenceHarness) Spec() string { return h.spec }
+
+// referenceDocumentUnder is the reference document under spec: the
+// committed file names 0.1 and contract 1.0; under another version the
+// document names that version and the contract versions it accepts.
+func referenceDocumentUnder(spec string) map[string]any {
+	doc := referenceDocument()
+	folder := "v" + strings.TrimPrefix(spec, "agent-hooks/")
+	if spec == agenthooks.SpecVersionDraft {
+		folder = "draft"
+	}
+	doc["$schema"] = "https://responsibleai.github.io/agent-hooks/schema/" + folder + "/host-declaration-1.0.schema.json"
+	doc["spec"] = spec
+	_, accepted, err := agenthooks.DeclarationVersionsFor(spec)
+	if err != nil {
+		panic("reference declaration: " + err.Error())
+	}
+	versions := make([]any, 0, len(accepted))
+	for _, v := range accepted {
+		versions = append(versions, v)
+	}
+	doc["surface"].(map[string]any)["declaration_versions"] = versions
+	return doc
+}
 
 // Name implements Harness.
 func (h *ReferenceHarness) Name() string { return "reference-agent" }
@@ -92,8 +130,9 @@ func (h *ReferenceHarness) HostSurface() agenthooks.HostSurface {
 	return agenthooks.HostSurfaceFromCapabilities(caps, agenthooks.PostureContinue)
 }
 
-// Declaration implements DeclarationDeclarer.
-func (h *ReferenceHarness) Declaration() map[string]any { return referenceDocument() }
+// Declaration implements DeclarationDeclarer: the reference document
+// under this harness's version.
+func (h *ReferenceHarness) Declaration() map[string]any { return referenceDocumentUnder(h.spec) }
 
 // startSession installs a freshly built emitter and a context builder
 // for one scenario.
@@ -103,8 +142,10 @@ func (h *ReferenceHarness) startSession(scenario Scenario, em *agenthooks.Interc
 	h.hostMessages = nil
 	h.emitter = em
 	h.sess++
+	// Contexts follow the emitter's version: this harness's own under a
+	// field-based vector, the document's under a declaration vector.
 	h.builder = agenthooks.NewAgentContextBuilder(
-		"ref-agent", "reference-agent", fmt.Sprintf("sess-%d", h.sess),
+		em.Spec(), "ref-agent", "reference-agent", fmt.Sprintf("sess-%d", h.sess),
 	)
 }
 
@@ -139,7 +180,7 @@ func (h *ReferenceHarness) Setup(
 	if err := composition.Validate(); err != nil {
 		return err
 	}
-	doc := referenceDocument()
+	doc := h.Declaration()
 	cfg, _ := doc["configuration"].(map[string]any)
 	cfg["mode"] = string(mode)
 	cfg["composition"] = compositionValue(composition)

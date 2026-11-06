@@ -43,7 +43,7 @@ public sealed class EmitterCompositionTests
 
     private static AgentContext Ctx() => new((JsonObject)JsonNode.Parse("""
         {
-          "spec": "agent-hooks/0.1",
+          "spec": "agent-hooks/draft",
           "interception_point": "pre_tool_call",
           "timestamp": "t", "sequence": 0,
           "agent": {"id": "a", "framework": "x"}, "session": {"id": "s"},
@@ -62,7 +62,7 @@ public sealed class EmitterCompositionTests
     [Fact]
     public async Task RunAllRunsEverythingAndStrictestWins()
     {
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.SetComposition(CompositionConfig.RunAll());
         e.Register(new Scripted(Deny()));
         e.Register(new Scripted(Verdict.Warn("late")));
@@ -79,7 +79,7 @@ public sealed class EmitterCompositionTests
     public async Task RunAllConsultsAtMostOnceWhenAllDeniesLiftable()
     {
         var approver = new Approver(ApprovalOutcome.Approve, Verdict.Allow);
-        var e = new InterceptionEmitter(resolver: approver);
+        var e = new InterceptionEmitter(Spec.Draft, resolver: approver);
         e.SetComposition(CompositionConfig.RunAll());
         e.Register(new Scripted(Verdict.Escalate("first")));
         e.Register(new Scripted(Verdict.Escalate("second")));
@@ -94,7 +94,7 @@ public sealed class EmitterCompositionTests
     public async Task RunAllPlainDenyMakesLiftingPointless()
     {
         var approver = new Approver(ApprovalOutcome.Approve, Verdict.Allow);
-        var e = new InterceptionEmitter(resolver: approver);
+        var e = new InterceptionEmitter(Spec.Draft, resolver: approver);
         e.SetComposition(CompositionConfig.RunAll());
         e.Register(new Scripted(Verdict.Escalate("check")));
         e.Register(new Scripted(Deny()));
@@ -112,7 +112,7 @@ public sealed class EmitterCompositionTests
     [Fact]
     public async Task ParallelStrictestTransformConflictFailsClosed()
     {
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.SetComposition(CompositionConfig.Strictest(SynthesisPolicy.Deny));
         e.Register(new Scripted(TransformV("$target.url", "a")));
         e.Register(new Scripted(TransformV("$target.url", "b")));
@@ -128,7 +128,7 @@ public sealed class EmitterCompositionTests
     public async Task ParallelStrictestTransformConflictApprovalConsultsSeam()
     {
         var approver = new Approver(ApprovalOutcome.Approve, Verdict.Allow);
-        var e = new InterceptionEmitter(resolver: approver);
+        var e = new InterceptionEmitter(Spec.Draft, resolver: approver);
         e.SetComposition(CompositionConfig.Strictest(SynthesisPolicy.Approval));
         e.Register(new Scripted(TransformV("$target.url", "a")));
         e.Register(new Scripted(TransformV("$target.url", "b")));
@@ -144,7 +144,7 @@ public sealed class EmitterCompositionTests
     [Fact]
     public async Task ParallelStrictestSingleTransformApplies()
     {
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.SetComposition(CompositionConfig.Strictest(SynthesisPolicy.Deny));
         e.Register(new Scripted(Verdict.Allow));
         e.Register(new Scripted(TransformV("$target.url", "safe")));
@@ -159,7 +159,7 @@ public sealed class EmitterCompositionTests
     [Fact]
     public async Task UnanimousDisagreementSynthesizes()
     {
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.SetComposition(CompositionConfig.Unanimous(SynthesisPolicy.Deny, SynthesisPolicy.Deny));
         e.Register(new Scripted(Verdict.Allow));
         e.Register(new Scripted(TransformV("$target.url", "x")));
@@ -174,7 +174,7 @@ public sealed class EmitterCompositionTests
     public async Task UnanimousDisagreementApprovalConsultsSeam()
     {
         var approver = new Approver(ApprovalOutcome.Approve, Verdict.Allow);
-        var e = new InterceptionEmitter(resolver: approver);
+        var e = new InterceptionEmitter(Spec.Draft, resolver: approver);
         e.SetComposition(
             CompositionConfig.Unanimous(SynthesisPolicy.Approval, SynthesisPolicy.Deny));
         e.Register(new Scripted(Verdict.Allow));
@@ -190,7 +190,7 @@ public sealed class EmitterCompositionTests
     [Fact]
     public async Task FirstDenyNoResolverDenyStandsWithoutError()
     {
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.Register(new Scripted(Verdict.Escalate("check")));
         var r = await e.EmitUncheckedAsync(Ctx());
         // §9: no resolver → the liftable deny stands, NOT an error.
@@ -204,6 +204,7 @@ public sealed class EmitterCompositionTests
     public async Task FirstDenyStopTruncatesAndRecordsSubstitution()
     {
         var e = new InterceptionEmitter(
+            Spec.Draft,
             resolver: new Approver(ApprovalOutcome.Approve, Verdict.Allow));
         e.SetComposition(CompositionConfig.FirstDeny(OnApproval.Stop));
         e.Register(new Scripted(Verdict.Escalate()));
@@ -219,6 +220,7 @@ public sealed class EmitterCompositionTests
     public async Task FirstDenyResumeContinuesTheFold()
     {
         var e = new InterceptionEmitter(
+            Spec.Draft,
             resolver: new Approver(ApprovalOutcome.Approve, Verdict.Allow));
         e.SetComposition(CompositionConfig.FirstDeny(OnApproval.Resume));
         e.Register(new Scripted(Verdict.Escalate()));
@@ -233,7 +235,7 @@ public sealed class EmitterCompositionTests
     [Fact]
     public async Task EchoRuleViolationFailsClosed()
     {
-        var e = new InterceptionEmitter(resolver: new BadEcho());
+        var e = new InterceptionEmitter(Spec.Draft, resolver: new BadEcho());
         e.Register(new Scripted(Verdict.Escalate()));
         var r = await e.EmitUncheckedAsync(Ctx());
         Assert.Equal(HostError.ApprovalIdentityMismatch, r.Verdict.Reason);
@@ -244,12 +246,14 @@ public sealed class EmitterCompositionTests
     {
         // §9: approve MUST carry a permit, reject MUST carry a deny.
         var e = new InterceptionEmitter(
+            Spec.Draft,
             resolver: new Approver(ApprovalOutcome.Approve, Deny()));
         e.Register(new Scripted(Verdict.Escalate()));
         var r = await e.EmitUncheckedAsync(Ctx());
         Assert.Equal(HostError.VerdictInvalid, r.Verdict.Reason);
 
         e = new InterceptionEmitter(
+            Spec.Draft,
             resolver: new Approver(ApprovalOutcome.Reject, Verdict.Allow));
         e.Register(new Scripted(Verdict.Escalate()));
         r = await e.EmitUncheckedAsync(Ctx());
@@ -260,7 +264,7 @@ public sealed class EmitterCompositionTests
     public async Task ShutdownNeverConsults()
     {
         var approver = new Approver(ApprovalOutcome.Approve, Verdict.Allow);
-        var e = new InterceptionEmitter(resolver: approver);
+        var e = new InterceptionEmitter(Spec.Draft, resolver: approver);
         e.Register(new Scripted(Verdict.Escalate()));
         var c = Ctx();
         c.Json["interception_point"] = "agent_shutdown";
@@ -276,7 +280,7 @@ public sealed class EmitterCompositionTests
     public async Task EvaluateOnlyNeverConsults()
     {
         var approver = new Approver(ApprovalOutcome.Approve, Verdict.Allow);
-        var e = new InterceptionEmitter(EnforcementMode.EvaluateOnly, approver);
+        var e = new InterceptionEmitter(Spec.Draft, EnforcementMode.EvaluateOnly, approver);
         e.Register(new Scripted(Verdict.Escalate()));
         var r = await e.EmitUncheckedAsync(Ctx());
         Assert.Equal(0, approver.Calls);
@@ -289,7 +293,7 @@ public sealed class EmitterCompositionTests
     [Fact]
     public async Task NullProviderUnboundRecord()
     {
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.SetIdentityProvider(IdentityProvider.Null);
         e.Register(new Scripted(Verdict.Allow));
         var r = await e.EmitUncheckedAsync(Ctx());
@@ -301,7 +305,7 @@ public sealed class EmitterCompositionTests
     [Fact]
     public async Task CustomProviderRecordsNameAndIdentities()
     {
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.SetIdentityProvider(IdentityProvider.Custom(
             "test-hash", ctx => $"test:{(string)ctx["session"]!["id"]!}"));
         e.Register(new Scripted(Verdict.Allow));
@@ -314,7 +318,7 @@ public sealed class EmitterCompositionTests
     [Fact]
     public async Task DefaultProviderRejectsBigIntBeforeDispatch()
     {
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.Register(new Scripted(Verdict.Allow));
         var c = Ctx();
         c.Json["target"] = new JsonObject { ["id"] = 9_007_199_254_740_993L };
@@ -333,7 +337,7 @@ public sealed class EmitterCompositionTests
         var v = Verdict.Warn("pii");
         Assert.Equal(Decision.Allow, v.Decision);
         Assert.Single(v.Warnings!);
-        v.Validate();
+        v.Validate(Spec.Draft);
     }
 
     [Fact]
@@ -345,7 +349,7 @@ public sealed class EmitterCompositionTests
         Assert.Equal("blocked", v.Message);
         Assert.Null(v.Approval);
         Assert.False(v.IsLiftable);
-        v.Validate();
+        v.Validate(Spec.Draft);
     }
 
     [Fact]
@@ -354,10 +358,10 @@ public sealed class EmitterCompositionTests
         var v = Verdict.Escalate("check");
         Assert.Equal(Decision.Deny, v.Decision);
         Assert.True(v.IsLiftable);
-        v.Validate();
+        v.Validate(Spec.Draft);
         // §5.1: approval block permitted only on deny.
         Assert.Throws<ArgumentException>(
-            () => (Verdict.Allow with { Approval = [] }).Validate());
+            () => (Verdict.Allow with { Approval = [] }).Validate(Spec.Draft));
         // §5.1: warn/escalate are not wire decisions anymore.
         Assert.Throws<ArgumentOutOfRangeException>(
             () => Verdict.FromWire(new JsonObject { ["decision"] = "escalate" }));
@@ -374,7 +378,7 @@ public sealed class EmitterCompositionTests
     {
         // §10.3 (D3): a §6.3 failure deny carries the FAILING
         // interceptor's index, in every profile.
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.Register(new Scripted(Verdict.Allow));
         e.Register(new Throwing());
         e.Register(new Scripted(Verdict.Allow));
@@ -388,7 +392,7 @@ public sealed class EmitterCompositionTests
     public async Task RecordCarriesPayloadFreeProjection()
     {
         // §10.3 (D2): transform.path kept, transform.value dropped.
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.Register(new Scripted(TransformV("$target.url", "safe")));
         var c = Ctx();
         var r = await e.EmitUncheckedAsync(c);
@@ -406,7 +410,7 @@ public sealed class EmitterCompositionTests
         {
             Evidence = new Evidence(Artefact: new string('x', 10300)),
         };
-        var e = new InterceptionEmitter();
+        var e = new InterceptionEmitter(Spec.Draft);
         e.Register(new Scripted(big));
         var r = await e.EmitUncheckedAsync(Ctx());
         Assert.Equal(Decision.Deny, r.Verdict.Decision);

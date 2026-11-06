@@ -8,7 +8,7 @@
 //! data is added by inserting into the returned map before emitting, or
 //! session-wide via [`AgentContextBuilder::with_optional`].
 
-use crate::types::{AgentContext, InterceptionPoint, SPEC_VERSION};
+use crate::types::{AgentContext, InterceptionPoint, SpecVersion};
 use serde_json::{json, Map, Value};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -53,10 +53,15 @@ pub struct AgentContextBuilder {
     seq: u64,
     optional: Map<String, Value>,
     now: TimestampFn,
+    spec: SpecVersion,
 }
 
 impl AgentContextBuilder {
-    pub fn new(agent_id: &str, framework: &str, session_id: &str) -> Self {
+    /// A builder for one session under the specification version
+    /// `spec`, which every context it builds names in `spec` (§4.1).
+    /// There is no default: a host passes [`SpecVersion::V0_1`] or
+    /// [`SpecVersion::Draft`], the version its emitter runs under.
+    pub fn new(spec: SpecVersion, agent_id: &str, framework: &str, session_id: &str) -> Self {
         let mut agent = Map::new();
         agent.insert("id".into(), json!(agent_id));
         agent.insert("framework".into(), json!(framework));
@@ -68,7 +73,13 @@ impl AgentContextBuilder {
             seq: 0,
             optional: Map::new(),
             now: Box::new(rfc3339_now),
+            spec,
         }
+    }
+
+    /// The specification version this builder stamps.
+    pub fn spec(&self) -> SpecVersion {
+        self.spec
     }
 
     /// Replace the timestamp provider (e.g. for deterministic tests).
@@ -89,7 +100,7 @@ impl AgentContextBuilder {
 
     fn envelope(&mut self, ip: InterceptionPoint, target: Value) -> AgentContext {
         let mut ctx = Map::new();
-        ctx.insert("spec".into(), json!(SPEC_VERSION));
+        ctx.insert("spec".into(), json!(self.spec.wire()));
         ctx.insert("interception_point".into(), json!(ip.as_str()));
         ctx.insert("timestamp".into(), json!((self.now)()));
         ctx.insert("sequence".into(), json!(self.seq));
@@ -202,7 +213,7 @@ mod tests {
 
     #[test]
     fn sequence_monotonic_and_required_complete() {
-        let mut b = AgentContextBuilder::new("a", "test", "s")
+        let mut b = AgentContextBuilder::new(SpecVersion::Draft, "a", "test", "s")
             .with_timestamp_provider(|| "2026-01-01T00:00:00.000Z".into());
         let c0 = b.agent_startup(vec!["t".into()]);
         let c1 = b.input(serde_json::json!("hi"), "user");
@@ -220,5 +231,21 @@ mod tests {
             assert!(c1.contains_key(k), "missing {k}");
         }
         assert_eq!(c1["input"]["role"], "user");
+    }
+
+    #[test]
+    fn every_context_names_the_version_the_builder_was_given() {
+        let mut b = AgentContextBuilder::new(SpecVersion::V0_1, "a", "test", "s");
+        assert_eq!(b.spec(), SpecVersion::V0_1);
+        assert_eq!(
+            b.input(serde_json::json!("hi"), "user")["spec"],
+            crate::SPEC_VERSION_0_1
+        );
+        let mut d = AgentContextBuilder::new(SpecVersion::Draft, "a", "test", "s");
+        assert_eq!(d.spec(), SpecVersion::Draft);
+        assert_eq!(
+            d.output(serde_json::json!("x"))["spec"],
+            crate::SPEC_VERSION_DRAFT
+        );
     }
 }

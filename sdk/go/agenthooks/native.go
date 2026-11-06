@@ -67,11 +67,6 @@ func cstr(s string) (*C.char, func()) {
 	return c, func() { C.free(unsafe.Pointer(c)) }
 }
 
-// nativeSpecVersion returns the spec version compiled into the Rust core.
-func nativeSpecVersion() string {
-	return C.GoString(C.ah_spec_version())
-}
-
 func nativeCanonicalJSON(valueJSON string) (string, error) {
 	c, free := cstr(valueJSON)
 	defer free()
@@ -84,16 +79,22 @@ func nativeContextIdentity(ctxJSON string) (string, error) {
 	return unwrap(C.ah_context_identity(c))
 }
 
-func nativeValidateVerdict(verdictJSON string) (string, error) {
+// nativeValidateVerdict runs the §5 gate under the specification version
+// spec names (the context's wire string).
+func nativeValidateVerdict(spec, verdictJSON string) (string, error) {
+	cs, fs := cstr(spec)
+	defer fs()
 	c, free := cstr(verdictJSON)
 	defer free()
-	return unwrap(C.ah_validate_verdict(c))
+	return unwrap(C.ah_validate_verdict(cs, c))
 }
 
-func nativeNormalizeInterceptorResponse(responseJSON string) (string, error) {
+func nativeNormalizeInterceptorResponse(spec, responseJSON string) (string, error) {
+	cs, fs := cstr(spec)
+	defer fs()
 	c, free := cstr(responseJSON)
 	defer free()
-	return unwrap(C.ah_normalize_interceptor_response(c))
+	return unwrap(C.ah_normalize_interceptor_response(cs, c))
 }
 
 // nativeValidateEnvelope runs the §4/§6.3 envelope validation (fail
@@ -158,12 +159,14 @@ func nativeFinalize(ctxJSON, verdictJSON, mode, optionsJSON string) (string, err
 // nativeComposeAggregate runs the §7.3/§7.5 severity-max aggregation for
 // the multi-verdict composition profiles. Returns {combined, decided_by,
 // consult, apply_transform, verdicts}.
-func nativeComposeAggregate(compositionJSON, verdictsJSON string) (string, error) {
+func nativeComposeAggregate(spec, compositionJSON, verdictsJSON string) (string, error) {
+	cs, fs := cstr(spec)
+	defer fs()
 	cc, fc := cstr(compositionJSON)
 	defer fc()
 	cv, fv := cstr(verdictsJSON)
 	defer fv()
-	return unwrap(C.ah_compose_aggregate(cc, cv))
+	return unwrap(C.ah_compose_aggregate(cs, cc, cv))
 }
 
 // ---- failure posture (§6.3.1) ----------------------------------------------
@@ -184,10 +187,12 @@ func nativeControlFailureSubstitute(requestJSON string) (string, error) {
 // ({"outcome": "timeout"} | {"outcome": "cancelled"} | {"outcome":
 // "failed", "detail"?} | {"outcome": "verdict", "verdict"}) to
 // {verdict, failure: null | {reason, detail, continuable}}.
-func nativeManagedOutcome(outcomeJSON string) (string, error) {
+func nativeManagedOutcome(spec, outcomeJSON string) (string, error) {
+	cs, fs := cstr(spec)
+	defer fs()
 	c, free := cstr(outcomeJSON)
 	defer free()
-	return unwrap(C.ah_managed_outcome(c))
+	return unwrap(C.ah_managed_outcome(cs, c))
 }
 
 // ---- host declaration (§7.7) -----------------------------------------------

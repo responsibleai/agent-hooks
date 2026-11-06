@@ -5,8 +5,11 @@
 # - PRs that touch the normative surface (spec/, conformance vectors/
 #   schema) must carry one of the change-class labels so reviewers and
 #   the CHANGELOG see the classification.
-# - PRs must not modify a spec/<MAJOR.MINOR.PATCH>/ folder that exists on
-#   the base branch; edit spec/draft/ or add a new version folder.
+# - PRs must not modify a spec/<MAJOR.MINOR>/ folder that exists on
+#   the base branch; edit spec/draft/ or add a new version folder. The
+#   one exception: a new regular .json file under
+#   <version>/schema/examples/<Type>/ may be added. Modified or deleted
+#   files, and any other new file, fail.
 #
 # Required-check rule: this workflow has NO paths filter and reports on
 # every PR (a path-filtered required check deadlocks the queue — see
@@ -28,10 +31,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: Resolve the base revision
+        id: base
+        # The checkout is refs/pull/<n>/merge, whose first parent is the
+        # current tip of the base branch. github.event.pull_request.base.sha
+        # is captured when the PR is opened and never refreshed, so a
+        # version folder released after that point would be invisible to
+        # the released-folder check below. A checkout that is not a merge
+        # commit fails here with a clear message rather than later with
+        # an unresolved revision.
+        run: |
+          set -eu
+          if ! git rev-parse --verify --quiet HEAD^2 > /dev/null; then
+            echo "::error::HEAD is not a merge commit; expected the refs/pull/<n>/merge checkout"
+            exit 1
+          fi
+          sha=$(git rev-parse --verify HEAD^1)
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
       - name: Enforce label/version-bump coupling
         env:
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
-          BASE: ${{ github.event.pull_request.base.sha }}
+          BASE: ${{ steps.base.outputs.sha }}
         run: |
           set -eu
           changed=$(git diff --name-only "$BASE"...HEAD)
@@ -55,6 +75,19 @@ jobs:
           fi
           echo "change-class ok"
       - name: Released specification folders are immutable
+        # Run the copy of the guard at the base revision, so a pull
+        # request cannot relax the rule it is checked against. The head
+        # copy is used only when the base branch has no guard yet.
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: python3 scripts/check-released-specs-immutable.py "$BASE" HEAD
+          BASE: ${{ steps.base.outputs.sha }}
+        run: |
+          set -eu
+          guard="$RUNNER_TEMP/check-released-specs-immutable.py"
+          git rev-parse --verify --quiet "$BASE^{commit}" > /dev/null
+          if git cat-file -e "$BASE:scripts/check-released-specs-immutable.py" 2>/dev/null; then
+            git show "$BASE:scripts/check-released-specs-immutable.py" > "$guard"
+          else
+            echo "::notice::the base revision has no released-folder guard; running the head copy"
+            cp scripts/check-released-specs-immutable.py "$guard"
+          fi
+          python3 "$guard" "$BASE" HEAD

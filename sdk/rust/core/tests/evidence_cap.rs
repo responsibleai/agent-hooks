@@ -6,7 +6,7 @@
 //! `Verdict::validate` enforces: the same measurement at the cap passes
 //! and one byte over fails.
 
-use agent_hooks::{canonical_json, Evidence, HostError, Verdict, EVIDENCE_MAX_BYTES};
+use agent_hooks::{canonical_json, Evidence, HostError, SpecVersion, Verdict, EVIDENCE_MAX_BYTES};
 
 /// An allow verdict whose evidence is one artefact string of `len` bytes.
 fn with_artefact(len: usize) -> Verdict {
@@ -27,7 +27,7 @@ fn canonical_len(v: &Verdict) -> usize {
 
 #[test]
 fn root_export_is_the_spec_value() {
-    // spec/0.1.0/AGENT-HOOKS-0.1.md §5.3: "MUST NOT exceed 10240 bytes".
+    // spec/0.1/AGENT-HOOKS-0.1.md §5.3: "MUST NOT exceed 10240 bytes".
     assert_eq!(EVIDENCE_MAX_BYTES, 10240);
 }
 
@@ -40,9 +40,12 @@ fn root_export_is_the_bound_validate_enforces() {
 
     let at_cap = with_artefact(EVIDENCE_MAX_BYTES - framing);
     assert_eq!(canonical_len(&at_cap), EVIDENCE_MAX_BYTES);
-    assert_eq!(at_cap.validate(), Ok(()));
+    assert_eq!(at_cap.validate(SpecVersion::V0_1), Ok(()));
 
     let over = with_artefact(EVIDENCE_MAX_BYTES - framing + 1);
     assert_eq!(canonical_len(&over), EVIDENCE_MAX_BYTES + 1);
-    assert_eq!(over.validate(), Err(HostError::VerdictInvalid));
+    assert_eq!(
+        over.validate(SpecVersion::V0_1),
+        Err(HostError::VerdictInvalid)
+    );
 }

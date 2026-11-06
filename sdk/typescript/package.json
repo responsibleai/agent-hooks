@@ -34,6 +34,7 @@
     "build:native:debug": "napi build --platform --js binding.js --dts binding.d.ts",
     "build": "npm run build:native && tsc",
     "test": "npm run build && node --test test/*.mjs",
+    "test:draft": "node --test test/draft/*.mjs",
     "generate:schema": "tsx scripts/generate-schemas.mts",
     "check:schema": "tsc -p ../../spec/draft/schema/src/tsconfig.json && tsx scripts/generate-schemas.mts --check",
     "check:schema:equivalence": "tsx scripts/schema-equivalence.mts"

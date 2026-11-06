@@ -7,6 +7,7 @@
 #![cfg(feature = "ctk")]
 
 use agent_hooks::ctk::{async_trait, run_vector, Harness, RunRecord, VectorSetup};
+use agent_hooks::SpecVersion;
 use serde_json::json;
 
 /// Deliberately NOT the in-tree ReferenceHarness: a minimal external
@@ -21,6 +22,10 @@ impl Harness for ExternalHarness {
 
     fn capabilities(&self) -> Vec<String> {
         Vec::new()
+    }
+
+    fn spec(&self) -> SpecVersion {
+        SpecVersion::V0_1
     }
 
     fn setup(&mut self, _setup: VectorSetup) {}

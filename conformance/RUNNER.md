@@ -14,15 +14,24 @@ Two more core functions serve the host declaration parts (§7.7.9):
 
 | Function | Purpose |
 | --- | --- |
-| `declaration_versions()` | `{current, supported}`: the contract versions the core writes and accepts |
+| `declaration_versions()` | `{current, supported, spec_supported, by_spec}`: the contract versions the core writes and accepts, overall and per specification version (`by_spec["0.1"]`, `by_spec["draft"]`) |
 | `declaration_resolve(document, host)` | Steps 2 to 10 of §7.7.6 against `{surface, identity_providers, approval_resolvers, approval_redactors, kinds}`; returns the resolved declaration or a `declaration_error:*` code with JSON findings |
 
 A per-language runner is the ~60 lines below. Only steps 3 and 5 touch
 native code (the `Harness` protocol); everything else is a straight FFI
 call. `sdk/python/python/agent_hooks/ctk/runner.py` is the reference.
+A harness states the specification version it builds under
+(`harness.spec`, a wire string); the runner refuses a harness without
+one, and step 0 keeps the draft-only vectors out of a run under a
+released version. The gating runs are under 0.1, the newest released
+version; binding tests to a draft revision is #188.
 
 ```
 for each vector file in conformance/vectors/*.json:
+  0.  if vector.introduced_in == "draft" and harness.spec != "agent-hooks/draft":
+        yield {status:"skip", detail:"draft-only vector; see #188"}; continue
+      # the working test set for the next version runs under the draft only
+
   1.  skip = ctk_should_skip(vector, harness.capabilities)
       if skip: yield {status:"skip", detail:skip}; continue
 
@@ -74,6 +83,17 @@ Group the yielded results by each vector's `part` tag
 **is** the conformance report a claim attaches (see
 [`CLAIMS.md`](CLAIMS.md)). Skips must show their reason (a missing
 capability such as `int64_json` is honest surface, not a failure).
+
+Each SDK runner has the grouping as a function that takes the
+specification version the claim names and the results:
+`conformance_report(spec, results)` in Rust and Python,
+`conformanceReport` in TypeScript, `Runner.Report` in .NET, `Report`
+in Go. It returns the parts in name order with their counts and
+totals. It refuses `agent-hooks/draft` with one line: the vectors under
+`conformance/` are the working test set for the next version, carried
+under the draft because they exercise behaviour no released version
+has, so running them is development and the report of such a run is
+not a claim. A claim names a released version.
 
 The `Harness` interface (native, per language) is documented in
 [`HARNESS.md`](HARNESS.md). Each SDK ships this runner under
