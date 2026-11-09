@@ -9,7 +9,6 @@
     "tool_calls"
   ],
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.0",
     "spec": "agent-hooks/draft",
     "bindings": [
       {
@@ -90,7 +89,6 @@
       {
         "interception_point": "pre_tool_call",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.0",
           "interceptors_registered": 1,
           "verdicts[0].name": "allow",
           "verdict.decision": "allow"

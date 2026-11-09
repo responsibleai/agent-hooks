@@ -10,7 +10,6 @@
     "tool_calls"
   ],
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.1",
     "spec": "agent-hooks/draft",
     "configuration": {
       "composition": {
@@ -128,7 +127,6 @@
       {
         "interception_point": "pre_tool_call",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.1",
           "verdict.decision": "deny",
           "verdict.reason": "ctk:blocked",
           "verdict.warnings[0].reason": "host_warning:control_failed",
