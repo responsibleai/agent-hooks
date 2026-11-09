@@ -109,7 +109,7 @@ async fn draft_suite_vectors_pass_under_the_draft() {
     for vector in &vectors {
         let mut harness = ReferenceHarness::new(SpecVersion::Draft);
         let result = run_vector(&mut harness, vector).await;
-        match result.status.as_str() {
+        match result.status {
             "pass" => {}
             "skip" => skipped.push(result.id),
             _ => failures.push(format!(
