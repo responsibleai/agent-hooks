@@ -1,9 +1,9 @@
-# P-XXX: Version host declarations with the specification
+# P-193: Version host declarations with the specification
 
 - **Status:** Draft
 - **Created:** 2026-11-05
 - **Author(s):** @CaitieM20
-- **PR:** https://github.com/responsibleai/agent-hooks/pull/xxx
+- **PR:** https://github.com/responsibleai/agent-hooks/pull/193
 
 ## Abstract & Motivation
 A `HostDeclaration` selects deployment configuration for controls already
