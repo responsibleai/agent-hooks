@@ -348,6 +348,13 @@ function handWritten(): void {
   );
   seed(
     "response",
+    ...(seeds.get("verdict") ?? []).map((verdict) => ({ verdict })),
+    { decision: "allow", extensions: { policy: {} } },
+    { decision: "transform", transform: { args: { limit: 20 } }, extensions: { policy: {} } },
+    { verdict: { decision: "deny", approval: {} }, extensions: { policy: {} } },
+    { verdict: { decision: "transform", transform: { args: { limit: 20 } } }, extensions: { policy: {} } },
+    { verdict: { decision: "allow", extensions: { policy: {} } } },
+    { verdict: { verdict: { decision: "allow" } } },
     { verdict: { decision: "allow" } },
     { verdict: { decision: "allow" }, extensions: { prov: { receipt: "r" } } },
     { verdict: { decision: "allow" }, extensions: { "Bad-Key": 1 } },
@@ -673,10 +680,27 @@ interface Target {
   pointer: string;
 }
 
+const RESPONSE_SCHEMA_NAMES: Record<string, string> = {
+  agent_startup: "agent-startup",
+  input: "input",
+  pre_model_call: "pre-model",
+  post_model_call: "post-model",
+  pre_tool_call: "pre-tool",
+  post_tool_call: "post-tool",
+  output: "output",
+  agent_shutdown: "agent-shutdown",
+};
+
 const TARGETS: Target[] = [
   { name: "interception-point", file: "interception-point.schema.json", shape: "point", pointer: "" },
   { name: "verdict", file: "verdict.schema.json", shape: "verdict", pointer: "" },
   { name: "interceptor-response", file: "interceptor-response.schema.json", shape: "response", pointer: "" },
+  ...POINTS.map((point) => ({
+    name: `${point} hook-response`,
+    file: `${RESPONSE_SCHEMA_NAMES[point]}-hook-response.schema.json`,
+    shape: "response" as Shape,
+    pointer: "",
+  })),
   { name: "approval request", file: "approval.schema.json", shape: "request", pointer: "#/$defs/request" },
   { name: "approval resolution", file: "approval.schema.json", shape: "resolution", pointer: "#/$defs/resolution" },
   { name: "agent-context", file: "agent-context.schema.json", shape: "context", pointer: "" },
