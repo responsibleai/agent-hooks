@@ -24,8 +24,9 @@ jobs:
       - name: Validate schemas are well-formed
         run: |
           set -e
-          # Validate each specification bundle and its matching conformance
-          # schema together, so external references cannot cross versions.
+          # Every specification bundle must compile. Released conformance
+          # schemas compile with their own bundle; draft conformance is
+          # advisory in draft-tests so it can migrate after the spec.
           validated=0
           for spec_dir in spec/*/; do
             [ -d "${spec_dir}schema" ] || continue
@@ -37,7 +38,9 @@ jobs:
               exit 1
             fi
             version=$(basename "$spec_dir")
-            schemas+=("conformance/$version/vectors.schema.json")
+            if [ "$version" != draft ]; then
+              schemas+=("conformance/$version/vectors.schema.json")
+            fi
             echo "Validating ${#schemas[@]} schemas under $root"
             for f in "${schemas[@]}"; do
               # -r must not include the file under -s (ajv rejects duplicate $id)
@@ -54,18 +57,19 @@ jobs:
             exit 1
           fi
           echo "schemas validated for $validated bundle(s)"
-      - name: Validate each versioned conformance suite
+      - name: Validate each released conformance suite
         run: |
           set -e
           validated=0
           for spec_dir in spec/*/; do
             name=$(basename "$spec_dir")
+            [ "$name" != draft ] || continue
             suite="conformance/$name"
             root="${spec_dir}schema/generated"
             [ -d "$root" ] || root="${spec_dir}schema"
             [ -d "$root" ] || continue
             if [ ! -f "$suite/vectors.schema.json" ] || [ ! -d "$suite/vectors" ]; then
-              echo "::error::missing versioned suite at $suite"
+              echo "::error::missing released suite at $suite"
               exit 1
             fi
             count=$(find "$suite/vectors" -maxdepth 1 -name 'AH-CTK-*.json' | wc -l)
@@ -81,10 +85,10 @@ jobs:
             validated=$((validated + 1))
           done
           if [ "$validated" -eq 0 ]; then
-            echo "::error::no versioned conformance suites were validated"
+            echo "::error::no released conformance suites were validated"
             exit 1
           fi
-          echo "versioned conformance suites validated: $validated"
+          echo "released conformance suites validated: $validated"
 
   python:
     runs-on: ubuntu-latest
