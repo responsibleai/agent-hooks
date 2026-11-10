@@ -84,9 +84,10 @@ Equivalent interfaces ship in `sdk/typescript/src/ctk/index.ts`,
 SDK CTK runs currently use `conformance/0.1/` and report against the
 released `agent-hooks/0.1` contract. The separate
 `conformance/draft/` suite tracks work on the next specification
-version and is validated by repository CI. The advisory `draft-tests` job
-executes only the 14 draft-only IDs absent from the released suite,
-alongside version-boundary and draft-only runtime unit tests. Reference
+version and is validated by repository CI. The non-blocking advisory
+`draft-tests` job executes every vector in the draft suite under draft,
+including IDs also present in the released suite, alongside version-boundary
+and draft-only runtime unit tests. Reference
 harnesses require an explicit specification version; their committed
 declaration/1.0 document names `agent-hooks/0.1`;
 contexts follow the specification of the loaded emitter. A claim names a released version, and

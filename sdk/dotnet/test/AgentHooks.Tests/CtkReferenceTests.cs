@@ -3,10 +3,9 @@
 // CTK self-test: the vectors against the in-tree ReferenceHarness.
 // Assertion engine is the Rust core; this proves the .NET emitter,
 // builder, runner, and harness wire correctly. The gating run is under
-// 0.1, the newest released version: the released set runs and the
-// draft-only vectors (introduced_in: draft) are skipped. The
-// Category=draft test runs those under the draft in the advisory job.
-// Binding tests to a draft revision is #188.
+// 0.1, the newest released version. The Category=draft test runs the
+// full draft suite under the draft in the advisory job. Binding tests
+// to a draft revision is #188.
 
 using System.Text.Json.Nodes;
 using AgentHooks.Conformance;
@@ -116,27 +115,32 @@ public sealed class CtkReferenceTests
             v => (string?)v["introduced_in"] == "draft");
     }
 
-    /// <summary>Advisory (the draft-tests job): the working test set for
-    /// the next version passes under the draft.</summary>
+    /// <summary>Advisory (the draft-tests job): the full draft suite runs
+    /// under the draft.</summary>
     [Fact]
     [Trait("Category", "draft")]
-    public async Task DraftOnlyVectorsPassUnderTheDraft()
+    public async Task DraftSuiteVectorsPassUnderTheDraft()
     {
-        var released = Runner.LoadVectors(VectorsDir())
-            .Select(v => (string)v["id"]!).ToHashSet();
         var draftDir = Path.Combine(VectorsDir(), "..", "..", "draft", "vectors");
-        var draft = Runner.LoadVectors(draftDir)
-            .Where(v => !released.Contains((string)v["id"]!))
-            .ToList();
-        Assert.Equal(14, draft.Count);
+        var draft = Runner.LoadVectors(draftDir);
+        var skipped = new HashSet<string>();
         foreach (var v in draft)
         {
             var result = await Runner.RunVectorAsync(new ReferenceHarness(Spec.Draft), v);
+            if (result.Status == "skip")
+            {
+                skipped.Add(result.Id);
+                Assert.Contains(result.Id, ExpectedSkips);
+                continue;
+            }
             Assert.True(
                 result.Status == "pass",
                 $"[{result.Id}] {result.Status} {result.Detail}\n" +
                 string.Join("\n", result.Failures.Select(f => $"  - {f}")));
         }
+        Assert.True(
+            skipped.SetEquals(ExpectedSkips),
+            $"draft capability skip set drifted: actual=[{string.Join(",", skipped)}]");
     }
 
     private sealed class Nameless : IHarness

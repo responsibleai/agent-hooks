@@ -1,10 +1,9 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 //! CTK self-test: the vectors against the Rust ReferenceHarness. The
-//! gating run is under 0.1, the newest released version: the released
-//! set runs and the draft-only vectors (`introduced_in: draft`) are
-//! skipped. The `draft_only_*` test runs those under the draft in the
-//! advisory job. Binding tests to a draft revision is #188.
+//! gating run is under 0.1, the newest released version. The advisory
+//! draft test runs the full draft suite under the draft. Binding tests to
+//! a draft revision is #188.
 #![cfg(feature = "ctk")]
 
 use agent_hooks::ctk::{
@@ -12,7 +11,6 @@ use agent_hooks::ctk::{
     REFERENCE_DECLARATION,
 };
 use agent_hooks::SpecVersion;
-use serde_json::Value;
 
 const VECTORS: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -98,31 +96,34 @@ async fn ctk_reference_released_set_under_0_1() {
     assert_eq!(streaming.skipped, 4);
 }
 
-/// Advisory (the draft-tests job): the working test set for the next
-/// version passes under the draft.
+/// Advisory (the draft-tests job): the full draft suite runs under draft.
 #[tokio::test]
-async fn draft_only_vectors_pass_under_the_draft() {
-    let released = load_vectors(VECTORS).expect("released vectors");
+async fn draft_suite_vectors_pass_under_the_draft() {
     let vectors = load_vectors(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../conformance/draft/vectors"
     ))
     .expect("draft vectors");
-    let draft: Vec<&Value> = vectors
-        .iter()
-        .filter(|v| !released.iter().any(|r| r["id"] == v["id"]))
-        .collect();
-    assert_eq!(draft.len(), 14);
     let mut failures: Vec<String> = Vec::new();
-    for vector in draft {
+    let mut skipped: Vec<String> = Vec::new();
+    for vector in &vectors {
         let mut harness = ReferenceHarness::new(SpecVersion::Draft);
         let result = run_vector(&mut harness, vector).await;
-        if result.status != "pass" {
-            failures.push(format!(
+        match result.status {
+            "pass" => {}
+            "skip" => skipped.push(result.id),
+            _ => failures.push(format!(
                 "{}: {} {} {:?}",
                 result.id, result.status, result.detail, result.failures
-            ));
+            )),
         }
     }
+    skipped.sort();
+    let mut expected_skips: Vec<String> = CAPABILITY_SKIPS
+        .iter()
+        .map(|id| (*id).to_string())
+        .collect();
+    expected_skips.sort_unstable();
+    assert_eq!(skipped, expected_skips, "draft capability skip set drifted");
     assert!(failures.is_empty(), "{failures:#?}");
 }

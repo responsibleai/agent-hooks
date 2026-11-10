@@ -1,10 +1,9 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 """CTK self-test: the vectors against the in-tree ReferenceHarness. The
-gating run is under 0.1, the newest released version: the released set
-runs and the draft-only vectors (``introduced_in: draft``) are skipped.
-The ``draft``-marked test runs those under the draft in the advisory
-job. Binding tests to a draft revision is #188."""
+gating run is under 0.1, the newest released version. The ``draft``-marked
+test runs the full draft suite in the non-blocking advisory job. Binding
+tests to a draft revision is #188."""
 
 from __future__ import annotations
 
@@ -79,19 +78,23 @@ def test_skip_set_matches_manifest() -> None:
 
 
 @pytest.mark.draft
-def test_draft_only_vectors_pass_under_the_draft() -> None:
-    """Advisory (the draft-tests job): the working test set for the next
-    version passes under the draft."""
-    released_ids = {v["id"] for v in load_vectors(_VECTORS)}
-    draft = [
-        v for v in load_vectors(_CONFORMANCE / "draft" / "vectors") if v["id"] not in released_ids
-    ]
-    assert len(draft) == 14
+def test_draft_suite_vectors_pass_under_the_draft() -> None:
+    """Advisory (the draft-tests job): the full draft suite runs under draft."""
+    draft = load_vectors(_CONFORMANCE / "draft" / "vectors")
+    skipped = set()
     failures = []
     for vector in draft:
         result = asyncio.run(run_vector(ReferenceHarness(SPEC_VERSION_DRAFT), vector))
-        if result.status != "pass":
+        if result.status == "skip":
+            skipped.add(result.id)
+            if result.id not in EXPECTED_SKIPS:
+                failures.append(f"{result.id}: unexpected skip ({result.detail})")
+        elif result.status != "pass":
             failures.append(f"{result.id}: {result.status} {result.detail} {result.failures}")
+    assert skipped == set(EXPECTED_SKIPS), (
+        f"draft capability skip set drifted: expected={sorted(EXPECTED_SKIPS)}, "
+        f"actual={sorted(skipped)}"
+    )
     assert not failures, "\n".join(failures)
 
 

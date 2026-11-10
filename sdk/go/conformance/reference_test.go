@@ -5,9 +5,8 @@ package conformance
 // CTK self-test: the vectors against the in-tree ReferenceHarness.
 // Assertion engine and scripted interceptor live in the Rust core; this
 // proves the Go emitter/runner wiring end-to-end. The gating run is
-// under 0.1, the newest released version: the released set runs and the
-// draft-only vectors (introduced_in: draft) are skipped. TestDraftOnly*
-// runs those under the draft in the advisory job. Binding tests to a
+// under 0.1, the newest released version. TestDraftSuite* runs the full
+// draft suite under the draft in the advisory job. Binding tests to a
 // draft revision is #188.
 
 import (
@@ -98,38 +97,37 @@ func TestReferenceHarnessConformance(t *testing.T) {
 	}
 }
 
-// TestDraftOnlyVectorsPassUnderTheDraft is advisory (the draft-tests
-// job): the working test set for the next version passes under the
-// draft.
-func TestDraftOnlyVectorsPassUnderTheDraft(t *testing.T) {
+// TestDraftSuiteVectorsPassUnderTheDraft is advisory (the draft-tests
+// job): the full draft suite runs under the draft.
+func TestDraftSuiteVectorsPassUnderTheDraft(t *testing.T) {
 	vectors, err := LoadVectors(filepath.Join("..", "..", "..", "conformance", "draft", "vectors"))
 	if err != nil {
 		t.Fatalf("LoadVectors: %v", err)
 	}
-	released, err := LoadVectors(filepath.Join("..", "..", "..", "conformance", "0.1", "vectors"))
-	if err != nil {
-		t.Fatalf("released LoadVectors: %v", err)
-	}
-	releasedIDs := map[string]bool{}
-	for _, v := range released {
-		releasedIDs[v["id"].(string)] = true
-	}
-	var ran int
+	skipped := map[string]struct{}{}
 	for _, v := range vectors {
-		if releasedIDs[v["id"].(string)] {
-			continue
-		}
-		ran++
 		r, err := RunVector(context.Background(), NewReferenceHarness(agenthooks.SpecVersionDraft), v)
 		if err != nil {
 			t.Fatalf("RunVector: %v", err)
+		}
+		if r.Status == "skip" {
+			skipped[r.ID] = struct{}{}
+			if !expectedSkip(r.ID) {
+				t.Errorf("%s: unexpected skip: %s", r.ID, r.Detail)
+			}
+			continue
 		}
 		if r.Status != "pass" {
 			t.Errorf("%s: %s %s\n  - %s", r.ID, r.Status, r.Detail, strings.Join(r.Failures, "\n  - "))
 		}
 	}
-	if ran != 14 {
-		t.Fatalf("draft-only vectors: %d, want 14", ran)
+	if len(skipped) != len(capabilitySkips) {
+		t.Errorf("draft capability skip set: got %v, want %v", skipped, capabilitySkips)
+	}
+	for id := range capabilitySkips {
+		if _, ok := skipped[id]; !ok {
+			t.Errorf("expected-but-not-skipped vector %s: capabilitySkips manifest is stale", id)
+		}
 	}
 }
 

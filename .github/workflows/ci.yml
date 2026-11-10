@@ -282,8 +282,8 @@ jobs:
           test -z "$(gofmt -l .)" || { gofmt -l .; echo "::error::gofmt violations"; exit 1; }
           go build ./...
           go vet ./...
-          # The required set: the TestDraftOnly* tests run in draft-tests.
-          go test ./... -skip 'DraftOnly' -v
+          # The required set: the TestDraftSuite* tests run in draft-tests.
+          go test ./... -skip 'DraftSuite' -v
         working-directory: sdk/go
         env:
           CGO_LDFLAGS: -L${{ github.workspace }}/sdk/rust/target/release -lagent_hooks_ffi
@@ -350,7 +350,7 @@ jobs:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
 
   # Advisory, never required: the working test set for the next
-  # specification version (the draft-only vectors, introduced_in: draft)
+  # specification version (every vector in conformance/draft/)
   # and the SDK tests that read draft-only files (the draft's
   # inventories, examples and schemas). Every step continues on error
   # and the last step writes the outcomes to the step summary, so a
@@ -372,7 +372,7 @@ jobs:
         with: { dotnet-version: "8.0.x" }
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.22" }
-      - name: Draft-only vectors validate against the draft schemas
+      - name: Draft suite vectors validate against the draft schemas
         id: vectors
         continue-on-error: true
         run: |
@@ -384,7 +384,7 @@ jobs:
           for v in "${vectors[@]}"; do data+=(-d "$v"); done
           ajv validate --spec=draft2020 -c ajv-formats -s conformance/draft/vectors.schema.json "${refs[@]}" "${data[@]}"
           echo "validated ${#vectors[@]} draft vectors against spec/draft"
-      - name: Rust draft-only tests
+      - name: Rust draft suite tests
         id: rust
         continue-on-error: true
         run: cargo test --locked --workspace --all-features -- draft_
@@ -394,14 +394,14 @@ jobs:
         continue-on-error: true
         run: cargo build --locked -p agent-hooks-ffi --release
         working-directory: sdk/rust
-      - name: Python draft-only tests
+      - name: Python draft suite tests
         id: python
         continue-on-error: true
         run: |
           uv pip install --system -r sdk/python/requirements-dev.lock
           uv pip install --system --no-deps --no-build-isolation -e ./sdk/python
           pytest sdk/python/tests -p no:agent_hooks_ctk -m draft -v
-      - name: TypeScript draft-only tests
+      - name: TypeScript draft suite tests
         id: typescript
         continue-on-error: true
         run: |
@@ -411,7 +411,7 @@ jobs:
           npx tsc
           node --test test/draft/*.mjs
         working-directory: sdk/typescript
-      - name: .NET draft-only tests
+      - name: .NET draft suite tests
         id: dotnet
         continue-on-error: true
         run: |
@@ -420,10 +420,10 @@ jobs:
         working-directory: sdk/dotnet
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
-      - name: Go draft-only tests
+      - name: Go draft suite tests
         id: go
         continue-on-error: true
-        run: go test ./... -run 'DraftOnly' -v
+        run: go test ./... -run 'DraftSuite' -v
         working-directory: sdk/go
         env:
           CGO_LDFLAGS: -L${{ github.workspace }}/sdk/rust/target/release -lagent_hooks_ffi
@@ -439,22 +439,22 @@ jobs:
           GO: ${{ steps.go.outcome }}
         run: |
           {
-            echo "## Draft-only tests (advisory)"
-            echo "The working test set for the next specification version and the SDK tests that read draft-only files. Not required; see #188."
+            echo "## Draft suite tests (advisory)"
+            echo "Every vector in the working test set for the next specification version runs under draft, alongside SDK tests that read draft-only files. Not required; see #188."
             echo
             echo "| Step | Outcome |"
             echo "| --- | --- |"
-            echo "| Draft-only vectors against the draft schemas | $VECTORS |"
+            echo "| Draft suite vectors against the draft schemas | $VECTORS |"
             echo "| Rust draft_* tests | $RUST |"
             echo "| FFI build for .NET and Go | $FFI |"
-            echo "| Python -m draft tests | $PYTHON |"
+            echo "| Python draft tests | $PYTHON |"
             echo "| TypeScript test/draft | $TYPESCRIPT |"
             echo "| .NET Category=draft tests | $DOTNET |"
-            echo "| Go TestDraftOnly* tests | $GO |"
+            echo "| Go draft suite tests | $GO |"
           } >> "$GITHUB_STEP_SUMMARY"
           for outcome in "$VECTORS" "$RUST" "$FFI" "$PYTHON" "$TYPESCRIPT" "$DOTNET" "$GO"; do
             if [ "$outcome" != "success" ]; then
-              echo "::warning::a draft-only step did not succeed; see the job summary (advisory, not required)"
+              echo "::warning::a draft advisory step did not succeed; see the job summary (non-blocking)"
               break
             fi
           done
@@ -624,7 +624,7 @@ jobs:
         shell: bash
         run: |
           go build ./...
-          go test ./... -skip 'DraftOnly'
+          go test ./... -skip 'DraftSuite'
         working-directory: sdk/go
         env:
           CGO_LDFLAGS: -L${{ github.workspace }}/sdk/rust/target/${{ matrix.target }}/release -lagent_hooks_ffi
