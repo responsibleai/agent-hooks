@@ -121,7 +121,9 @@ class DeclarationTablesTest(unittest.TestCase):
     def test_missing_current_row_fails(self):
         result, output = self.run_check(self.build("", RELEASE_ROW))
         self.assertEqual(result, 1)
-        self.assertIn("spec/0.1/DECLARATION-VERSIONS.md must have exactly one current row", output)
+        self.assertIn(
+            "spec/0.1/DECLARATION-VERSIONS.md must have exactly one current row", output
+        )
 
     def test_missing_release_row_fails(self):
         result, output = self.run_check(self.build(CONTRACT_ROW, ""))
@@ -132,7 +134,9 @@ class DeclarationTablesTest(unittest.TestCase):
         # A release row cannot stand in for a contract row, or vice versa.
         result, output = self.run_check(self.build(RELEASE_ROW, RELEASE_ROW))
         self.assertEqual(result, 1)
-        self.assertIn("spec/0.1/DECLARATION-VERSIONS.md must have exactly one current row", output)
+        self.assertIn(
+            "spec/0.1/DECLARATION-VERSIONS.md must have exactly one current row", output
+        )
         result, output = self.run_check(self.build(CONTRACT_ROW, CONTRACT_ROW))
         self.assertEqual(result, 1)
         self.assertIn("VERSIONING.md has no SDK release row accepting", output)

@@ -160,7 +160,9 @@ def check_declaration_versions(root: Path = ROOT) -> int:
         current_rows = [
             line
             for line in (root / contract_table).read_text(encoding="utf-8").splitlines()
-            if re.match(r"^\|\s*`agent-hooks-declaration/[^`]+`\s*\|\s*current\s*\|", line)
+            if re.match(
+                r"^\|\s*`agent-hooks-declaration/[^`]+`\s*\|\s*current\s*\|", line
+            )
         ]
         if len(current_rows) != 1:
             error(f"{contract_table.as_posix()} must have exactly one current row")
@@ -173,7 +175,9 @@ def check_declaration_versions(root: Path = ROOT) -> int:
             )
             return 1
         schema = (
-            root / bundle / "schema/generated"
+            root
+            / bundle
+            / "schema/generated"
             / f"host-declaration-{contract.split('/')[1]}.schema.json"
         )
         if not schema.is_file():
