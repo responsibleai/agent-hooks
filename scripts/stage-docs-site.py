@@ -226,7 +226,9 @@ def stage(root: Path) -> list[str]:
     shutil.copyfile(spec_text(spec / versions[0]), docs / "spec.md")
     draft = spec_text(spec / "draft").read_text(encoding="utf-8")
     draft = BACK_LINK.sub(r"](\1.md)", draft)
-    draft = draft.replace("](schema/path-grammar.abnf)", "](../schema/draft/path-grammar.abnf)")
+    draft = draft.replace(
+        "](schema/path-grammar.abnf)", "](../schema/draft/path-grammar.abnf)"
+    )
     (pages / "draft.md").write_text(draft, encoding="utf-8")
 
     schema_out = docs / "schema"
