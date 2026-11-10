@@ -60,7 +60,11 @@ Rust tests, the `drift` mirror copy and the version script read every
 supported bundle (`SUPPORTED_SPEC_VERSIONS`, today `spec/0.1/` and
 `spec/draft/`), and the CI schema checks cover every bundle, so a
 breaking draft change is implemented under the draft's rules and
-leaves 0.1 alone. Prose links cite the released text, `spec/0.1/`, and
+leaves 0.1 alone. SDK draft support is experimental and may lag the
+latest draft. The `drift` check enforces generated spec schemas and
+released SDK mirrors, but preserves SDK draft copies and reports their
+drift as advisory until matching SDK implementation changes are ready.
+Prose links cite the released text, `spec/0.1/`, and
 the draft for what 0.1 does not define.
 
 ## The SDKs
