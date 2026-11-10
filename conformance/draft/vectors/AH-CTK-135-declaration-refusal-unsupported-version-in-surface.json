@@ -6,6 +6,7 @@
   "capabilities": [
     "host_declaration"
   ],
+  "host_declaration_invalid": true,
   "host_declaration": {
     "spec": "agent-hooks/draft",
     "surface": {

@@ -28,7 +28,7 @@
     "model_script": [
       {
         "respond": {
-          "content": "UNREACHED",
+          "content": "done",
           "tool_calls": [],
           "finish_reason": "stop"
         }
@@ -48,6 +48,9 @@
   "expect": {
     "load": {
       "outcome": "accepted"
-    }
+    },
+    "interceptions": [],
+    "run_outcome": "completed",
+    "final_output": "done"
   }
 }

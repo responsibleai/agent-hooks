@@ -76,6 +76,7 @@ TYPES_RS = (
     'pub const DECLARATION_VERSION: &str = "agent-hooks-declaration/1.1";\n'
     "pub const SUPPORTED_DECLARATION_VERSIONS: &[&str] = "
     '&["agent-hooks-declaration/1.0", DECLARATION_VERSION];\n'
+    'pub const SUPPORTED_SPEC_VERSIONS: &[&str] = &["0.1", "draft"];\n'
 )
 CONTRACT_ROW = f"| `{CURRENT}` | current | schema | 0.1.0-beta | |\n"
 RELEASE_ROW = (
@@ -84,7 +85,7 @@ RELEASE_ROW = (
 
 
 class DeclarationTablesTest(unittest.TestCase):
-    """The current row is read from the development bundle and the
+    """The current row is read from each supported released bundle and the
     release row from VERSIONING.md, each from its own file."""
 
     def build(self, contract: str, release: str, schema: bool = True) -> Path:
@@ -93,15 +94,15 @@ class DeclarationTablesTest(unittest.TestCase):
         types = root / "sdk/rust/core/src/types.rs"
         types.parent.mkdir(parents=True)
         types.write_text(TYPES_RS, encoding="utf-8")
-        (root / "spec/draft").mkdir(parents=True)
-        (root / "spec/draft/DECLARATION-VERSIONS.md").write_text(
+        (root / "spec/0.1").mkdir(parents=True)
+        (root / "spec/0.1/DECLARATION-VERSIONS.md").write_text(
             "# contract versions\n" + contract, encoding="utf-8"
         )
         (root / "VERSIONING.md").write_text(
             "# versioning\n" + release, encoding="utf-8"
         )
         if schema:
-            generated = root / "spec/draft/schema/generated"
+            generated = root / "spec/0.1/schema/generated"
             generated.mkdir(parents=True)
             (generated / "host-declaration-1.1.schema.json").write_text("{}\n")
         return root
@@ -120,7 +121,7 @@ class DeclarationTablesTest(unittest.TestCase):
     def test_missing_current_row_fails(self):
         result, output = self.run_check(self.build("", RELEASE_ROW))
         self.assertEqual(result, 1)
-        self.assertIn("spec/draft/DECLARATION-VERSIONS.md has no current row", output)
+        self.assertIn("spec/0.1/DECLARATION-VERSIONS.md must have exactly one current row", output)
 
     def test_missing_release_row_fails(self):
         result, output = self.run_check(self.build(CONTRACT_ROW, ""))
@@ -128,10 +129,10 @@ class DeclarationTablesTest(unittest.TestCase):
         self.assertIn("VERSIONING.md has no SDK release row accepting", output)
 
     def test_rows_in_the_wrong_files_fail(self):
-        # Each row sits in the other file: neither check may pass.
-        result, output = self.run_check(self.build(RELEASE_ROW, CONTRACT_ROW))
+        # A release row cannot stand in for a contract row, or vice versa.
+        result, output = self.run_check(self.build(RELEASE_ROW, RELEASE_ROW))
         self.assertEqual(result, 1)
-        self.assertIn("spec/draft/DECLARATION-VERSIONS.md has no current row", output)
+        self.assertIn("spec/0.1/DECLARATION-VERSIONS.md must have exactly one current row", output)
         result, output = self.run_check(self.build(CONTRACT_ROW, CONTRACT_ROW))
         self.assertEqual(result, 1)
         self.assertIn("VERSIONING.md has no SDK release row accepting", output)
@@ -142,6 +143,35 @@ class DeclarationTablesTest(unittest.TestCase):
         )
         self.assertEqual(result, 1)
         self.assertIn("host-declaration-1.1.schema.json is missing", output)
+
+    def test_released_contract_is_independent_of_sdk_current_and_draft(self):
+        root = self.build(
+            CONTRACT_ROW.replace(CURRENT, "agent-hooks-declaration/1.0"),
+            RELEASE_ROW,
+        )
+        schema = root / "spec/0.1/schema/generated"
+        (schema / "host-declaration-1.1.schema.json").rename(
+            schema / "host-declaration-1.0.schema.json"
+        )
+        (root / "spec/draft").mkdir()
+        result, output = self.run_check(root)
+        self.assertEqual(result, 0, output)
+
+    def test_unsupported_released_contract_fails(self):
+        root = self.build(
+            CONTRACT_ROW.replace(CURRENT, "agent-hooks-declaration/2.0"),
+            RELEASE_ROW,
+        )
+        result, output = self.run_check(root)
+        self.assertEqual(result, 1)
+        self.assertIn("does not list agent-hooks-declaration/2.0", output)
+
+    def test_missing_contract_table_fails_explicitly(self):
+        root = self.build(CONTRACT_ROW, RELEASE_ROW)
+        (root / "spec/0.1/DECLARATION-VERSIONS.md").unlink()
+        result, output = self.run_check(root)
+        self.assertEqual(result, 1)
+        self.assertIn("spec/0.1/DECLARATION-VERSIONS.md is missing", output)
 
 
 RUST_TYPES = "pub const SUPPORTED_SPEC_VERSIONS: &[&str] = &[{supported}];\n"

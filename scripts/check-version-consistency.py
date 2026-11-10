@@ -15,12 +15,11 @@ Go carries no manifest version: the module version is the git tag.
 PEP 440 spells SemVer pre-releases differently (0.1.0-alpha.2 ->
 0.1.0a2), so versions are compared after normalizing both spellings.
 
-The script also checks the host declaration contract version (spec
-section 7.7.2): the Rust DECLARATION_VERSION must be the current row
-of the contract table in the draft bundle's DECLARATION-VERSIONS.md
-(spec/draft is the development bundle, and its contract is the
-newest), some row of the SDK release table in VERSIONING.md must
-accept it, and the draft bundle must carry its schema.
+The script also checks the legacy host declaration contract versions:
+the Rust DECLARATION_VERSION must be supported and accepted by an SDK
+release row in VERSIONING.md. Each supported released bundle must carry
+the schema for its current contract, which the SDK must support. Draft
+declarations are selected by spec alone and have no contract table.
 
 It also checks the specification versions the SDKs support
 (VERSIONING.md): the five cores carry the same SUPPORTED_SPEC_VERSIONS,
@@ -45,10 +44,6 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-# The development bundle. The draft is a supported specification version
-# of its own (VERSIONING.md); its contract table names the newest host
-# declaration contract version.
-DRAFT_BUNDLE = "spec/draft"
 DRAFT = "draft"
 VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 # Where each core states the specification versions it supports, as
@@ -120,11 +115,8 @@ def read_versions(root: Path = ROOT) -> dict[str, str]:
 
 
 def check_declaration_versions(root: Path = ROOT) -> int:
-    """The host declaration contract version (spec section 7.7.2): the
-    Rust constant must be the current row of the contract table in the
-    draft bundle's DECLARATION-VERSIONS.md, some SDK release row in
-    VERSIONING.md must accept it, the supported set must list it, and
-    the draft bundle must carry its schema."""
+    """Check SDK legacy contracts against supported released bundles,
+    independently of the spec-only draft declaration format."""
     types_rs = (root / "sdk/rust/core/src/types.rs").read_text(encoding="utf-8")
     m = re.search(r'pub const DECLARATION_VERSION: &str = "([^"]+)"', types_rs)
     assert m, "no DECLARATION_VERSION in sdk/rust/core/src/types.rs"
@@ -136,7 +128,6 @@ def check_declaration_versions(root: Path = ROOT) -> int:
     if "DECLARATION_VERSION" not in m.group(1) and f'"{current}"' not in m.group(1):
         error(f"SUPPORTED_DECLARATION_VERSIONS does not list {current}")
         return 1
-    contract_table = f"{DRAFT_BUNDLE}/DECLARATION-VERSIONS.md"
     release_table = "VERSIONING.md"
 
     def rows(path: str) -> list[str]:
@@ -146,24 +137,48 @@ def check_declaration_versions(root: Path = ROOT) -> int:
             if line.startswith("|") and f"`{current}`" in line
         ]
 
-    if not any("current" in r for r in rows(contract_table)):
-        error(f"{contract_table} has no current row for {current}")
-        return 1
     # An SDK release row starts with a backticked tag such as
     # `v0.1.0-beta.2`; the contract-version table never does.
     release_row = re.compile(r"^\|\s*`v\d+\.\d+\.\d+[^`]*`")
     if not any(release_row.match(r) for r in rows(release_table)):
         error(f"{release_table} has no SDK release row accepting {current}")
         return 1
-    schema = (
-        root
-        / DRAFT_BUNDLE
-        / "schema/generated"
-        / f"host-declaration-{current.split('/')[1]}.schema.json"
-    )
-    if not schema.exists():
-        error(f"{schema.relative_to(root).as_posix()} is missing for {current}")
-        return 1
+    constants = dict(re.findall(r'pub const (\w+): &str = "([^"]+)"', types_rs))
+    supported = {
+        token.strip('"') if token.startswith('"') else constants.get(token)
+        for token in (entry.strip() for entry in m.group(1).split(","))
+        if token
+    }
+    for version in supported_spec_versions(root):
+        if not is_released(version):
+            continue
+        bundle = Path("spec") / version
+        contract_table = bundle / "DECLARATION-VERSIONS.md"
+        if not (root / contract_table).is_file():
+            error(f"{contract_table.as_posix()} is missing")
+            return 1
+        current_rows = [
+            line
+            for line in (root / contract_table).read_text(encoding="utf-8").splitlines()
+            if re.match(r"^\|\s*`agent-hooks-declaration/[^`]+`\s*\|\s*current\s*\|", line)
+        ]
+        if len(current_rows) != 1:
+            error(f"{contract_table.as_posix()} must have exactly one current row")
+            return 1
+        contract = re.findall(r"`([^`]+)`", current_rows[0])[0]
+        if contract not in supported:
+            error(
+                f"SUPPORTED_DECLARATION_VERSIONS does not list {contract} "
+                f"from {contract_table.as_posix()}"
+            )
+            return 1
+        schema = (
+            root / bundle / "schema/generated"
+            / f"host-declaration-{contract.split('/')[1]}.schema.json"
+        )
+        if not schema.is_file():
+            error(f"{schema.relative_to(root).as_posix()} is missing for {contract}")
+            return 1
     print(f"declaration contract version agrees: {current}")
     return 0
 
