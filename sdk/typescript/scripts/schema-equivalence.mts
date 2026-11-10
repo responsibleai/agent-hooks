@@ -637,6 +637,7 @@ const TOKENS: Json[] = [
 
 function randomMutant(random: () => number, value: Json): Json {
   const pick = <T>(xs: T[]): T => xs[Math.floor(random() * xs.length)];
+  const pickToken = (): Json => structuredClone(pick(TOKENS));
   const clone = structuredClone(value) as Json;
   const edits = 1 + Math.floor(random() * 3);
   for (let i = 0; i < edits; i++) {
@@ -651,19 +652,31 @@ function randomMutant(random: () => number, value: Json): Json {
       node = (parent as Obj)[key as string];
     }
     if (parent === null) {
-      return pick(TOKENS);
+      return pickToken();
     }
     const op = random();
     if (Array.isArray(parent)) {
       if (op < 0.3) parent.splice(key as number, 1);
-      else if (op < 0.6) parent[key as number] = pick(TOKENS);
+      else if (op < 0.6) parent[key as number] = pickToken();
       else parent.push(structuredClone(parent[0] ?? pick(TOKENS)));
     } else if (op < 0.3) {
       delete parent[key as string];
     } else if (op < 0.75) {
-      parent[key as string] = pick(TOKENS);
+      parent[key as string] = pickToken();
     } else {
-      parent[pick(["extra", "__x", "Bad-Key", "ns", "verdict", "transform", "approval", "exposure_bound", "on_error", "failure"])] = pick(TOKENS);
+      const extra = pick([
+        "extra",
+        "__x",
+        "Bad-Key",
+        "ns",
+        "verdict",
+        "transform",
+        "approval",
+        "exposure_bound",
+        "on_error",
+        "failure",
+      ]);
+      parent[extra] = pickToken();
     }
   }
   return clone;
