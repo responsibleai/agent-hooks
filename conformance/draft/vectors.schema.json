@@ -551,7 +551,6 @@
               "enum": [
                 "declaration_error:unreadable",
                 "declaration_error:malformed",
-                "declaration_error:version_unsupported",
                 "declaration_error:spec_unsupported",
                 "declaration_error:unknown_field",
                 "declaration_error:invalid_field",
