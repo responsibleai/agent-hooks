@@ -1,0 +1,110 @@
+{
+  "id": "AH-CTK-020",
+  "title": "transform at pre_tool_call rewrites a single arg; tool receives transformed value",
+  "spec_clause": "5.2, 6",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "scenario": {
+    "input": {
+      "content": "fetch the page",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "schema": {
+          "url": "string"
+        },
+        "behavior": [
+          {
+            "when_args": {
+              "url": "https://safe.example"
+            },
+            "return": {
+              "status": 200,
+              "body": "ok"
+            }
+          },
+          {
+            "return": {
+              "status": 999,
+              "body": "WRONG_URL"
+            }
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://evil.example"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "pre_tool_call",
+      "match": {
+        "tool_call.name": "http_get"
+      },
+      "return": {
+        "decision": "transform",
+        "reason": "ctk:egress_redirect",
+        "transform": {
+          "path": "$target.url",
+          "value": "https://safe.example"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call",
+        "context": {
+          "tool_call.args.url": "https://evil.example",
+          "target.url": "https://evil.example"
+        }
+      },
+      {
+        "interception_point": "post_tool_call",
+        "context": {
+          "tool_call.args.url": "https://safe.example",
+          "tool_result.value.status": 200,
+          "tool_result.is_error": false
+        }
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://safe.example"
+        }
+      }
+    ],
+    "run_outcome": "completed",
+    "identities_equal": false
+  }
+}

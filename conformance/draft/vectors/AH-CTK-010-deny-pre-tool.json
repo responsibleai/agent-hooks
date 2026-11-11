@@ -1,0 +1,101 @@
+{
+  "id": "AH-CTK-010",
+  "title": "deny at pre_tool_call halts tool invocation; post_tool_call not emitted",
+  "spec_clause": "6, 6.2",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "scenario": {
+    "input": {
+      "content": "delete everything",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "delete_files",
+        "schema": {
+          "path": "string"
+        },
+        "behavior": [
+          {
+            "return": "UNREACHED"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "delete_files",
+              "args": {
+                "path": "/"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "I was not able to delete files.",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "pre_tool_call",
+      "match": {
+        "tool_call.name": "delete_files"
+      },
+      "return": {
+        "decision": "deny",
+        "reason": "ctk:dangerous_tool"
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "agent_startup"
+      },
+      {
+        "interception_point": "input"
+      },
+      {
+        "interception_point": "pre_model_call"
+      },
+      {
+        "interception_point": "post_model_call"
+      },
+      {
+        "interception_point": "pre_tool_call",
+        "context": {
+          "tool_call.name": "delete_files",
+          "tool_call.args.path": "/"
+        }
+      },
+      {
+        "interception_point": "output"
+      },
+      {
+        "interception_point": "agent_shutdown"
+      }
+    ],
+    "interceptions_absent": [
+      "post_tool_call"
+    ],
+    "tool_not_invoked": [
+      "delete_files"
+    ],
+    "run_outcome": "completed"
+  }
+}

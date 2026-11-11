@@ -81,23 +81,18 @@ Equivalent interfaces ship in `sdk/typescript/src/ctk/index.ts`,
 `sdk/dotnet/src/AgentHooks.Conformance/IHarness.cs`,
 `sdk/go/conformance/harness.go`, and `sdk/rust/core/src/ctk.rs (`ctk` feature)`.
 
-The vectors under `conformance/` are two sets. The released set, every
-vector without `introduced_in`, is what the gating runs use: its host
-declarations name `agent-hooks/0.1`, and a harness under 0.1 runs it.
-The 17 draft-only vectors, `AH-CTK-144` to `AH-CTK-160` with
-`introduced_in: draft`, are the working test set for the next
-specification version. They are carried under `agent-hooks/draft`
-because they exercise behaviour no released version has (`on_error`,
-declaration 1.1, the reserved warnings); a harness under a released
-version skips them with the reason `draft-only vector; see #188`, and
-the advisory `draft-tests` job runs them under the draft. A harness
-states the version it builds under in `spec`; the reference harnesses
-take it in their constructor and build their contexts under the
-emitter's version, so a declaration vector's own document decides.
-Nothing is claimed against the draft: a claim names a released version,
-and every runner refuses a conformance report that names
-`agent-hooks/draft` ([RUNNER.md](RUNNER.md)). Binding tests to a draft
-revision is #188.
+SDK CTK runs currently use `conformance/0.1/` and report against the
+released `agent-hooks/0.1` contract. The separate
+`conformance/draft/` suite tracks work on the next specification
+version and is validated by repository CI. The advisory `draft-tests`
+job runs every vector in `conformance/draft/` under the draft, including
+IDs also present in the released suite, and does not block the required
+0.1 SDK checks. It also runs version-boundary and draft-only runtime unit
+tests. Reference harnesses require an explicit specification version;
+their committed declaration/1.0 document names `agent-hooks/0.1`, and
+contexts follow the specification of the loaded emitter. A claim names a
+released version, and every runner refuses a conformance report that names
+`agent-hooks/draft` ([RUNNER.md](RUNNER.md)).
 
 ## Mock model
 
@@ -352,25 +347,26 @@ through the loader too: each writes the vector's mode, composition and
 provider into a copy of its document and binds the scripted
 interceptors by index through a `ctk.instance` kind. Their skip
 manifests do not change for that routing. Every reference harness
-runs `AH-CTK-120` to `AH-CTK-143` under 0.1; `AH-CTK-144` to
-`AH-CTK-160` are draft-only and sit in every skip manifest under 0.1.
+runs `AH-CTK-120` to `AH-CTK-143`, plus `AH-CTK-156` and `AH-CTK-158`,
+under 0.1. The other vectors from `AH-CTK-144` to `AH-CTK-160` are
+draft-only and are skipped if selected for a released-version harness.
 
-Vector documents write the versions they use: `AH-CTK-120` to
-`AH-CTK-143` carry `agent-hooks-declaration/1.0` and `agent-hooks/0.1`;
-`AH-CTK-144` to `AH-CTK-159` carry `agent-hooks-declaration/1.1` and
-`agent-hooks/draft` where they set `on_error`, `AH-CTK-160` carries
-them for its surface rule, and `AH-CTK-155` keeps a 1.0 document under
-the draft to pin that a 1.1 loader accepts it unchanged. Each set
-validates against the schemas of the bundle it names.
+In the 0.1 suite, `AH-CTK-120` to `AH-CTK-143` carry
+`agent-hooks-declaration/1.0` and `agent-hooks/0.1`; their draft-suite
+counterparts name `agent-hooks/draft`.
+`AH-CTK-144` to `AH-CTK-154`, `AH-CTK-157`, `AH-CTK-159` and
+`AH-CTK-160` carry `agent-hooks-declaration/1.1` and `agent-hooks/draft`.
+`AH-CTK-155` keeps a 1.0 document under the draft to pin that a 1.1
+loader accepts it unchanged. The refusal cases `AH-CTK-156` and
+`AH-CTK-158` occur in both suites and name the corresponding spec.
+Each set validates against the schemas of the bundle it names.
 
 ## Running
 
 ```bash
 # Python
 pytest --agent-hooks-harness=my_pkg.MyFrameworkHarness \
-       --agent-hooks-vectors=path/to/conformance/vectors
-# The built-in reference harness, under the version it should run
-pytest --agent-hooks-spec=agent-hooks/0.1
+       --agent-hooks-vectors=path/to/conformance/0.1/vectors
 ```
 
 See per-language `sdk/<lang>/README.md` for the equivalent invocation.

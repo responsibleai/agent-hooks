@@ -143,11 +143,6 @@
         "profile"
       ]
     },
-    "declaration": {
-      "description": "OPTIONAL. The host declaration contract version the emitter was built from\n(§7.7.8), e.g. agent-hooks-declaration/1.0. Present iff the emitter was\nconstructed from a declaration document; absent for a host configured in\ncode. One closed-grammar string, so payload-free by construction.",
-      "pattern": "^agent-hooks-declaration/[0-9]+\\.[0-9]+$",
-      "type": "string"
-    },
     "verdicts": {
       "description": "Payload-free per-interceptor summary. REQUIRED in multi-verdict profiles\n(sequential/run_all, parallel/*) and whenever any slot carries\nsubstituted_for (§6.3.1); otherwise OPTIONAL in sequential/first_deny.",
       "type": "array",
@@ -217,31 +212,116 @@
       ]
     },
     "VerdictProjection": {
-      "description": "The payload-free projection of the combined verdict (§10.3): transform.value\ndropped, approval members stripped, messages truncated to 256 UTF-8 bytes.\nwarnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1).",
+      "description": "A payload-free projection of the combined verdict (§10.3): transform\ndetails are omitted, approval members stripped, messages truncated to\n256 UTF-8 bytes.\nwarnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1).",
+      "additionalProperties": false,
       "type": "object",
       "properties": {
-        "transform": {
-          "description": "The transform member of the projection: path only.",
-          "$ref": "#/$defs/TransformProjection"
+        "decision": {
+          "$ref": "#/$defs/Decision"
+        },
+        "reason": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "message": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "warnings": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/WarningProjection"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "description": "Offline-verifiable evidence attached to a verdict (§14).",
+          "$ref": "#/$defs/Evidence"
+        },
+        "result_labels": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "approval": {
           "description": "Presence only; members are stripped by the projection.",
           "$ref": "#/$defs/ApprovalPresence"
         }
-      }
+      },
+      "required": [
+        "decision"
+      ]
     },
-    "TransformProjection": {
-      "description": "The transform member of the projection: path only.",
+    "Decision": {
+      "description": "The three decisions (§5).",
+      "type": "string",
+      "enum": [
+        "allow",
+        "deny",
+        "transform"
+      ]
+    },
+    "WarningProjection": {
+      "description": "Warning metadata retained in a payload-free record projection.",
       "additionalProperties": false,
       "type": "object",
       "properties": {
-        "path": {
-          "type": "string"
+        "reason": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "message": {
+          "type": [
+            "null",
+            "string"
+          ]
         }
-      },
-      "required": [
-        "path"
-      ]
+      }
+    },
+    "Evidence": {
+      "description": "Offline-verifiable evidence attached to a verdict (§14).",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "artefact": {
+          "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof.",
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "verification_pointers": {
+          "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14).",
+          "$ref": "#/$defs/VerificationPointers"
+        }
+      }
+    },
+    "VerificationPointers": {
+      "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
     },
     "ApprovalPresence": {
       "description": "Presence only; members are stripped by the projection.",
@@ -306,15 +386,6 @@
       "required": [
         "decision",
         "index"
-      ]
-    },
-    "Decision": {
-      "description": "The three decisions (§5).",
-      "type": "string",
-      "enum": [
-        "allow",
-        "deny",
-        "transform"
       ]
     }
   }

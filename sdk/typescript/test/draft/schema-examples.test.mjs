@@ -173,15 +173,15 @@ test("optional contexts illustrate tools, usage, metadata and tool errors", asyn
   assert.ok(failedTool.tool_result.duration_ms >= 0);
 });
 
-test("optional declarations, evidence and timeout record preserve runtime semantics", async () => {
+test("optional declarations, evidence and timeout record illustrate intended semantics", async () => {
   const readExample = async (type, name) =>
     JSON.parse(await readFile(path.join(schemaRoot, "examples", type, name), "utf8"));
-  const failure = await readExample("HostDeclaration11", "failure-posture.json");
+  const failure = await readExample("HostDeclaration", "failure-posture.json");
   assert.equal(failure.configuration.failure.on_error, "deny");
   assert.equal(failure.bindings[0].on_error, "continue");
   assert.ok(failure.bindings[0].timeout_ms > 0);
 
-  const streaming = await readExample("HostDeclaration11", "streaming-document-policy.json");
+  const streaming = await readExample("HostDeclaration", "streaming-document-policy.json");
   assert.equal(streaming.surface.buffered_output, false);
   assert.ok(streaming.surface.exposure_bound);
   assert.ok(streaming.surface.capabilities.includes("incremental_output"));
@@ -211,7 +211,7 @@ test("the draft streaming declaration lists both model points and binds at every
   // model_calls; and a binding without `at` covers every surface point,
   // so no point is left to deny as host_error:no_interceptor.
   const streaming = JSON.parse(
-    await readFile(path.join(schemaRoot, "examples/HostDeclaration11/streaming-document-policy.json"), "utf8"),
+    await readFile(path.join(schemaRoot, "examples/HostDeclaration/streaming-document-policy.json"), "utf8"),
   );
   const points = streaming.surface.interception_points;
   assert.ok(points.includes("pre_model_call") && points.includes("post_model_call"));
@@ -233,6 +233,43 @@ test("draft interception records each hold their own position in a session", asy
     assert.equal(seen.get(key), undefined, `${entry.name} repeats ${key} of ${seen.get(key)}`);
     seen.set(key, entry.name);
   }
+});
+
+test("draft declarations use spec alone and reject legacy version fields", async (t) => {
+  const root = await fixture(t);
+  const filename = "examples/HostDeclaration/spec-only.json";
+  const baseline = { spec: "agent-hooks/draft", bindings: [] };
+  await write(root, filename, baseline);
+  assert.ok(await validateExamples(root) > 0);
+  for (const change of [
+    { spec: undefined },
+    { spec: "agent-hooks/0.1" },
+    { declaration: "agent-hooks-declaration/1.1" },
+    { surface: { declaration_versions: ["agent-hooks-declaration/1.1"] } },
+    { configuration: { failure: { on_error: "invalid" } } },
+  ]) {
+    await write(root, filename, { ...baseline, ...change });
+    await assert.rejects(validateExamples(root), /spec-only.json.*host-declaration.schema.json/);
+  }
+  for (const on_error of ["deny", "continue"]) {
+    await write(root, filename, {
+      ...baseline,
+      configuration: { failure: { on_error } },
+      bindings: [{ id: "policy", kind: "example.policy", on_error }],
+    });
+    assert.ok(await validateExamples(root) > 0);
+  }
+  const schema = JSON.parse(await readFile(path.join(root, "generated/host-declaration.schema.json"), "utf8"));
+  assert.equal(schema.$defs.FailureConfig.properties.on_error.default, "deny");
+});
+
+test("draft interception records reject the removed declaration field", async (t) => {
+  const root = await fixture(t);
+  const filename = "examples/InterceptionRecord/allow.json";
+  const record = JSON.parse(await readFile(path.join(root, filename), "utf8"));
+  assert.equal(record.declaration, undefined);
+  await write(root, filename, { ...record, declaration: "agent-hooks-declaration/1.1" });
+  await assert.rejects(validateExamples(root), /allow.json.*interception-record.schema.json/);
 });
 
 test("every draft example is referenced by the draft TypeScript schema source", async () => {

@@ -1,0 +1,66 @@
+{
+  "id": "AH-CTK-003",
+  "title": "sequence is strictly increasing across all interception points",
+  "spec_clause": "3.1.6, 4.1",
+  "capabilities": [
+    "model_calls"
+  ],
+  "scenario": {
+    "input": {
+      "content": "hi",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "hi",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [],
+  "expect": {
+    "sequence_strict": true,
+    "interceptions": [
+      {
+        "interception_point": "agent_startup",
+        "context": {
+          "sequence": 0
+        }
+      },
+      {
+        "interception_point": "input",
+        "context": {
+          "sequence": 1
+        }
+      },
+      {
+        "interception_point": "pre_model_call",
+        "context": {
+          "sequence": 2
+        }
+      },
+      {
+        "interception_point": "post_model_call",
+        "context": {
+          "sequence": 3
+        }
+      },
+      {
+        "interception_point": "output",
+        "context": {
+          "sequence": 4
+        }
+      },
+      {
+        "interception_point": "agent_shutdown",
+        "context": {
+          "sequence": 5
+        }
+      }
+    ],
+    "run_outcome": "completed"
+  }
+}

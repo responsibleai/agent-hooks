@@ -85,7 +85,7 @@ pub const FLOOR_POINTS: [InterceptionPoint; 4] = [
 ];
 
 /// The closed capability vocabulary a surface may name (§13.1,
-/// `conformance/vectors.schema.json`). `buffered_output` is a value,
+/// the versioned conformance vector schema). `buffered_output` is a value,
 /// not a presence, and travels as the boolean surface member instead.
 pub const CAPABILITIES: &[&str] = &[
     "model_calls",
@@ -2940,7 +2940,8 @@ pub fn resolve(
 }
 
 /// Bring a document from an older accepted minor to `to` (§7.7.2),
-/// one explicit step per version (`spec/draft/DECLARATION-VERSIONS.md`).
+/// one explicit step per version (`spec/0.1/DECLARATION-VERSIONS.md`;
+/// the proposed draft drops the separate version, see P-193).
 ///
 /// - 1.0 to 1.1: the `declaration` member changes; nothing else. The
 ///   members 1.1 adds (`configuration.failure.on_error`,

@@ -1,0 +1,94 @@
+{
+  "id": "AH-CTK-095",
+  "title": "a transform that pushes the context outside the I-JSON domain fails closed at finalize (deny context_invalid, null enforced identity)",
+  "spec_clause": "10.2, 10.3",
+  "part": "identity_provider",
+  "capabilities": [
+    "model_calls",
+    "tool_calls",
+    "int64_json"
+  ],
+  "scenario": {
+    "input": {
+      "content": "send wire",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "wire_transfer",
+        "behavior": [
+          {
+            "return": "UNREACHED"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "wire_transfer",
+              "args": {
+                "amount": 100
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "sent",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "pre_tool_call",
+      "return": {
+        "decision": "transform",
+        "reason": "ctk:inject-bigint",
+        "transform": {
+          "path": "$target.amount",
+          "value": 9007199254740993
+        }
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      }
+    ],
+    "interceptions_absent": [
+      "post_tool_call"
+    ],
+    "tool_not_invoked": [
+      "wire_transfer"
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "verdict.decision": "deny",
+          "verdict.reason": "host_error:context_invalid",
+          "enforced_identity": null,
+          "identity_provider": "jcs-sha256"
+        }
+      }
+    ],
+    "run_outcome": "completed",
+    "run_outcome_by_posture": {
+      "posture": "tool_seam_host_error",
+      "outcomes": { "continue": "completed", "terminate": "blocked" }
+    }
+  }
+}

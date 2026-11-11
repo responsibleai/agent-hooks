@@ -110,10 +110,8 @@ DRAFT_NOT_CLAIMABLE = (
 def conformance_report(spec: str, results: list[VectorResult]) -> ConformanceReport:
     """Group ``results`` by ``part`` into the report a claim attaches,
     under ``spec``, the released version the claim names (a wire
-    string). The vectors under ``conformance/`` are the working test set
-    for the next version, carried under ``agent-hooks/draft`` because
-    they exercise behaviour no released version has; running them is
-    fine, but a report that names the draft raises :class:`ValueError`
+    string). SDK self-tests use ``conformance/0.1/vectors/``. The separate
+    draft suite is not a released claim; a report naming it raises :class:`ValueError`
     with :data:`DRAFT_NOT_CLAIMABLE`, since no claim names it."""
     spec = require_spec_version(spec)
     if spec == SPEC_VERSION_DRAFT:

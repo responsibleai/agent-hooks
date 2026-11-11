@@ -23,7 +23,7 @@ Run with::
 
     pytest test_conformance.py \
         --agent-hooks-harness=harness:AgentFrameworkHarness \
-        --agent-hooks-vectors=/path/to/conformance/vectors
+        --agent-hooks-vectors=/path/to/conformance/0.1/vectors
 """
 
 from __future__ import annotations

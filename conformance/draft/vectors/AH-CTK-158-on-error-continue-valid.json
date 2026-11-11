@@ -1,0 +1,56 @@
+{
+  "id": "AH-CTK-158",
+  "title": "§6.3.1: on_error is valid in a draft declaration selected by spec",
+  "spec_clause": "7.7.3, 7.7.5, 7.7.6",
+  "part": "declaration/load",
+  "capabilities": [
+    "host_declaration"
+  ],
+  "host_declaration_invalid": false,
+  "host_declaration": {
+    "spec": "agent-hooks/draft",
+    "bindings": [
+      {
+        "id": "allow",
+        "kind": "ctk.scripted",
+        "config": {
+          "script": 0
+        },
+        "on_error": "continue"
+      }
+    ]
+  },
+  "scenario": {
+    "input": {
+      "content": "hi",
+      "role": "user"
+    },
+    "model_script": [
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "load": {
+      "outcome": "accepted"
+    },
+    "interceptions": [],
+    "run_outcome": "completed",
+    "final_output": "done"
+  }
+}

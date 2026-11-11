@@ -10,12 +10,6 @@
   "session": {
     "id": "policy-search-001"
   },
-  "target": {
-    "reason": "completed",
-    "tool_calls": 1,
-    "errors": 0,
-    "duration_seconds": 7
-  },
   "summary": {
     "reason": "completed",
     "tool_calls": 1,

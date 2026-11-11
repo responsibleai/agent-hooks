@@ -10,9 +10,6 @@
   "session": {
     "id": "policy-search-001"
   },
-  "target": {
-    "error": "document search service unavailable"
-  },
   "tool_call": {
     "id": "search-001",
     "name": "search_documents",

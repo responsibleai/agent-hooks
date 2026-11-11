@@ -10,12 +10,6 @@
   "session": {
     "id": "policy-search-001"
   },
-  "target": [
-    {
-      "role": "user",
-      "content": "Find the document retention policy."
-    }
-  ],
   "model": {
     "id": "example-model",
     "vendor": "example",

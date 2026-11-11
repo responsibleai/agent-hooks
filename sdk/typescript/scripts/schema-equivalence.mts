@@ -29,7 +29,7 @@
 //
 // The corpus for every validation target is the seeds of every shape (the
 // conformance vectors, the golden files and hand-written instances), plus
-// systematic mutations of the target's own seeds driven by the old schema:
+// systematic mutations of the target's own seeds driven by both schemas:
 // each member dropped, wrong-typed, set to each enum value and one value
 // outside it, pattern probes, numeric and length boundaries, an unknown
 // member at each object, nullable members set to null, absent members added
@@ -242,23 +242,28 @@ function seed(shape: Shape, ...values: Json[]): void {
 }
 
 function collectFromRepository(): void {
-  const vectorsDir = join(ROOT, "conformance", "vectors");
-  for (const f of readdirSync(vectorsDir)) {
-    const v = JSON.parse(readFileSync(join(vectorsDir, f), "utf8")) as Obj;
-    const scripts = [
-      ...((v.interceptor_script as Obj[] | undefined) ?? []),
-      ...(((v.interceptor_scripts as Obj[][] | undefined) ?? []).flat()),
-    ];
-    for (const rule of scripts) if (rule.return !== undefined) seed("verdict", rule.return);
-    for (const rule of (v.approval_script as Obj[] | undefined) ?? []) {
-      const r = rule.resolve as Obj | undefined;
-      if (r) {
-        seed("resolution", r, { context_identity: "ctk", ...r }, { context_identity: null, ...r });
-        if (r.verdict !== undefined) seed("verdict", r.verdict);
+  const conformance = join(ROOT, "conformance");
+  const vectorDirs = readdirSync(conformance, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && existsSync(join(conformance, entry.name, "vectors")))
+    .map((entry) => join(conformance, entry.name, "vectors"));
+  for (const vectorsDir of vectorDirs) {
+    for (const f of readdirSync(vectorsDir)) {
+      const v = JSON.parse(readFileSync(join(vectorsDir, f), "utf8")) as Obj;
+      const scripts = [
+        ...((v.interceptor_script as Obj[] | undefined) ?? []),
+        ...(((v.interceptor_scripts as Obj[][] | undefined) ?? []).flat()),
+      ];
+      for (const rule of scripts) if (rule.return !== undefined) seed("verdict", rule.return);
+      for (const rule of (v.approval_script as Obj[] | undefined) ?? []) {
+        const r = rule.resolve as Obj | undefined;
+        if (r) {
+          seed("resolution", r, { context_identity: "ctk", ...r }, { context_identity: null, ...r });
+          if (r.verdict !== undefined) seed("verdict", r.verdict);
+        }
       }
-    }
-    for (const key of ["host_declaration", "host_declaration_invalid"]) {
-      if (v[key] !== undefined && typeof v[key] === "object") seed("declaration", v[key]);
+      for (const key of ["host_declaration", "host_declaration_invalid"]) {
+        if (v[key] !== undefined && typeof v[key] === "object") seed("declaration", v[key]);
+      }
     }
   }
   const identity = JSON.parse(readFileSync(join(ROOT, "conformance", "golden", "identity.json"), "utf8")) as Obj;
@@ -343,6 +348,13 @@ function handWritten(): void {
   );
   seed(
     "response",
+    ...(seeds.get("verdict") ?? []).map((verdict) => ({ verdict })),
+    { decision: "allow", extensions: { policy: {} } },
+    { decision: "transform", transform: { args: { limit: 20 } }, extensions: { policy: {} } },
+    { verdict: { decision: "deny", approval: {} }, extensions: { policy: {} } },
+    { verdict: { decision: "transform", transform: { args: { limit: 20 } } }, extensions: { policy: {} } },
+    { verdict: { decision: "allow", extensions: { policy: {} } } },
+    { verdict: { verdict: { decision: "allow" } } },
     { verdict: { decision: "allow" } },
     { verdict: { decision: "allow" }, extensions: { prov: { receipt: "r" } } },
     { verdict: { decision: "allow" }, extensions: { "Bad-Key": 1 } },
@@ -625,6 +637,7 @@ const TOKENS: Json[] = [
 
 function randomMutant(random: () => number, value: Json): Json {
   const pick = <T>(xs: T[]): T => xs[Math.floor(random() * xs.length)];
+  const pickToken = (): Json => structuredClone(pick(TOKENS));
   const clone = structuredClone(value) as Json;
   const edits = 1 + Math.floor(random() * 3);
   for (let i = 0; i < edits; i++) {
@@ -639,19 +652,31 @@ function randomMutant(random: () => number, value: Json): Json {
       node = (parent as Obj)[key as string];
     }
     if (parent === null) {
-      return pick(TOKENS);
+      return pickToken();
     }
     const op = random();
     if (Array.isArray(parent)) {
       if (op < 0.3) parent.splice(key as number, 1);
-      else if (op < 0.6) parent[key as number] = pick(TOKENS);
+      else if (op < 0.6) parent[key as number] = pickToken();
       else parent.push(structuredClone(parent[0] ?? pick(TOKENS)));
     } else if (op < 0.3) {
       delete parent[key as string];
     } else if (op < 0.75) {
-      parent[key as string] = pick(TOKENS);
+      parent[key as string] = pickToken();
     } else {
-      parent[pick(["extra", "__x", "Bad-Key", "ns", "verdict", "transform", "approval", "exposure_bound", "on_error", "failure"])] = pick(TOKENS);
+      const extra = pick([
+        "extra",
+        "__x",
+        "Bad-Key",
+        "ns",
+        "verdict",
+        "transform",
+        "approval",
+        "exposure_bound",
+        "on_error",
+        "failure",
+      ]);
+      parent[extra] = pickToken();
     }
   }
   return clone;
@@ -664,14 +689,31 @@ function randomMutant(random: () => number, value: Json): Json {
 interface Target {
   name: string;
   file: string;
-  shape: Shape;
+  shape?: Shape;
   pointer: string;
 }
+
+const RESPONSE_SCHEMA_NAMES: Record<string, string> = {
+  agent_startup: "agent-startup",
+  input: "input",
+  pre_model_call: "pre-model",
+  post_model_call: "post-model",
+  pre_tool_call: "pre-tool",
+  post_tool_call: "post-tool",
+  output: "output",
+  agent_shutdown: "agent-shutdown",
+};
 
 const TARGETS: Target[] = [
   { name: "interception-point", file: "interception-point.schema.json", shape: "point", pointer: "" },
   { name: "verdict", file: "verdict.schema.json", shape: "verdict", pointer: "" },
   { name: "interceptor-response", file: "interceptor-response.schema.json", shape: "response", pointer: "" },
+  ...POINTS.map((point) => ({
+    name: `${point} hook-response`,
+    file: `${RESPONSE_SCHEMA_NAMES[point]}-hook-response.schema.json`,
+    shape: "response" as Shape,
+    pointer: "",
+  })),
   { name: "approval request", file: "approval.schema.json", shape: "request", pointer: "#/$defs/request" },
   { name: "approval resolution", file: "approval.schema.json", shape: "resolution", pointer: "#/$defs/resolution" },
   { name: "agent-context", file: "agent-context.schema.json", shape: "context", pointer: "" },
@@ -680,6 +722,16 @@ const TARGETS: Target[] = [
   { name: "host-declaration-1.0", file: "host-declaration-1.0.schema.json", shape: "declaration", pointer: "" },
   { name: "host-declaration-1.1", file: "host-declaration-1.1.schema.json", shape: "declaration", pointer: "" },
 ];
+
+function targetsFor(oldSet: SchemaSet, newSet: SchemaSet): Target[] {
+  const known = new Set(TARGETS.map((target) => target.file));
+  const extraFiles = new Set([...oldSet.keys(), ...newSet.keys()]);
+  const additional = [...extraFiles]
+    .filter((file) => !known.has(file))
+    .sort()
+    .map((file) => ({ name: file, file, pointer: "" }));
+  return [...TARGETS, ...additional];
+}
 
 /** "old" or "new" when the target's file exists in only that set, "neither"
  *  when both lack it (a version that predates the file), else undefined. */
@@ -798,9 +850,10 @@ function diff(a: Json, b: Json, path: string, out: string[]): void {
 function main(): number {
   const oldSet = loadSet(OLD!);
   const newSet = loadSet(NEW);
+  const targets = targetsFor(oldSet, newSet);
   if (STRUCTURAL) {
     let total = 0;
-    for (const t of TARGETS) {
+    for (const t of targets) {
       const side = onlyOneSide(oldSet, newSet, t);
       if (side === "neither") {
         console.log(`== ${t.name}: 0 differing path(s): neither set has the file`);
@@ -843,7 +896,7 @@ function main(): number {
   const examples: string[] = [];
   console.log("target                        instances  valid(old)  valid(new)  disagree");
   let missingTargets = 0;
-  for (const t of TARGETS) {
+  for (const t of targets) {
     const side = onlyOneSide(oldSet, newSet, t);
     if (side === "neither") {
       console.log(`${t.name.padEnd(29)} ${"-".padStart(9)}  ${"-".padStart(10)}  ${"-".padStart(10)}  ${"0".padStart(8)}  (neither set has the file)`);
@@ -860,8 +913,7 @@ function main(): number {
     const validateOld = oldAjv.getSchema(baseOf(oldSet) + t.file + t.pointer);
     const validateNew = newAjv.getSchema(baseOf(newSet) + t.file + t.pointer);
     if (!validateOld || !validateNew) throw new Error(`${t.name}: validator missing at ${t.pointer || "the root"}`);
-    const own = seeds.get(t.shape) ?? [];
-    const oldSchema = pointerSchema(oldSet, t.file, t.pointer);
+    const own = t.shape === undefined ? [] : seeds.get(t.shape) ?? [];
     const corpus = new Map<string, Json>();
     const add = (v: Json) => {
       const key = JSON.stringify(v);
@@ -869,7 +921,10 @@ function main(): number {
     };
     for (const s of everySeed) add(s);
     for (const s of own) {
-      for (const m of mutate(oldSet, t.file, oldSchema, s)) add(m);
+      for (const set of [oldSet, newSet]) {
+        const schema = pointerSchema(set, t.file, t.pointer);
+        for (const m of mutate(set, t.file, schema, s)) add(m);
+      }
       for (let i = 0; i < RANDOM; i++) add(randomMutant(random, s));
     }
     let validOld = 0;
@@ -903,7 +958,7 @@ function main(): number {
       `${t.name.padEnd(29)} ${String(corpus.size).padStart(9)}  ${String(validOld).padStart(10)}  ${String(validNew).padStart(10)}  ${String(disagree).padStart(8)}`,
     );
   }
-  console.log(`total: ${totalInstances} instances across ${TARGETS.length} targets, ${totalDisagreements} disagreements (seed ${SEED}, ${RANDOM} random mutants per seed${missingTargets ? `; ${missingTargets} target(s) exist on one side only, counted once each` : ""})`);
+  console.log(`total: ${totalInstances} instances across ${targets.length} targets, ${totalDisagreements} disagreements (seed ${SEED}, ${RANDOM} random mutants per seed${missingTargets ? `; ${missingTargets} target(s) exist on one side only, counted once each` : ""})`);
   console.log(`narrowed: ${narrowed} instance(s) the old set accepts and the new set rejects`);
   if (WIRES) {
     console.log(`spec-only: ${specOnly} instance(s) the two sides judge differently for the spec member alone (old ${WIRE_OLD}, new ${WIRE_NEW}), not counted above`);

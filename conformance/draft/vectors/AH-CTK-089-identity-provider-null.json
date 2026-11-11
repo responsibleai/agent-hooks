@@ -1,0 +1,100 @@
+{
+  "id": "AH-CTK-089",
+  "title": "identity_provider=null: unbound records (null identities) and a null echo through the seam",
+  "spec_clause": "9, 10.1, 10.3",
+  "part": "identity_provider",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "identity_provider": null,
+  "scenario": {
+    "input": {
+      "content": "go",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "wire_transfer",
+        "behavior": [
+          {
+            "return": "ok"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "wire_transfer",
+              "args": {
+                "amount": 9
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "sent",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "pre_tool_call",
+      "return": {
+        "decision": "deny",
+        "reason": "ctk:requires_approval",
+        "approval": {}
+      }
+    }
+  ],
+  "approval_script": [
+    {
+      "resolve": {
+        "outcome": "approve",
+        "verdict": {
+          "decision": "allow"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "wire_transfer",
+        "args": {
+          "amount": 9
+        }
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "verdict.decision": "allow",
+          "resolved_by": "approval",
+          "input_identity": null,
+          "enforced_identity": null,
+          "identity_provider": null
+        }
+      }
+    ],
+    "run_outcome": "completed"
+  }
+}

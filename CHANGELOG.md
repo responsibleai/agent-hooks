@@ -43,11 +43,11 @@ under the draft). An unknown version is refused as before.
   (`"spec": "agent-hooks/0.1"`). The 0.1 text made the member
   optional; the SDKs require it under both versions by decision, since
   they now carry two versions (VERSIONING.md).
-- The gating tests run against 0.1. The released vectors (every vector
-  but `AH-CTK-144` to `AH-CTK-160`) carry `agent-hooks/0.1` and run
-  under 0.1 in every reference harness; the 17 draft-only vectors carry
-  `introduced_in: draft` and, with the SDK tests that read draft-only
-  spec files, run in the advisory `draft-tests` job. A harness names
+- The gating tests run against the released 0.1 suite, including
+  `AH-CTK-156` and `AH-CTK-158`. The other vectors from `AH-CTK-144`
+  to `AH-CTK-160` are draft-only and carry `introduced_in: draft`.
+  The full draft suite and the SDK tests that read draft-only spec
+  files run in the advisory `draft-tests` job. A harness names
   the version it builds under (`spec`), the runner skips a draft-only
   vector under a released version with `draft-only vector; see #188`,
   and the reference harnesses take the version in their constructor
@@ -100,20 +100,34 @@ under the draft). An unknown version is refused as before.
 
 ## Unreleased specification
 
+- Proposed host declaration redesign
+  ([P-193](docs/proposals/P-193-host-declaration-spec-versioning.md),
+  Draft): the draft uses `spec` as its
+  sole format selector, publishes one declaration schema, removes
+  `surface.declaration_versions`, and drops record declaration stamping.
+  Released 0.1 is unchanged. SDK/CTK implementation remains deferred;
+  the draft schemas and normative text are not a runtime support claim.
+- Records no longer carry `declaration` (§7.7.8), so a record no longer
+  distinguishes a file-configured emitter from a code-configured one.
+  `spec` still identifies the record's contract. Configuration origin is
+  visible only through the RECOMMENDED load-time log of the spec version,
+  document `id` and `jcs-sha256` digest, outside the record stream.
+
 The draft, `spec/draft/AGENT-HOOKS-DRAFT.md`, holds these changes since
-0.1. They ship as specification 0.2 when it is cut. The draft is the
+0.1. The next release number depends on the accepted changes, including
+this breaking proposal. The draft is the
 version `draft`, wire string `agent-hooks/draft`; it changes without
-notice and is never claimed. The SDKs implement it beside 0.1, and a
-host reaches it by naming `agent-hooks/draft`.
+notice and is never claimed. The SDKs implement the preceding draft
+beside 0.1; the declaration redesign above is not yet implemented.
 
 - The draft's wire string is `agent-hooks/draft` (§4.1): the context
   schema pins `spec` to that constant, and every draft example, the
   conformance vectors, the golden fixtures and the reference
   declarations carry it. The host declaration's `spec` member is
-  REQUIRED (§7.7.2, §7.7.3): a document names the specification
+  REQUIRED (§7.7.3, §7.7.6): a document names the specification
   version it is written for, and the loader reads it by that version's
-  rules and accepted contract set (1.0 under 0.1; 1.0 and 1.1 under the
-  draft); a missing or unknown value is `declaration_error:spec_unsupported`.
+  rules. The proposed draft removes the independent declaration selector;
+  a missing or unknown spec is `declaration_error:spec_unsupported`.
 - Spec §7.7.4 (draft) states that `incremental_output` requires both
   model points and `model_calls`, not only `buffered_output: false`:
   incremental mediation happens at `post_model_call` (§12.1). The §7.7.6
@@ -146,17 +160,13 @@ host reaches it by naming `agent-hooks/draft`.
   `cancelled`, `failed`); it receives the resolved bound, cleans up
   before it reports `timeout`, and a `cancelled` outcome is never a
   timeout and never continues.
-- Host declaration contract `agent-hooks-declaration/1.1`
-  (`spec/draft/schema/generated/host-declaration-1.1.schema.json`): the binding
+- Host declaration (`spec/draft/schema/generated/host-declaration.schema.json`): the binding
   envelope gains the OPTIONAL member `on_error` and `configuration`
   gains `failure.on_error`, the document default bindings inherit.
-  1.0 stays accepted and loads unchanged; `on_error` under a 1.0
-  version string is refused as `declaration_error:unknown_field`. The
-  resolved form fills `on_error` on every binding and
-  `failure.on_error` for every document, 1.0 included. The migration
-  step is written in `spec/draft/DECLARATION-VERSIONS.md`, with the next
-  tag `v0.1.0-beta.4` accepting {1.0, 1.1} and current 1.1. Sealing
-  covers the failure posture.
+  The proposed resolved form fills `on_error` on every binding and
+  `failure.on_error` for every draft document. The SDK implementation
+  still uses declaration contracts 1.0 and 1.1. Sealing covers the
+  failure posture in both designs.
 - Interception record (§10.3, `spec/draft/schema/generated/interception-record.schema.json`):
   the per-verdict summary gains `substituted_for`, present iff the
   slot is the substituted allow, carrying the `host_error:*` reason

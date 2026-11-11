@@ -34,7 +34,7 @@ export type { AssessedSurface, ConformanceReport, PartReport } from "./runner";
 export { ReferenceHarness, REFERENCE_DECLARATION } from "./reference";
 
 /** Host-declared capability subset (§3.2, §13.1): the closed list of
- * `conformance/vectors.schema.json` with `host_declaration` (§7.7.9).
+ * versioned conformance vector schema with `host_declaration` (§7.7.9).
  * `buffered_output` is a value, not a presence, and is not listed. */
 export type Capability =
   | "model_calls"

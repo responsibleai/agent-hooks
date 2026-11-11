@@ -44,10 +44,11 @@ the file whose resolved surface the CTK run used, at the claimed
 commit, and that document carries an explicit `surface`. The claim
 tuple is unchanged; name the file in the Notes column.
 
-A claim names a released specification version. The vectors under
-`conformance/` are the working test set for the next version and run
-under `agent-hooks/draft`, which no claim names; every SDK runner
-refuses a conformance report that does ([RUNNER.md](RUNNER.md)).
+A claim names a released specification version. SDK CTK runs currently
+use the version-matched `conformance/0.1/` suite; the separate
+`conformance/draft/` suite is for repository-level draft validation and
+is not an SDK conformance target yet. Every SDK runner refuses a report
+that names `agent-hooks/draft` ([RUNNER.md](RUNNER.md)).
 
 The three rows below predate per-version conformance: each ran the kit
 as it stood at the commit it cites, not a test set frozen with a
