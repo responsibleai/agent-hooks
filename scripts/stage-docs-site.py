@@ -173,6 +173,9 @@ def stage_schemas(root: Path, bundles: list[str], schema_out: Path) -> None:
                 f"{origin} schemas publish under {sorted(prefixes)}; expected one path"
             )
         (prefix,) = prefixes
+        grammar = bundle / "schema" / "path-grammar.abnf"
+        if grammar.is_file() or grammar.is_symlink():
+            publisher.publish(grammar, f"{prefix}/path-grammar.abnf", origin)
         # A bundle carries the inventories of its time; 0.1 predates
         # reserved-warnings.json, so only the files present are published.
         for inventory in INVENTORIES:
@@ -222,7 +225,11 @@ def stage(root: Path) -> list[str]:
         shutil.copyfile(spec_text(spec / version), pages / f"{version}.md")
     shutil.copyfile(spec_text(spec / versions[0]), docs / "spec.md")
     draft = spec_text(spec / "draft").read_text(encoding="utf-8")
-    (pages / "draft.md").write_text(BACK_LINK.sub(r"](\1.md)", draft), encoding="utf-8")
+    draft = BACK_LINK.sub(r"](\1.md)", draft)
+    draft = draft.replace(
+        "](schema/path-grammar.abnf)", "](../schema/draft/path-grammar.abnf)"
+    )
+    (pages / "draft.md").write_text(draft, encoding="utf-8")
 
     schema_out = docs / "schema"
     shutil.rmtree(schema_out, ignore_errors=True)

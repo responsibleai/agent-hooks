@@ -27,6 +27,54 @@ one, and keeps draft-only vectors out of a run under a
 released version. The gating runs are under 0.1, the newest released
 version; binding tests to a draft revision is #188.
 
+The runner selects the suite for `harness.spec`; required SDK checks use
+the released 0.1 suite, while the advisory job separately selects draft.
+
+```
+for each vector file in conformance/{bundle_for(harness.spec)}/vectors/*.json:
+  1.  skip = ctk_should_skip(vector, harness.capabilities)
+      if skip: yield {status:"skip", detail:skip}; continue
+
+  2.  recorded = []
+      interceptor = ctx => {
+        recorded.push(deep_copy(ctx))                    # per-language
+        return ctk_scripted_intercept(vector.interceptor_script, ctx)
+      }
+      resolver = req =>
+        ctk_scripted_resolve(vector.approval_script, req.context, req.context_identity)
+
+  3.  harness.setup(vector.scenario, interceptors,
+                    vector.approval_script?.length ? resolver : null,   # [] registers NO resolver
+                    vector.mode ?? "enforce",
+                    vector.composition ?? sequential/first_deny+stop,   # §7.2
+                    "identity_provider" in vector ? vector.identity_provider : "jcs-sha256")  # §10.1
+
+  3b. if "host_declaration" in vector:                                # §7.7.9, see HARNESS.md
+        registry = ctk registry over harness.host_surface()           # ctk.scripted; ctk.managed is draft-only
+        paths_equivalent = resolve the document from value, JSON,     #   ctk-fault, ctk-scripted, ctk-redact
+                           a temp file and the builder; compare
+        load = harness.setup_declared(setup, vector.host_declaration, registry)
+        if load refused: rr = {outcome:"error", load:{outcome:"refused", class, paths_equivalent}}
+                         harness.teardown(); go to 5
+      else: harness.setup(...) as in 3
+
+  4.  try:  rr = harness.run()
+      except e: yield {status:"fail", failures:["harness.run raised: "+e]}; continue
+      finally: harness.teardown()
+      if "host_declaration" in vector: rr.load = {outcome:"accepted", paths_equivalent}
+
+  5.  yield ctk_assert(vector, recorded,
+                       {outcome:rr.outcome, final_output:rr.final_output,
+                        tool_invocations:rr.tool_invocations, error:rr.error,
+                        host_messages:rr.host_messages, # when required by the selected suite
+                        identities:rr.identities,      # (input, enforced) per emission
+                        records:rr.records,            # wire-shaped §10.3 records
+                        postures:{                     # harness *declarations* (§13.1),
+                          tool_seam_host_error:        # not observed behavior — they
+                            harness.tool_seam_host_error  # select run_outcome_by_posture
+                              ?? "continue"}})            # (HARNESS.md "Postures")
+```
+
 ## The conformance report (§13.1)
 
 Group the yielded results by each vector's `part` tag
@@ -42,7 +90,6 @@ Each SDK runner currently loads the released 0.1 suite from
 `draft-tests` job runs every vector in `conformance/draft/` under the
 draft, including IDs also present in the released suite, and does not
 block the required 0.1 SDK checks.
-
 Each runner has the grouping as a function that takes the
 specification version the claim names and the results:
 `conformance_report(spec, results)` in Rust and Python,

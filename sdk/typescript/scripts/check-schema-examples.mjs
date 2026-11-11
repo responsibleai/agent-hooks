@@ -26,6 +26,7 @@ const VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 
 export const schemaMapping = {
   AgentContext: "agent-context.schema.json",
+  // The generic verdict root is retained only in the released 0.1 bundle.
   Verdict: "verdict.schema.json",
   InterceptorResponse: "interceptor-response.schema.json#/$defs/ResponseEnvelope",
   ApprovalRequest: "approval.schema.json#/$defs/request",
@@ -34,9 +35,35 @@ export const schemaMapping = {
   HostDeclaration11: "host-declaration-1.1.schema.json",
   HostDeclaration: "host-declaration.schema.json",
   InterceptionRecord: "interception-record.schema.json",
+  AgentStartupHookResponse: "agent-startup-hook-response.schema.json",
+  InputHookResponse: "input-hook-response.schema.json",
+  PreModelHookResponse: "pre-model-hook-response.schema.json",
+  PostModelHookResponse: "post-model-hook-response.schema.json",
+  PreToolHookResponse: "pre-tool-hook-response.schema.json",
+  PostToolHookResponse: "post-tool-hook-response.schema.json",
+  OutputHookResponse: "output-hook-response.schema.json",
+  AgentShutdownHookResponse: "agent-shutdown-hook-response.schema.json",
+};
+const hookResponseSchemas = [
+  "agent-startup-hook-response.schema.json",
+  "input-hook-response.schema.json",
+  "pre-model-hook-response.schema.json",
+  "post-model-hook-response.schema.json",
+  "pre-tool-hook-response.schema.json",
+  "post-tool-hook-response.schema.json",
+  "output-hook-response.schema.json",
+  "agent-shutdown-hook-response.schema.json",
+];
+const transformHookResponseSchema = {
+  input: "input-hook-response.schema.json",
+  messages: "pre-model-hook-response.schema.json",
+  response: "post-model-hook-response.schema.json",
+  args: "pre-tool-hook-response.schema.json",
+  value: "post-tool-hook-response.schema.json",
+  output: "output-hook-response.schema.json",
 };
 
-/** The schema folder of one bundle, "draft" or a MAJOR.MINOR.PATCH version. */
+/** The schema folder of one bundle, "draft" or a MAJOR.MINOR version. */
 export function bundleSchemaRoot(name) {
   return path.join(specRoot, name, "schema") + path.sep;
 }
@@ -138,20 +165,36 @@ export async function validateExamples(root = schemaRoot) {
   if (files.length === 0) throw new Error(`${examples}: no JSON examples found`);
   for (const filename of files) {
     const parts = path.relative(examples, filename).split(path.sep);
-    if (parts.length !== 2 || !Object.hasOwn(schemaMapping, parts[0])) {
+    if (parts.length !== 2) {
       throw new Error(`${filename}: no schema mapping for example`);
     }
     const instance = await readJson(filename);
-    validate(instance, filename, schemaMapping[parts[0]]);
+    let references;
+    if (parts[0] === "Verdict" && !schemas.has("verdict.schema.json")) {
+      if (instance.decision === "transform") {
+        const transformMembers = Object.keys(instance.transform ?? {});
+        if (transformMembers.length !== 1 || !transformHookResponseSchema[transformMembers[0]]) {
+          throw new Error(`${filename}: no hook response schema for transform payload`);
+        }
+        references = [transformHookResponseSchema[transformMembers[0]]];
+      } else {
+        references = hookResponseSchemas;
+      }
+    } else {
+      const reference = schemaMapping[parts[0]];
+      if (!reference) throw new Error(`${filename}: no schema mapping for example`);
+      references = [reference];
+    }
+    const responseInstance = parts[0] === "Verdict" && !schemas.has("verdict.schema.json")
+      ? { verdict: instance }
+      : instance;
+    for (const reference of references) validate(responseInstance, filename, reference);
     if (parts[0] === "AgentContext") {
       // The per-point folder is strict-contexts/ in the generated layout
       // and agent-context/ in the flat one.
       const point = `${instance.interception_point}.schema.json`;
       const folder = schemas.has(`strict-contexts/${point}`) ? "strict-contexts" : "agent-context";
       validate(instance, filename, `${folder}/${point}`);
-    }
-    if (parts[0] === "Verdict" || parts[0] === "InterceptorResponse") {
-      validate(instance, filename, "interceptor-response.schema.json");
     }
   }
   return files.length;

@@ -115,6 +115,19 @@ class StageTest(unittest.TestCase):
     def test_versions_are_ordered_numerically_newest_first(self) -> None:
         self.assertEqual(stage.stage(self.root), ["0.10", "0.2", "0.1"])
 
+    def test_draft_grammar_link_and_file_are_published(self) -> None:
+        draft = self.root / "spec/draft"
+        (draft / "schema/path-grammar.abnf").write_text(
+            'path = "test"\n', encoding="utf-8"
+        )
+        with (draft / "AGENT-HOOKS-DRAFT.md").open("a", encoding="utf-8") as file:
+            file.write("[grammar](schema/path-grammar.abnf)\n")
+        stage.stage(self.root)
+        self.assertIn(
+            "](../schema/draft/path-grammar.abnf)", self.read("spec/draft.md")
+        )
+        self.assertEqual(self.read("schema/draft/path-grammar.abnf"), 'path = "test"\n')
+
     def test_one_page_per_version_the_draft_page_and_the_latest_alias(self) -> None:
         for version in stage.stage(self.root):
             self.assertEqual(self.read(f"spec/{version}.md"), f"# spec {version}\n")

@@ -11,13 +11,24 @@ names the specification versions it supports in
 `SUPPORTED_SPEC_VERSIONS` (VERSIONING.md).
 
 The TypeScript files in `src/` are the editable schema source.
-`generated/` contains the committed, normative JSON Schemas consumed by
-validators and SDKs. Do not edit generated JSON by hand.
+`generated/` contains the committed draft JSON Schemas. Do not edit generated JSON by hand.
 
 - Root schemas are written to `generated/*.schema.json`.
-- Closed per-interception-point schemas are derived from the agent-context
-  union and written to `generated/strict-contexts/*.schema.json`.
-  This proposed draft format (P-193) is not yet implemented by SDK loaders or
+- `generated/strict-contexts/*.schema.json` contains closed per-interception-point
+  request schemas derived from the `agent-context` union. Each interception
+  point is explicitly defined by its `HookRequest` and `HookResponse` pair below.
+- Draft response validation uses the eight hook-specific response schemas;
+  there is no generic draft verdict schema because transform payloads depend
+  on the interception point. The released `0.1` bundle retains its
+  `verdict.schema.json`.
+- Every hook response is a closed envelope with required `verdict` and optional
+  namespaced `extensions`. Bare verdicts and flat verdict/extension responses
+  are not accepted. The nested verdict is closed and validated for its hook;
+  startup and shutdown permit only allow or deny. P-006's metadata limits and
+  enforcement separation still apply, including rules enforced by parsers
+  rather than JSON Schema.
+- `src/host-declaration.ts` generates the draft declaration schema.
+- The P-193 draft declaration format is not yet implemented by SDK loaders or
   CTK fixtures; released 0.1 retains its existing declaration schema.
 - `path-grammar.abnf` remains a hand-maintained grammar, not generated output.
 

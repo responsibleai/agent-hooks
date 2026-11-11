@@ -27,7 +27,7 @@ async function writeSchema(root, set, version, name, schema) {
   );
 }
 
-function compare(oldPath, newPath, structural = false) {
+function compare(oldPath, newPath, { structural = false, random = 0, seed = 1 } = {}) {
   return spawnSync(
     process.execPath,
     [
@@ -39,7 +39,9 @@ function compare(oldPath, newPath, structural = false) {
       "--new",
       newPath,
       "--random",
-      "0",
+      String(random),
+      "--seed",
+      String(seed),
       ...(structural ? ["--structural-diff"] : []),
     ],
     { cwd: packageRoot, encoding: "utf8" },
@@ -61,6 +63,18 @@ test("schema equivalence tests schema-specific values in either comparison direc
   }
 });
 
+test("random mutants do not create circular data", async (t) => {
+  const root = await fixture(t);
+  const oldPath = path.join(root, "v01");
+  const newPath = path.join(root, "draft");
+  await writeSchema(root, "v01", "0.1", "verdict.schema.json", { type: "object" });
+  await writeSchema(root, "draft", "draft", "verdict.schema.json", { type: "object" });
+
+  const result = compare(oldPath, newPath, { random: 500, seed: 1 });
+  assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
+  assert.match(result.stdout, /0 disagreements/);
+});
+
 test("schema equivalence reports a newly added schema file whichever side contains it", async (t) => {
   const root = await fixture(t);
   const oldPath = path.join(root, "v01");
@@ -72,7 +86,7 @@ test("schema equivalence reports a newly added schema file whichever side contai
   const oldOnly = compare(oldPath, newPath);
   assert.equal(oldOnly.status, 1, `${oldOnly.stderr}\n${oldOnly.stdout}`);
   assert.match(oldOnly.stdout, /new-contract\.schema\.json.*file exists only in the old set/, oldOnly.stderr);
-  const oldOnlyStructural = compare(oldPath, newPath, true);
+  const oldOnlyStructural = compare(oldPath, newPath, { structural: true });
   assert.equal(oldOnlyStructural.status, 0, oldOnlyStructural.stderr);
   assert.match(oldOnlyStructural.stdout, /new-contract\.schema\.json.*file exists only in the old set/);
 
@@ -81,7 +95,7 @@ test("schema equivalence reports a newly added schema file whichever side contai
   const newOnly = compare(oldPath, newPath);
   assert.equal(newOnly.status, 1, `${newOnly.stderr}\n${newOnly.stdout}`);
   assert.match(newOnly.stdout, /new-contract\.schema\.json.*file exists only in the new set/, newOnly.stderr);
-  const newOnlyStructural = compare(oldPath, newPath, true);
+  const newOnlyStructural = compare(oldPath, newPath, { structural: true });
   assert.equal(newOnlyStructural.status, 0, newOnlyStructural.stderr);
   assert.match(newOnlyStructural.stdout, /new-contract\.schema\.json.*file exists only in the new set/);
 });
