@@ -2,7 +2,7 @@
 
 - **Status:** Draft
 - **Created:** 2026-11-05
-- **Author(s):** @CaitieM20
+- **Author(s):** Caitie McCaffrey (@CaitieM20)
 - **PR:** https://github.com/responsibleai/agent-hooks/pull/193
 
 ## Abstract & Motivation
@@ -80,15 +80,33 @@ longer distinguish file-configured from code-configured emitters.
 
 ### Recommended normative semantics
 
+The draft text in §7.7.3, §7.7.6 and §7.7.8 carries these rules; this
+section summarizes them.
+
+1. **`spec` is checked first among members.** A loader reads and parses
+   the document (§7.7.6 steps 1–2), then checks `spec` (step 3) before
+   unknown-member validation (step 4) and value validation (step 5). A
+   missing, non-string or unsupported `spec` is refused as
+   `declaration_error:spec_unsupported`, and the error carries the set of
+   specification versions the loader accepts.
+2. **Removed fields are refused, never migrated.** A document carrying
+   `declaration` or `surface.declaration_versions` is refused as
+   `declaration_error:unknown_field`. A loader does not silently drop or
+   translate them.
+3. **The selected spec defines the shape.** The accepted declaration
+   members, defaults and value domains are exactly those the named
+   specification version defines; there is no second selector.
+
 ## Rationale
 
 | Option | Benefit | Cost |
 | --- | --- | --- |
 | Independent declaration version (today) | Configuration formats can evolve separately; a draft host can explicitly accept 1.0 and 1.1 documents. | Two selectors, supported-pair tables, migrations and spec-specific copies of the same declaration version. |
-| Spec-versioned declaration (experiment) | One compatibility selector and one schema per spec; configuration and hook semantics cannot select incompatible versions. | A declaration-format change requires a spec revision; legacy documents need migration. |
+| Spec-versioned declaration (proposed) | One compatibility selector and one schema per spec; configuration and hook semantics cannot select incompatible versions. | A declaration-format change requires a spec revision; legacy documents need migration. |
 
-The experiment favors the second option for review, not as an accepted
-decision. A host can add support for a new spec while retaining a file that
+This proposal recommends the second option. Its status is Draft: the
+change lands in `spec/draft/` for review, and acceptance is recorded
+through the proposal lifecycle ([README](README.md#lifecycle)). A host can add support for a new spec while retaining a file that
 selects the old one. Running the new spec requires changing `spec`, even
 when no configuration values change. Rolling upgrades still work through
 explicit support for multiple specification versions. The mutable draft
@@ -97,9 +115,9 @@ is not an immutable compatibility promise.
 ## Backward compatibility and operations
 
 This is a breaking document and record change. Released spec 0.1 remains
-untouched, including its declaration 1.0 schema. For migration to the new
-draft, remove the two declaration-version fields and select the intended
-spec explicitly. Absence of `on_error` preserves deny behavior; it does
+untouched, including its declaration 1.0 schema. Migration to the new
+draft is one edit: delete `declaration` and `surface.declaration_versions`,
+and keep `spec` (see the Current and Proposed examples above). Absence of `on_error` preserves deny behavior; it does
 not opt into continuation. Old loaders reject the new document; operators
 must upgrade the implementation before deploying it.
 
@@ -110,6 +128,9 @@ before emitter construction, fail-closed defaults and sealing remain
 unchanged. Configuration does not load code or widen the host's surface.
 Removing the record marker loses configuration-origin visibility; retain
 the existing startup configuration label/digest logging, not wire payloads.
+If origin visibility on the record is needed later, an optional
+`configuration.source` string would be an additive change; it is not a
+reason to keep a separate declaration version.
 
 ## SDK surface and implementation impact
 
@@ -119,7 +140,7 @@ migration routines, FFI, Python mirrors and CTK fixtures still implement
 the previous format. They require coordinated follow-up across all five
 SDKs before this draft can be exercised or claimed. Inventory checks and
 CTK schema validation against the old draft references can fail meanwhile;
-this experiment does not disable those checks.
+this proposal does not disable those checks.
 
 ## Conformance and tests
 
@@ -128,4 +149,4 @@ optional `on_error`, and removal of the record field. Released 0.1 schemas
 and examples must regenerate unchanged. Follow-up runtime coverage must
 pin unsupported spec errors, registry refusal, sealing, equivalent
 construction paths and migration rollout. No runtime conformance is
-claimed by this experimental PR.
+claimed by this proposal's PR.

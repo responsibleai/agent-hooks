@@ -100,15 +100,22 @@ under the draft). An unknown version is refused as before.
 
 ## Unreleased specification
 
-- Experimental host declaration redesign: the draft uses `spec` as its
+- Proposed host declaration redesign
+  ([P-193](docs/proposals/P-193-host-declaration-spec-versioning.md),
+  Draft): the draft uses `spec` as its
   sole format selector, publishes one declaration schema, removes
   `surface.declaration_versions`, and drops record declaration stamping.
   Released 0.1 is unchanged. SDK/CTK implementation remains deferred;
   the draft schemas and normative text are not a runtime support claim.
+- Records no longer carry `declaration` (§7.7.8), so a record no longer
+  distinguishes a file-configured emitter from a code-configured one.
+  `spec` still identifies the record's contract. Configuration origin is
+  visible only through the RECOMMENDED load-time log of the spec version,
+  document `id` and `jcs-sha256` digest, outside the record stream.
 
 The draft, `spec/draft/AGENT-HOOKS-DRAFT.md`, holds these changes since
 0.1. The next release number depends on the accepted changes, including
-this breaking experiment. The draft is the
+this breaking proposal. The draft is the
 version `draft`, wire string `agent-hooks/draft`; it changes without
 notice and is never claimed. The SDKs implement the preceding draft
 beside 0.1; the declaration redesign above is not yet implemented.
@@ -117,7 +124,7 @@ beside 0.1; the declaration redesign above is not yet implemented.
   schema pins `spec` to that constant, and every draft example, the
   conformance vectors, the golden fixtures and the reference
   declarations carry it. The host declaration's `spec` member is
-  REQUIRED (§7.7.2, §7.7.3): a document names the specification
+  REQUIRED (§7.7.3, §7.7.6): a document names the specification
   version it is written for, and the loader reads it by that version's
   rules. The proposed draft removes the independent declaration selector;
   a missing or unknown spec is `declaration_error:spec_unsupported`.

@@ -667,7 +667,7 @@
         "properties": {
           "host_declaration": {
             "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration.schema.json",
-            "description": "Draft declarations select the schema with `spec` alone (§7.7.2)."
+            "description": "Draft declarations select the schema with `spec` alone (§7.7.3, §7.7.6)."
           }
         }
       }

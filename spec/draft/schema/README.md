@@ -17,7 +17,7 @@ validators and SDKs. Do not edit generated JSON by hand.
 - Root schemas are written to `generated/*.schema.json`.
 - Closed per-interception-point schemas are derived from the agent-context
   union and written to `generated/strict-contexts/*.schema.json`.
-  This experimental draft format is not yet implemented by SDK loaders or
+  This proposed draft format (P-193) is not yet implemented by SDK loaders or
   CTK fixtures; released 0.1 retains its existing declaration schema.
 - `path-grammar.abnf` remains a hand-maintained grammar, not generated output.
 

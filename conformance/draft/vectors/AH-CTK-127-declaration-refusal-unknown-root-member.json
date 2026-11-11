@@ -1,7 +1,7 @@
 {
   "id": "AH-CTK-127",
   "title": "§7.7.6: the legacy declaration member is unknown in the spec-only draft format",
-  "spec_clause": "7.7.2, 7.7.6",
+  "spec_clause": "7.7.3, 7.7.6",
   "part": "declaration/refusal",
   "capabilities": [
     "host_declaration"

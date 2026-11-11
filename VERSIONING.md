@@ -160,8 +160,11 @@ to `SPEC_VERSION_0_1`, `SPEC_VERSION_DRAFT` and
 `SUPPORTED_SPEC_VERSIONS`, and `SpecVersion::declaration_versions()`
 says which contract versions each specification version accepts; each
 other SDK exports the same facts.
-[spec/draft/DECLARATION-VERSIONS.md](spec/draft/DECLARATION-VERSIONS.md) maps
-contract versions to schema files; the table below maps SDK releases
+[spec/0.1/DECLARATION-VERSIONS.md](spec/0.1/DECLARATION-VERSIONS.md) maps
+0.1 contract versions to schema files; the proposed draft has no
+separate contract version
+([P-193](docs/proposals/P-193-host-declaration-spec-versioning.md)).
+The table below maps SDK releases
 to the specification and contract versions they support.
 
 ## SDK releases and the versions they support
