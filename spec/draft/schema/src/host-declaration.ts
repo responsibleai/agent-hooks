@@ -21,7 +21,7 @@ export type Reference = string;
 export type TimeoutMs = number | null;
 
 /**
- * The conformance capability vocabulary (§13.1, conformance/vectors.schema.json)
+ * The conformance capability vocabulary (§13.1, conformance/draft/vectors.schema.json)
  * less buffered_output, which is the boolean surface member, plus
  * host_declaration.
  */

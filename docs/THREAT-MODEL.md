@@ -37,7 +37,7 @@ Trust boundaries (normative statement: spec §1.4):
 ## 2. Threat catalog
 
 Verification key: `AH-CTK-NNN` = conformance vector
-(`conformance/vectors/`); file paths = unit/integration tests;
+(`conformance/<version>/vectors/`); file paths = unit/integration tests;
 `golden` = `conformance/golden/identity.json` asserted in all five
 SDKs; **GAP** = no automated verification exists.
 

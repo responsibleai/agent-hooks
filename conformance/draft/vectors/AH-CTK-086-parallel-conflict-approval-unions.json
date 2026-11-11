@@ -1,0 +1,139 @@
+{
+  "id": "AH-CTK-086",
+  "title": "conflict with on_transform_conflict=approval: the arbitrating resolution substitutes AND carries the emission's §7.3 unions",
+  "spec_clause": "7.3, 7.5, 7.6",
+  "part": "composition/parallel_strictest",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "composition": {
+    "profile": "parallel/strictest",
+    "on_transform_conflict": "approval"
+  },
+  "scenario": {
+    "input": {
+      "content": "go",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "wire_transfer",
+        "behavior": [
+          {
+            "return": "ok"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "wire_transfer",
+              "args": {
+                "url": "dirty"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "sent",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "transform",
+          "transform": {
+            "path": "$target.url",
+            "value": "a"
+          }
+        }
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "transform",
+          "transform": {
+            "path": "$target.url",
+            "value": "b"
+          }
+        }
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow",
+          "warnings": [
+            {
+              "reason": "ctk:advisory"
+            }
+          ],
+          "result_labels": [
+            "ctk:label-2"
+          ]
+        }
+      }
+    ]
+  ],
+  "approval_script": [
+    {
+      "resolve": {
+        "outcome": "approve",
+        "verdict": {
+          "decision": "transform",
+          "transform": {
+            "path": "$target.url",
+            "value": "arbitrated"
+          }
+        }
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "wire_transfer",
+        "args": {
+          "url": "arbitrated"
+        }
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "verdict.decision": "transform",
+          "resolved_by": "approval",
+          "verdict.warnings[0].reason": "ctk:advisory",
+          "verdict.result_labels[0]": "ctk:label-2"
+        }
+      }
+    ],
+    "run_outcome": "completed",
+    "identities_equal": false
+  }
+}

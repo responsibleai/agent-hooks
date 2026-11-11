@@ -14,15 +14,15 @@ import assert from "node:assert/strict";
 import { SPEC_VERSION_0_1, SPEC_VERSION_DRAFT } from "../dist/index.js";
 import {
   DRAFT_NOT_CLAIMABLE,
-  DRAFT_ONLY_SKIP,
   conformanceReport,
   loadVectors,
   runVector,
   ReferenceHarness,
+  REFERENCE_DECLARATION,
 } from "../dist/ctk/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const vectorsDir = resolve(here, "../../../conformance/vectors");
+const vectorsDir = resolve(here, "../../../conformance/0.1/vectors");
 
 // Pinned capability skips: a skip outside this manifest fails the
 // suite — the parity gate must not silently degrade to green when a
@@ -42,13 +42,17 @@ const CAPABILITY_SKIPS = new Set([
   "AH-CTK-112",
   "AH-CTK-113",
 ]);
-// The draft-only vectors, skipped under 0.1 with DRAFT_ONLY_SKIP.
-const DRAFT_ONLY = new Set(Array.from({ length: 17 }, (_, i) => `AH-CTK-${144 + i}`));
-const EXPECTED_SKIPS = new Set([...CAPABILITY_SKIPS, ...DRAFT_ONLY]);
+const EXPECTED_SKIPS = CAPABILITY_SKIPS;
 
 const skipped = new Set();
 const results = [];
 const vectors = loadVectors(vectorsDir);
+
+test("reference declaration uses the released specification", () => {
+  assert.equal(REFERENCE_DECLARATION.spec, SPEC_VERSION_0_1);
+  assert.equal(REFERENCE_DECLARATION.declaration, "agent-hooks-declaration/1.0");
+  assert.deepEqual(REFERENCE_DECLARATION.surface.declaration_versions, ["agent-hooks-declaration/1.0"]);
+});
 
 for (const v of vectors) {
   test(`ctk ${v.id} ${v.title}`, async () => {
@@ -60,7 +64,6 @@ for (const v of vectors) {
         EXPECTED_SKIPS.has(r.id),
         `unexpected skip: ${r.id} (${r.detail}) — update CAPABILITY_SKIPS only with a capability rationale`,
       );
-      if (DRAFT_ONLY.has(r.id)) assert.equal(r.detail, DRAFT_ONLY_SKIP);
       return;
     }
     assert.equal(r.status, "pass", `\n  ${r.failures.join("\n  ")}`);
@@ -73,13 +76,11 @@ test("ctk skip set matches the manifest exactly", () => {
     [...EXPECTED_SKIPS].sort(),
     "expected-but-not-skipped vectors mean the manifest is stale",
   );
-  const draftOnly = vectors.filter((v) => v.introduced_in === "draft").map((v) => v.id);
-  assert.deepEqual(draftOnly.sort(), [...DRAFT_ONLY].sort());
+  assert.ok(vectors.every((v) => v.introduced_in !== "draft"));
 });
 
 test("a conformance report names a released version, never the draft", () => {
-  // Running the working test set is development; the report a claim
-  // attaches names a released version, and the runner refuses the draft.
+  // The SDK runner currently exercises the released 0.1 suite.
   assert.equal(results.length, vectors.length);
   assert.throws(() => conformanceReport(SPEC_VERSION_DRAFT, results), {
     name: "RangeError",

@@ -1,0 +1,124 @@
+{
+  "id": "AH-CTK-030",
+  "title": "liftable deny at pre_tool_call: approve lifts it; approval-stop truncation is recorded",
+  "spec_clause": "5.1, 7.4, 9, 10.3",
+  "part": "approval_seam",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "scenario": {
+    "input": {
+      "content": "send wire",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "wire_transfer",
+        "behavior": [
+          {
+            "return": {
+              "txn": "tx-1"
+            }
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "wire_transfer",
+              "args": {
+                "amount": 100
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "sent",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "match": {
+          "tool_call.name": "wire_transfer"
+        },
+        "return": {
+          "decision": "deny",
+          "reason": "ctk:requires_approval",
+          "approval": {}
+        }
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow"
+        }
+      }
+    ]
+  ],
+  "approval_script": [
+    {
+      "resolve": {
+        "outcome": "approve",
+        "verdict": {
+          "decision": "allow"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call",
+        "context": {
+          "tool_call.name": "wire_transfer"
+        }
+      },
+      {
+        "interception_point": "post_tool_call",
+        "context": {
+          "tool_result.value.txn": "tx-1"
+        }
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "wire_transfer",
+        "args": {
+          "amount": 100
+        }
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "verdict.decision": "allow",
+          "resolved_by": "approval",
+          "fold_truncated": true,
+          "decided_by": 0,
+          "composition.profile": "sequential/first_deny",
+          "identity_provider": "jcs-sha256"
+        }
+      }
+    ],
+    "run_outcome": "completed"
+  }
+}

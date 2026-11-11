@@ -3,10 +3,9 @@
 // CTK self-test: the vectors against the in-tree ReferenceHarness.
 // Assertion engine is the Rust core; this proves the .NET emitter,
 // builder, runner, and harness wire correctly. The gating run is under
-// 0.1, the newest released version: the released set runs and the
-// draft-only vectors (introduced_in: draft) are skipped. The
-// Category=draft test runs those under the draft in the advisory job.
-// Binding tests to a draft revision is #188.
+// 0.1, the newest released version. The Category=draft test runs the
+// full draft suite under the draft in the advisory job. Binding tests
+// to a draft revision is #188.
 
 using System.Text.Json.Nodes;
 using AgentHooks.Conformance;
@@ -16,11 +15,22 @@ namespace AgentHooks.Tests;
 
 public sealed class CtkReferenceTests
 {
+    [Fact]
+    public void ReferenceDeclarationUsesReleasedSpecification()
+    {
+        var document = ReferenceHarness.Document();
+        Assert.Equal(Spec.V01, (string?)document["spec"]);
+        Assert.Equal("agent-hooks-declaration/1.0", (string?)document["declaration"]);
+        var versions = (JsonArray)document["surface"]!["declaration_versions"]!;
+        Assert.Single(versions);
+        Assert.Equal("agent-hooks-declaration/1.0", (string?)versions[0]);
+    }
+
     private static string VectorsDir()
     {
         var here = Path.GetDirectoryName(typeof(CtkReferenceTests).Assembly.Location)!;
         var root = Path.GetFullPath(Path.Combine(here, "..", "..", "..", "..", "..", "..", ".."));
-        return Path.Combine(root, "conformance", "vectors");
+        return Path.Combine(root, "conformance", "0.1", "vectors");
     }
 
     public static IEnumerable<object[]> Vectors() =>
@@ -42,12 +52,8 @@ public sealed class CtkReferenceTests
         "AH-CTK-113",
     };
 
-    // The draft-only vectors, skipped under 0.1 with Runner.DraftOnlySkip.
-    private static readonly IReadOnlySet<string> DraftOnly =
-        Enumerable.Range(144, 17).Select(n => $"AH-CTK-{n}").ToHashSet();
-
     private static readonly IReadOnlySet<string> ExpectedSkips =
-        CapabilitySkips.Union(DraftOnly).ToHashSet();
+        CapabilitySkips;
 
     [Theory]
     [MemberData(nameof(Vectors))]
@@ -61,7 +67,6 @@ public sealed class CtkReferenceTests
                 ExpectedSkips.Contains(result.Id),
                 $"unexpected skip: {result.Id} ({result.Detail}) — update " +
                 "CapabilitySkips only with a capability rationale");
-            if (DraftOnly.Contains(result.Id)) Assert.Equal(Runner.DraftOnlySkip, result.Detail);
             return;
         }
         Assert.True(
@@ -73,9 +78,7 @@ public sealed class CtkReferenceTests
     [Fact]
     public async Task AReportNamesAReleasedVersionNeverTheDraft()
     {
-        // Running the working test set is development; the report a
-        // claim attaches names a released version, and the runner
-        // refuses the draft.
+        // The SDK runner currently exercises the released 0.1 suite.
         var results = new List<VectorResult>();
         foreach (var v in Runner.LoadVectors(VectorsDir()))
             results.Add(await Runner.RunVectorAsync(new ReferenceHarness(Spec.V01), v));
@@ -108,30 +111,36 @@ public sealed class CtkReferenceTests
             skipped.SetEquals(ExpectedSkips),
             "expected-but-not-skipped vectors mean the manifest is stale: " +
             $"actual=[{string.Join(",", skipped)}]");
-        var draftOnly = Runner.LoadVectors(VectorsDir())
-            .Where(v => (string?)v["introduced_in"] == "draft")
-            .Select(v => (string)v["id"]!);
-        Assert.True(DraftOnly.SetEquals(draftOnly));
+        Assert.DoesNotContain(Runner.LoadVectors(VectorsDir()),
+            v => (string?)v["introduced_in"] == "draft");
     }
 
-    /// <summary>Advisory (the draft-tests job): the working test set for
-    /// the next version passes under the draft.</summary>
+    /// <summary>Advisory (the draft-tests job): the full draft suite runs
+    /// under the draft.</summary>
     [Fact]
     [Trait("Category", "draft")]
-    public async Task DraftOnlyVectorsPassUnderTheDraft()
+    public async Task DraftSuiteVectorsPassUnderTheDraft()
     {
-        var draft = Runner.LoadVectors(VectorsDir())
-            .Where(v => (string?)v["introduced_in"] == "draft")
-            .ToList();
-        Assert.Equal(17, draft.Count);
+        var draftDir = Path.Combine(VectorsDir(), "..", "..", "draft", "vectors");
+        var draft = Runner.LoadVectors(draftDir);
+        var skipped = new HashSet<string>();
         foreach (var v in draft)
         {
             var result = await Runner.RunVectorAsync(new ReferenceHarness(Spec.Draft), v);
+            if (result.Status == "skip")
+            {
+                skipped.Add(result.Id);
+                Assert.Contains(result.Id, ExpectedSkips);
+                continue;
+            }
             Assert.True(
                 result.Status == "pass",
                 $"[{result.Id}] {result.Status} {result.Detail}\n" +
                 string.Join("\n", result.Failures.Select(f => $"  - {f}")));
         }
+        Assert.True(
+            skipped.SetEquals(ExpectedSkips),
+            $"draft capability skip set drifted: actual=[{string.Join(",", skipped)}]");
     }
 
     private sealed class Nameless : IHarness

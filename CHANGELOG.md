@@ -43,11 +43,11 @@ under the draft). An unknown version is refused as before.
   (`"spec": "agent-hooks/0.1"`). The 0.1 text made the member
   optional; the SDKs require it under both versions by decision, since
   they now carry two versions (VERSIONING.md).
-- The gating tests run against 0.1. The released vectors (every vector
-  but `AH-CTK-144` to `AH-CTK-160`) carry `agent-hooks/0.1` and run
-  under 0.1 in every reference harness; the 17 draft-only vectors carry
-  `introduced_in: draft` and, with the SDK tests that read draft-only
-  spec files, run in the advisory `draft-tests` job. A harness names
+- The gating tests run against the released 0.1 suite, including
+  `AH-CTK-156` and `AH-CTK-158`. The other vectors from `AH-CTK-144`
+  to `AH-CTK-160` are draft-only and carry `introduced_in: draft`.
+  The full draft suite and the SDK tests that read draft-only spec
+  files run in the advisory `draft-tests` job. A harness names
   the version it builds under (`spec`), the runner skips a draft-only
   vector under a released version with `draft-only vector; see #188`,
   and the reference harnesses take the version in their constructor

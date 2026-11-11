@@ -1,0 +1,35 @@
+{
+  "id": "AH-CTK-060",
+  "title": "§7.1 fold-through: second interceptor sees the first interceptor's transform",
+  "spec_clause": "7.1",
+  "capabilities": ["model_calls", "tool_calls"],
+  "scenario": {
+    "input": { "content": "fetch", "role": "user" },
+    "tools": [
+      { "name": "http_get", "schema": { "url": "string" },
+        "behavior": [ { "when_args": { "url": "https://safe.example" }, "return": "ok" }, { "return": "WRONG" } ] }
+    ],
+    "model_script": [
+      { "respond": { "content": null, "tool_calls": [ { "id": "tc-1", "name": "http_get", "args": { "url": "https://evil.example" } } ], "finish_reason": "tool_calls" } },
+      { "respond": { "content": "done", "tool_calls": [], "finish_reason": "stop" } }
+    ]
+  },
+  "interceptor_scripts": [
+    [ { "at": "pre_tool_call",
+        "return": { "decision": "transform", "reason": "ctk:redirect",
+                    "transform": { "path": "$target.url", "value": "https://safe.example" } } } ],
+    [ { "at": "pre_tool_call",
+        "match": { "tool_call.args.url": "https://evil.example" },
+        "return": { "decision": "deny", "reason": "ctk:should_not_see_evil" } } ]
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      { "interception_point": "pre_tool_call", "context": { "tool_call.args.url": "https://evil.example" } },
+      { "interception_point": "post_tool_call", "context": { "tool_call.args.url": "https://safe.example", "tool_result.value": "ok" } }
+    ],
+    "tool_invocations": [ { "name": "http_get", "args": { "url": "https://safe.example" } } ],
+    "run_outcome": "completed",
+    "identities_equal": false
+  }
+}

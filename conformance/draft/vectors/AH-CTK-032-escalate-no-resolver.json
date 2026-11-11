@@ -1,0 +1,85 @@
+{
+  "id": "AH-CTK-032",
+  "title": "liftable deny with no registered resolver stands as a plain deny — conformant, not an error",
+  "spec_clause": "5.1, 9",
+  "part": "approval_seam",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "scenario": {
+    "input": {
+      "content": "send wire",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "wire_transfer",
+        "behavior": [
+          {
+            "return": "UNREACHED"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "wire_transfer",
+              "args": {
+                "amount": 100
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "sent",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "pre_tool_call",
+      "return": {
+        "decision": "deny",
+        "reason": "ctk:requires_approval",
+        "approval": {}
+      }
+    }
+  ],
+  "approval_script": [],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      }
+    ],
+    "interceptions_absent": [
+      "post_tool_call"
+    ],
+    "tool_not_invoked": [
+      "wire_transfer"
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "verdict.decision": "deny",
+          "verdict.reason": "ctk:requires_approval"
+        }
+      }
+    ],
+    "run_outcome": "completed"
+  }
+}

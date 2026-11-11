@@ -1070,12 +1070,9 @@ pub const DRAFT_ONLY_SKIP: &str = "draft-only vector; see #188";
 pub const DRAFT_NOT_CLAIMABLE: &str = "a conformance report cannot name agent-hooks/draft; the draft is never claimed: run the vectors for development and report a released version";
 
 /// Group `results` by `part` into the report a claim attaches, under
-/// `spec`, the released version the claim names. The vectors under
-/// `conformance/` are the working test set for the next version,
-/// carried under `agent-hooks/draft` because they exercise behaviour
-/// no released version has; running them is fine, but a report that
-/// names the draft is refused with [`DRAFT_NOT_CLAIMABLE`], since no
-/// claim names it.
+/// `spec`, the released version the claim names. SDK self-tests use
+/// `conformance/0.1/vectors/`. The separate draft suite is not a released
+/// claim; a report naming it is refused with [`DRAFT_NOT_CLAIMABLE`].
 pub fn conformance_report(
     spec: SpecVersion,
     results: &[VectorResult],
@@ -1145,6 +1142,9 @@ type InstanceSlots = Arc<Mutex<Vec<Option<Box<dyn Interceptor>>>>>;
 /// surface a claim can cite.
 pub const REFERENCE_DECLARATION: &str = include_str!("ctk/reference.declaration.json");
 
+/// The released specification version the reference conformance kit runs.
+pub const CTK_SPEC: SpecVersion = SpecVersion::V0_1;
+
 impl ReferenceHarness {
     /// A reference harness under `spec`, the version it builds its
     /// emitter and contexts under. The gating runs use the newest
@@ -1206,17 +1206,13 @@ impl ReferenceHarness {
             .expect("host messages poisoned")
             .clear();
         self.session_counter += 1;
-        // Contexts follow the emitter's version: this harness's own
-        // under a field-based vector, the document's under a
-        // declaration vector.
-        let spec = emitter.spec();
-        self.emitter = Some(emitter);
         self.builder = Some(AgentContextBuilder::new(
-            spec,
+            emitter.spec(),
             "ref-agent",
             "reference-agent",
             &format!("sess-{}", self.session_counter),
         ));
+        self.emitter = Some(emitter);
     }
 
     fn invoke_tool(&self, name: &str, args: &Value) -> (Value, bool) {

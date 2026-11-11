@@ -80,7 +80,7 @@ FLOOR_POINTS: Final[frozenset[InterceptionPoint]] = frozenset(
 )
 
 #: The closed capability vocabulary a surface may name (§13.1,
-#: ``conformance/vectors.schema.json``). ``buffered_output`` is a value,
+#: the versioned conformance vector schema). ``buffered_output`` is a value,
 #: not a presence, and travels as the boolean surface member instead.
 CAPABILITIES: Final[tuple[str, ...]] = (
     "model_calls",

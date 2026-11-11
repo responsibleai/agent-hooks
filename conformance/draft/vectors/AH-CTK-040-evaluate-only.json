@@ -1,0 +1,83 @@
+{
+  "id": "AH-CTK-040",
+  "title": "evaluate_only mode records deny verdict but action proceeds",
+  "spec_clause": "8",
+  "mode": "evaluate_only",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "ok"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "pre_tool_call",
+      "return": {
+        "decision": "deny",
+        "reason": "ctk:would_block"
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      },
+      {
+        "interception_point": "post_tool_call",
+        "context": {
+          "tool_result.value": "ok"
+        }
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://x"
+        }
+      }
+    ],
+    "run_outcome": "completed",
+    "identities_equal": true
+  }
+}

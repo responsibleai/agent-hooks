@@ -1,8 +1,7 @@
 {
   "id": "AH-CTK-158",
-  "title": "§7.7.2: on_error under a 1.0 version string is an unknown member of the closed 1.0 schema and is refused as unknown_field; the document opts in by writing 1.1",
+  "title": "§7.7.2: on_error is an unknown member of the closed 1.0 document and is refused as unknown_field",
   "spec_clause": "7.7.2, 7.7.5, 7.7.6",
-  "introduced_in": "draft",
   "part": "declaration/refusal",
   "capabilities": [
     "host_declaration"
@@ -10,7 +9,7 @@
   "host_declaration_invalid": true,
   "host_declaration": {
     "declaration": "agent-hooks-declaration/1.0",
-    "spec": "agent-hooks/draft",
+    "spec": "agent-hooks/0.1",
     "bindings": [
       {
         "id": "allow",

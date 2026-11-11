@@ -1,0 +1,102 @@
+{
+  "id": "AH-CTK-104",
+  "title": "an interceptor that mutates its received context cannot affect enforcement, identity, or sibling interceptors (§7, TM-05)",
+  "spec_clause": "7",
+  "part": "enforcement/isolation",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "composition": {
+    "profile": "sequential/run_all"
+  },
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "SECRET-RESULT"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "fault": "mutate"
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "match": {
+          "tool_call.args.url": "https://x"
+        },
+        "return": {
+          "decision": "allow",
+          "reason": "ctk:saw-original"
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://x"
+        }
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "verdict.decision": "allow",
+          "verdicts[0].reason": "ctk:mutated",
+          "verdicts[1].reason": "ctk:saw-original"
+        }
+      }
+    ],
+    "identities_equal": true,
+    "run_outcome": "completed",
+    "final_output": "done"
+  }
+}

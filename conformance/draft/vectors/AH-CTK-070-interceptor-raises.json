@@ -1,0 +1,30 @@
+{
+  "id": "AH-CTK-070",
+  "title": "§6.3: interceptor raises → fail closed, tool not invoked",
+  "spec_clause": "6.3, 11",
+  "capabilities": ["model_calls", "tool_calls"],
+  "scenario": {
+    "input": { "content": "fetch", "role": "user" },
+    "tools": [ { "name": "http_get", "behavior": [ { "return": "UNREACHED" } ] } ],
+    "model_script": [
+      { "respond": { "content": null, "tool_calls": [ { "id": "tc-1", "name": "http_get", "args": { "url": "https://x" } } ], "finish_reason": "tool_calls" } },
+      { "respond": { "content": "could not fetch", "tool_calls": [], "finish_reason": "stop" } }
+    ]
+  },
+  "interceptor_script": [
+    { "at": "pre_tool_call", "fault": "raise" }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      { "interception_point": "pre_tool_call" }
+    ],
+    "interceptions_absent": ["post_tool_call"],
+    "tool_not_invoked": ["http_get"],
+    "run_outcome": "completed",
+    "run_outcome_by_posture": {
+      "posture": "tool_seam_host_error",
+      "outcomes": { "continue": "completed", "terminate": "blocked" }
+    }
+  }
+}

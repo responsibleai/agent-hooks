@@ -85,10 +85,8 @@ export const DRAFT_NOT_CLAIMABLE =
 
 /** Group `results` by `part` into the report a claim attaches, under
  * `spec`, the released version the claim names (a wire string). The
- * vectors under `conformance/` are the working test set for the next
- * version, carried under `agent-hooks/draft` because they exercise
- * behaviour no released version has; running them is fine, but a report
- * that names the draft throws a `RangeError` with
+ * SDK self-tests use `conformance/0.1/vectors/`. The separate draft suite
+ * is not a released claim; a report naming it throws a `RangeError` with
  * {@link DRAFT_NOT_CLAIMABLE}, since no claim names it. */
 export function conformanceReport(spec: string, results: readonly VectorResult[]): ConformanceReport {
   const wire = requireSpecVersion(spec);

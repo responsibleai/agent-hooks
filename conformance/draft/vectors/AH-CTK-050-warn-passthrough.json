@@ -1,0 +1,95 @@
+{
+  "id": "AH-CTK-050",
+  "title": "allow with warnings proceeds unchanged; the warning lands on the record",
+  "spec_clause": "5.1, 6, 10.3",
+  "part": "verdict/warnings",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "scenario": {
+    "input": {
+      "content": "send wire",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "ok"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_script": [
+    {
+      "at": "pre_tool_call",
+      "return": {
+        "decision": "allow",
+        "warnings": [
+          {
+            "reason": "ctk:suspicious",
+            "message": "looks odd"
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "post_tool_call",
+        "context": {
+          "tool_call.args.url": "https://x",
+          "tool_result.value": "ok"
+        }
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://x"
+        }
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "verdict.decision": "allow",
+          "verdict.warnings[0].reason": "ctk:suspicious"
+        }
+      }
+    ],
+    "run_outcome": "completed",
+    "identities_equal": true
+  }
+}

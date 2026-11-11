@@ -15,7 +15,7 @@
 ## What a PR must include
 
 - **Tests for behavior.** New or changed normative behavior needs CTK
-  vectors (`conformance/vectors/`) or per-SDK tests — cross-SDK
+  vectors (`conformance/<version>/vectors/`) or per-SDK tests — cross-SDK
   semantics belong in vectors so all five implementations are pinned
   at once.
 - **Spec and schema together.** Make normative changes in

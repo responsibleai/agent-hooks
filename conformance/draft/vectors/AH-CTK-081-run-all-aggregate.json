@@ -1,0 +1,122 @@
+{
+  "id": "AH-CTK-081",
+  "title": "run_all: every interceptor runs past a plain deny; severity-max aggregate carries the unions",
+  "spec_clause": "7.4, 7.3, 10.3",
+  "part": "composition/sequential_run_all",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "composition": {
+    "profile": "sequential/run_all"
+  },
+  "scenario": {
+    "input": {
+      "content": "go",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "wire_transfer",
+        "behavior": [
+          {
+            "return": "UNREACHED"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "wire_transfer",
+              "args": {
+                "url": "dirty"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "sent",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "transform",
+          "transform": {
+            "path": "$target.url",
+            "value": "scrubbed"
+          }
+        }
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "deny",
+          "reason": "ctk:blocked"
+        }
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow",
+          "warnings": [
+            {
+              "reason": "ctk:advisory"
+            }
+          ]
+        }
+      }
+    ]
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      }
+    ],
+    "tool_not_invoked": [
+      "wire_transfer"
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "verdict.decision": "deny",
+          "verdict.reason": "ctk:blocked",
+          "decided_by": 1,
+          "verdict.warnings[0].reason": "ctk:advisory",
+          "composition.profile": "sequential/run_all",
+          "verdicts[0].decision": "transform",
+          "verdicts[1].decision": "deny",
+          "verdicts[2].decision": "allow"
+        },
+        "present": [
+          "timestamp"
+        ],
+        "absent": [
+          "trace"
+        ]
+      }
+    ],
+    "run_outcome": "completed"
+  }
+}

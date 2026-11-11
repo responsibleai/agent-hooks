@@ -137,7 +137,7 @@ running host to a pushed document (§7.7.2, §7.7.8).
 Your surface (§13.1) is the set of behaviours you ask the CTK to test:
 
 - capabilities: `model_calls`, `tool_calls` and the others in
-  `conformance/vectors.schema.json`, including `host_declaration`,
+  `conformance/0.1/vectors.schema.json`, including `host_declaration`,
   which you declare when you build the emitter through the loader;
 - the composition profiles and knob values you support;
 - your identity provider;
