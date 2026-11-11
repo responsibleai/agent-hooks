@@ -1,6 +1,6 @@
 # P-183: Hook-specific type contracts from existing context schemas
 
-- **Status:** Draft
+- **Status:** Accepted
 - **Created:** 2026-11-03
 - **Author(s):** Caitie McCaffrey `<caitiem20@github.com>` (@CaitieM20)
 - **PR:** (https://github.com/responsibleai/agent-hooks/pull/183)
