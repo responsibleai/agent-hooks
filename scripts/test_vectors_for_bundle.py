@@ -125,8 +125,7 @@ class ReleasedSuiteTest(unittest.TestCase):
 
     def test_python_packaged_vectors_match_the_released_suite(self) -> None:
         released = {
-            path.name: path.read_bytes()
-            for path in vectors.vectors_of(ROOT, "0.1")
+            path.name: path.read_bytes() for path in vectors.vectors_of(ROOT, "0.1")
         }
         packaged = {
             path.name: path.read_bytes()

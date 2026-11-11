@@ -149,8 +149,7 @@ def main(argv: list[str]) -> int:
             print(f"::error file={escape_property(path)}::{escape_data(path)} {reason}")
         return 1
     print(
-        "released folders unchanged: "
-        + (", ".join(sorted(released)) or "none at base")
+        "released folders unchanged: " + (", ".join(sorted(released)) or "none at base")
     )
     return 0
 

@@ -156,7 +156,9 @@ class GuardTest(unittest.TestCase):
         self.repo.commit("change released conformance")
         result = self.repo.guard(base)
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn(f"{relative} changes a file in a released conformance", result.stdout)
+        self.assertIn(
+            f"{relative} changes a file in a released conformance", result.stdout
+        )
 
     def test_modified_released_file_fails(self) -> None:
         self.repo.write("spec/0.1/AGENT-HOOKS-0.1.md", "# edited\n")
