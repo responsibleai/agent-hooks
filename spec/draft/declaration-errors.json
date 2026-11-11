@@ -15,48 +15,43 @@
       "cause": "The text is not one JSON object, holds a duplicate key, nests deeper than 32 levels, exceeds 1 MiB, or (value path) carries a non-finite number."
     },
     {
-      "id": "declaration_error:version_unsupported",
-      "step": 3,
-      "cause": "declaration is missing, not a string, or not in the loader's accepted set (§7.7.2). The error names the accepted set."
-    },
-    {
       "id": "declaration_error:spec_unsupported",
-      "step": 4,
-      "cause": "spec is missing, names no specification version the loader supports, or is a malformed value."
+      "step": 3,
+      "cause": "spec is missing, names no specification version the loader supports, or is a malformed value. The error names the supported set."
     },
     {
       "id": "declaration_error:unknown_field",
-      "step": 5,
+      "step": 4,
       "cause": "An unknown member at any closed level of the document."
     },
     {
       "id": "declaration_error:invalid_field",
-      "step": 6,
+      "step": 5,
       "cause": "A member has the wrong type, a value outside its closed set, a pattern or range violation, or breaks a required-iff rule; or an integer token anywhere in the document, config values included, lies outside the I-JSON safe range (magnitude above 2^53 - 1), so the resolved form could not canonicalise."
     },
     {
       "id": "declaration_error:inconsistent",
-      "step": 7,
-      "cause": "An internal consistency rule failed: the §3.2 floor, the omission pairs, a knob the profile does not consult, a composition outside the declared surface, incremental_output without buffered_output: false, the document's own version missing from its accepted set, a binding at a point outside the surface, or a duplicate binding id."
+      "step": 6,
+      "cause": "An internal consistency rule failed: the §3.2 floor, the omission pairs, a knob the profile does not consult, a composition outside the declared surface, incremental_output without buffered_output: false or model_calls, a binding at a point outside the surface, or a duplicate binding id."
     },
     {
       "id": "declaration_error:surface_unsupported",
-      "step": 8,
-      "cause": "The surface or configuration names a point, capability, profile, knob value, contract version, posture, unbuffered output or numeric timeout the host's code cannot honour."
+      "step": 7,
+      "cause": "The surface or configuration names a point, capability, profile, knob value, posture, unbuffered output or numeric timeout the host's code cannot honour."
     },
     {
       "id": "declaration_error:reference_unresolved",
-      "step": 9,
+      "step": 8,
       "cause": "The identity provider, approval resolver or approval redactor the document names is not registered."
     },
     {
       "id": "declaration_error:kind_unknown",
-      "step": 10,
+      "step": 9,
       "cause": "A binding names a kind with no registered resolver."
     },
     {
       "id": "declaration_error:binding_rejected",
-      "step": 11,
+      "step": 10,
       "cause": "A kind resolver returned an error, raised, panicked, or returned something that is not an interceptor."
     }
   ]

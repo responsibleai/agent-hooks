@@ -19,7 +19,6 @@
     "profile": "sequential/first_deny",
     "on_approval": "resume"
   },
-  "declaration": "agent-hooks-declaration/1.1",
   "verdicts": [
     {
       "index": 0,

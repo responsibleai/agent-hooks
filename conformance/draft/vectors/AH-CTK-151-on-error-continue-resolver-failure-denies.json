@@ -10,7 +10,6 @@
     "tool_calls"
   ],
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.1",
     "spec": "agent-hooks/draft",
     "configuration": {
       "approval": {
@@ -107,7 +106,6 @@
       {
         "interception_point": "pre_tool_call",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.1",
           "verdict.decision": "deny",
           "resolved_by": "rejection"
         }

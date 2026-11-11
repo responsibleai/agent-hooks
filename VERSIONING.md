@@ -60,7 +60,11 @@ Rust tests, the `drift` mirror copy and the version script read every
 supported bundle (`SUPPORTED_SPEC_VERSIONS`, today `spec/0.1/` and
 `spec/draft/`), and the CI schema checks cover every bundle, so a
 breaking draft change is implemented under the draft's rules and
-leaves 0.1 alone. Prose links cite the released text, `spec/0.1/`, and
+leaves 0.1 alone. SDK draft support is experimental and may lag the
+latest draft. The `drift` check enforces generated spec schemas and
+released SDK mirrors, but preserves SDK draft copies and reports their
+drift as advisory until matching SDK implementation changes are ready.
+Prose links cite the released text, `spec/0.1/`, and
 the draft for what 0.1 does not define.
 
 ## The SDKs
@@ -156,8 +160,11 @@ to `SPEC_VERSION_0_1`, `SPEC_VERSION_DRAFT` and
 `SUPPORTED_SPEC_VERSIONS`, and `SpecVersion::declaration_versions()`
 says which contract versions each specification version accepts; each
 other SDK exports the same facts.
-[spec/draft/DECLARATION-VERSIONS.md](spec/draft/DECLARATION-VERSIONS.md) maps
-contract versions to schema files; the table below maps SDK releases
+[spec/0.1/DECLARATION-VERSIONS.md](spec/0.1/DECLARATION-VERSIONS.md) maps
+0.1 contract versions to schema files; the proposed draft has no
+separate contract version
+([P-193](docs/proposals/P-193-host-declaration-spec-versioning.md)).
+The table below maps SDK releases
 to the specification and contract versions they support.
 
 ## SDK releases and the versions they support

@@ -137,14 +137,6 @@ export interface InterceptionRecord {
     on_transform_conflict?: ConflictResolution;
   };
   /**
-   * OPTIONAL. The host declaration contract version the emitter was built from
-   * (§7.7.8), e.g. agent-hooks-declaration/1.0. Present iff the emitter was
-   * constructed from a declaration document; absent for a host configured in
-   * code. One closed-grammar string, so payload-free by construction.
-   * @pattern ^agent-hooks-declaration/[0-9]+\.[0-9]+$
-   */
-  declaration?: string;
-  /**
    * Payload-free per-interceptor summary. REQUIRED in multi-verdict profiles
    * (sequential/run_all, parallel/*) and whenever any slot carries
    * substituted_for (§6.3.1); otherwise OPTIONAL in sequential/first_deny.

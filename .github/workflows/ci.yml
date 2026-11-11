@@ -238,8 +238,8 @@ jobs:
         working-directory: sdk/rust
       - run: cargo clippy --locked --workspace --all-features -- -D warnings
         working-directory: sdk/rust
-      # The required set: the draft_suite_* tests run in draft-tests.
-      - run: cargo test --locked --workspace --all-features -- --skip draft_suite
+      # Both draft_only_* and draft_suite* tests run in draft-tests.
+      - run: cargo test --locked --workspace --all-features -- --skip draft_
         working-directory: sdk/rust
 
   dotnet:
@@ -302,7 +302,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: stable }
-      - run: cargo test --locked --workspace --all-features -- --skip draft_suite
+      - run: cargo test --locked --workspace --all-features -- --skip draft_
         working-directory: sdk/rust
 
   dotnet-xplat:
@@ -386,7 +386,7 @@ jobs:
       - name: Rust draft suite tests
         id: rust
         continue-on-error: true
-        run: cargo test --locked --workspace --all-features -- draft_suite
+        run: cargo test --locked --workspace --all-features -- draft_
         working-directory: sdk/rust
       - name: Build ffi cdylib
         id: ffi
@@ -444,7 +444,7 @@ jobs:
             echo "| Step | Outcome |"
             echo "| --- | --- |"
             echo "| Draft suite vectors against the draft schemas | $VECTORS |"
-            echo "| Rust draft suite tests | $RUST |"
+            echo "| Rust draft_* tests | $RUST |"
             echo "| FFI build for .NET and Go | $FFI |"
             echo "| Python draft tests | $PYTHON |"
             echo "| TypeScript test/draft | $TYPESCRIPT |"

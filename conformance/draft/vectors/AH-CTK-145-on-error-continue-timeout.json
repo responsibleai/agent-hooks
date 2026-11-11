@@ -10,7 +10,6 @@
     "tool_calls"
   ],
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.1",
     "spec": "agent-hooks/draft",
     "id": "ctk-on-error-continue",
     "surface": {
@@ -28,10 +27,6 @@
         "host_declaration",
         "model_calls",
         "tool_calls"
-      ],
-      "declaration_versions": [
-        "agent-hooks-declaration/1.0",
-        "agent-hooks-declaration/1.1"
       ]
     },
     "bindings": [
@@ -140,7 +135,6 @@
       {
         "interception_point": "pre_tool_call",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.1",
           "verdict.decision": "allow",
           "verdict.warnings[0].reason": "host_warning:control_failed",
           "verdict.warnings[0].message": "slow: host_error:interceptor_timeout; host continued",

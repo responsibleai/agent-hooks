@@ -1,7 +1,7 @@
 {
   "id": "AH-CTK-155",
-  "title": "§7.7.2: a 1.0 document with no on_error loads under a 1.1 loader, resolves to deny everywhere, and its record carries agent-hooks-declaration/1.0",
-  "spec_clause": "6.3, 7.7.2, 7.7.8, 10.3",
+  "title": "§6.3, 7.7.3: omitted on_error defaults to deny for every binding",
+  "spec_clause": "6.3, 7.7.3, 7.7.8, 10.3",
   "introduced_in": "draft",
   "part": "declaration/load",
   "capabilities": [
@@ -10,7 +10,6 @@
     "tool_calls"
   ],
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.0",
     "spec": "agent-hooks/draft",
     "configuration": {
       "composition": {
@@ -111,7 +110,6 @@
       {
         "interception_point": "pre_tool_call",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.0",
           "verdict.decision": "deny",
           "verdict.reason": "host_error:interceptor_failed",
           "decided_by": 0,

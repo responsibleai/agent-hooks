@@ -24,16 +24,26 @@ jobs:
       - name: Regenerate the draft schemas from their TypeScript source
         run: npm run generate:schema
         working-directory: sdk/typescript
-      - name: Refresh the vendored copies
+      - name: Refresh the released vendored copies
         # The Python mirror holds one folder per specification version
         # the SDKs support (VERSIONING.md), named after its spec/<version>/
         # bundle, with the per-point context schemas under agent-context/.
         run: |
           set -eu
           mirror=sdk/python/python/agent_hooks/schema
-          rm -rf "$mirror"
-          mapfile -t versions < <(python3 scripts/check-version-consistency.py --print-supported)
+          versions_text=$(python3 scripts/check-version-consistency.py --print-supported)
+          mapfile -t versions <<< "$versions_text"
+          # Preserve experimental draft copies until the SDK implements the new format.
+          for directory in "$mirror"/*/; do
+            [ -d "$directory" ] || continue
+            [ "$(basename "$directory")" = draft ] || rm -rf "$directory"
+          done
           for version in "${versions[@]}"; do
+            [ "$version" != draft ] || continue
+            if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "::error::invalid released specification version: $version"
+              exit 1
+            fi
             source="spec/$version/schema/generated"
             [ -d "$source" ] || source="spec/$version/schema"
             points="$source/strict-contexts"
@@ -48,3 +58,34 @@ jobs:
       - name: Fail if regeneration produced a diff
         # -A first so untracked regenerated output also fails the gate.
         run: git add -A && git diff --cached --exit-code
+      - name: Report experimental draft mirror drift (advisory)
+        run: |
+          set -eu
+          temporary=$(mktemp -d)
+          trap 'rm -rf "$temporary"' EXIT
+          source=spec/draft/schema/generated
+          mkdir -p "$temporary/draft/agent-context"
+          cp "$source"/*.schema.json "$temporary/draft/"
+          cp "$source"/strict-contexts/*.schema.json "$temporary/draft/agent-context/"
+          status=0
+          diff -ru sdk/python/python/agent_hooks/schema/draft "$temporary/draft" > "$temporary/diff" || status=$?
+          if [ "$status" -gt 1 ]; then
+            cat "$temporary/diff"
+            echo "::error::could not compare the draft schema mirror"
+            exit "$status"
+          fi
+          {
+            echo "## Experimental draft schema mirror"
+            if [ "$status" -eq 0 ]; then
+              echo "The SDK draft copies match the current draft schemas."
+            else
+              echo "The SDK draft copies differ from the current specification draft."
+              echo "Advisory only: update these copies alongside matching SDK implementation changes."
+              echo '```diff'
+              cat "$temporary/diff"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -eq 1 ]; then
+            echo "::warning::experimental SDK draft schema copies differ from the latest draft; see the job summary"
+          fi

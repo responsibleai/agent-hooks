@@ -1,5 +1,4 @@
 {
-  "declaration": "agent-hooks-declaration/1.0",
   "spec": "agent-hooks/draft",
   "id": "document-policy",
   "configuration": {
@@ -10,6 +9,9 @@
     },
     "approval": {
       "resolver": "operator"
+    },
+    "failure": {
+      "on_error": "deny"
     }
   },
   "surface": {
@@ -24,7 +26,6 @@
       "agent_shutdown"
     ],
     "capabilities": ["model_calls", "tool_calls", "host_declaration"],
-    "declaration_versions": ["agent-hooks-declaration/1.0"],
     "profiles": {
       "sequential/first_deny": {
         "on_approval": ["resume"]
@@ -38,7 +39,8 @@
       "kind": "example.document_policy",
       "config": {
         "permitted_collection": "public"
-      }
+      },
+      "on_error": "deny"
     }
   ]
 }

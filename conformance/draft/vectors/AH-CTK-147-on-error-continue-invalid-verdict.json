@@ -10,7 +10,6 @@
     "tool_calls"
   ],
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.1",
     "spec": "agent-hooks/draft",
     "bindings": [
       {
@@ -101,7 +100,6 @@
       {
         "interception_point": "pre_tool_call",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.1",
           "verdict.decision": "allow",
           "verdict.warnings[0].reason": "host_warning:control_failed",
           "verdict.warnings[0].message": "broken: host_error:verdict_invalid; host continued",

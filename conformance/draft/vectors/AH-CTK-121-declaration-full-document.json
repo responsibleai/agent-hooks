@@ -9,7 +9,6 @@
     "tool_calls"
   ],
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.0",
     "spec": "agent-hooks/draft",
     "id": "ctk-full",
     "host": {
@@ -67,10 +66,7 @@
           ]
         }
       },
-      "buffered_output": true,
-      "declaration_versions": [
-        "agent-hooks-declaration/1.0"
-      ]
+      "buffered_output": true
     },
     "bindings": [
       {
@@ -179,7 +175,6 @@
       {
         "interception_point": "pre_tool_call",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.0",
           "composition.profile": "parallel/unanimous",
           "composition.on_disagreement": "approval",
           "interceptors_registered": 2,

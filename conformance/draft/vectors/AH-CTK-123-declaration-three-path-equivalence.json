@@ -9,7 +9,6 @@
     "tool_calls"
   ],
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.0",
     "spec": "agent-hooks/draft",
     "configuration": {
       "composition": {
@@ -123,7 +122,6 @@
       {
         "interception_point": "input",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.0",
           "interceptors_registered": 1,
           "verdicts[0].name": "audit"
         }
@@ -131,7 +129,6 @@
       {
         "interception_point": "pre_tool_call",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.0",
           "composition.profile": "parallel/strictest",
           "composition.on_transform_conflict": "deny",
           "interceptors_registered": 2,

@@ -9,7 +9,6 @@
     "tool_calls"
   ],
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.0",
     "spec": "agent-hooks/draft",
     "bindings": [
       {
@@ -88,7 +87,6 @@
       {
         "interception_point": "agent_startup",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.0",
           "composition.profile": "sequential/first_deny",
           "composition.on_approval": "stop",
           "identity_provider": "jcs-sha256",
@@ -104,7 +102,6 @@
       {
         "interception_point": "pre_tool_call",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.0",
           "composition.profile": "sequential/first_deny",
           "composition.on_approval": "stop",
           "identity_provider": "jcs-sha256",
@@ -117,7 +114,6 @@
       {
         "interception_point": "agent_shutdown",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.0",
           "composition.profile": "sequential/first_deny",
           "composition.on_approval": "stop",
           "identity_provider": "jcs-sha256",

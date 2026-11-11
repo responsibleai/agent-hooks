@@ -8,7 +8,6 @@
     "host_declaration"
   ],
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.1",
     "spec": "agent-hooks/draft",
     "surface": {
       "interception_points": [

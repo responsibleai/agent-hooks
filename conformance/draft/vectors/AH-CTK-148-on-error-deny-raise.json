@@ -10,7 +10,6 @@
     "tool_calls"
   ],
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.1",
     "spec": "agent-hooks/draft",
     "bindings": [
       {
@@ -91,7 +90,6 @@
       {
         "interception_point": "pre_tool_call",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.1",
           "verdict.decision": "deny",
           "verdict.reason": "host_error:interceptor_failed",
           "decided_by": 0

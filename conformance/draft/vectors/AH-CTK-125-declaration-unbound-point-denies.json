@@ -9,7 +9,6 @@
     "tool_calls"
   ],
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/1.0",
     "spec": "agent-hooks/draft",
     "bindings": [
       {
@@ -59,7 +58,6 @@
       {
         "interception_point": "agent_startup",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.0",
           "interceptors_registered": 0,
           "verdict.decision": "deny",
           "verdict.reason": "host_error:no_interceptor",
@@ -69,7 +67,6 @@
       {
         "interception_point": "agent_shutdown",
         "assert": {
-          "declaration": "agent-hooks-declaration/1.0",
           "interceptors_registered": 0,
           "verdict.reason": "host_error:no_interceptor"
         }

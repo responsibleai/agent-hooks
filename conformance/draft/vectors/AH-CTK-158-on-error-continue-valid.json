@@ -1,14 +1,13 @@
 {
-  "id": "AH-CTK-127",
-  "title": "§7.7.2: a document carrying the reserved major 0 is refused as version_unsupported before any other check",
-  "spec_clause": "7.7.2, 7.7.6",
-  "part": "declaration/refusal",
+  "id": "AH-CTK-158",
+  "title": "§6.3.1: on_error is valid in a draft declaration selected by spec",
+  "spec_clause": "7.7.3, 7.7.5, 7.7.6",
+  "part": "declaration/load",
   "capabilities": [
     "host_declaration"
   ],
-  "host_declaration_invalid": true,
+  "host_declaration_invalid": false,
   "host_declaration": {
-    "declaration": "agent-hooks-declaration/0.1",
     "spec": "agent-hooks/draft",
     "bindings": [
       {
@@ -16,7 +15,8 @@
         "kind": "ctk.scripted",
         "config": {
           "script": 0
-        }
+        },
+        "on_error": "continue"
       }
     ]
   },
@@ -28,7 +28,7 @@
     "model_script": [
       {
         "respond": {
-          "content": "UNREACHED",
+          "content": "done",
           "tool_calls": [],
           "finish_reason": "stop"
         }
@@ -47,8 +47,10 @@
   ],
   "expect": {
     "load": {
-      "outcome": "refused",
-      "class": "declaration_error:version_unsupported"
-    }
+      "outcome": "accepted"
+    },
+    "interceptions": [],
+    "run_outcome": "completed",
+    "final_output": "done"
   }
 }

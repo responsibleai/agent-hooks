@@ -2940,7 +2940,8 @@ pub fn resolve(
 }
 
 /// Bring a document from an older accepted minor to `to` (§7.7.2),
-/// one explicit step per version (`spec/draft/DECLARATION-VERSIONS.md`).
+/// one explicit step per version (`spec/0.1/DECLARATION-VERSIONS.md`;
+/// the proposed draft drops the separate version, see P-193).
 ///
 /// - 1.0 to 1.1: the `declaration` member changes; nothing else. The
 ///   members 1.1 adds (`configuration.failure.on_error`,

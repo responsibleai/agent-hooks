@@ -22,16 +22,18 @@
   `spec/draft/`. Changes to wire shapes update the draft spec text and
   the schema source under `spec/draft/schema/src/`, then regenerate the
   JSON under `spec/draft/schema/generated/` (see [Schema source](#schema-source));
-  the `drift` check regenerates the draft schemas and the vendored copies
-  and fails on any difference. Released folders such as `spec/0.1/`
+  the `drift` check requires generated spec schemas and released SDK
+  copies to match their sources. SDK draft-copy drift is advisory.
+  Released folders such as `spec/0.1/`
   are immutable; see [spec/README.md](spec/README.md).
 - **The SDKs support 0.1 and the draft side by side.**
   `SUPPORTED_SPEC_VERSIONS` is `["0.1", "draft"]` in every core; the
   Rust tests, the `drift` mirror copy and
   `scripts/check-version-consistency.py` read every supported bundle,
   and CI steps that check schemas and vectors loop over every bundle. A
-  breaking draft change is implemented under the draft's rules
-  (`SpecVersion::Draft` in the Rust core) and leaves 0.1 alone; a host
+  breaking draft change leaves 0.1 alone. SDK draft support is experimental
+  and may lag the latest specification draft; update its packaged schemas
+  together with the matching implementation, not independently. A host
   reaches it by naming `agent-hooks/draft`. Prose links cite the
   released text, `spec/0.1/`, and the draft for what 0.1 does not
   define.
@@ -96,10 +98,12 @@ npm run check:schema:equivalence -- --old origin/main   # differential validatio
 After a change, regenerate. The Python mirror holds one folder per
 supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`
 and `schema/draft/`), each with that bundle's generated schemas and the
-per-point context schemas under `agent-context/`: refresh it the way the
-`drift` workflow does (the "Refresh the vendored copies" step in
-`.github/workflows/schema-drift.yml`), and commit the source, the JSON
-and the mirror together. When a shape changes, also run
+per-point context schemas under `agent-context/`. The `drift` workflow's
+"Refresh the released vendored copies" step enforces released copies;
+it preserves existing draft copies and reports their differences in an
+advisory summary. Commit draft source and generated JSON together, but
+refresh the SDK draft mirror only when its implementation is updated to
+match. When a shape changes, also run
 the `schema-lint` steps from `.github/workflows/ci.yml` (ajv compiles
 every schema and validates the vectors) and the equivalence script
 against `origin/main` to see which instances change verdict.

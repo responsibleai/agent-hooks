@@ -149,7 +149,7 @@
     },
     "host_declaration": {
       "type": "object",
-      "description": "§7.7.9: the host declaration document under test. The harness MUST build its emitter from this document and the CTK registry (kind ctk.scripted, a standard interceptor the emitter wraps in its own timer, and kind ctk.managed, the same scripted interceptor registered through the managed-interceptor path of spec 7 so it owns its deadline and reports a typed outcome; both take config {\"script\": i} selecting interceptor_scripts[i]; identity provider ctk-fault, approval resolver ctk-scripted, redactor ctk-redact) through the loader, and report the load outcome in RunRecord.load. Validated against the published host-declaration schema for the version it writes (1.0 or 1.1) unless host_declaration_invalid is true."
+      "description": "§7.7.9: the host declaration document under test. The harness MUST build its emitter from this document and the CTK registry (kind ctk.scripted, a standard interceptor the emitter wraps in its own timer, and kind ctk.managed, the same scripted interceptor registered through the managed-interceptor path of spec 7 so it owns its deadline and reports a typed outcome; both take config {\"script\": i} selecting interceptor_scripts[i]; identity provider ctk-fault, approval resolver ctk-scripted, redactor ctk-redact) through the loader, and report the load outcome in RunRecord.load. Draft documents validate against the spec-only host-declaration schema unless host_declaration_invalid is true."
     },
     "host_declaration_invalid": {
       "type": "boolean",
@@ -551,7 +551,6 @@
               "enum": [
                 "declaration_error:unreadable",
                 "declaration_error:malformed",
-                "declaration_error:version_unsupported",
                 "declaration_error:spec_unsupported",
                 "declaration_error:unknown_field",
                 "declaration_error:invalid_field",
@@ -666,15 +665,8 @@
       "then": {
         "properties": {
           "host_declaration": {
-            "anyOf": [
-              {
-                "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration-1.0.schema.json"
-              },
-              {
-                "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration-1.1.schema.json"
-              }
-            ],
-            "description": "A vector document validates against the schema of the version it writes (§7.7.2): 1.0 documents against host-declaration-1.0, 1.1 documents against host-declaration-1.1."
+            "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration.schema.json",
+            "description": "Draft declarations select the schema with `spec` alone (§7.7.3, §7.7.6)."
           }
         }
       }
