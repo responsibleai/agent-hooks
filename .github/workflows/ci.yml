@@ -349,14 +349,13 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
 
-  # Advisory, never required: the working test set for the next
-  # specification version (every vector in conformance/draft/)
-  # and the SDK tests that read draft-only files (the draft's
+  # The advisory `draft-tests` job runs every vector in
+  # `conformance/draft/` under the draft, including IDs also present in
+  # the released suite, and does not block the required 0.1 SDK checks.
+  # It also runs SDK tests that read draft-only files (the draft's
   # inventories, examples and schemas). Every step continues on error
-  # and the last step writes the outcomes to the step summary, so a
-  # draft change cannot turn a required check red. The required jobs run
-  # the released set under 0.1. Binding tests to a draft revision is
-  # #188.
+  # and the last step writes the outcomes to the step summary. Binding
+  # tests to a draft revision is #188.
   draft-tests:
     runs-on: ubuntu-latest
     steps:

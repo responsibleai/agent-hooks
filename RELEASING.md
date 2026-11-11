@@ -82,11 +82,13 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
 
    Each suite validates only against its matching schema bundle. SDK
    runners use the released 0.1 suite by default. The advisory
-   `draft-tests` job separately runs draft-only IDs absent from that
-   released suite, without duplicating shared coverage. The
-   new folder passes the released-folder guard because it did not exist
-   on `main`; after the merge it is frozen, and only new regular `.json`
-   files under its `schema/examples/<Type>/` may be added.
+   `draft-tests` job runs every vector in `conformance/draft/` under the
+   draft, including IDs also present in the released suite, and does not
+   block the required 0.1 SDK checks. A new specification folder or
+   conformance suite passes the released-folder guard if it did not
+   exist on `main`; after the merge both are frozen. Only new regular
+   `.json` files under the specification folder's
+   `schema/examples/<Type>/` may be added.
 8. Reproducibility. A reviewer reruns the cut on the pull request's
    merge base and diffs the result against the pull request:
 
