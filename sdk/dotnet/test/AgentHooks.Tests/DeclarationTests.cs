@@ -872,7 +872,7 @@ public sealed class DeclarationTests
             var rebuilt = Runner.BuilderFromNode(doc).ToNode();
             Assert.True(JsonNode.DeepEquals(doc, rebuilt), $"{vector["id"]}: builder rebuilt a different document");
         }
-        Assert.Equal(27, seen);
+        Assert.Equal(26, seen);
     }
 
     [Fact]

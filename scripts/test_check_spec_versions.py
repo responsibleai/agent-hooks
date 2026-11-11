@@ -292,9 +292,9 @@ class CheckTest(unittest.TestCase):
         )
 
     def test_non_ascii_digit_folder_is_not_a_version(self) -> None:
-        bundle(self.root, "0.Ù¡", "flat")
+        bundle(self.root, "0.١", "flat")
         self.assertIn(
-            "spec/0.Ù¡/ is not draft or a MAJOR.MINOR version",
+            "spec/0.١/ is not draft or a MAJOR.MINOR version",
             versions.check(self.root),
         )
 
@@ -543,7 +543,7 @@ class VersionPatternTest(unittest.TestCase):
         self.assertTrue(versions.VERSION.fullmatch("0.1"))
         self.assertTrue(versions.VERSION.fullmatch("10.22"))
         self.assertIsNone(versions.VERSION.fullmatch("0.1.0"))
-        self.assertIsNone(versions.VERSION.fullmatch("0.Ù¡"))
+        self.assertIsNone(versions.VERSION.fullmatch("0.١"))
         self.assertIsNone(versions.VERSION.fullmatch("01.1"))
         self.assertIsNone(versions.VERSION.fullmatch("0.1-beta"))
 
