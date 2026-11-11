@@ -24,9 +24,8 @@ jobs:
       - name: Validate schemas are well-formed
         run: |
           set -e
-          # Every specification bundle must compile. Released conformance
-          # schemas compile with their own bundle; draft conformance is
-          # advisory in draft-tests so it can migrate after the spec.
+          # Validate each specification bundle and its matching conformance
+          # schema together, so external references cannot cross versions.
           validated=0
           for spec_dir in spec/*/; do
             [ -d "${spec_dir}schema" ] || continue
@@ -38,9 +37,7 @@ jobs:
               exit 1
             fi
             version=$(basename "$spec_dir")
-            if [ "$version" != draft ]; then
-              schemas+=("conformance/$version/vectors.schema.json")
-            fi
+            schemas+=("conformance/$version/vectors.schema.json")
             echo "Validating ${#schemas[@]} schemas under $root"
             for f in "${schemas[@]}"; do
               # -r must not include the file under -s (ajv rejects duplicate $id)
@@ -57,19 +54,18 @@ jobs:
             exit 1
           fi
           echo "schemas validated for $validated bundle(s)"
-      - name: Validate each released conformance suite
+      - name: Validate each versioned conformance suite
         run: |
           set -e
           validated=0
           for spec_dir in spec/*/; do
             name=$(basename "$spec_dir")
-            [ "$name" != draft ] || continue
             suite="conformance/$name"
             root="${spec_dir}schema/generated"
             [ -d "$root" ] || root="${spec_dir}schema"
             [ -d "$root" ] || continue
             if [ ! -f "$suite/vectors.schema.json" ] || [ ! -d "$suite/vectors" ]; then
-              echo "::error::missing released suite at $suite"
+              echo "::error::missing versioned suite at $suite"
               exit 1
             fi
             count=$(find "$suite/vectors" -maxdepth 1 -name 'AH-CTK-*.json' | wc -l)
@@ -85,10 +81,10 @@ jobs:
             validated=$((validated + 1))
           done
           if [ "$validated" -eq 0 ]; then
-            echo "::error::no released conformance suites were validated"
+            echo "::error::no versioned conformance suites were validated"
             exit 1
           fi
-          echo "released conformance suites validated: $validated"
+          echo "versioned conformance suites validated: $validated"
 
   python:
     runs-on: ubuntu-latest
@@ -353,14 +349,13 @@ jobs:
           LD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
 
-  # Advisory, never required: the working test set for the next
-  # specification version (every vector in conformance/draft/)
-  # and the SDK tests that read draft-only files (the draft's
+  # The advisory `draft-tests` job runs every vector in
+  # `conformance/draft/` under the draft, including IDs also present in
+  # the released suite, and does not block the required 0.1 SDK checks.
+  # It also runs SDK tests that read draft-only files (the draft's
   # inventories, examples and schemas). Every step continues on error
-  # and the last step writes the outcomes to the step summary, so a
-  # draft change cannot turn a required check red. The required jobs run
-  # the released set under 0.1. Binding tests to a draft revision is
-  # #188.
+  # and the last step writes the outcomes to the step summary. Binding
+  # tests to a draft revision is #188.
   draft-tests:
     runs-on: ubuntu-latest
     steps:

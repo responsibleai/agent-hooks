@@ -1,7 +1,7 @@
 {
   "id": "AH-CTK-158",
   "title": "§6.3.1: on_error is valid in a draft declaration selected by spec",
-  "spec_clause": "7.7.2, 7.7.5, 7.7.6",
+  "spec_clause": "7.7.3, 7.7.5, 7.7.6",
   "part": "declaration/load",
   "capabilities": [
     "host_declaration"

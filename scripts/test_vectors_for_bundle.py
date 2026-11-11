@@ -19,6 +19,7 @@ vectors = importlib.util.module_from_spec(MODULE_SPEC)
 MODULE_SPEC.loader.exec_module(vectors)
 
 ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"
+ROOT = Path(__file__).resolve().parent.parent
 
 
 class VectorsForBundleTest(unittest.TestCase):
@@ -87,6 +88,52 @@ class VectorsForBundleTest(unittest.TestCase):
             json.loads(output.getvalue())["$id"],
             f"{ORIGIN}v0.1/conformance/vectors.schema.json",
         )
+
+
+class ReleasedSuiteTest(unittest.TestCase):
+    def test_0_1_grammar_uses_released_vocabulary(self) -> None:
+        grammar = vectors.grammar_for(ROOT, "0.1")
+        self.assertEqual(
+            grammar["$defs"]["interceptor_rule"]["properties"]["fault"]["enum"],
+            ["raise", "malformed_verdict", "mutate"],
+        )
+        self.assertNotIn(
+            "host_messages_must_contain", grammar["$defs"]["expect"]["properties"]
+        )
+        self.assertEqual(
+            grammar["allOf"][0]["then"]["properties"]["host_declaration"]["$ref"],
+            f"{ORIGIN}v0.1/host-declaration-1.0.schema.json",
+        )
+        for draft_term in ("ctk.managed", "substituted_for"):
+            self.assertNotIn(draft_term, json.dumps(grammar))
+
+    def test_released_and_draft_declaration_vectors(self) -> None:
+        suites = {}
+        for bundle in ("0.1", "draft"):
+            loaded = [
+                json.loads(path.read_text(encoding="utf-8"))
+                for path in vectors.vectors_of(ROOT, bundle)
+            ]
+            suites[bundle] = {vector["id"]: vector for vector in loaded}
+        released, draft = suites["0.1"], suites["draft"]
+        self.assertNotIn("AH-CTK-155", released)
+        if "AH-CTK-155" in draft:
+            self.assertEqual(draft["AH-CTK-155"]["introduced_in"], "draft")
+        for identity in ("AH-CTK-156", "AH-CTK-158"):
+            if identity in released:
+                self.assertNotIn("1.1", released[identity]["title"])
+
+    def test_python_packaged_vectors_match_the_released_suite(self) -> None:
+        released = {
+            path.name: path.read_bytes() for path in vectors.vectors_of(ROOT, "0.1")
+        }
+        packaged = {
+            path.name: path.read_bytes()
+            for path in (ROOT / "sdk/python/python/agent_hooks/ctk/vectors").glob(
+                "AH-CTK-*.json"
+            )
+        }
+        self.assertEqual(packaged, released)
 
 
 if __name__ == "__main__":

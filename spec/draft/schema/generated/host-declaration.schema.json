@@ -23,7 +23,7 @@
       "type": "string"
     },
     "spec": {
-      "description": "REQUIRED. The specification version the document is written for\n(§7.7.2): this version's wire string. A document written for a\nreleased version names that version's own string instead, and is\nread by that version's rules.",
+      "description": "REQUIRED. The specification version the document is written for\n(§7.7.3, §7.7.6): this version's wire string. A document written for a\nreleased version names that version's own string instead, and is\nread by that version's rules.",
       "type": "string",
       "const": "agent-hooks/draft"
     },

@@ -1,7 +1,7 @@
 {
   "id": "AH-CTK-135",
   "title": "§7.7.4: even a supported legacy surface declaration version is unknown in draft",
-  "spec_clause": "7.7.2, 7.7.4",
+  "spec_clause": "7.7.4, 7.7.6",
   "part": "declaration/refusal",
   "capabilities": [
     "host_declaration"

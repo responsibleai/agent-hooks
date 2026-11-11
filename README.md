@@ -5,8 +5,11 @@
 > string `agent-hooks/0.1`, and the [draft](spec/draft/AGENT-HOOKS-DRAFT.md),
 > wire string `agent-hooks/draft`, which changes without notice and is
 > never claimed. A host names the version it emits; there is no default.
-> Host declaration contract: `agent-hooks-declaration/1.1` under the draft,
-> `1.0` under 0.1 ([version table](spec/draft/DECLARATION-VERSIONS.md)).
+> Host declaration contract: `1.0` under 0.1
+> ([version table](spec/0.1/DECLARATION-VERSIONS.md)). The SDKs accept
+> `agent-hooks-declaration/1.1` under the draft; the proposed draft
+> drops the separate declaration version and selects the format by
+> `spec` ([P-193](docs/proposals/P-193-host-declaration-spec-versioning.md)).
 
 Agent Hooks is the interception contract between an agent host and the
 controls that govern it. It fixes eight points in the agent loop, the
@@ -249,8 +252,10 @@ declaration's `spec` member; there is no default, and an emitter
 refuses a context of another version. The version named selects the
 rules: `host_warning:*` is reserved, declaration 1.1 is accepted and
 `on_error: continue` exists under the draft only. The draft is never
-claimed. See [VERSIONING.md](VERSIONING.md) and
-[spec/draft/DECLARATION-VERSIONS.md](spec/draft/DECLARATION-VERSIONS.md).
+claimed. See [VERSIONING.md](VERSIONING.md),
+[spec/0.1/DECLARATION-VERSIONS.md](spec/0.1/DECLARATION-VERSIONS.md)
+and, for the proposed draft declaration format,
+[P-193](docs/proposals/P-193-host-declaration-spec-versioning.md).
 
 ## Read next
 

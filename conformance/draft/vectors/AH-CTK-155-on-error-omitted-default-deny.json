@@ -1,7 +1,8 @@
 {
   "id": "AH-CTK-155",
-  "title": "§6.3, 7.7.2: omitted on_error defaults to deny for every binding",
-  "spec_clause": "6.3, 7.7.2, 7.7.8, 10.3",
+  "title": "§6.3, 7.7.3: omitted on_error defaults to deny for every binding",
+  "spec_clause": "6.3, 7.7.3, 7.7.8, 10.3",
+  "introduced_in": "draft",
   "part": "declaration/load",
   "capabilities": [
     "host_declaration",

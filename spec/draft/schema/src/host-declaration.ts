@@ -317,7 +317,7 @@ export interface HostDeclaration {
   $schema?: string;
   /**
    * REQUIRED. The specification version the document is written for
-   * (§7.7.2): this version's wire string. A document written for a
+   * (§7.7.3, §7.7.6): this version's wire string. A document written for a
    * released version names that version's own string instead, and is
    * read by that version's rules.
    */

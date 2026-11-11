@@ -14,9 +14,9 @@ The TypeScript files in `src/` are the editable schema source.
 `generated/` contains the committed draft JSON Schemas. Do not edit generated JSON by hand.
 
 - Root schemas are written to `generated/*.schema.json`.
-- `generated/strict-contexts/*.schema.json` contains the per-interception-point
-  request schemas. Each interception point is explicitly defined by its
-  `HookRequest` and `HookResponse` pair below.
+- `generated/strict-contexts/*.schema.json` contains closed per-interception-point
+  request schemas derived from the `agent-context` union. Each interception
+  point is explicitly defined by its `HookRequest` and `HookResponse` pair below.
 - Draft response validation uses the eight hook-specific response schemas;
   there is no generic draft verdict schema because transform payloads depend
   on the interception point. The released `0.1` bundle retains its
@@ -28,6 +28,8 @@ The TypeScript files in `src/` are the editable schema source.
   enforcement separation still apply, including rules enforced by parsers
   rather than JSON Schema.
 - `src/host-declaration.ts` generates the draft declaration schema.
+- The P-193 draft declaration format is not yet implemented by SDK loaders or
+  CTK fixtures; released 0.1 retains its existing declaration schema.
 - `path-grammar.abnf` remains a hand-maintained grammar, not generated output.
 
 ## Edit, generate and check

@@ -24,7 +24,8 @@ Each folder is a complete specification bundle with the same layout:
   `**Status:** Released · **Version:** \`X.Y\` · **Date:** YYYY-MM-DD`
   for a version and `**Status:** Draft · **Version:** \`DRAFT\`` with a
   date for the draft. Alpha and beta never appear in a header.
-- `DECLARATION-VERSIONS.md`: host declaration contract versions
+- `DECLARATION-VERSIONS.md` (released bundles only): host declaration
+  contract versions; the draft versions its declaration by `spec`
 - `declaration-errors.json`, `reserved-reasons.json` and, from the
   draft on, `reserved-warnings.json`: machine-readable inventories
 - `schema/`: the normative JSON Schemas, generated from TypeScript

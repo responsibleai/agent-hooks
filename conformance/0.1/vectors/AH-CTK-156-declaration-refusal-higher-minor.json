@@ -1,6 +1,6 @@
 {
   "id": "AH-CTK-156",
-  "title": "§7.7.2: a document carrying a minor above the highest the loader knows (1.2) is refused as version_unsupported, the refusal a 1.0 loader gives a 1.1 document",
+  "title": "§7.7.2: a declaration version above the accepted set (1.2) is refused as version_unsupported",
   "spec_clause": "7.7.2, 7.7.6",
   "part": "declaration/refusal",
   "capabilities": [

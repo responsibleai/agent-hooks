@@ -17,17 +17,21 @@ Two more core functions serve the host declaration parts (§7.7.9):
 | `declaration_versions()` | `{current, supported, spec_supported, by_spec}`: the contract versions the core writes and accepts, overall and per specification version (`by_spec["0.1"]`, `by_spec["draft"]`) |
 | `declaration_resolve(document, host)` | Steps 2 to 10 of §7.7.6 against `{surface, identity_providers, approval_resolvers, approval_redactors, kinds}`; returns the resolved declaration or a `declaration_error:*` code with JSON findings |
 
-A per-language runner is the ~60 lines below. Only steps 3 and 5 touch
-native code (the `Harness` protocol); everything else is a straight FFI
-call. `sdk/python/python/agent_hooks/ctk/runner.py` is the reference.
+The per-language runner is implemented in
+`sdk/python/python/agent_hooks/ctk/runner.py`; other SDKs follow the same
+flow, calling the core through FFI and using their language's `Harness`
+protocol for setup and execution.
 A harness states the specification version it builds under
 (`harness.spec`, a wire string); the runner refuses a harness without
-one, and step 0 keeps the draft-only vectors out of a run under a
+one, and keeps draft-only vectors out of a run under a
 released version. The gating runs are under 0.1, the newest released
 version; binding tests to a draft revision is #188.
 
+The runner selects the suite for `harness.spec`; required SDK checks use
+the released 0.1 suite, while the advisory job separately selects draft.
+
 ```
-for each vector file in conformance/0.1/vectors/*.json:
+for each vector file in conformance/{bundle_for(harness.spec)}/vectors/*.json:
   1.  skip = ctk_should_skip(vector, harness.capabilities)
       if skip: yield {status:"skip", detail:skip}; continue
 
@@ -46,7 +50,7 @@ for each vector file in conformance/0.1/vectors/*.json:
                     "identity_provider" in vector ? vector.identity_provider : "jcs-sha256")  # §10.1
 
   3b. if "host_declaration" in vector:                                # §7.7.9, see HARNESS.md
-        registry = ctk registry over harness.host_surface()           # ctk.scripted, ctk.managed,
+        registry = ctk registry over harness.host_surface()           # ctk.scripted; ctk.managed is draft-only
         paths_equivalent = resolve the document from value, JSON,     #   ctk-fault, ctk-scripted, ctk-redact
                            a temp file and the builder; compare
         load = harness.setup_declared(setup, vector.host_declaration, registry)
@@ -62,7 +66,7 @@ for each vector file in conformance/0.1/vectors/*.json:
   5.  yield ctk_assert(vector, recorded,
                        {outcome:rr.outcome, final_output:rr.final_output,
                         tool_invocations:rr.tool_invocations, error:rr.error,
-                        host_messages:rr.host_messages, # messages the host delivered to the principal (§6.3.1)
+                        host_messages:rr.host_messages, # when required by the selected suite
                         identities:rr.identities,      # (input, enforced) per emission
                         records:rr.records,            # wire-shaped §10.3 records
                         postures:{                     # harness *declarations* (§13.1),
@@ -83,9 +87,9 @@ capability such as `int64_json` is honest surface, not a failure).
 Each SDK runner currently loads the released 0.1 suite from
 `conformance/0.1/vectors/` (or its packaged mirror). The separate
 `conformance/draft/` suite is validated by repository CI. The advisory
-`draft-tests` job runs every vector in the draft suite under draft, including
-IDs also present in the released suite. It is advisory and does not block the
-required 0.1 SDK checks.
+`draft-tests` job runs every vector in `conformance/draft/` under the
+draft, including IDs also present in the released suite, and does not
+block the required 0.1 SDK checks.
 Each runner has the grouping as a function that takes the
 specification version the claim names and the results:
 `conformance_report(spec, results)` in Rust and Python,
