@@ -1,0 +1,23 @@
+{
+  "id": "AH-CTK-074",
+  "title": "§6.1a: deny at agent_startup blocks the session; agent_shutdown still emitted",
+  "spec_clause": "6.1a",
+  "capabilities": [],
+  "scenario": {
+    "input": { "content": "hi", "role": "user" },
+    "model_script": [ { "respond": { "content": "UNREACHED", "tool_calls": [], "finish_reason": "stop" } } ]
+  },
+  "interceptor_script": [
+    { "at": "agent_startup", "return": { "decision": "deny", "reason": "ctk:startup_blocked" } }
+  ],
+  "expect": {
+    "sequence_strict": true,
+    "interceptions": [
+      { "interception_point": "agent_startup" },
+      { "interception_point": "agent_shutdown", "context": { "summary.reason": "error" } }
+    ],
+    "interceptions_absent": ["input", "pre_model_call", "post_model_call", "pre_tool_call", "post_tool_call", "output"],
+    "run_outcome": "blocked",
+    "final_output": null
+  }
+}

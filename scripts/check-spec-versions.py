@@ -16,15 +16,10 @@ for the draft. Each bundle is a specification version of its own with
 its own wire string, agent-hooks/<MAJOR.MINOR> or agent-hooks/draft:
 no file in a bundle carries another bundle's wire string, and every
 `spec` member schema in a bundle's schemas admits the bundle's own
-string, the draft's as a constant. The vectors under conformance/ are
-two sets: a vector with `introduced_in: draft` is part of the working
-test set for the next version and its valid host declaration names
-agent-hooks/draft; every other vector is part of the released set,
-which the gating runs use, and its valid document names the newest
-released version, as do the golden documents and contexts. A vector
-whose document is invalid on purpose (host_declaration_invalid: true)
-may carry any string, and `introduced_in`, when present, is draft or a
-released bundle.
+string, the draft's as a constant. Each conformance/<version>/ suite
+has a matching schema ID, only same-version external schema refs, and
+valid host declarations with the corresponding wire string. The golden
+documents and contexts use the released 0.1 contract.
 
 Every entry under spec/ is a regular file or directory whose name does
 not start with a dot: a symbolic link, a device or pipe, and a hidden
@@ -264,19 +259,10 @@ def check_bundle(root: Path, folder: Path) -> list[str]:
     return errors
 
 
-def check_conformance(root: Path, released: set[str]) -> list[str]:
-    """Two sets under conformance/: a vector with `introduced_in: draft`
-    belongs to the working test set for the next version and its valid
-    host declaration names agent-hooks/draft; every other vector belongs
-    to the released set, which the gating runs use, and its valid
-    document names a released version (`released`, the released bundle
-    names), as do the golden documents and contexts. A vector whose
-    document is invalid on purpose (host_declaration_invalid: true) may
-    name any."""
+def check_conformance(root: Path, versions: set[str]) -> list[str]:
+    """Each conformance suite and its schema belong to one spec version."""
     errors: list[str] = []
     conformance = root / "conformance"
-    released_wires = sorted(f"agent-hooks/{v}" for v in released)
-    bundles = released | {"draft"}
 
     def load(path: Path) -> object:
         rel = path.relative_to(root).as_posix()
@@ -289,41 +275,76 @@ def check_conformance(root: Path, released: set[str]) -> list[str]:
             errors.append(f"{rel} is invalid JSON: {exc}")
             return None
 
-    def expect(
-        rel: str, where: str, value: object, wires: list[str], which: str
-    ) -> None:
-        if value not in wires:
-            errors.append(
-                f"{rel}: {where} is {value!r}; {which} carries {' or '.join(wires)}"
-            )
+    def expect_wire(rel: str, where: str, value: object, wire: str) -> None:
+        if value != wire:
+            errors.append(f"{rel}: {where} is {value!r}; the suite requires {wire}")
 
-    vectors = conformance / "vectors"
-    if not vectors.is_dir():
-        return ["conformance/vectors/ is missing"]
-    for path in sorted(vectors.glob("*.json")):
-        vector = load(path)
-        if not isinstance(vector, dict):
-            continue
-        rel = path.relative_to(root).as_posix()
-        introduced = vector.get("introduced_in")
-        if introduced is not None and introduced not in bundles:
+    for version in sorted(versions | {"draft"}):
+        suite = conformance / version
+        rel_suite = suite.relative_to(root).as_posix()
+        schema_path = suite / "vectors.schema.json"
+        schema = load(schema_path)
+        expected_id = ID_ORIGIN + (
+            "draft/conformance/vectors.schema.json"
+            if version == "draft"
+            else f"v{version}/conformance/vectors.schema.json"
+        )
+        if isinstance(schema, dict) and schema.get("$id") != expected_id:
             errors.append(
-                f"{rel}: introduced_in is {introduced!r}, not draft or a released bundle"
+                f"{schema_path.relative_to(root).as_posix()} has $id "
+                f"{schema.get('$id')!r}; expected {expected_id}"
             )
+        if not suite.is_dir():
+            errors.append(f"{rel_suite}/ is missing")
             continue
-        document = vector.get("host_declaration")
-        if (
-            isinstance(document, dict)
-            and vector.get("host_declaration_invalid") is not True
-        ):
-            if introduced == "draft":
-                wires, which = (
-                    [DRAFT_WIRE],
-                    "a vector of the working test set (introduced_in: draft)",
+        vectors = suite / "vectors"
+        if not vectors.is_dir():
+            errors.append(f"{rel_suite}/vectors/ is missing")
+            continue
+        paths = sorted(vectors.glob("AH-CTK-*.json"))
+        if not paths:
+            errors.append(f"{rel_suite}/vectors/ is empty")
+        for path in paths:
+            vector = load(path)
+            if not isinstance(vector, dict):
+                continue
+            document = vector.get("host_declaration")
+            if (
+                isinstance(document, dict)
+                and vector.get("host_declaration_invalid") is not True
+            ):
+                expect_wire(
+                    path.relative_to(root).as_posix(),
+                    "host_declaration.spec",
+                    document.get("spec"),
+                    f"agent-hooks/{version}",
                 )
-            else:
-                wires, which = released_wires, "a vector of the released set"
-            expect(rel, "host_declaration.spec", document.get("spec"), wires, which)
+
+        if isinstance(schema, dict):
+            references: list[str] = []
+
+            def collect_refs(value: object) -> None:
+                if isinstance(value, dict):
+                    ref = value.get("$ref")
+                    if isinstance(ref, str) and "/schema/" in ref:
+                        references.append(ref)
+                    for child in value.values():
+                        collect_refs(child)
+                elif isinstance(value, list):
+                    for child in value:
+                        collect_refs(child)
+
+            collect_refs(schema)
+            expected_prefix = ID_ORIGIN + (
+                "draft/" if version == "draft" else f"v{version}/"
+            )
+            for ref in sorted(set(references)):
+                if not ref.startswith(expected_prefix):
+                    errors.append(
+                        f"{schema_path.relative_to(root).as_posix()} has cross-version "
+                        f"$ref {ref}; expected references under {expected_prefix}"
+                    )
+
     for name, member in (("declaration.json", "document"), ("identity.json", "ctx")):
         path = conformance / "golden" / name
         golden = load(path)
@@ -331,16 +352,15 @@ def check_conformance(root: Path, released: set[str]) -> list[str]:
             continue
         rel = path.relative_to(root).as_posix()
         if "spec" in golden:
-            expect(rel, "spec", golden["spec"], released_wires, "a golden file")
+            expect_wire(rel, "spec", golden["spec"], "agent-hooks/0.1")
         for index, fixture in enumerate(golden.get("fixtures") or []):
             inner = fixture.get(member) if isinstance(fixture, dict) else None
             if isinstance(inner, dict):
-                expect(
+                expect_wire(
                     rel,
                     f"fixtures[{index}].{member}.spec",
                     inner.get("spec"),
-                    released_wires,
-                    "a golden fixture",
+                    "agent-hooks/0.1",
                 )
     return errors
 
@@ -448,8 +468,7 @@ def check(root: Path) -> list[str]:
         if path.name != "README.md":
             errors.append(f"spec/{path.name} must live in a version folder")
 
-    if versions:
-        errors.extend(check_conformance(root, {p.name for p in versions}))
+    errors.extend(check_conformance(root, {p.name for p in versions}))
     errors.extend(check_references(root, {p.name for p in versions}))
     return errors
 

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # Copyright (c) Microsoft. All rights reserved.
 
-"""Fail when a change edits a released specification folder.
+"""Fail when a change edits a released specification or conformance folder.
 
-A released folder is any spec/<MAJOR.MINOR>/ directory that already
-exists at the base revision. Changes under spec/draft/ and new version
-folders are allowed. Inside a released folder one kind of change is
-allowed: a new regular .json file under schema/examples/<Type>/. A
-modified or deleted file anywhere in the folder, and any other new
-file, fail.
+A released folder is any spec/<MAJOR.MINOR>/ or
+conformance/<MAJOR.MINOR>/ directory that already exists at the base
+revision. Changes under spec/draft/, conformance/draft/ and new version
+folders are allowed. Inside a released specification folder one kind
+of change is allowed: a new regular .json file under
+schema/examples/<Type>/. A modified or deleted file anywhere in a
+released folder, and any other new file, fail.
 
 Everything under spec/ is a regular file in a plainly named directory:
 a symbolic link, a gitlink (submodule), an empty, dot, dot-dot or .git
@@ -25,6 +26,7 @@ import re
 import subprocess
 import sys
 
+RELEASED_ROOTS = ("spec", "conformance")
 VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 EXAMPLE = re.compile(r"^spec/[^/]+/schema/examples/[A-Za-z][A-Za-z0-9]*/[^/]+\.json$")
 SYMLINK_MODE = "120000"
@@ -49,12 +51,24 @@ def git(*args: str) -> str:
 
 
 def released_folders(revision: str) -> set[str]:
-    names = git("ls-tree", "-d", "--name-only", revision, "spec/").splitlines()
-    return {
-        name.removeprefix("spec/")
-        for name in names
-        if VERSION.fullmatch(name.removeprefix("spec/"))
-    }
+    """Return released folder paths at the given revision."""
+    names = git(
+        "ls-tree",
+        "-d",
+        "--name-only",
+        revision,
+        *(f"{root}/" for root in RELEASED_ROOTS),
+    ).splitlines()
+    released: set[str] = set()
+    for name in names:
+        parts = name.split("/")
+        if (
+            len(parts) == 2
+            and parts[0] in RELEASED_ROOTS
+            and VERSION.fullmatch(parts[1])
+        ):
+            released.add(name)
+    return released
 
 
 def changed_paths(base: str, head: str) -> list[tuple[str, str, str]]:
@@ -71,10 +85,19 @@ def changed_paths(base: str, head: str) -> list[tuple[str, str, str]]:
 
 
 def violation(status: str, head_mode: str, path: str, released: set[str]) -> str | None:
-    """Why this change is not allowed under spec/, or None."""
+    """Why this change is not allowed, or None. released holds folder
+    paths such as spec/0.1 and conformance/0.1."""
     parts = path.split("/")
-    if parts[0] != "spec":
+    if parts[0] not in RELEASED_ROOTS:
         return None
+    if parts[0] == "conformance":
+        if len(parts) < 2 or "/".join(parts[:2]) not in released:
+            return None
+        if status == "A":
+            return "adds a file to a released conformance folder"
+        if status == "D":
+            return "deletes a file from a released conformance folder"
+        return "changes a file in a released conformance folder"
     # The entry itself comes first, so a symbolic link or gitlink at
     # any depth, spec itself included, gets its own message. A deleted
     # entry has no head mode and no content to check.
@@ -88,7 +111,7 @@ def violation(status: str, head_mode: str, path: str, released: set[str]) -> str
                 "has an empty path component or one that starts with a dot; "
                 "specification folders hold no such entries"
             )
-    if len(parts) <= 2 or parts[1] not in released:
+    if len(parts) <= 2 or "/".join(parts[:2]) not in released:
         return None
     if status == "A":
         if head_mode == REGULAR_FILE and EXAMPLE.match(path):
@@ -116,16 +139,17 @@ def main(argv: list[str]) -> int:
     )
     if errors:
         print(
-            "::error::Released specification folders are immutable; only new "
-            "regular .json files under schema/examples/<Type>/ may be added. "
-            "Make other changes in spec/draft/ and publish a new version instead:"
+            "::error::Released specification and conformance folders are "
+            "immutable; only new regular .json files under "
+            "spec/<version>/schema/examples/<Type>/ may be added. Make other "
+            "changes in spec/draft/ or conformance/draft/ and publish a new "
+            "version instead:"
         )
         for path, reason in errors:
             print(f"::error file={escape_property(path)}::{escape_data(path)} {reason}")
         return 1
     print(
-        "released specification folders unchanged: "
-        + (", ".join(sorted(released)) or "none at base")
+        "released folders unchanged: " + (", ".join(sorted(released)) or "none at base")
     )
     return 0
 

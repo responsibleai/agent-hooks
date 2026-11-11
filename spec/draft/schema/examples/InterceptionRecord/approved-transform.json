@@ -2,11 +2,8 @@
   "interception_point": "pre_tool_call",
   "mode": "enforce",
   "verdict": {
-    "decision": "transform",
-    "reason": "operator_limited_scope",
-    "transform": {
-      "path": "$target.collection"
-    }
+    "decision": "allow",
+    "reason": "operator_limited_scope"
   },
   "input_identity": null,
   "enforced_identity": null,
@@ -19,7 +16,6 @@
     "profile": "sequential/first_deny",
     "on_approval": "resume"
   },
-  "declaration": "agent-hooks-declaration/1.1",
   "verdicts": [
     {
       "index": 0,

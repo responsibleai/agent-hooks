@@ -1,0 +1,77 @@
+{
+  "id": "AH-CTK-101",
+  "title": "evaluate_only with zero interceptors: no_interceptor deny recorded, every action proceeds (§7, §8)",
+  "spec_clause": "7, 8",
+  "part": "enforcement/evaluate_only",
+  "mode": "evaluate_only",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "scenario": {
+    "input": {
+      "content": "fetch",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "http_get",
+        "behavior": [
+          {
+            "return": "SECRET-RESULT"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "http_get",
+              "args": {
+                "url": "https://x"
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "done",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [],
+    "tool_invocations": [
+      {
+        "name": "http_get",
+        "args": {
+          "url": "https://x"
+        }
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "verdict.decision": "deny",
+          "verdict.reason": "host_error:no_interceptor",
+          "mode": "evaluate_only",
+          "decided_by": null
+        }
+      }
+    ],
+    "run_outcome": "completed",
+    "final_output": "done"
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "id": "AH-CTK-088",
+  "title": "parallel/unanimous with on_disagreement=approval: arbitration permits; unions survive the substitution",
+  "spec_clause": "7.3, 7.5, 7.6",
+  "part": "composition/parallel_unanimous",
+  "capabilities": [
+    "model_calls",
+    "tool_calls"
+  ],
+  "composition": {
+    "profile": "parallel/unanimous",
+    "on_disagreement": "approval"
+  },
+  "scenario": {
+    "input": {
+      "content": "go",
+      "role": "user"
+    },
+    "tools": [
+      {
+        "name": "wire_transfer",
+        "behavior": [
+          {
+            "return": "ok"
+          }
+        ]
+      }
+    ],
+    "model_script": [
+      {
+        "respond": {
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "tc-1",
+              "name": "wire_transfer",
+              "args": {
+                "amount": 5
+              }
+            }
+          ],
+          "finish_reason": "tool_calls"
+        }
+      },
+      {
+        "respond": {
+          "content": "sent",
+          "tool_calls": [],
+          "finish_reason": "stop"
+        }
+      }
+    ]
+  },
+  "interceptor_scripts": [
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "allow",
+          "warnings": [
+            {
+              "reason": "ctk:note"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      {
+        "at": "pre_tool_call",
+        "return": {
+          "decision": "deny",
+          "reason": "ctk:disagrees"
+        }
+      }
+    ]
+  ],
+  "approval_script": [
+    {
+      "resolve": {
+        "outcome": "approve",
+        "verdict": {
+          "decision": "allow"
+        }
+      }
+    }
+  ],
+  "expect": {
+    "sequence_strict": false,
+    "interceptions": [
+      {
+        "interception_point": "pre_tool_call"
+      }
+    ],
+    "tool_invocations": [
+      {
+        "name": "wire_transfer",
+        "args": {
+          "amount": 5
+        }
+      }
+    ],
+    "records": [
+      {
+        "interception_point": "pre_tool_call",
+        "assert": {
+          "verdict.decision": "allow",
+          "resolved_by": "approval",
+          "verdict.warnings[0].reason": "ctk:note"
+        }
+      }
+    ],
+    "run_outcome": "completed"
+  }
+}

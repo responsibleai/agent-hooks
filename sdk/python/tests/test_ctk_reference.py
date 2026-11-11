@@ -1,10 +1,9 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 """CTK self-test: the vectors against the in-tree ReferenceHarness. The
-gating run is under 0.1, the newest released version: the released set
-runs and the draft-only vectors (``introduced_in: draft``) are skipped.
-The ``draft``-marked test runs those under the draft in the advisory
-job. Binding tests to a draft revision is #188."""
+gating run is under 0.1, the newest released version. The ``draft``-marked
+test runs the full draft suite in the non-blocking advisory job. Binding
+tests to a draft revision is #188."""
 
 from __future__ import annotations
 
@@ -15,14 +14,14 @@ import pytest
 from agent_hooks import SPEC_VERSION_0_1, SPEC_VERSION_DRAFT
 from agent_hooks.ctk import (
     DRAFT_NOT_CLAIMABLE,
-    DRAFT_ONLY_SKIP,
     conformance_report,
     load_vectors,
     run_vector,
 )
-from agent_hooks.ctk.reference import ReferenceHarness
+from agent_hooks.ctk.reference import REFERENCE_DECLARATION, ReferenceHarness
 
-_VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vectors"
+_CONFORMANCE = pathlib.Path(__file__).resolve().parents[3] / "conformance"
+_VECTORS = _CONFORMANCE / "0.1" / "vectors"
 
 # Pinned capability skips: Python ints are arbitrary precision, so the
 # reference harness declares every value-domain capability and no
@@ -35,9 +34,19 @@ _VECTORS = pathlib.Path(__file__).resolve().parents[3] / "conformance" / "vector
 CAPABILITY_SKIPS: frozenset[str] = frozenset(
     {"AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113"}
 )
-# The draft-only vectors, skipped under 0.1 with DRAFT_ONLY_SKIP.
-DRAFT_ONLY: frozenset[str] = frozenset(f"AH-CTK-{n}" for n in range(144, 161))
-EXPECTED_SKIPS: frozenset[str] = CAPABILITY_SKIPS | DRAFT_ONLY
+EXPECTED_SKIPS: frozenset[str] = CAPABILITY_SKIPS
+
+
+def test_reference_declaration_uses_released_specification() -> None:
+    assert REFERENCE_DECLARATION["spec"] == SPEC_VERSION_0_1
+    assert REFERENCE_DECLARATION["declaration"] == "agent-hooks-declaration/1.0"
+    assert REFERENCE_DECLARATION["surface"]["declaration_versions"] == [
+        "agent-hooks-declaration/1.0"
+    ]
+
+
+def test_packaged_vectors_match_released_suite() -> None:
+    assert load_vectors() == load_vectors(_VECTORS)
 
 
 @pytest.mark.parametrize(
@@ -52,8 +61,6 @@ def test_reference_harness_conformance(vector: dict) -> None:
             f"unexpected skip: {result.id} ({result.detail}) — update "
             "CAPABILITY_SKIPS only with a capability rationale"
         )
-        if result.id in DRAFT_ONLY:
-            assert result.detail == DRAFT_ONLY_SKIP
         pytest.skip(result.detail)
     assert result.status == "pass", "\n" + "\n".join(f"  - {f}" for f in result.failures)
 
@@ -67,21 +74,27 @@ def test_skip_set_matches_manifest() -> None:
     assert skipped == set(EXPECTED_SKIPS), (
         "expected-but-not-skipped vectors mean the manifest is stale"
     )
-    draft_only = {v["id"] for v in load_vectors(_VECTORS) if v.get("introduced_in") == "draft"}
-    assert draft_only == DRAFT_ONLY
+    assert not any(v.get("introduced_in") == "draft" for v in load_vectors(_VECTORS))
 
 
 @pytest.mark.draft
-def test_draft_only_vectors_pass_under_the_draft() -> None:
-    """Advisory (the draft-tests job): the working test set for the next
-    version passes under the draft."""
-    draft = [v for v in load_vectors(_VECTORS) if v.get("introduced_in") == "draft"]
-    assert len(draft) == 17
+def test_draft_suite_vectors_pass_under_the_draft() -> None:
+    """Advisory (the draft-tests job): the full draft suite runs under draft."""
+    draft = load_vectors(_CONFORMANCE / "draft" / "vectors")
+    skipped = set()
     failures = []
     for vector in draft:
         result = asyncio.run(run_vector(ReferenceHarness(SPEC_VERSION_DRAFT), vector))
-        if result.status != "pass":
+        if result.status == "skip":
+            skipped.add(result.id)
+            if result.id not in EXPECTED_SKIPS:
+                failures.append(f"{result.id}: unexpected skip ({result.detail})")
+        elif result.status != "pass":
             failures.append(f"{result.id}: {result.status} {result.detail} {result.failures}")
+    assert skipped == set(EXPECTED_SKIPS), (
+        f"draft capability skip set drifted: expected={sorted(EXPECTED_SKIPS)}, "
+        f"actual={sorted(skipped)}"
+    )
     assert not failures, "\n".join(failures)
 
 
@@ -214,7 +227,7 @@ def test_prove_paths_keeps_a_null_binding_config() -> None:
     )
     doc = {
         "declaration": "agent-hooks-declaration/1.0",
-        "spec": SPEC_VERSION_DRAFT,
+        "spec": SPEC_VERSION_0_1,
         "bindings": [{"id": "a", "kind": "com.example.x", "config": None}],
     }
     assert prove_paths(doc, reg, "test") == (True, "")

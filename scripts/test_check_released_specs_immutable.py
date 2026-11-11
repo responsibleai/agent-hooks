@@ -100,6 +100,8 @@ class GuardTest(unittest.TestCase):
         self.before_release = self.repo.commit("before the release")
         self.repo.write("spec/0.1/AGENT-HOOKS-0.1.md", "# 0.1.0\n")
         self.repo.write("spec/0.1/schema/examples/Verdict/allow.json")
+        self.repo.write("conformance/draft/vectors/AH-CTK-001.json")
+        self.repo.write("conformance/0.1/vectors/AH-CTK-001.json")
         self.base = self.repo.commit("base")
 
     def assert_fails(self, message: str) -> str:
@@ -113,7 +115,9 @@ class GuardTest(unittest.TestCase):
         self.repo.commit("change")
         result = self.repo.guard(self.base)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("released specification folders unchanged: 0.1", result.stdout)
+        self.assertIn(
+            "released folders unchanged: conformance/0.1, spec/0.1", result.stdout
+        )
 
     def test_new_example_in_released_folder_passes(self) -> None:
         self.repo.write("spec/0.1/schema/examples/Verdict/deny.json")
@@ -123,6 +127,38 @@ class GuardTest(unittest.TestCase):
         self.repo.write("spec/draft/AGENT-HOOKS-0.1.md", "# draft v2\n")
         self.repo.write("spec/0.2/AGENT-HOOKS-0.2.md", "# 0.2.0\n")
         self.assert_passes()
+
+    def test_draft_suite_change_and_new_suite_folder_pass(self) -> None:
+        self.repo.write("conformance/draft/vectors/AH-CTK-001.json", '{"a": 1}\n')
+        self.repo.write("conformance/draft/vectors/AH-CTK-002.json")
+        self.repo.write("conformance/0.2/vectors/AH-CTK-001.json")
+        self.assert_passes()
+
+    def test_released_conformance_suite_is_immutable(self) -> None:
+        relative = "conformance/0.1/vectors/AH-CTK-001.json"
+        self.repo.write(relative, '{"a": 1}\n')
+        out = self.assert_fails(f"{relative} changes a file in a released conformance")
+        self.assertIn(f"::error file={relative}::", out)
+        self.repo.remove(relative)
+        self.assert_fails(f"{relative} deletes a file from a released conformance")
+        self.repo.write(relative)
+        self.repo.write("conformance/0.1/vectors/AH-CTK-002.json")
+        self.assert_fails("AH-CTK-002.json adds a file to a released conformance")
+        example = "conformance/0.1/schema/examples/Verdict/extra.json"
+        self.repo.write(example)
+        self.assert_fails(f"{example} adds a file to a released conformance")
+
+    def test_conformance_versions_are_discovered_independently(self) -> None:
+        relative = "conformance/1.2/vectors/AH-CTK-001.json"
+        self.repo.write(relative)
+        base = self.repo.commit("release conformance without a matching spec folder")
+        self.repo.write(relative, '{"changed": true}\n')
+        self.repo.commit("change released conformance")
+        result = self.repo.guard(base)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(
+            f"{relative} changes a file in a released conformance", result.stdout
+        )
 
     def test_modified_released_file_fails(self) -> None:
         self.repo.write("spec/0.1/AGENT-HOOKS-0.1.md", "# edited\n")
@@ -243,7 +279,7 @@ class HelperTest(unittest.TestCase):
         self.assertEqual(guard.escape_property("a:b,c%"), "a%3Ab%2Cc%25")
 
     def test_violation_rules(self) -> None:
-        released = {"0.1"}
+        released = {"spec/0.1", "conformance/0.1"}
         self.assertIsNone(guard.violation("M", "100644", "README.md", released))
         self.assertIsNone(guard.violation("M", "100644", "spec/README.md", released))
         self.assertIsNone(guard.violation("M", "100644", "spec/draft/x.md", released))
@@ -287,6 +323,28 @@ class HelperTest(unittest.TestCase):
             guard.violation(
                 "A", "100644", "spec/0.1/schema/examples/T2/x.json", released
             )
+        )
+        self.assertIsNone(
+            guard.violation("M", "100644", "conformance/draft/x.json", released)
+        )
+        self.assertIsNone(
+            guard.violation("M", "100644", "conformance/README.md", released)
+        )
+        self.assertIsNone(
+            guard.violation("A", "100644", "conformance/0.2/x.json", released)
+        )
+        for status, message in (
+            ("A", "adds a file to"),
+            ("M", "changes a file in"),
+            ("D", "deletes a file from"),
+        ):
+            self.assertIn(
+                f"{message} a released conformance folder",
+                guard.violation(status, "100644", "conformance/0.1/x.json", released),
+            )
+        self.assertIn(
+            "changes a file in a released conformance folder",
+            guard.violation("T", "120000", "conformance/0.1", released),
         )
         # A deletion has no entry to check; only the released rule applies.
         self.assertIsNone(

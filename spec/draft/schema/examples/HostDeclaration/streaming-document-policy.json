@@ -1,0 +1,34 @@
+{
+  "spec": "agent-hooks/draft",
+  "id": "streaming-document-policy",
+  "configuration": {
+    "composition": {
+      "profile": "sequential/first_deny",
+      "on_approval": "resume"
+    }
+  },
+  "surface": {
+    "interception_points": [
+      "agent_startup",
+      "input",
+      "pre_model_call",
+      "post_model_call",
+      "output",
+      "agent_shutdown"
+    ],
+    "capabilities": ["model_calls", "incremental_output", "host_declaration"],
+    "profiles": {
+      "sequential/first_deny": {
+        "on_approval": ["resume"]
+      }
+    },
+    "buffered_output": false,
+    "exposure_bound": "Only public policy text is released as it is generated."
+  },
+  "bindings": [
+    {
+      "id": "document-policy",
+      "kind": "example.document_policy"
+    }
+  ]
+}

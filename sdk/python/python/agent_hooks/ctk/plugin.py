@@ -24,7 +24,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     g.addoption(
         "--agent-hooks-vectors",
         default=None,
-        help="Path to conformance/vectors/ (defaults to repo-relative)",
+        help="Path to a CTK vector directory (defaults to the packaged 0.1 suite)",
     )
     g.addoption(
         "--agent-hooks-spec",

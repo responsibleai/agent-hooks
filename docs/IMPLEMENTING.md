@@ -74,7 +74,11 @@ The document has its own version, `agent-hooks-declaration/1.1`
 (1.0 is still accepted), written in the required `declaration`
 member. It moves independently
 of the wire version and of package versions
-([spec/draft/DECLARATION-VERSIONS.md](../spec/draft/DECLARATION-VERSIONS.md)).
+([spec/0.1/DECLARATION-VERSIONS.md](../spec/0.1/DECLARATION-VERSIONS.md)).
+The proposed draft removes this separate version and selects the
+format by `spec` alone
+([P-193](proposals/P-193-host-declaration-spec-versioning.md)); the
+SDKs do not implement that yet.
 The document also names the specification version it is written for
 in `spec` (`agent-hooks/0.1` or `agent-hooks/draft`), and the loader
 reads it by that version's rules. The SDKs require the member under
@@ -137,7 +141,7 @@ running host to a pushed document (§7.7.2, §7.7.8).
 Your surface (§13.1) is the set of behaviours you ask the CTK to test:
 
 - capabilities: `model_calls`, `tool_calls` and the others in
-  `conformance/vectors.schema.json`, including `host_declaration`,
+  `conformance/0.1/vectors.schema.json`, including `host_declaration`,
   which you declare when you build the emitter through the loader;
 - the composition profiles and knob values you support;
 - your identity provider;

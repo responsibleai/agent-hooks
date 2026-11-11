@@ -68,7 +68,7 @@ jobs:
   # Runs first, on the tag and on every dry run: the SDKs' version
   # surfaces agree, every supported specification version has a
   # spec/<version>/ folder and every released one its tag, the
-  # conformance vectors validate against the draft, and the examples of
+  # conformance vectors validate against their matching schemas, and examples of
   # every bundle validate against that bundle's schemas. Every build job
   # depends on it.
   spec-gate:
@@ -95,41 +95,35 @@ jobs:
         run: python3 scripts/check-version-consistency.py --require-spec-tags
       - name: Specification folders are complete and references current
         run: python3 scripts/check-spec-versions.py
-      - name: Released vectors validate against the newest released bundle
-        # The gating tests target the newest released version. The
-        # released set of vectors (every vector without introduced_in:
-        # draft) validates against that bundle with the grammar rebased
-        # to its schema ids (scripts/vectors-for-bundle.py). The
-        # draft-only vectors are the working test set for the next
-        # version and run in ci.yml's advisory draft-tests job, never
-        # here. Binding tests to a draft revision is #188.
+      - name: Released conformance suites validate against matching schemas
         run: |
-          set -eu
-          version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
-          version=$(for dir in spec/*/; do basename "$dir"; done | grep -E "$version_pattern" | sort -V | tail -1)
-          if [ -z "$version" ]; then
-            echo "::error::no released spec/<MAJOR.MINOR>/ folder"
-            exit 1
-          fi
-          grammar="$RUNNER_TEMP/vectors-$version.schema.json"
-          python3 scripts/vectors-for-bundle.py grammar "$version" > "$grammar"
-          mapfile -t vectors < <(python3 scripts/vectors-for-bundle.py list "$version")
-          if [ "${#vectors[@]}" -eq 0 ]; then
-            echo "::error::no released vectors under conformance/vectors"
-            exit 1
-          fi
-          root="spec/$version/schema/generated"
-          [ -d "$root" ] || root="spec/$version/schema"
-          mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
-          data=()
-          for v in "${vectors[@]}"; do data+=(-d "$v"); done
-          ajv validate --spec=draft2020 -c ajv-formats -s "$grammar" "${refs[@]}" "${data[@]}"
-          echo "validated ${#vectors[@]} released vectors against spec/$version"
+          set -e
+          validated=0
+          for spec_dir in spec/*/; do
+            name=$(basename "$spec_dir")
+            [ "$name" = "draft" ] && continue
+            suite="conformance/$name"
+            root="${spec_dir}schema/generated"
+            [ -d "$root" ] || root="${spec_dir}schema"
+            [ -d "$root" ] || continue
+            if [ ! -f "$suite/vectors.schema.json" ] || [ ! -d "$suite/vectors" ]; then
+              echo "::error::missing versioned suite at $suite"
+              exit 1
+            fi
+            count=$(find "$suite/vectors" -maxdepth 1 -name 'AH-CTK-*.json' | wc -l)
+            if [ "$count" -eq 0 ]; then
+              echo "::error::$suite/vectors contains no vectors"
+              exit 1
+            fi
+            mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+            ajv validate --spec=draft2020 -c ajv-formats \
+              -s "$suite/vectors.schema.json" "${refs[@]}" \
+              -d "$suite/vectors/*.json"
+            validated=$((validated + 1))
+          done
+          [ "$validated" -gt 0 ] || { echo "::error::no versioned conformance suites validated"; exit 1; }
       - name: Schema examples of every released bundle validate against their own schemas
-        # The 0.1 examples, which carry agent-hooks/0.1, prove the frozen
-        # 0.1 schemas still validate with the validator this release
-        # pins. The draft's examples are the draft's own business and run
-        # in ci.yml, not in a release gate.
+        # Draft validation stays in CI, not in the release gate.
         run: |
           set -eu
           npm ci

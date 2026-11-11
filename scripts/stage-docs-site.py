@@ -15,8 +15,8 @@ docs-site/docs/:
                       src/ and examples/) at the path its own $id names
                       (schema/vX.Y/ for a release, schema/draft/ for the
                       draft); the inventories the bundle carries beside its
-                      root schemas; and conformance/vectors.schema.json at its
-                      own $id path
+                      root schemas; and each conformance/<version>/vectors.schema.json
+                      at its own $id path
 
 and docs-site/mkdocs.staged.yml: the committed mkdocs.yml with the
 Specification navigation entries generated from the same folders, newest
@@ -24,9 +24,8 @@ first, then the draft. Nothing it writes is committed.
 
 A published path is immutable: two bundles may stage the same path only
 with identical bytes, so a release that changes a schema must publish
-under a new $id path (the generator's ID_BASE). The vectors schema is
-not part of a bundle; it is staged from the working tree, which tracks
-the draft. Symbolic links anywhere in a bundle fail the staging.
+under a new $id path (the generator's ID_BASE). Each versioned vectors schema is staged from conformance/<version>/.
+Symbolic links anywhere in a bundle fail the staging.
 
 Usage: stage-docs-site.py [<repository-root>]
 """
@@ -174,6 +173,9 @@ def stage_schemas(root: Path, bundles: list[str], schema_out: Path) -> None:
                 f"{origin} schemas publish under {sorted(prefixes)}; expected one path"
             )
         (prefix,) = prefixes
+        grammar = bundle / "schema" / "path-grammar.abnf"
+        if grammar.is_file() or grammar.is_symlink():
+            publisher.publish(grammar, f"{prefix}/path-grammar.abnf", origin)
         # A bundle carries the inventories of its time; 0.1 predates
         # reserved-warnings.json, so only the files present are published.
         for inventory in INVENTORIES:
@@ -187,10 +189,11 @@ def stage_schemas(root: Path, bundles: list[str], schema_out: Path) -> None:
                     f"publishes under schema/{prefix}/"
                 )
             publisher.publish(source, relative, origin)
-    vectors = root / "conformance" / "vectors.schema.json"
-    publisher.publish(
-        vectors, published_path(vectors), "conformance/vectors.schema.json"
-    )
+    for name in bundles:
+        vectors = root / "conformance" / name / "vectors.schema.json"
+        publisher.publish(
+            vectors, published_path(vectors), f"conformance/{name}/vectors.schema.json"
+        )
 
 
 def staged_config(config: str, versions: list[str]) -> str:
@@ -222,7 +225,11 @@ def stage(root: Path) -> list[str]:
         shutil.copyfile(spec_text(spec / version), pages / f"{version}.md")
     shutil.copyfile(spec_text(spec / versions[0]), docs / "spec.md")
     draft = spec_text(spec / "draft").read_text(encoding="utf-8")
-    (pages / "draft.md").write_text(BACK_LINK.sub(r"](\1.md)", draft), encoding="utf-8")
+    draft = BACK_LINK.sub(r"](\1.md)", draft)
+    draft = draft.replace(
+        "](schema/path-grammar.abnf)", "](../schema/draft/path-grammar.abnf)"
+    )
+    (pages / "draft.md").write_text(draft, encoding="utf-8")
 
     schema_out = docs / "schema"
     shutil.rmtree(schema_out, ignore_errors=True)

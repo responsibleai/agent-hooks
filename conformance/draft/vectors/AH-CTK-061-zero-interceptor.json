@@ -1,0 +1,17 @@
+{
+  "id": "AH-CTK-061",
+  "title": "§7: zero registered interceptors in enforce mode fails closed (host_error:no_interceptor)",
+  "spec_clause": "7, 11",
+  "capabilities": [],
+  "scenario": {
+    "input": { "content": "hi", "role": "user" },
+    "model_script": [ { "respond": { "content": "UNREACHED", "tool_calls": [], "finish_reason": "stop" } } ]
+  },
+  "interceptor_scripts": [],
+  "expect": {
+    "sequence_strict": true,
+    "interceptions": [],
+    "run_outcome": "blocked",
+    "final_output": null
+  }
+}

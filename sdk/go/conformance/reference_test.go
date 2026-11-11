@@ -5,15 +5,13 @@ package conformance
 // CTK self-test: the vectors against the in-tree ReferenceHarness.
 // Assertion engine and scripted interceptor live in the Rust core; this
 // proves the Go emitter/runner wiring end-to-end. The gating run is
-// under 0.1, the newest released version: the released set runs and the
-// draft-only vectors (introduced_in: draft) are skipped. TestDraftOnly*
-// runs those under the draft in the advisory job. Binding tests to a
+// under 0.1, the newest released version. TestDraftSuite* runs the full
+// draft suite under the draft in the advisory job. Binding tests to a
 // draft revision is #188.
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -36,24 +34,25 @@ var capabilitySkips = map[string]struct{}{
 	"AH-CTK-113": {},
 }
 
-// draftOnly is the set of draft-only vectors, skipped under 0.1 with
-// DraftOnlySkip.
-var draftOnly = func() map[string]struct{} {
-	out := map[string]struct{}{}
-	for n := 144; n <= 160; n++ {
-		out[fmt.Sprintf("AH-CTK-%d", n)] = struct{}{}
-	}
-	return out
-}()
-
 func expectedSkip(id string) bool {
 	_, capability := capabilitySkips[id]
-	_, draft := draftOnly[id]
-	return capability || draft
+	return capability
+}
+
+func TestReferenceDeclarationUsesReleasedSpecification(t *testing.T) {
+	doc := referenceDocument()
+	if doc["spec"] != agenthooks.SpecVersion01 || doc["declaration"] != "agent-hooks-declaration/1.0" {
+		t.Fatalf("reference declaration must target 0.1 / declaration 1.0: %v", doc)
+	}
+	surface := doc["surface"].(map[string]any)
+	versions := surface["declaration_versions"].([]any)
+	if len(versions) != 1 || versions[0] != "agent-hooks-declaration/1.0" {
+		t.Fatalf("reference declaration versions: %v", versions)
+	}
 }
 
 func TestReferenceHarnessConformance(t *testing.T) {
-	dir := filepath.Join("..", "..", "..", "conformance", "vectors")
+	dir := filepath.Join("..", "..", "..", "conformance", "0.1", "vectors")
 	vectors, err := LoadVectors(dir)
 	if err != nil {
 		t.Fatalf("LoadVectors: %v", err)
@@ -78,9 +77,6 @@ func TestReferenceHarnessConformance(t *testing.T) {
 				if !expectedSkip(r.ID) {
 					t.Fatalf("unexpected skip: %s (%s) — update capabilitySkips only with a capability rationale", r.ID, r.Detail)
 				}
-				if _, draft := draftOnly[r.ID]; draft && r.Detail != DraftOnlySkip {
-					t.Fatalf("draft-only vector %s skipped for %q, want %q", r.ID, r.Detail, DraftOnlySkip)
-				}
 				t.Skipf("%s", r.Detail)
 			default:
 				t.Fatalf("status=%s\n  - %s", r.Status, strings.Join(r.Failures, "\n  - "))
@@ -92,44 +88,46 @@ func TestReferenceHarnessConformance(t *testing.T) {
 			t.Fatalf("expected-but-not-skipped vector %s: the capabilitySkips manifest is stale", id)
 		}
 	}
-	for id := range draftOnly {
-		if _, ok := skipped[id]; !ok {
-			t.Fatalf("draft-only vector %s ran under 0.1", id)
-		}
-	}
 	for _, v := range vectors {
 		id, _ := v["id"].(string)
 		introduced, _ := v["introduced_in"].(string)
-		if _, draft := draftOnly[id]; draft != (introduced == "draft") {
-			t.Fatalf("%s: introduced_in %q does not match the draftOnly set", id, introduced)
+		if introduced == "draft" {
+			t.Fatalf("%s: draft-only vector in released suite", id)
 		}
 	}
 }
 
-// TestDraftOnlyVectorsPassUnderTheDraft is advisory (the draft-tests
-// job): the working test set for the next version passes under the
-// draft.
-func TestDraftOnlyVectorsPassUnderTheDraft(t *testing.T) {
-	vectors, err := LoadVectors(filepath.Join("..", "..", "..", "conformance", "vectors"))
+// TestDraftSuiteVectorsPassUnderTheDraft is advisory (the draft-tests
+// job): the full draft suite runs under the draft.
+func TestDraftSuiteVectorsPassUnderTheDraft(t *testing.T) {
+	vectors, err := LoadVectors(filepath.Join("..", "..", "..", "conformance", "draft", "vectors"))
 	if err != nil {
 		t.Fatalf("LoadVectors: %v", err)
 	}
-	var ran int
+	skipped := map[string]struct{}{}
 	for _, v := range vectors {
-		if introduced, _ := v["introduced_in"].(string); introduced != "draft" {
-			continue
-		}
-		ran++
 		r, err := RunVector(context.Background(), NewReferenceHarness(agenthooks.SpecVersionDraft), v)
 		if err != nil {
 			t.Fatalf("RunVector: %v", err)
+		}
+		if r.Status == "skip" {
+			skipped[r.ID] = struct{}{}
+			if !expectedSkip(r.ID) {
+				t.Errorf("%s: unexpected skip: %s", r.ID, r.Detail)
+			}
+			continue
 		}
 		if r.Status != "pass" {
 			t.Errorf("%s: %s %s\n  - %s", r.ID, r.Status, r.Detail, strings.Join(r.Failures, "\n  - "))
 		}
 	}
-	if ran != 17 {
-		t.Fatalf("draft-only vectors: %d, want 17", ran)
+	if len(skipped) != len(capabilitySkips) {
+		t.Errorf("draft capability skip set: got %v, want %v", skipped, capabilitySkips)
+	}
+	for id := range capabilitySkips {
+		if _, ok := skipped[id]; !ok {
+			t.Errorf("expected-but-not-skipped vector %s: capabilitySkips manifest is stale", id)
+		}
 	}
 }
 
@@ -138,7 +136,7 @@ type nameless struct{ ReferenceHarness }
 func (nameless) Spec() string { return "" }
 
 func TestAHarnessNamesTheVersionItBuildsUnder(t *testing.T) {
-	vectors, err := LoadVectors(filepath.Join("..", "..", "..", "conformance", "vectors"))
+	vectors, err := LoadVectors(filepath.Join("..", "..", "..", "conformance", "0.1", "vectors"))
 	if err != nil {
 		t.Fatalf("LoadVectors: %v", err)
 	}
@@ -148,10 +146,9 @@ func TestAHarnessNamesTheVersionItBuildsUnder(t *testing.T) {
 	}
 }
 
-// Running the working test set is development; the report a claim
-// attaches names a released version, and the runner refuses the draft.
+// The SDK runner currently exercises the released 0.1 suite.
 func TestAReportNamesAReleasedVersionNeverTheDraft(t *testing.T) {
-	vectors, err := LoadVectors(filepath.Join("..", "..", "..", "conformance", "vectors"))
+	vectors, err := LoadVectors(filepath.Join("..", "..", "..", "conformance", "0.1", "vectors"))
 	if err != nil {
 		t.Fatalf("LoadVectors: %v", err)
 	}
@@ -173,7 +170,7 @@ func TestAReportNamesAReleasedVersionNeverTheDraft(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Report under 0.1: %v", err)
 	}
-	if report.Spec != agenthooks.SpecVersion01 || report.Failed != 0 || report.Skipped != len(capabilitySkips)+len(draftOnly) {
+	if report.Spec != agenthooks.SpecVersion01 || report.Failed != 0 || report.Skipped != len(capabilitySkips) {
 		t.Fatalf("report totals: spec=%s failed=%d skipped=%d", report.Spec, report.Failed, report.Skipped)
 	}
 	if report.Passed+report.Skipped != len(results) {

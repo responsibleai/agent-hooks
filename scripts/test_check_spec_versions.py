@@ -78,34 +78,34 @@ def bundle(root: Path, name: str, layout: str) -> Path:
 
 
 def conformance(root: Path) -> None:
-    """A conformance tree: one valid vector document, one invalid on
-    purpose, and the two golden files that carry documents and contexts."""
-    (root / "conformance/vectors").mkdir(parents=True)
-    (root / "conformance/golden").mkdir()
+    """Versioned suites plus released golden files."""
+    (root / "conformance/golden").mkdir(parents=True)
     write = lambda relative, value: (root / relative).write_text(  # noqa: E731
         json.dumps(value) + "\n", encoding="utf-8"
     )
-    write(
-        "conformance/vectors/AH-CTK-001.json",
-        {"id": "AH-CTK-001", "host_declaration": {"spec": "agent-hooks/0.1"}},
-    )
-    write(
-        "conformance/vectors/AH-CTK-002.json",
-        {
-            "id": "AH-CTK-002",
-            "host_declaration_invalid": True,
-            "host_declaration": {"spec": "agent-hooks/9.0"},
-        },
-    )
-    write("conformance/vectors/AH-CTK-003.json", {"id": "AH-CTK-003"})
-    write(
-        "conformance/vectors/AH-CTK-004.json",
-        {
-            "id": "AH-CTK-004",
-            "introduced_in": "draft",
-            "host_declaration": {"spec": "agent-hooks/draft"},
-        },
-    )
+    for version in ("draft", "0.1"):
+        suite = root / "conformance" / version
+        (suite / "vectors").mkdir(parents=True)
+        published = "draft" if version == "draft" else f"v{version}"
+        write(
+            f"conformance/{version}/vectors.schema.json",
+            {"$id": f"{ID_ORIGIN}{published}/conformance/vectors.schema.json"},
+        )
+        write(
+            f"conformance/{version}/vectors/AH-CTK-001.json",
+            {
+                "id": "AH-CTK-001",
+                "host_declaration": {"spec": f"agent-hooks/{version}"},
+            },
+        )
+        write(
+            f"conformance/{version}/vectors/AH-CTK-002.json",
+            {
+                "id": "AH-CTK-002",
+                "host_declaration_invalid": True,
+                "host_declaration": {"spec": "agent-hooks/9.0"},
+            },
+        )
     write(
         "conformance/golden/declaration.json",
         {"fixtures": [{"id": "d1", "document": {"spec": "agent-hooks/0.1"}}]},
@@ -116,6 +116,22 @@ def conformance(root: Path) -> None:
             "spec": "agent-hooks/0.1",
             "fixtures": [{"id": "i1", "ctx": {"spec": "agent-hooks/0.1"}}],
         },
+    )
+
+
+def add_suite(root: Path, version: str) -> None:
+    suite = root / "conformance" / version
+    (suite / "vectors").mkdir(parents=True, exist_ok=True)
+    published = "draft" if version == "draft" else f"v{version}"
+    (suite / "vectors.schema.json").write_text(
+        json.dumps({"$id": f"{ID_ORIGIN}{published}/conformance/vectors.schema.json"}),
+        encoding="utf-8",
+    )
+    (suite / "vectors/AH-CTK-001.json").write_text(
+        json.dumps(
+            {"id": "AH-CTK-001", "host_declaration": {"spec": f"agent-hooks/{version}"}}
+        ),
+        encoding="utf-8",
     )
 
 
@@ -200,6 +216,7 @@ class CheckTest(unittest.TestCase):
 
     def test_any_schema_layout_passes_and_an_empty_schema_folder_fails(self) -> None:
         bundle(self.root, "0.2", "generated")
+        add_suite(self.root, "0.2")
         (self.root / "spec/README.md").write_text(
             README + "| [0.2](0.2/) | row |\n", encoding="utf-8"
         )
@@ -224,6 +241,7 @@ class CheckTest(unittest.TestCase):
             errors,
         )
 
+    @unittest.skipIf(os.name == "nt", "symlink creation may require Windows elevation")
     def test_symlinked_file_fails(self) -> None:
         link = self.root / "spec/0.1/schema/extra.schema.json"
         os.symlink("verdict.schema.json", link)
@@ -233,6 +251,7 @@ class CheckTest(unittest.TestCase):
             versions.check(self.root),
         )
 
+    @unittest.skipIf(os.name == "nt", "symlink creation may require Windows elevation")
     def test_symlinked_version_folder_fails_and_is_not_a_bundle(self) -> None:
         os.symlink("draft", self.root / "spec/0.2")
         errors = versions.check(self.root)
@@ -263,6 +282,7 @@ class CheckTest(unittest.TestCase):
             versions.check(self.root),
         )
 
+    @unittest.skipIf(os.name == "nt", "symlink creation may require Windows elevation")
     def test_spec_itself_as_a_symlink_fails(self) -> None:
         (self.root / "spec").rename(self.root / "elsewhere")
         os.symlink("elsewhere", self.root / "spec")
@@ -274,7 +294,8 @@ class CheckTest(unittest.TestCase):
     def test_non_ascii_digit_folder_is_not_a_version(self) -> None:
         bundle(self.root, "0.١", "flat")
         self.assertIn(
-            "spec/0.١/ is not draft or a MAJOR.MINOR version", versions.check(self.root)
+            "spec/0.١/ is not draft or a MAJOR.MINOR version",
+            versions.check(self.root),
         )
 
     def test_invalid_json_is_reported(self) -> None:
@@ -390,29 +411,22 @@ class CheckTest(unittest.TestCase):
         )
         self.assertFalse(versions.admits({"pattern": "("}, "agent-hooks/0.1"))
 
-    def test_the_two_conformance_sets_name_their_versions(self) -> None:
+    def test_each_conformance_suite_is_bound_to_its_spec_version(self) -> None:
         self.assertEqual(versions.check(self.root), [])
-        # A released-set vector naming the draft, a draft-only vector
-        # naming the release, an unknown introduced_in, and goldens off
-        # the released version.
-        (self.root / "conformance/vectors/AH-CTK-001.json").write_text(
+        (self.root / "conformance/draft/vectors/AH-CTK-001.json").write_text(
             json.dumps(
-                {"id": "AH-CTK-001", "host_declaration": {"spec": "agent-hooks/draft"}}
+                {"id": "AH-CTK-001", "host_declaration": {"spec": "agent-hooks/0.1"}}
             ),
             encoding="utf-8",
         )
-        (self.root / "conformance/vectors/AH-CTK-004.json").write_text(
+        (self.root / "conformance/0.1/vectors.schema.json").write_text(
             json.dumps(
                 {
-                    "id": "AH-CTK-004",
-                    "introduced_in": "draft",
-                    "host_declaration": {"spec": "agent-hooks/0.1"},
+                    "$id": f"{ID_ORIGIN}v0.1/conformance/vectors.schema.json",
+                    "$ref": f"{ID_ORIGIN}draft/verdict.schema.json",
                 }
             ),
             encoding="utf-8",
-        )
-        (self.root / "conformance/vectors/AH-CTK-005.json").write_text(
-            json.dumps({"id": "AH-CTK-005", "introduced_in": "0.2"}), encoding="utf-8"
         )
         identity = json.loads(
             (self.root / "conformance/golden/identity.json").read_text(encoding="utf-8")
@@ -425,28 +439,35 @@ class CheckTest(unittest.TestCase):
             json.dumps({"fixtures": [{"id": "d1", "document": {}}]}), encoding="utf-8"
         )
         errors = versions.check(self.root)
-        self.assertEqual(
+        self.assertIn(
+            "conformance/draft/vectors/AH-CTK-001.json: host_declaration.spec is "
+            "'agent-hooks/0.1'; the suite requires agent-hooks/draft",
             errors,
-            [
-                "conformance/vectors/AH-CTK-001.json: host_declaration.spec is "
-                "'agent-hooks/draft'; a vector of the released set carries agent-hooks/0.1",
-                "conformance/vectors/AH-CTK-004.json: host_declaration.spec is "
-                "'agent-hooks/0.1'; a vector of the working test set (introduced_in: draft) "
-                "carries agent-hooks/draft",
-                "conformance/vectors/AH-CTK-005.json: introduced_in is '0.2', not draft "
-                "or a released bundle",
-                "conformance/golden/declaration.json: fixtures[0].document.spec is "
-                "None; a golden fixture carries agent-hooks/0.1",
-                "conformance/golden/identity.json: fixtures[0].ctx.spec is "
-                "'agent-hooks/draft'; a golden fixture carries agent-hooks/0.1",
-            ],
+        )
+        self.assertIn(
+            "conformance/0.1/vectors.schema.json has cross-version $ref "
+            f"{ID_ORIGIN}draft/verdict.schema.json",
+            next(error for error in errors if "has cross-version $ref" in error),
+        )
+        self.assertTrue(
+            any("conformance/golden/declaration.json:" in error for error in errors)
+        )
+        self.assertTrue(
+            any("conformance/golden/identity.json:" in error for error in errors)
         )
         (self.root / "conformance/golden/identity.json").unlink()
         self.assertIn(
             "conformance/golden/identity.json is missing", versions.check(self.root)
         )
-        shutil.rmtree(self.root / "conformance/vectors")
-        self.assertIn("conformance/vectors/ is missing", versions.check(self.root))
+        shutil.rmtree(self.root / "conformance/draft/vectors")
+        self.assertIn(
+            "conformance/draft/vectors/ is missing", versions.check(self.root)
+        )
+
+    def test_empty_versioned_suite_fails(self) -> None:
+        for path in (self.root / "conformance/0.1/vectors").glob("*.json"):
+            path.unlink()
+        self.assertIn("conformance/0.1/vectors/ is empty", versions.check(self.root))
 
     def test_stale_references_fail(self) -> None:
         (self.root / "docs/old.md").write_text(

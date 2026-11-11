@@ -5,11 +5,11 @@
 # - PRs that touch the normative surface (spec/, conformance vectors/
 #   schema) must carry one of the change-class labels so reviewers and
 #   the CHANGELOG see the classification.
-# - PRs must not modify a spec/<MAJOR.MINOR>/ folder that exists on
-#   the base branch; edit spec/draft/ or add a new version folder. The
-#   one exception: a new regular .json file under
-#   <version>/schema/examples/<Type>/ may be added. Modified or deleted
-#   files, and any other new file, fail.
+# - PRs must not modify a spec/<MAJOR.MINOR>/ or
+#   conformance/<MAJOR.MINOR>/ folder that exists on the base branch;
+#   edit the draft or add a new version folder. The one exception:
+#   a new regular .json file under spec/<version>/schema/examples/<Type>/
+#   may be added. Modified or deleted files, and any other new file, fail.
 #
 # Required-check rule: this workflow has NO paths filter and reports on
 # every PR (a path-filtered required check deadlocks the queue — see
@@ -58,7 +58,7 @@ jobs:
           echo "labels: ${LABELS:-<none>}"
 
           normative=$(echo "$changed" | grep -E \
-            '^(spec/|conformance/vectors|conformance/vectors\.schema\.json)' || true)
+            '^(spec/|conformance/(draft|0\.1)/vectors)' || true)
           if [ -n "$normative" ] && ! echo "$LABELS" | grep -qE 'spec:(breaking|additive)'; then
             echo "::error::PR touches the normative surface but carries no spec:breaking/spec:additive label:"
             echo "$normative"
@@ -74,7 +74,7 @@ jobs:
             fi
           fi
           echo "change-class ok"
-      - name: Released specification folders are immutable
+      - name: Released specification and conformance folders are immutable
         # Run the copy of the guard at the base revision, so a pull
         # request cannot relax the rule it is checked against. The head
         # copy is used only when the base branch has no guard yet.
