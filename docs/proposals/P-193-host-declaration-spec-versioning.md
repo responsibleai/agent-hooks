@@ -1,6 +1,6 @@
 # P-193: Version host declarations with the specification
 
-- **Status:** Draft
+- **Status:** Accepted
 - **Created:** 2026-11-05
 - **Author(s):** Caitie McCaffrey (@CaitieM20)
 - **PR:** https://github.com/responsibleai/agent-hooks/pull/193
