@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Copyright (c) Microsoft. All rights reserved.
+# CI mirror checks for the Python SDK; run from the repository root.
 set -euo pipefail
 
 case "${1:-}" in

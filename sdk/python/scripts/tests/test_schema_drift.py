@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) Microsoft. All rights reserved.
 
-"""Exercise the schema drift checks against isolated Git repositories."""
+"""Exercise the Python SDK CI schema drift checks against isolated Git repositories."""
 
 import os
 import shutil
@@ -10,8 +10,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT = Path(__file__).with_name("check-schema-drift.sh")
-WORKFLOW = Path(__file__).resolve().parent.parent / ".github/workflows/schema-drift.yml"
+ROOT = Path(__file__).resolve().parents[4]
+SCRIPT = Path(__file__).resolve().parents[1] / "check-schema-drift.sh"
+WORKFLOW = ROOT / ".github/workflows/schema-drift.yml"
 MIRROR = Path("sdk/python/python/agent_hooks")
 BASH = shutil.which("bash")
 
@@ -32,8 +33,8 @@ class SchemaDriftTest(unittest.TestCase):
         )
         self.write("bin/python3", "#!/bin/sh\nprintf '0.1\\ndraft\\n'\n")
         (self.root / "bin/python3").chmod(0o755)
-        (self.root / "scripts").mkdir()
-        self.write("scripts/check-schema-drift.sh", SCRIPT.read_text(encoding="utf-8"))
+        (self.root / "sdk/python/scripts").mkdir(parents=True)
+        self.write("sdk/python/scripts/check-schema-drift.sh", SCRIPT.read_text(encoding="utf-8"))
         for path in [
             "spec/0.1/schema/generated/root.schema.json",
             MIRROR / "schema/0.1/root.schema.json",
@@ -69,7 +70,7 @@ class SchemaDriftTest(unittest.TestCase):
 
     def run_check(self, *args):
         return subprocess.run(
-            [BASH, "scripts/check-schema-drift.sh", *args],
+            [BASH, "sdk/python/scripts/check-schema-drift.sh", *args],
             cwd=self.root, env=self.env, capture_output=True, text=True,
         )
 

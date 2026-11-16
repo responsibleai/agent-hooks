@@ -102,6 +102,8 @@ per-point context schemas under `agent-context/`. The `schema-drift`
 workflow runs `draft-generated`, `released-python`, and `ctk-vectors`
 as separate hard checks. `draft-python-advisory` regenerates the draft
 and reports mirror differences as warnings; comparison errors still fail.
+The mirror comparison and aggregate helper is in `sdk/python/scripts/`,
+with its isolated regression tests in `sdk/python/scripts/tests/`.
 The required `drift` job aggregates all four and fails if any job fails,
 is cancelled, or is skipped. Keep `drift` required in branch protection;
 the individual checks may additionally be required, but no settings change
