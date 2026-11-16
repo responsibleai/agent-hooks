@@ -132,7 +132,7 @@ class Publisher:
                 f"{origin} and {earlier[0]} both publish schema/{relative} with different "
                 "content; a published $id path is immutable, so the newer bundle must "
                 "publish under its own path (set ID_BASE in "
-                "sdk/typescript/scripts/generate-schemas.mts before regenerating)"
+                "spec/scripts/generate-schemas.mts before regenerating)"
             )
         self.staged[relative] = (origin, data)
         target = self.schema_out / relative

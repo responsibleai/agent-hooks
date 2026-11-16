@@ -3,7 +3,7 @@
 // Validate the standalone JSON examples of every specification bundle
 // against that bundle's own generated schemas.
 //
-//   node scripts/check-schema-examples.mjs [<bundle> ...]
+//   node check-schema-examples.mjs [<bundle> ...]
 //
 // A bundle is spec/draft or spec/<MAJOR.MINOR>; with no argument every
 // bundle is checked. Each example sits at
@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 
-export const specRoot = fileURLToPath(new URL("../../../spec/", import.meta.url));
+export const specRoot = fileURLToPath(new URL("../", import.meta.url));
 const VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 
 export const schemaMapping = {
@@ -71,8 +71,7 @@ export function bundleSchemaRoot(name) {
 /** The draft bundle's schema folder, where new examples are written first. */
 export const schemaRoot = bundleSchemaRoot("draft");
 
-/** Every bundle name under spec/, sorted. Anything else under spec/ that is
- *  a directory or a symbolic link is an error: the folder holds bundles only. */
+/** Every bundle name under spec/, sorted. The scripts directory is not a bundle. */
 export async function bundles(root = specRoot) {
   const names = [];
   for (const entry of await readdir(root, { withFileTypes: true })) {
@@ -81,6 +80,7 @@ export async function bundles(root = specRoot) {
       throw new Error(`${filename}: symbolic links are not allowed under spec/`);
     }
     if (!entry.isDirectory()) continue;
+    if (entry.name === "scripts") continue;
     if (entry.name !== "draft" && !VERSION.test(entry.name)) {
       throw new Error(`${filename}: not draft or a MAJOR.MINOR version`);
     }

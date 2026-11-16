@@ -2,7 +2,7 @@
 
 // agent-context.schema.json and its per-point variants (§4). The master is
 // the union of one variant per interception point; each variant requires that
-// point's payload. scripts/generate-schemas.ts derives the closed per-point
+// point's payload. spec/scripts/generate-schemas.mts derives the closed per-point
 // files under generated/strict-contexts/ from the same variants.
 
 import { Extensions } from "./common";

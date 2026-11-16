@@ -122,9 +122,11 @@ jobs:
         with: { node-version: "22" }
       - run: npm ci
         working-directory: sdk/typescript
+      - run: npm ci
+        working-directory: spec/scripts
       - name: Schema examples match their JSON Schemas (every bundle)
-        run: node scripts/check-schema-examples.mjs
-        working-directory: sdk/typescript
+        run: node check-schema-examples.mjs
+        working-directory: spec/scripts
       - name: Compare the latest release schemas with the draft
         # Differential validation (the tool exits 1 when the two sets
         # judge an instance differently) and a structural diff of the
@@ -143,14 +145,14 @@ jobs:
         run: |
           set -u
           version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
-          version=$(for dir in ../../spec/*/; do basename "$dir"; done | grep -E "$version_pattern" | sort -V | tail -1)
+          version=$(for dir in ../*/; do basename "$dir"; done | grep -E "$version_pattern" | sort -V | tail -1)
           if [ -z "$version" ]; then
             echo "::error::no released spec/<MAJOR.MINOR>/ folder to compare with the draft"
             exit 1
           fi
           # The tool reads schema/generated/ when a bundle has it, else schema/.
-          old="../../spec/$version/schema"
-          new="../../spec/draft/schema/generated"
+          old="../$version/schema"
+          new="../draft/schema/generated"
           wires=(--wire-old "agent-hooks/$version" --wire-new agent-hooks/draft)
           validation="$RUNNER_TEMP/schema-drift-validation.txt"
           structure="$RUNNER_TEMP/schema-drift-structure.txt"
@@ -196,7 +198,7 @@ jobs:
             cat "$validation" "$structure"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-        working-directory: sdk/typescript
+        working-directory: spec/scripts
       - name: Report schema drift between the latest release and the draft (advisory)
         # The draft is allowed to move away from the release, so this
         # step continues on error; its red result is the signal, and
@@ -409,6 +411,7 @@ jobs:
         continue-on-error: true
         run: |
           npm ci
+          npm ci --prefix ../../spec/scripts
           cargo fetch --locked
           npm run build:native:debug
           npx tsc
@@ -486,12 +489,12 @@ jobs:
       - name: Repository script regression tests
         run: python3 -m unittest discover -s scripts -p "test_*.py" -v
       - run: npm ci
-        working-directory: sdk/typescript
+        working-directory: spec/scripts
       - name: Committed JSON Schemas match their TypeScript source
         # Type-checks spec/draft/schema/src, regenerates to memory and compares
-        # with the committed files (sdk/typescript/scripts/generate-schemas.mts).
+        # with the committed files (spec/scripts/generate-schemas.mts).
         run: npm run check:schema
-        working-directory: sdk/typescript
+        working-directory: spec/scripts
       - name: Released schema bundles match their TypeScript source
         # The same check for every spec/<MAJOR.MINOR>/ bundle: the frozen
         # source must still generate the frozen output.
@@ -499,12 +502,12 @@ jobs:
           set -eu
           version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
           checked=0
-          for dir in ../../spec/*/; do
+          for dir in ../*/; do
             version=$(basename "$dir")
             [[ $version =~ $version_pattern ]] || continue
             echo "Checking spec/$version/schema"
             npx tsc -p "${dir}schema/src/tsconfig.json"
-            npx tsx scripts/generate-schemas.mts --check --spec "$version"
+            npx tsx generate-schemas.mts --check --spec "$version"
             checked=$((checked + 1))
           done
           if [ "$checked" -eq 0 ]; then
@@ -512,7 +515,7 @@ jobs:
             exit 1
           fi
           echo "checked $checked released bundle(s)"
-        working-directory: sdk/typescript
+        working-directory: spec/scripts
       - name: Source files carry the standard file header
         run: python3 scripts/check-file-headers.py
 
@@ -576,6 +579,7 @@ jobs:
         shell: bash
         run: |
           npm ci
+          npm ci --prefix ../../spec/scripts
           cargo fetch --locked
           npm run build:native:debug
           npx tsc
