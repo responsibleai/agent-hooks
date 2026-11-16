@@ -1,7 +1,14 @@
 name: schema-drift
 
-# No pull_request path filter: `drift` is a required check and must be
-# created on every PR, including those that do not touch schemas.
+# Checks:
+# - draft-generated: ensure generated draft schemas match their TypeScript source.
+# - released-python: refresh released Python schema mirrors, then fail on drift.
+# - ctk-vectors: refresh the Python CTK vector mirror, then fail on drift.
+# - draft-python-advisory: report experimental draft mirror drift as a warning.
+# - drift: required aggregate; fails unless every check job succeeds.
+#
+# No pull_request path filter: the required `drift` check must be created
+# on every PR, including those that do not touch schemas.
 on:
   push:
     branches: [main]
