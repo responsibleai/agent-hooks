@@ -30,14 +30,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check released Python schema mirrors
-        run: bash sdk/python/scripts/check-schema-drift.sh released
+        run: bash sdk/python/scripts/check-released-schema-mirror.sh
 
   ctk-vectors:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check Python CTK vector mirror
-        run: bash sdk/python/scripts/check-schema-drift.sh vectors
+        run: bash sdk/python/scripts/check-ctk-vector-mirror.sh
 
   draft-python-advisory:
     runs-on: ubuntu-latest
@@ -51,7 +51,7 @@ jobs:
         run: npm run generate:schema
         working-directory: spec/scripts
       - name: Report experimental draft mirror drift
-        run: bash sdk/python/scripts/check-schema-drift.sh draft
+        run: bash sdk/python/scripts/check-draft-schema-mirror.sh
 
   drift:
     if: ${{ always() }}
@@ -65,4 +65,11 @@ jobs:
           RELEASED_PYTHON: ${{ needs.released-python.result }}
           CTK_VECTORS: ${{ needs.ctk-vectors.result }}
           DRAFT_PYTHON: ${{ needs.draft-python-advisory.result }}
-        run: bash sdk/python/scripts/check-schema-drift.sh aggregate "$DRAFT_GENERATED" "$RELEASED_PYTHON" "$CTK_VECTORS" "$DRAFT_PYTHON"
+        run: |
+          if [[ "${DRAFT_GENERATED:-}" != success ||
+                "${RELEASED_PYTHON:-}" != success ||
+                "${CTK_VECTORS:-}" != success ||
+                "${DRAFT_PYTHON:-}" != success ]]; then
+            echo "::error::a drift check failed, was skipped, cancelled, or did not report a result"
+            exit 1
+          fi
