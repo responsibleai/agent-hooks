@@ -37,7 +37,7 @@ The TypeScript files in `src/` are the editable schema source.
 From the repository root:
 
 ```bash
-cd sdk/typescript
+cd spec/scripts
 npm ci
 npm run generate:schema
 npm run check:schema

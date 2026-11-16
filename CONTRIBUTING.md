@@ -84,12 +84,12 @@ differs from the generated text.
   A rule the type system cannot state is JSON Schema in an `@allOf` tag
   on the interface it constrains, copied through by the generator;
   `@propertyNames` passes through the same way.
-- `sdk/typescript/scripts/generate-schemas.mts` lists its post-pass at
+- `spec/scripts/generate-schemas.mts` lists its post-pass at
   the top of the file. The per-point `generated/strict-contexts/*.schema.json`
   files are derived there from the master's union members.
 
 ```bash
-cd sdk/typescript && npm ci
+cd spec/scripts && npm ci
 npm run generate:schema      # write spec/draft/schema/generated/**/*.schema.json
 npm run check:schema         # type-check the source, then fail on any drift
 npm run check:schema:equivalence -- --old origin/main   # differential validation against another revision
@@ -119,7 +119,7 @@ cd sdk/rust && cargo test --workspace --all-features && cargo clippy --workspace
 # Python (rebuild bindings when core changed)
 cd sdk/python && maturin develop --release && python -m pytest tests/ && ruff check
 # TypeScript (rebuild native when core changed)
-cd sdk/typescript && npm ci && npm test
+cd spec/scripts && npm ci && cd ../../sdk/typescript && npm ci && npm test
 # .NET (needs the FFI cdylib on the library path)
 cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
 cd sdk/dotnet && LD_LIBRARY_PATH=../rust/target/release dotnet test

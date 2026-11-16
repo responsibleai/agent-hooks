@@ -5,7 +5,7 @@
 // diff between them. Used to show that regenerated schemas admit and reject
 // the same instances as the schemas they replace.
 //
-//   tsx scripts/schema-equivalence.mts --old <git-ref|dir> [--new <dir>]
+//   tsx schema-equivalence.mts --old <git-ref|dir> [--new <dir>]
 //       [--random <mutants per seed>] [--seed <n>] [--examples <n>] [--structural-diff]
 //       [--wire-old <string> --wire-new <string>]
 //
@@ -47,7 +47,7 @@ import addFormats from "ajv-formats";
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Obj = { [key: string]: Json };
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 // Every schema's $id sits under one path segment below this origin:
 // schema/vX.Y/ for a released version, schema/draft/ for the draft. A
 // set is keyed by the path below that segment, so two sets compare by

@@ -129,17 +129,17 @@ jobs:
           npm ci
           version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
           checked=0
-          for dir in ../../spec/*/; do
+          for dir in ../*/; do
             version=$(basename "$dir")
             [[ $version =~ $version_pattern ]] || continue
-            node scripts/check-schema-examples.mjs "$version"
+            node check-schema-examples.mjs "$version"
             checked=$((checked + 1))
           done
           if [ "$checked" -eq 0 ]; then
             echo "::error::no released spec/<MAJOR.MINOR>/ folder"
             exit 1
           fi
-        working-directory: sdk/typescript
+        working-directory: spec/scripts
 
   python-wheels:
     name: Python wheel (${{ matrix.platform }})

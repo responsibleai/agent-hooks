@@ -34,7 +34,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    different bytes to one path.
 
    ```bash
-   cd sdk/typescript && npx tsx scripts/generate-schemas.mts --spec X.Y
+   cd spec/scripts && npm ci && npx tsx generate-schemas.mts --spec X.Y
    ```
 
 3. In `spec/draft/AGENT-HOOKS-DRAFT.md`, point the banner at the new
@@ -74,10 +74,10 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
        -s "conformance/$version/vectors.schema.json" "${refs[@]}" \
        -d "conformance/$version/vectors/*.json"
    done
-   cd sdk/typescript && npm ci
-   node scripts/check-schema-examples.mjs
-   npx tsc -p ../../spec/X.Y/schema/src/tsconfig.json
-   npx tsx scripts/generate-schemas.mts --check --spec X.Y
+   cd spec/scripts && npm ci
+   node check-schema-examples.mjs
+   npx tsc -p ../X.Y/schema/src/tsconfig.json
+   npx tsx generate-schemas.mts --check --spec X.Y
    ```
 
    Each suite validates only against its matching schema bundle. SDK
@@ -95,7 +95,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    ```bash
    git worktree add /tmp/cut-check origin/main
    (cd /tmp/cut-check && python3 scripts/cut-spec-version.py X.Y --date YYYY-MM-DD \
-     && cd sdk/typescript && npm ci && npx tsx scripts/generate-schemas.mts --spec X.Y)
+     && cd spec/scripts && npm ci && npx tsx generate-schemas.mts --spec X.Y)
    diff -r /tmp/cut-check/spec/X.Y spec/X.Y && echo reproducible
    ```
 
@@ -118,11 +118,11 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    for f in $(git ls-tree -r --name-only v0.1.0-beta.3 spec/schema | grep '\.schema\.json$'); do
      git show "v0.1.0-beta.3:$f" > "/tmp/beta3/${f#spec/schema/}"
    done
-   cd sdk/typescript && npm run check:schema:equivalence -- --old /tmp/beta3 --new ../../spec/0.1/schema/generated
+   cd spec/scripts && npm run check:schema:equivalence -- --old /tmp/beta3 --new ../0.1/schema/generated
    ```
 
    The examples are the draft's that validate against those schemas
-   (`node scripts/check-schema-examples.mjs 0.1`). From 0.2 on, the
+   (`node check-schema-examples.mjs 0.1` from `spec/scripts`). From 0.2 on, the
    byte proof above is the only one.
 
 9. After the merge, tag the merge commit. The tag starts no workflow;

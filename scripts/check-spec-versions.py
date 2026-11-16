@@ -21,7 +21,7 @@ has a matching schema ID, only same-version external schema refs, and
 valid host declarations with the corresponding wire string. The golden
 documents and contexts use the released 0.1 contract.
 
-Every entry under spec/ is a regular file or directory whose name does
+Every entry under specification bundles is a regular file or directory whose name does
 not start with a dot: a symbolic link, a device or pipe, and a hidden
 file such as .gitattributes fail, so nothing in a bundle can point
 outside it or rewrite other files on checkout.
@@ -108,6 +108,8 @@ def walk(root: Path) -> list[Path]:
     """Every entry below root, without following symbolic links."""
     entries: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        if Path(dirpath) == root / "scripts" and "node_modules" in dirnames:
+            dirnames.remove("node_modules")
         for name in sorted(dirnames) + sorted(filenames):
             entries.append(Path(dirpath) / name)
     return entries
@@ -454,6 +456,8 @@ def check(root: Path) -> list[str]:
         errors.append("spec/ has no released MAJOR.MINOR folder")
 
     for folder in folders:
+        if folder.name == "scripts":
+            continue
         if folder.name != "draft" and not VERSION.fullmatch(folder.name):
             errors.append(f"spec/{folder.name}/ is not draft or a MAJOR.MINOR version")
             continue

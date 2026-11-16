@@ -41,7 +41,7 @@ import * as TJS from "typescript-json-schema";
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Schema = { [key: string]: Json };
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const specArg = process.argv.indexOf("--spec");
 const SPEC = specArg >= 0 && specArg + 1 < process.argv.length ? process.argv[specArg + 1] : "draft";
 const SCHEMA_DIR = `spec/${SPEC}/schema`;
@@ -367,13 +367,13 @@ function main(): number {
     }
     if (!existsSync(path)) {
       failing++;
-      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} is missing; run npm run generate:schema in sdk/typescript`);
+      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} is missing; run npm run generate:schema in spec/scripts`);
       continue;
     }
     const actual = readFileSync(path, "utf8");
     if (actual !== text) {
       failing++;
-      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} differs from the TypeScript source; run npm run generate:schema in sdk/typescript`);
+      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} differs from the TypeScript source; run npm run generate:schema in spec/scripts`);
       console.log(`  ${firstDifference(actual, text)}`);
     }
   }

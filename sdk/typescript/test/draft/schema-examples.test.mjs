@@ -16,7 +16,7 @@ import {
   schemaMapping,
   schemaRoot,
   validateExamples,
-} from "../../scripts/check-schema-examples.mjs";
+} from "../../../../spec/scripts/check-schema-examples.mjs";
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), "schema-examples-"));
@@ -62,6 +62,7 @@ test("bundles rejects a symbolic link and a stray folder under spec/", async (t)
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(path.join(root, "draft"));
   await mkdir(path.join(root, "0.1"));
+  await mkdir(path.join(root, "scripts"));
   await writeFile(path.join(root, "README.md"), "# versions\n");
   assert.deepEqual(await bundles(root), ["0.1", "draft"]);
   for (const stray of ["0.1.0", "0.1-beta"]) {
