@@ -579,6 +579,7 @@ jobs:
         shell: bash
         run: |
           npm ci
+          npm ci --prefix ../../spec/scripts
           cargo fetch --locked
           npm run build:native:debug
           npx tsc
