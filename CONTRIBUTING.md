@@ -98,10 +98,15 @@ npm run check:schema:equivalence -- --old origin/main   # differential validatio
 After a change, regenerate. The Python mirror holds one folder per
 supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`
 and `schema/draft/`), each with that bundle's generated schemas and the
-per-point context schemas under `agent-context/`. The `drift` workflow's
-"Refresh the released vendored copies" step enforces released copies;
-it preserves existing draft copies and reports their differences in an
-advisory summary. Commit draft source and generated JSON together, but
+per-point context schemas under `agent-context/`. The `schema-drift`
+workflow runs `draft-generated`, `released-python`, and `ctk-vectors`
+as separate hard checks. `draft-python-advisory` regenerates the draft
+and reports mirror differences as warnings; comparison errors still fail.
+The required `drift` job aggregates all four and fails if any job fails,
+is cancelled, or is skipped. Keep `drift` required in branch protection;
+the individual checks may additionally be required, but no settings change
+is needed for the split. Every check runs on every pull request.
+Commit draft source and generated JSON together, but
 refresh the SDK draft mirror only when its implementation is updated to
 match. When a shape changes, also run
 the `schema-lint` steps from `.github/workflows/ci.yml` (ajv compiles

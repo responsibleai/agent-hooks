@@ -1,9 +1,7 @@
 name: schema-drift
 
-# No path filter on pull_request: `drift` is a required check, and a
-# path-filtered required check deadlocks every PR that doesn't match the
-# filter (GitHub never creates the check run, so the branch protection
-# waits forever). The job is cheap; run it on every PR.
+# No pull_request path filter: `drift` is a required check and must be
+# created on every PR, including those that do not touch schemas.
 on:
   push:
     branches: [main]
@@ -13,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  drift:
+  draft-generated:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -21,71 +19,50 @@ jobs:
         with: { node-version: "22" }
       - run: npm ci
         working-directory: spec/scripts
-      - name: Regenerate the draft schemas from their TypeScript source
+      - name: Check generated draft schemas
+        run: npm run check:schema
+        working-directory: spec/scripts
+      - name: Test mirror and aggregate checks
+        run: python3 -m unittest discover -s scripts -p test_schema_drift.py
+
+  released-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check released Python schema mirrors
+        run: bash scripts/check-schema-drift.sh released
+
+  ctk-vectors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check Python CTK vector mirror
+        run: bash scripts/check-schema-drift.sh vectors
+
+  draft-python-advisory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: "22" }
+      - run: npm ci
+        working-directory: spec/scripts
+      - name: Regenerate draft schemas for comparison
         run: npm run generate:schema
         working-directory: spec/scripts
-      - name: Refresh the released vendored copies
-        # The Python mirror holds one folder per specification version
-        # the SDKs support (VERSIONING.md), named after its spec/<version>/
-        # bundle, with the per-point context schemas under agent-context/.
-        run: |
-          set -eu
-          mirror=sdk/python/python/agent_hooks/schema
-          versions_text=$(python3 scripts/check-version-consistency.py --print-supported)
-          mapfile -t versions <<< "$versions_text"
-          # Preserve experimental draft copies until the SDK implements the new format.
-          for directory in "$mirror"/*/; do
-            [ -d "$directory" ] || continue
-            [ "$(basename "$directory")" = draft ] || rm -rf "$directory"
-          done
-          for version in "${versions[@]}"; do
-            [ "$version" != draft ] || continue
-            if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-              echo "::error::invalid released specification version: $version"
-              exit 1
-            fi
-            source="spec/$version/schema/generated"
-            [ -d "$source" ] || source="spec/$version/schema"
-            points="$source/strict-contexts"
-            [ -d "$points" ] || points="$source/agent-context"
-            mkdir -p "$mirror/$version/agent-context"
-            cp "$source"/*.schema.json "$mirror/$version/"
-            cp "$points"/*.schema.json "$mirror/$version/agent-context/"
-          done
-          rm -rf sdk/python/python/agent_hooks/ctk/vectors
-          mkdir -p sdk/python/python/agent_hooks/ctk/vectors
-          cp conformance/0.1/vectors/AH-CTK-*.json sdk/python/python/agent_hooks/ctk/vectors/
-      - name: Fail if regeneration produced a diff
-        # -A first so untracked regenerated output also fails the gate.
-        run: git add -A && git diff --cached --exit-code
-      - name: Report experimental draft mirror drift (advisory)
-        run: |
-          set -eu
-          temporary=$(mktemp -d)
-          trap 'rm -rf "$temporary"' EXIT
-          source=spec/draft/schema/generated
-          mkdir -p "$temporary/draft/agent-context"
-          cp "$source"/*.schema.json "$temporary/draft/"
-          cp "$source"/strict-contexts/*.schema.json "$temporary/draft/agent-context/"
-          status=0
-          diff -ru sdk/python/python/agent_hooks/schema/draft "$temporary/draft" > "$temporary/diff" || status=$?
-          if [ "$status" -gt 1 ]; then
-            cat "$temporary/diff"
-            echo "::error::could not compare the draft schema mirror"
-            exit "$status"
-          fi
-          {
-            echo "## Experimental draft schema mirror"
-            if [ "$status" -eq 0 ]; then
-              echo "The SDK draft copies match the current draft schemas."
-            else
-              echo "The SDK draft copies differ from the current specification draft."
-              echo "Advisory only: update these copies alongside matching SDK implementation changes."
-              echo '```diff'
-              cat "$temporary/diff"
-              echo '```'
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$status" -eq 1 ]; then
-            echo "::warning::experimental SDK draft schema copies differ from the latest draft; see the job summary"
-          fi
+      - name: Report experimental draft mirror drift
+        run: bash scripts/check-schema-drift.sh draft
+
+  drift:
+    if: ${{ always() }}
+    needs: [draft-generated, released-python, ctk-vectors, draft-python-advisory]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Require all drift checks to complete successfully
+        env:
+          DRAFT_GENERATED: ${{ needs.draft-generated.result }}
+          RELEASED_PYTHON: ${{ needs.released-python.result }}
+          CTK_VECTORS: ${{ needs.ctk-vectors.result }}
+          DRAFT_PYTHON: ${{ needs.draft-python-advisory.result }}
+        run: bash scripts/check-schema-drift.sh aggregate "$DRAFT_GENERATED" "$RELEASED_PYTHON" "$CTK_VECTORS" "$DRAFT_PYTHON"
