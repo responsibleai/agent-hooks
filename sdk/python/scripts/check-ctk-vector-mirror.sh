@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Copyright (c) Microsoft. All rights reserved.
 
+# Refresh the Python CTK vector mirror from conformance vectors, then fail
+# if the refreshed files differ from the committed mirror.
 # Run from the repository root.
 set -euo pipefail
 

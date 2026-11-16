@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Copyright (c) Microsoft. All rights reserved.
 
+# Compare the experimental Python draft schema mirror with generated draft
+# schemas and report differences as an advisory warning.
 # Run from the repository root.
 set -euo pipefail
 
