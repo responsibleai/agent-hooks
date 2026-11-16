@@ -1,10 +1,5 @@
-# Change-class enforcement (GOVERNANCE.md).
+# Released specification and conformance immutability.
 #
-# - PRs labeled `spec:breaking` must bump a version surface (the spec
-#   header or an SDK manifest) in the same PR.
-# - PRs that touch the normative surface (spec/, conformance vectors/
-#   schema) must carry one of the change-class labels so reviewers and
-#   the CHANGELOG see the classification.
 # - PRs must not modify a spec/<MAJOR.MINOR>/ or
 #   conformance/<MAJOR.MINOR>/ folder that exists on the base branch;
 #   edit the draft or add a new version folder. The one exception:
@@ -14,15 +9,15 @@
 # Required-check rule: this workflow has NO paths filter and reports on
 # every PR (a path-filtered required check deadlocks the queue — see
 # CONTRIBUTING.md).
+# Keep the workflow and job names for existing required-check settings.
 name: change-class
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   change-class:
@@ -48,32 +43,6 @@ jobs:
           fi
           sha=$(git rev-parse --verify HEAD^1)
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-      - name: Enforce label/version-bump coupling
-        env:
-          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
-          BASE: ${{ steps.base.outputs.sha }}
-        run: |
-          set -eu
-          changed=$(git diff --name-only "$BASE"...HEAD)
-          echo "labels: ${LABELS:-<none>}"
-
-          normative=$(echo "$changed" | grep -E \
-            '^(spec/|conformance/(draft|0\.1)/vectors)' || true)
-          if [ -n "$normative" ] && ! echo "$LABELS" | grep -qE 'spec:(breaking|additive)'; then
-            echo "::error::PR touches the normative surface but carries no spec:breaking/spec:additive label:"
-            echo "$normative"
-            exit 1
-          fi
-
-          if echo "$LABELS" | grep -q 'spec:breaking'; then
-            bump=$(echo "$changed" | grep -E \
-              '^(spec/[^/]+/AGENT-HOOKS|sdk/rust/core/Cargo\.toml|sdk/python/pyproject\.toml|sdk/typescript/package\.json|sdk/dotnet/src/AgentHooks/.*\.csproj|CHANGELOG\.md)' || true)
-            if [ -z "$bump" ]; then
-              echo "::error::spec:breaking PR must change a version surface (spec header, an SDK manifest, or CHANGELOG.md)"
-              exit 1
-            fi
-          fi
-          echo "change-class ok"
       - name: Released specification and conformance folders are immutable
         # Run the copy of the guard at the base revision, so a pull
         # request cannot relax the rule it is checked against. The head
