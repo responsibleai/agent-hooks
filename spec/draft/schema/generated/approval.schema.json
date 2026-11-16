@@ -4,29 +4,17 @@
   "title": "Agent Hooks — approval seam",
   "description": "Approval request and resolution shapes for lifting a liftable deny (AGENT-HOOKS-0.1 §9). context_identity is an opaque provider-produced string, or null when identity_provider is null (§10.1); the only normative constraint is the echo rule.",
   "$defs": {
-    "LiftableDeny": {
-      "description": "The liftable deny being consulted: an interceptor's (passes §5,\nverdict.schema.json) or the host-synthesized §7.5 shape, whose reason is a\nreserved host_error:* string that §5 forbids interceptors to emit — so this\nmember is validated against the §5 schema only when its reason is not\nhost_error:*.",
-      "type": "object",
-      "additionalProperties": {},
-      "properties": {
-        "decision": {
-          "type": "string",
-          "const": "deny"
-        }
-      },
-      "required": [
-        "decision"
-      ]
-    },
     "request": {
-      "description": "What the host hands the resolver (§9).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "context_identity": {
-          "type": [
-            "null",
-            "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "interception_point": {
@@ -36,157 +24,19 @@
           "$ref": "#/$defs/LiftableDeny"
         },
         "context": {
-          "description": "The AgentContext as presented to the resolver. MAY be redacted per host policy.",
-          "title": "Agent Hooks — agent context",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/AgentStartupRequest"
-            },
-            {
-              "$ref": "#/$defs/InputRequest"
-            },
-            {
-              "$ref": "#/$defs/PreModelCallRequest"
-            },
-            {
-              "$ref": "#/$defs/PostModelCallRequest"
-            },
-            {
-              "$ref": "#/$defs/PreToolCallRequest"
-            },
-            {
-              "$ref": "#/$defs/PostToolCallRequest"
-            },
-            {
-              "$ref": "#/$defs/OutputRequest"
-            },
-            {
-              "$ref": "#/$defs/AgentShutdownRequest"
-            }
-          ]
+          "$ref": "#/$defs/AgentContext",
+          "description": "The context as presented to the resolver; may be redacted."
         }
       },
       "required": [
         "context_identity",
         "interception_point",
         "verdict"
-      ]
-    },
-    "Outcome": {
-      "description": "How a consultation ended (§9).",
-      "type": "string",
-      "enum": [
-        "approve",
-        "reject",
-        "unresolved"
-      ]
-    },
-    "ResolutionBase": {
-      "type": "object",
-      "properties": {
-        "context_identity": {
-          "description": "MUST equal the request's context_identity byte for byte (echo rule, §9);\nnull echoes as null.",
-          "type": [
-            "null",
-            "string"
-          ]
-        }
-      },
-      "required": [
-        "context_identity"
-      ]
-    },
-    "ApproveResolution": {
-      "description": "approve: the resolver lifts the deny with an allow verdict.",
-      "additionalProperties": false,
-      "type": "object",
-      "properties": {
-        "outcome": {
-          "type": "string",
-          "const": "approve"
-        },
-        "verdict": {
-          "$ref": "#/$defs/AllowVerdict"
-        },
-        "context_identity": {
-          "description": "MUST equal the request's context_identity byte for byte (echo rule, §9);\nnull echoes as null.",
-          "type": [
-            "null",
-            "string"
-          ]
-        }
-      },
-      "required": [
-        "context_identity",
-        "outcome",
-        "verdict"
-      ]
-    },
-    "RejectResolution": {
-      "description": "reject: the resolver keeps a deny.",
-      "additionalProperties": false,
-      "type": "object",
-      "properties": {
-        "outcome": {
-          "type": "string",
-          "const": "reject"
-        },
-        "verdict": {
-          "$ref": "#/$defs/DenyVerdict"
-        },
-        "context_identity": {
-          "description": "MUST equal the request's context_identity byte for byte (echo rule, §9);\nnull echoes as null.",
-          "type": [
-            "null",
-            "string"
-          ]
-        }
-      },
-      "required": [
-        "context_identity",
-        "outcome",
-        "verdict"
-      ]
-    },
-    "UnresolvedResolution": {
-      "description": "unresolved: no decision; the deny stands and no verdict is carried.",
-      "additionalProperties": false,
-      "type": "object",
-      "properties": {
-        "outcome": {
-          "type": "string",
-          "const": "unresolved"
-        },
-        "context_identity": {
-          "description": "MUST equal the request's context_identity byte for byte (echo rule, §9);\nnull echoes as null.",
-          "type": [
-            "null",
-            "string"
-          ]
-        }
-      },
-      "required": [
-        "context_identity",
-        "outcome"
-      ]
-    },
-    "resolution": {
-      "description": "What the resolver returns (§9).",
-      "anyOf": [
-        {
-          "$ref": "#/$defs/ApproveResolution"
-        },
-        {
-          "$ref": "#/$defs/RejectResolution"
-        },
-        {
-          "$ref": "#/$defs/UnresolvedResolution"
-        }
-      ]
+      ],
+      "description": "What the host hands the resolver (section 9).\nThe public fragment remains approval.schema.json#/$defs/request.\n[request](../examples/ApprovalRequest/collection-access.json)",
+      "additionalProperties": false
     },
     "InterceptionPoint": {
-      "description": "The closed set of agent lifecycle interception points (AGENT-HOOKS-0.1 §3).",
-      "title": "Agent Hooks — interception point",
       "type": "string",
       "enum": [
         "agent_startup",
@@ -197,46 +47,80 @@
         "post_tool_call",
         "output",
         "agent_shutdown"
-      ]
+      ],
+      "description": "The closed set of agent lifecycle interception points (section 3).",
+      "title": "Agent Hooks - interception point"
     },
-    "AgentStartupRequest": {
-      "description": "The request at agent_startup: agent_init is required (§4.2).",
+    "LiftableDeny": {
       "type": "object",
       "properties": {
-        "interception_point": {
+        "decision": {
           "type": "string",
-          "const": "agent_startup"
+          "const": "deny"
+        }
+      },
+      "required": [
+        "decision"
+      ],
+      "unevaluatedProperties": {},
+      "description": "A consulted deny may carry a host-synthesized host_error reason."
+    },
+    "AgentContext": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentStartupRequest"
         },
-        "agent_init": {
-          "$ref": "#/$defs/AgentInit"
+        {
+          "$ref": "#/$defs/InputRequest"
         },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
+        {
+          "$ref": "#/$defs/PreModelCallRequest"
         },
+        {
+          "$ref": "#/$defs/PostModelCallRequest"
+        },
+        {
+          "$ref": "#/$defs/PreToolCallRequest"
+        },
+        {
+          "$ref": "#/$defs/PostToolCallRequest"
+        },
+        {
+          "$ref": "#/$defs/OutputRequest"
+        },
+        {
+          "$ref": "#/$defs/AgentShutdownRequest"
+        }
+      ],
+      "description": "Payload a host constructs at each interception point (section 4).",
+      "title": "Agent Hooks - agent context"
+    },
+    "AgentStartupRequest": {
+      "type": "object",
+      "properties": {
         "spec": {
-          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
           "type": "string",
-          "const": "agent-hooks/draft"
+          "const": "agent-hooks/draft",
+          "description": "This bundle's wire string, rewritten when a specification is cut."
         },
         "timestamp": {
-          "format": "date-time",
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "sequence": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "agent": {
           "type": "object",
           "properties": {
             "id": {
-              "minLength": 1,
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "framework": {
-              "pattern": "^[a-z0-9_-]+$",
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-z0-9_-]+$"
             },
             "name": {
               "type": "string"
@@ -246,24 +130,24 @@
             }
           },
           "required": [
-            "framework",
-            "id"
+            "id",
+            "framework"
           ]
         },
         "session": {
           "type": "object",
           "properties": {
             "id": {
-              "minLength": 1,
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "started_at": {
-              "format": "date-time",
-              "type": "string"
+              "type": "string",
+              "format": "date-time"
             },
             "turn": {
-              "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "minimum": 0
             }
           },
           "required": [
@@ -299,13 +183,7 @@
               "type": "string"
             },
             "kind": {
-              "description": "Who acts (§4.5).",
-              "enum": [
-                "agent",
-                "human",
-                "service"
-              ],
-              "type": "string"
+              "$ref": "#/$defs/ActorKind"
             }
           }
         },
@@ -325,20 +203,47 @@
               "type": "number"
             }
           }
+        },
+        "interception_point": {
+          "type": "string",
+          "const": "agent_startup"
+        },
+        "extensions": {
+          "$ref": "#/$defs/Extensions"
+        },
+        "agent_init": {
+          "$ref": "#/$defs/AgentInit"
         }
       },
       "required": [
-        "agent",
-        "agent_init",
-        "interception_point",
-        "sequence",
-        "session",
         "spec",
-        "timestamp"
+        "timestamp",
+        "sequence",
+        "agent",
+        "session",
+        "interception_point",
+        "agent_init"
+      ],
+      "description": "The request at agent_startup.\n[agent-startup.json](../examples/AgentContext/agent-startup.json)"
+    },
+    "ActorKind": {
+      "type": "string",
+      "enum": [
+        "human",
+        "service",
+        "agent"
       ]
     },
+    "Extensions": {
+      "type": "object",
+      "properties": {},
+      "unevaluatedProperties": {},
+      "description": "Namespaced extensions (section 4.6); values are unconstrained JSON.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      }
+    },
     "AgentInit": {
-      "description": "Conditional payload of agent_startup (§4.2).",
       "type": "object",
       "properties": {
         "tools_registered": {
@@ -350,54 +255,35 @@
       },
       "required": [
         "tools_registered"
-      ]
-    },
-    "Extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "propertyNames": {
-        "pattern": "^[a-z][a-z0-9_]*$"
-      },
-      "type": "object",
-      "additionalProperties": {}
+      ],
+      "description": "Conditional payload of agent_startup (section 4.2)."
     },
     "InputRequest": {
-      "description": "The request at input: input is required (§4.2).",
       "type": "object",
       "properties": {
-        "interception_point": {
-          "type": "string",
-          "const": "input"
-        },
-        "input": {
-          "$ref": "#/$defs/Input"
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
-        },
         "spec": {
-          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
           "type": "string",
-          "const": "agent-hooks/draft"
+          "const": "agent-hooks/draft",
+          "description": "This bundle's wire string, rewritten when a specification is cut."
         },
         "timestamp": {
-          "format": "date-time",
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "sequence": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "agent": {
           "type": "object",
           "properties": {
             "id": {
-              "minLength": 1,
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "framework": {
-              "pattern": "^[a-z0-9_-]+$",
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-z0-9_-]+$"
             },
             "name": {
               "type": "string"
@@ -407,24 +293,24 @@
             }
           },
           "required": [
-            "framework",
-            "id"
+            "id",
+            "framework"
           ]
         },
         "session": {
           "type": "object",
           "properties": {
             "id": {
-              "minLength": 1,
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "started_at": {
-              "format": "date-time",
-              "type": "string"
+              "type": "string",
+              "format": "date-time"
             },
             "turn": {
-              "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "minimum": 0
             }
           },
           "required": [
@@ -460,13 +346,7 @@
               "type": "string"
             },
             "kind": {
-              "description": "Who acts (§4.5).",
-              "enum": [
-                "agent",
-                "human",
-                "service"
-              ],
-              "type": "string"
+              "$ref": "#/$defs/ActorKind"
             }
           }
         },
@@ -486,20 +366,30 @@
               "type": "number"
             }
           }
+        },
+        "interception_point": {
+          "type": "string",
+          "const": "input"
+        },
+        "extensions": {
+          "$ref": "#/$defs/Extensions"
+        },
+        "input": {
+          "$ref": "#/$defs/Input"
         }
       },
       "required": [
-        "agent",
-        "input",
-        "interception_point",
-        "sequence",
-        "session",
         "spec",
-        "timestamp"
-      ]
+        "timestamp",
+        "sequence",
+        "agent",
+        "session",
+        "interception_point",
+        "input"
+      ],
+      "description": "The request at input.\n[input.json](../examples/AgentContext/input.json)"
     },
     "Input": {
-      "description": "Conditional payload of input (§4.2).",
       "type": "object",
       "properties": {
         "content": {},
@@ -513,21 +403,129 @@
       ]
     },
     "InputRole": {
-      "description": "Who produced an input (§4.2).",
       "type": "string",
       "enum": [
         "user",
         "system",
         "external"
-      ]
+      ],
+      "description": "Who produced an input."
     },
     "PreModelCallRequest": {
-      "description": "The request at pre_model_call: model and messages are required (§4.2).",
       "type": "object",
       "properties": {
+        "spec": {
+          "type": "string",
+          "const": "agent-hooks/draft",
+          "description": "This bundle's wire string, rewritten when a specification is cut."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "framework": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]+$"
+            },
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "framework"
+          ]
+        },
+        "session": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "started_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "turn": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        "trace": {
+          "type": "object",
+          "properties": {
+            "trace_id": {
+              "type": "string"
+            },
+            "span_id": {
+              "type": "string"
+            }
+          }
+        },
+        "tenant": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          }
+        },
+        "actor": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/ActorKind"
+            }
+          }
+        },
+        "budgets": {
+          "type": "object",
+          "properties": {
+            "tool_call_count": {
+              "type": "number"
+            },
+            "token_count": {
+              "type": "number"
+            },
+            "elapsed_seconds": {
+              "type": "number"
+            },
+            "cost_usd": {
+              "type": "number"
+            }
+          }
+        },
         "interception_point": {
           "type": "string",
           "const": "pre_model_call"
+        },
+        "extensions": {
+          "$ref": "#/$defs/Extensions"
         },
         "model": {
           "$ref": "#/$defs/Model"
@@ -546,34 +544,98 @@
         },
         "request_id": {
           "type": "string"
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
-        },
-        "spec": {
-          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
-          "type": "string",
-          "const": "agent-hooks/draft"
-        },
-        "timestamp": {
-          "format": "date-time",
+        }
+      },
+      "required": [
+        "spec",
+        "timestamp",
+        "sequence",
+        "agent",
+        "session",
+        "interception_point",
+        "model",
+        "messages"
+      ],
+      "description": "The request at pre_model_call.\n[pre-model-call.json](../examples/AgentContext/pre-model-call.json)\n[with metadata](../examples/AgentContext/pre-model-call-with-model-metadata.json)\n[with tools](../examples/AgentContext/pre-model-call-with-tools.json)"
+    },
+    "Model": {
+      "type": "object",
+      "properties": {
+        "id": {
           "type": "string"
         },
+        "vendor": {
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "JsonObject": {
+      "type": "object",
+      "properties": {},
+      "description": "An open JSON object, not an arbitrary JSON value."
+    },
+    "Message": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string"
+        },
+        "content": {}
+      },
+      "required": [
+        "role",
+        "content"
+      ]
+    },
+    "ToolDecl": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "schema": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "PostModelCallRequest": {
+      "type": "object",
+      "properties": {
+        "spec": {
+          "type": "string",
+          "const": "agent-hooks/draft",
+          "description": "This bundle's wire string, rewritten when a specification is cut."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
         "sequence": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "agent": {
           "type": "object",
           "properties": {
             "id": {
-              "minLength": 1,
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "framework": {
-              "pattern": "^[a-z0-9_-]+$",
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-z0-9_-]+$"
             },
             "name": {
               "type": "string"
@@ -583,24 +645,24 @@
             }
           },
           "required": [
-            "framework",
-            "id"
+            "id",
+            "framework"
           ]
         },
         "session": {
           "type": "object",
           "properties": {
             "id": {
-              "minLength": 1,
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "started_at": {
-              "format": "date-time",
-              "type": "string"
+              "type": "string",
+              "format": "date-time"
             },
             "turn": {
-              "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "minimum": 0
             }
           },
           "required": [
@@ -636,13 +698,7 @@
               "type": "string"
             },
             "kind": {
-              "description": "Who acts (§4.5).",
-              "enum": [
-                "agent",
-                "human",
-                "service"
-              ],
-              "type": "string"
+              "$ref": "#/$defs/ActorKind"
             }
           }
         },
@@ -662,80 +718,13 @@
               "type": "number"
             }
           }
-        }
-      },
-      "required": [
-        "agent",
-        "interception_point",
-        "messages",
-        "model",
-        "sequence",
-        "session",
-        "spec",
-        "timestamp"
-      ]
-    },
-    "Model": {
-      "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
         },
-        "vendor": {
-          "type": "string"
-        },
-        "params": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
-        }
-      },
-      "required": [
-        "id"
-      ]
-    },
-    "Message": {
-      "description": "One message of the model request (§4.2).",
-      "type": "object",
-      "properties": {
-        "role": {
-          "type": "string"
-        },
-        "content": {}
-      },
-      "required": [
-        "content",
-        "role"
-      ]
-    },
-    "ToolDecl": {
-      "description": "One declared tool (§4.3).",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "schema": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
-        }
-      },
-      "required": [
-        "name"
-      ]
-    },
-    "PostModelCallRequest": {
-      "description": "The request at post_model_call: model and response are required (§4.2).",
-      "type": "object",
-      "properties": {
         "interception_point": {
           "type": "string",
           "const": "post_model_call"
+        },
+        "extensions": {
+          "$ref": "#/$defs/Extensions"
         },
         "model": {
           "$ref": "#/$defs/Model"
@@ -747,139 +736,22 @@
           "type": "string"
         },
         "usage": {
-          "description": "Token usage of a model call (§4.3).",
           "$ref": "#/$defs/Usage"
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
-        },
-        "spec": {
-          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
-          "type": "string",
-          "const": "agent-hooks/draft"
-        },
-        "timestamp": {
-          "format": "date-time",
-          "type": "string"
-        },
-        "sequence": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "agent": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "framework": {
-              "pattern": "^[a-z0-9_-]+$",
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            },
-            "version": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "framework",
-            "id"
-          ]
-        },
-        "session": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "started_at": {
-              "format": "date-time",
-              "type": "string"
-            },
-            "turn": {
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "id"
-          ]
-        },
-        "trace": {
-          "type": "object",
-          "properties": {
-            "trace_id": {
-              "type": "string"
-            },
-            "span_id": {
-              "type": "string"
-            }
-          }
-        },
-        "tenant": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            }
-          }
-        },
-        "actor": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "kind": {
-              "description": "Who acts (§4.5).",
-              "enum": [
-                "agent",
-                "human",
-                "service"
-              ],
-              "type": "string"
-            }
-          }
-        },
-        "budgets": {
-          "type": "object",
-          "properties": {
-            "tool_call_count": {
-              "type": "number"
-            },
-            "token_count": {
-              "type": "number"
-            },
-            "elapsed_seconds": {
-              "type": "number"
-            },
-            "cost_usd": {
-              "type": "number"
-            }
-          }
         }
       },
       "required": [
+        "spec",
+        "timestamp",
+        "sequence",
         "agent",
+        "session",
         "interception_point",
         "model",
-        "response",
-        "sequence",
-        "session",
-        "spec",
-        "timestamp"
-      ]
+        "response"
+      ],
+      "description": "The request at post_model_call.\n[post-model-call.json](../examples/AgentContext/post-model-call.json)\n[optional tool id](../examples/AgentContext/post-model-call-with-optional-tool-call-id.json)\n[with usage](../examples/AgentContext/post-model-call-with-usage.json)"
     },
     "Response": {
-      "description": "Conditional payload of post_model_call (§4.2).",
       "type": "object",
       "properties": {
         "content": {},
@@ -895,12 +767,11 @@
       },
       "required": [
         "content",
-        "finish_reason",
-        "tool_calls"
+        "tool_calls",
+        "finish_reason"
       ]
     },
     "ToolCallRequest": {
-      "description": "One tool call the model asked for (§4.2).",
       "type": "object",
       "properties": {
         "id": {
@@ -910,68 +781,53 @@
           "type": "string"
         },
         "args": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
+          "$ref": "#/$defs/JsonObject"
         }
       },
       "required": [
-        "args",
-        "name"
+        "name",
+        "args"
       ]
     },
     "Usage": {
-      "description": "Token usage of a model call (§4.3).",
       "type": "object",
       "properties": {
         "prompt_tokens": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "completion_tokens": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
     "PreToolCallRequest": {
-      "description": "The request at pre_tool_call: tool_call is required (§4.2).",
       "type": "object",
       "properties": {
-        "interception_point": {
-          "type": "string",
-          "const": "pre_tool_call"
-        },
-        "tool_call": {
-          "$ref": "#/$defs/ToolCall"
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
-        },
         "spec": {
-          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
           "type": "string",
-          "const": "agent-hooks/draft"
+          "const": "agent-hooks/draft",
+          "description": "This bundle's wire string, rewritten when a specification is cut."
         },
         "timestamp": {
-          "format": "date-time",
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "sequence": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "agent": {
           "type": "object",
           "properties": {
             "id": {
-              "minLength": 1,
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "framework": {
-              "pattern": "^[a-z0-9_-]+$",
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-z0-9_-]+$"
             },
             "name": {
               "type": "string"
@@ -981,24 +837,24 @@
             }
           },
           "required": [
-            "framework",
-            "id"
+            "id",
+            "framework"
           ]
         },
         "session": {
           "type": "object",
           "properties": {
             "id": {
-              "minLength": 1,
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "started_at": {
-              "format": "date-time",
-              "type": "string"
+              "type": "string",
+              "format": "date-time"
             },
             "turn": {
-              "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "minimum": 0
             }
           },
           "required": [
@@ -1034,13 +890,7 @@
               "type": "string"
             },
             "kind": {
-              "description": "Who acts (§4.5).",
-              "enum": [
-                "agent",
-                "human",
-                "service"
-              ],
-              "type": "string"
+              "$ref": "#/$defs/ActorKind"
             }
           }
         },
@@ -1060,190 +910,190 @@
               "type": "number"
             }
           }
+        },
+        "interception_point": {
+          "type": "string",
+          "const": "pre_tool_call"
+        },
+        "extensions": {
+          "$ref": "#/$defs/Extensions"
+        },
+        "tool_call": {
+          "$ref": "#/$defs/ToolCall"
         }
       },
       "required": [
-        "agent",
-        "interception_point",
-        "sequence",
-        "session",
         "spec",
         "timestamp",
+        "sequence",
+        "agent",
+        "session",
+        "interception_point",
         "tool_call"
-      ]
+      ],
+      "description": "The request at pre_tool_call.\n[pre-tool-call.json](../examples/AgentContext/pre-tool-call.json)"
     },
     "ToolCall": {
-      "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
       "type": "object",
       "properties": {
         "id": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "name": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "args": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
+          "$ref": "#/$defs/JsonObject"
         },
         "content_hash": {
-          "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
         }
       },
       "required": [
-        "args",
         "id",
-        "name"
+        "name",
+        "args"
       ]
     },
     "PostToolCallRequest": {
-      "description": "The request at post_tool_call: tool_call and tool_result are required (§4.2).",
       "type": "object",
       "properties": {
+        "spec": {
+          "type": "string",
+          "const": "agent-hooks/draft",
+          "description": "This bundle's wire string, rewritten when a specification is cut."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "agent": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "framework": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]+$"
+            },
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "framework"
+          ]
+        },
+        "session": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "started_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "turn": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "id"
+          ]
+        },
+        "trace": {
+          "type": "object",
+          "properties": {
+            "trace_id": {
+              "type": "string"
+            },
+            "span_id": {
+              "type": "string"
+            }
+          }
+        },
+        "tenant": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          }
+        },
+        "actor": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/ActorKind"
+            }
+          }
+        },
+        "budgets": {
+          "type": "object",
+          "properties": {
+            "tool_call_count": {
+              "type": "number"
+            },
+            "token_count": {
+              "type": "number"
+            },
+            "elapsed_seconds": {
+              "type": "number"
+            },
+            "cost_usd": {
+              "type": "number"
+            }
+          }
+        },
         "interception_point": {
           "type": "string",
           "const": "post_tool_call"
+        },
+        "extensions": {
+          "$ref": "#/$defs/Extensions"
         },
         "tool_call": {
           "$ref": "#/$defs/ToolCall"
         },
         "tool_result": {
           "$ref": "#/$defs/ToolResult"
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
-        },
-        "spec": {
-          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
-          "type": "string",
-          "const": "agent-hooks/draft"
-        },
-        "timestamp": {
-          "format": "date-time",
-          "type": "string"
-        },
-        "sequence": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "agent": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "framework": {
-              "pattern": "^[a-z0-9_-]+$",
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            },
-            "version": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "framework",
-            "id"
-          ]
-        },
-        "session": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "started_at": {
-              "format": "date-time",
-              "type": "string"
-            },
-            "turn": {
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "id"
-          ]
-        },
-        "trace": {
-          "type": "object",
-          "properties": {
-            "trace_id": {
-              "type": "string"
-            },
-            "span_id": {
-              "type": "string"
-            }
-          }
-        },
-        "tenant": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            }
-          }
-        },
-        "actor": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "kind": {
-              "description": "Who acts (§4.5).",
-              "enum": [
-                "agent",
-                "human",
-                "service"
-              ],
-              "type": "string"
-            }
-          }
-        },
-        "budgets": {
-          "type": "object",
-          "properties": {
-            "tool_call_count": {
-              "type": "number"
-            },
-            "token_count": {
-              "type": "number"
-            },
-            "elapsed_seconds": {
-              "type": "number"
-            },
-            "cost_usd": {
-              "type": "number"
-            }
-          }
         }
       },
       "required": [
-        "agent",
-        "interception_point",
-        "sequence",
-        "session",
         "spec",
         "timestamp",
+        "sequence",
+        "agent",
+        "session",
+        "interception_point",
         "tool_call",
         "tool_result"
-      ]
+      ],
+      "description": "The request at post_tool_call.\n[post-tool-call.json](../examples/AgentContext/post-tool-call.json)\n[error](../examples/AgentContext/post-tool-call-error.json)"
     },
     "ToolResult": {
-      "description": "Conditional payload of post_tool_call (§4.2).",
       "type": "object",
       "properties": {
         "value": {},
@@ -1256,48 +1106,36 @@
         }
       },
       "required": [
-        "is_error",
-        "value"
+        "value",
+        "is_error"
       ]
     },
     "OutputRequest": {
-      "description": "The request at output: output is required (§4.2).",
       "type": "object",
       "properties": {
-        "interception_point": {
-          "type": "string",
-          "const": "output"
-        },
-        "output": {
-          "$ref": "#/$defs/Output"
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
-        },
         "spec": {
-          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
           "type": "string",
-          "const": "agent-hooks/draft"
+          "const": "agent-hooks/draft",
+          "description": "This bundle's wire string, rewritten when a specification is cut."
         },
         "timestamp": {
-          "format": "date-time",
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "sequence": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "agent": {
           "type": "object",
           "properties": {
             "id": {
-              "minLength": 1,
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "framework": {
-              "pattern": "^[a-z0-9_-]+$",
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-z0-9_-]+$"
             },
             "name": {
               "type": "string"
@@ -1307,24 +1145,24 @@
             }
           },
           "required": [
-            "framework",
-            "id"
+            "id",
+            "framework"
           ]
         },
         "session": {
           "type": "object",
           "properties": {
             "id": {
-              "minLength": 1,
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "started_at": {
-              "format": "date-time",
-              "type": "string"
+              "type": "string",
+              "format": "date-time"
             },
             "turn": {
-              "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "minimum": 0
             }
           },
           "required": [
@@ -1360,13 +1198,7 @@
               "type": "string"
             },
             "kind": {
-              "description": "Who acts (§4.5).",
-              "enum": [
-                "agent",
-                "human",
-                "service"
-              ],
-              "type": "string"
+              "$ref": "#/$defs/ActorKind"
             }
           }
         },
@@ -1386,20 +1218,30 @@
               "type": "number"
             }
           }
+        },
+        "interception_point": {
+          "type": "string",
+          "const": "output"
+        },
+        "extensions": {
+          "$ref": "#/$defs/Extensions"
+        },
+        "output": {
+          "$ref": "#/$defs/Output"
         }
       },
       "required": [
-        "agent",
-        "interception_point",
-        "output",
-        "sequence",
-        "session",
         "spec",
-        "timestamp"
-      ]
+        "timestamp",
+        "sequence",
+        "agent",
+        "session",
+        "interception_point",
+        "output"
+      ],
+      "description": "The request at output.\n[output.json](../examples/AgentContext/output.json)"
     },
     "Output": {
-      "description": "Conditional payload of output (§4.2).",
       "type": "object",
       "properties": {
         "content": {}
@@ -1409,43 +1251,31 @@
       ]
     },
     "AgentShutdownRequest": {
-      "description": "The request at agent_shutdown: summary is required (§4.2).",
       "type": "object",
       "properties": {
-        "interception_point": {
-          "type": "string",
-          "const": "agent_shutdown"
-        },
-        "summary": {
-          "$ref": "#/$defs/Summary"
-        },
-        "extensions": {
-          "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-          "$ref": "#/$defs/Extensions"
-        },
         "spec": {
-          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
           "type": "string",
-          "const": "agent-hooks/draft"
+          "const": "agent-hooks/draft",
+          "description": "This bundle's wire string, rewritten when a specification is cut."
         },
         "timestamp": {
-          "format": "date-time",
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "sequence": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "agent": {
           "type": "object",
           "properties": {
             "id": {
-              "minLength": 1,
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "framework": {
-              "pattern": "^[a-z0-9_-]+$",
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-z0-9_-]+$"
             },
             "name": {
               "type": "string"
@@ -1455,24 +1285,24 @@
             }
           },
           "required": [
-            "framework",
-            "id"
+            "id",
+            "framework"
           ]
         },
         "session": {
           "type": "object",
           "properties": {
             "id": {
-              "minLength": 1,
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "started_at": {
-              "format": "date-time",
-              "type": "string"
+              "type": "string",
+              "format": "date-time"
             },
             "turn": {
-              "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "minimum": 0
             }
           },
           "required": [
@@ -1508,13 +1338,7 @@
               "type": "string"
             },
             "kind": {
-              "description": "Who acts (§4.5).",
-              "enum": [
-                "agent",
-                "human",
-                "service"
-              ],
-              "type": "string"
+              "$ref": "#/$defs/ActorKind"
             }
           }
         },
@@ -1534,32 +1358,42 @@
               "type": "number"
             }
           }
+        },
+        "interception_point": {
+          "type": "string",
+          "const": "agent_shutdown"
+        },
+        "extensions": {
+          "$ref": "#/$defs/Extensions"
+        },
+        "summary": {
+          "$ref": "#/$defs/Summary"
         }
       },
       "required": [
-        "agent",
-        "interception_point",
-        "sequence",
-        "session",
         "spec",
-        "summary",
-        "timestamp"
-      ]
+        "timestamp",
+        "sequence",
+        "agent",
+        "session",
+        "interception_point",
+        "summary"
+      ],
+      "description": "The request at agent_shutdown.\n[agent-shutdown.json](../examples/AgentContext/agent-shutdown.json)"
     },
     "Summary": {
-      "description": "Conditional payload of agent_shutdown (§4.2).",
       "type": "object",
       "properties": {
         "reason": {
           "$ref": "#/$defs/SummaryReason"
         },
         "tool_calls": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "errors": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "duration_seconds": {
           "type": "number",
@@ -1571,7 +1405,6 @@
       ]
     },
     "SummaryReason": {
-      "description": "Why the agent stopped (§4.2).",
       "type": "string",
       "enum": [
         "completed",
@@ -1579,32 +1412,75 @@
         "cancelled"
       ]
     },
-    "AllowVerdict": {
-      "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
-      "additionalProperties": false,
+    "resolution": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApproveResolution"
+        },
+        {
+          "$ref": "#/$defs/RejectResolution"
+        },
+        {
+          "$ref": "#/$defs/UnresolvedResolution"
+        }
+      ],
+      "description": "What the resolver returns; the public fragment keeps this name."
+    },
+    "ApproveResolution": {
       "type": "object",
       "properties": {
-        "decision": {
-          "type": "string",
-          "const": "allow"
+        "context_identity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Must echo the request's identity byte for byte; null echoes as null."
         },
+        "outcome": {
+          "type": "string",
+          "const": "approve"
+        },
+        "verdict": {
+          "$ref": "#/$defs/AllowVerdict"
+        }
+      },
+      "required": [
+        "context_identity",
+        "outcome",
+        "verdict"
+      ],
+      "description": "The resolver lifts the deny with an allow.\n[approve](../examples/ApprovalResolution/approve-allow.json)",
+      "additionalProperties": false
+    },
+    "AllowVerdict": {
+      "type": "object",
+      "properties": {
         "reason": {
-          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11).",
-          "pattern": "^(?!host_error:).*",
-          "type": [
-            "null",
-            "string"
-          ]
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "pattern": "^(?!host_error:).*"
         },
         "message": {
-          "description": "Human-readable text for the caller.",
-          "type": [
-            "null",
-            "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "warnings": {
-          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1).",
           "anyOf": [
             {
               "type": "array",
@@ -1618,11 +1494,9 @@
           ]
         },
         "evidence": {
-          "description": "Offline-verifiable evidence attached to a verdict (§14).",
           "$ref": "#/$defs/Evidence"
         },
         "result_labels": {
-          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
           "anyOf": [
             {
               "type": "array",
@@ -1633,124 +1507,207 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Labels the host persists with produced data and resurfaces at later hooks."
+        },
+        "decision": {
+          "type": "string",
+          "const": "allow"
         }
       },
       "required": [
         "decision"
-      ]
+      ],
+      "description": "Proceed; warnings do not affect control flow.\n[allow](../examples/Verdict/allow.json)\n[with warning](../examples/Verdict/allow-with-warning.json)\n[with evidence](../examples/Verdict/allow-with-evidence.json)",
+      "additionalProperties": false
     },
     "Warning": {
-      "description": "A recorded concern that does not affect control flow (§5.1).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "reason": {
-          "description": "Interceptor-supplied warning identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11) and host_warning: for host-synthesized\nwarnings (§11.1); an interceptor warning with either prefix fails §5\nvalidation.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "pattern": "^(?!host_error:|host_warning:).*",
-          "type": [
-            "null",
-            "string"
-          ]
+          "description": "Host error and warning namespaces are reserved for the host."
         },
         "message": {
-          "type": [
-            "null",
-            "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
-      }
+      },
+      "description": "A recorded concern that does not affect control flow (section 5.1).",
+      "additionalProperties": false
     },
     "Evidence": {
-      "description": "Offline-verifiable evidence attached to a verdict (§14).",
-      "additionalProperties": false,
       "type": "object",
       "properties": {
         "artefact": {
-          "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof.",
-          "type": [
-            "null",
-            "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "verification_pointers": {
-          "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14).",
           "$ref": "#/$defs/VerificationPointers"
         }
-      }
+      },
+      "description": "Offline-verifiable evidence attached to a verdict (section 14).",
+      "additionalProperties": false
     },
     "VerificationPointers": {
-      "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14).",
       "type": "object",
-      "additionalProperties": {
+      "properties": {},
+      "unevaluatedProperties": {
         "type": "string"
-      }
+      },
+      "description": "Named URIs an auditor may consult; hosts must not dereference automatically."
     },
-    "DenyVerdict": {
-      "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
-      "additionalProperties": false,
+    "RejectResolution": {
       "type": "object",
       "properties": {
+        "context_identity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Must echo the request's identity byte for byte; null echoes as null."
+        },
+        "outcome": {
+          "type": "string",
+          "const": "reject"
+        },
+        "verdict": {
+          "$ref": "#/$defs/DenyVerdict"
+        }
+      },
+      "required": [
+        "context_identity",
+        "outcome",
+        "verdict"
+      ],
+      "description": "The resolver keeps a deny.\n[reject](../examples/ApprovalResolution/reject.json)",
+      "additionalProperties": false
+    },
+    "DenyVerdict": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "pattern": "^(?!host_error:).*"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "warnings": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Warning"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        },
+        "result_labels": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Labels the host persists with produced data and resurfaces at later hooks."
+        },
         "decision": {
           "type": "string",
           "const": "deny"
         },
         "approval": {
-          "description": "Present only on deny: marks the deny as liftable by the approval seam (§9).\nMAY be empty; reserved for approver-facing parameters.",
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
-        },
-        "reason": {
-          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11).",
-          "pattern": "^(?!host_error:).*",
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "message": {
-          "description": "Human-readable text for the caller.",
-          "type": [
-            "null",
-            "string"
-          ]
-        },
-        "warnings": {
-          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1).",
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/Warning"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "evidence": {
-          "description": "Offline-verifiable evidence attached to a verdict (§14).",
-          "$ref": "#/$defs/Evidence"
-        },
-        "result_labels": {
-          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4).",
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/JsonObject"
         }
       },
       "required": [
         "decision"
+      ],
+      "description": "Stop the action; an approval block makes the deny liftable.\n[deny](../examples/Verdict/deny.json)\n[with approval](../examples/Verdict/deny-with-approval.json)",
+      "additionalProperties": false
+    },
+    "UnresolvedResolution": {
+      "type": "object",
+      "properties": {
+        "context_identity": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Must echo the request's identity byte for byte; null echoes as null."
+        },
+        "outcome": {
+          "type": "string",
+          "const": "unresolved"
+        }
+      },
+      "required": [
+        "context_identity",
+        "outcome"
+      ],
+      "description": "No decision; the deny stands and no verdict is carried.\n[unresolved](../examples/ApprovalResolution/unresolved.json)",
+      "additionalProperties": false
+    },
+    "Outcome": {
+      "type": "string",
+      "enum": [
+        "approve",
+        "reject",
+        "unresolved"
       ]
     }
   }

@@ -5,50 +5,29 @@
   "description": "Required+conditional schema for interception_point=post_model_call (AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
   "type": "object",
   "properties": {
-    "interception_point": {
-      "type": "string",
-      "const": "post_model_call"
-    },
-    "model": {
-      "$ref": "#/$defs/Model"
-    },
-    "response": {
-      "$ref": "#/$defs/Response"
-    },
-    "request_id": {
-      "type": "string"
-    },
-    "usage": {
-      "description": "Token usage of a model call (§4.3).",
-      "$ref": "#/$defs/Usage"
-    },
-    "extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "$ref": "#/$defs/Extensions"
-    },
     "spec": {
-      "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
       "type": "string",
-      "const": "agent-hooks/draft"
+      "const": "agent-hooks/draft",
+      "description": "This bundle's wire string, rewritten when a specification is cut."
     },
     "timestamp": {
-      "format": "date-time",
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "sequence": {
-      "minimum": 0,
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "agent": {
       "type": "object",
       "properties": {
         "id": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "framework": {
-          "pattern": "^[a-z0-9_-]+$",
-          "type": "string"
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
         },
         "name": {
           "type": "string"
@@ -58,24 +37,24 @@
         }
       },
       "required": [
-        "framework",
-        "id"
+        "id",
+        "framework"
       ]
     },
     "session": {
       "type": "object",
       "properties": {
         "id": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "started_at": {
-          "format": "date-time",
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "turn": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [
@@ -111,13 +90,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "Who acts (§4.5).",
-          "enum": [
-            "agent",
-            "human",
-            "service"
-          ],
-          "type": "string"
+          "$ref": "#/$defs/ActorKind"
         }
       }
     },
@@ -137,29 +110,61 @@
           "type": "number"
         }
       }
+    },
+    "interception_point": {
+      "type": "string",
+      "const": "post_model_call"
+    },
+    "extensions": {
+      "$ref": "#/$defs/Extensions"
+    },
+    "model": {
+      "$ref": "#/$defs/Model"
+    },
+    "response": {
+      "$ref": "#/$defs/Response"
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "usage": {
+      "$ref": "#/$defs/Usage"
     }
   },
   "required": [
+    "spec",
+    "timestamp",
+    "sequence",
     "agent",
+    "session",
     "interception_point",
     "model",
-    "response",
-    "sequence",
-    "session",
-    "spec",
-    "timestamp"
+    "response"
   ],
   "$defs": {
+    "ActorKind": {
+      "type": "string",
+      "enum": [
+        "human",
+        "service",
+        "agent"
+      ]
+    },
     "Extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "type": "object",
+      "properties": {},
+      "unevaluatedProperties": {},
+      "description": "Namespaced extensions (section 4.6); values are unconstrained JSON.",
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9_]*$"
-      },
+      }
+    },
+    "JsonObject": {
       "type": "object",
-      "additionalProperties": {}
+      "properties": {},
+      "description": "An open JSON object, not an arbitrary JSON value."
     },
     "Model": {
-      "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
       "type": "object",
       "properties": {
         "id": {
@@ -169,9 +174,7 @@
           "type": "string"
         },
         "params": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
+          "$ref": "#/$defs/JsonObject"
         }
       },
       "required": [
@@ -180,7 +183,6 @@
       "additionalProperties": false
     },
     "Response": {
-      "description": "Conditional payload of post_model_call (§4.2).",
       "type": "object",
       "properties": {
         "content": {},
@@ -196,13 +198,12 @@
       },
       "required": [
         "content",
-        "finish_reason",
-        "tool_calls"
+        "tool_calls",
+        "finish_reason"
       ],
       "additionalProperties": false
     },
     "ToolCallRequest": {
-      "description": "One tool call the model asked for (§4.2).",
       "type": "object",
       "properties": {
         "id": {
@@ -212,27 +213,24 @@
           "type": "string"
         },
         "args": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
+          "$ref": "#/$defs/JsonObject"
         }
       },
       "required": [
-        "args",
-        "name"
+        "name",
+        "args"
       ]
     },
     "Usage": {
-      "description": "Token usage of a model call (§4.3).",
       "type": "object",
       "properties": {
         "prompt_tokens": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "completion_tokens": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         }
       }
     }

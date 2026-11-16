@@ -273,7 +273,7 @@ test("draft interception records reject the removed declaration field", async (t
   await assert.rejects(validateExamples(root), /allow.json.*interception-record.schema.json/);
 });
 
-test("every draft example is referenced by the draft TypeScript schema source", async () => {
+test("every draft example is referenced by the draft TypeSpec schema source", async () => {
   // Draft only: a released bundle's source is frozen at the release and
   // carries no links to examples added after it.
   const examples = path.join(schemaRoot, "examples");
@@ -291,7 +291,7 @@ test("every draft example is referenced by the draft TypeScript schema source", 
   const source = (
     await Promise.all(
       sourceFiles
-        .filter((filename) => filename.endsWith(".ts"))
+        .filter((filename) => filename.endsWith(".tsp"))
         .map((filename) => readFile(path.join(sources, filename), "utf8")),
     )
   ).join("\n");
@@ -299,7 +299,7 @@ test("every draft example is referenced by the draft TypeScript schema source", 
     const relative = path.relative(examples, filename).split(path.sep).join("/");
     assert.ok(
       source.includes(`../examples/${relative})`),
-      `No TypeScript schema @example reference in the draft source for ${relative}`,
+      `No TypeSpec schema example reference in the draft source for ${relative}`,
     );
   }
 });

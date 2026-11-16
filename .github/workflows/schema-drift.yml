@@ -21,7 +21,7 @@ jobs:
         with: { node-version: "22" }
       - run: npm ci
         working-directory: spec/scripts
-      - name: Regenerate the draft schemas from their TypeScript source
+      - name: Regenerate the draft schemas from their TypeSpec source
         run: npm run generate:schema
         working-directory: spec/scripts
       - name: Refresh the released vendored copies

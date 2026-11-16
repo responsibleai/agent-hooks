@@ -5,55 +5,29 @@
   "description": "Required+conditional schema for interception_point=pre_model_call (AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
   "type": "object",
   "properties": {
-    "interception_point": {
-      "type": "string",
-      "const": "pre_model_call"
-    },
-    "model": {
-      "$ref": "#/$defs/Model"
-    },
-    "messages": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/Message"
-      }
-    },
-    "tools": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/ToolDecl"
-      }
-    },
-    "request_id": {
-      "type": "string"
-    },
-    "extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "$ref": "#/$defs/Extensions"
-    },
     "spec": {
-      "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
       "type": "string",
-      "const": "agent-hooks/draft"
+      "const": "agent-hooks/draft",
+      "description": "This bundle's wire string, rewritten when a specification is cut."
     },
     "timestamp": {
-      "format": "date-time",
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "sequence": {
-      "minimum": 0,
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "agent": {
       "type": "object",
       "properties": {
         "id": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "framework": {
-          "pattern": "^[a-z0-9_-]+$",
-          "type": "string"
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
         },
         "name": {
           "type": "string"
@@ -63,24 +37,24 @@
         }
       },
       "required": [
-        "framework",
-        "id"
+        "id",
+        "framework"
       ]
     },
     "session": {
       "type": "object",
       "properties": {
         "id": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "started_at": {
-          "format": "date-time",
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "turn": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [
@@ -116,13 +90,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "Who acts (§4.5).",
-          "enum": [
-            "agent",
-            "human",
-            "service"
-          ],
-          "type": "string"
+          "$ref": "#/$defs/ActorKind"
         }
       }
     },
@@ -142,29 +110,67 @@
           "type": "number"
         }
       }
+    },
+    "interception_point": {
+      "type": "string",
+      "const": "pre_model_call"
+    },
+    "extensions": {
+      "$ref": "#/$defs/Extensions"
+    },
+    "model": {
+      "$ref": "#/$defs/Model"
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Message"
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ToolDecl"
+      }
+    },
+    "request_id": {
+      "type": "string"
     }
   },
   "required": [
-    "agent",
-    "interception_point",
-    "messages",
-    "model",
-    "sequence",
-    "session",
     "spec",
-    "timestamp"
+    "timestamp",
+    "sequence",
+    "agent",
+    "session",
+    "interception_point",
+    "model",
+    "messages"
   ],
   "$defs": {
+    "ActorKind": {
+      "type": "string",
+      "enum": [
+        "human",
+        "service",
+        "agent"
+      ]
+    },
     "Extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "type": "object",
+      "properties": {},
+      "unevaluatedProperties": {},
+      "description": "Namespaced extensions (section 4.6); values are unconstrained JSON.",
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9_]*$"
-      },
+      }
+    },
+    "JsonObject": {
       "type": "object",
-      "additionalProperties": {}
+      "properties": {},
+      "description": "An open JSON object, not an arbitrary JSON value."
     },
     "Message": {
-      "description": "One message of the model request (§4.2).",
       "type": "object",
       "properties": {
         "role": {
@@ -173,12 +179,11 @@
         "content": {}
       },
       "required": [
-        "content",
-        "role"
+        "role",
+        "content"
       ]
     },
     "Model": {
-      "description": "Conditional payload of pre_model_call and post_model_call (§4.2).",
       "type": "object",
       "properties": {
         "id": {
@@ -188,9 +193,7 @@
           "type": "string"
         },
         "params": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
+          "$ref": "#/$defs/JsonObject"
         }
       },
       "required": [
@@ -199,7 +202,6 @@
       "additionalProperties": false
     },
     "ToolDecl": {
-      "description": "One declared tool (§4.3).",
       "type": "object",
       "properties": {
         "name": {
@@ -209,9 +211,7 @@
           "type": "string"
         },
         "schema": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
+          "$ref": "#/$defs/JsonObject"
         }
       },
       "required": [

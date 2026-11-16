@@ -2,7 +2,7 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 // Write the JSON Schemas under spec/<version>/schema/generated/ from the
-// TypeScript source in spec/<version>/schema/src/, or check that the committed
+// TypeSpec source in spec/<version>/schema/src/, or check that the committed
 // files match. <version> is draft unless --spec <version> names another folder;
 // released folders are immutable, so only the draft is normally regenerated.
 //
@@ -10,13 +10,16 @@
 //   npm run check:schema           type-check the source, then compare the
 //                                  committed files with the generated text
 //
+// Frozen TypeScript bundles keep their original generator below.
 // typescript-json-schema 0.68.0 runs with the settings the MCP repository
 // passes on its command line (--required --defaultNumberType integer
 // --skipLibCheck) plus --strictNullChecks, so that `| null` survives, and
 // --validationKeywords propertyNames allOf, so that the two JSDoc tags that
 // carry JSON Schema the type system cannot express are copied through.
 //
-// The post-pass, in the order applied:
+// TypeSpec emits 2020-12 directly; typespec-schemas.mts only packages roots
+// and references for publication. Both paths derive the strict contexts
+// and preserve published IDs. The legacy TypeScript post-pass:
 //   1. $schema: draft-07 becomes 2020-12.
 //   2. definitions becomes $defs, in the member and in every $ref.
 //   3. A $ref keeps only description beside it. Draft-07 ignores the siblings
@@ -37,6 +40,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as TJS from "typescript-json-schema";
+import { bundleSchema, typespecSchemas } from "./typespec-schemas.mts";
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Schema = { [key: string]: Json };
@@ -47,6 +51,8 @@ const SPEC = specArg >= 0 && specArg + 1 < process.argv.length ? process.argv[sp
 const SCHEMA_DIR = `spec/${SPEC}/schema`;
 const SRC = join(ROOT, "spec", SPEC, "schema", "src");
 const OUT = join(ROOT, "spec", SPEC, "schema", "generated");
+const TYPESPEC = existsSync(join(SRC, "main.tsp"));
+const HOOK_RESPONSES = TYPESPEC || SPEC === "draft";
 // Published identity of the bundle's schemas. The draft publishes under
 // schema/draft/ (mutable); a released version X.Y publishes under
 // schema/vX.Y/ (immutable). --id-base <url> overrides both.
@@ -96,11 +102,11 @@ function allowFractionalJsonNumbers(schema: Schema): void {
 
 const ROOTS: Root[] = [
   { file: "interception-point.schema.json", source: "interception-point.ts", type: "InterceptionPoint" },
-  ...(SPEC === "draft"
+  ...(HOOK_RESPONSES
     ? []
     : [{ file: "verdict.schema.json", source: "verdict.ts", type: "Verdict" }]),
   { file: "agent-context.schema.json", source: "agent-context.ts", type: "AgentContext" },
-  ...(SPEC === "draft"
+  ...(HOOK_RESPONSES
     ? [
         {
           file: "agent-startup-hook-response.schema.json",
@@ -174,7 +180,9 @@ const ROOTS: Root[] = [
 
 const MASTER = "agent-context.schema.json";
 
-const compilerOptions = JSON.parse(readFileSync(join(SRC, "tsconfig.json"), "utf8")).compilerOptions;
+const compilerOptions = TYPESPEC
+  ? {}
+  : JSON.parse(readFileSync(join(SRC, "tsconfig.json"), "utf8")).compilerOptions;
 const programs = new Map<string, TJS.Program>();
 
 function programFor(source: string): TJS.Program {
@@ -295,7 +303,7 @@ function perPointSchemas(master: Schema): Map<string, Schema> {
         $schema: DRAFT_2020_12,
         title: `Agent Hooks — agent context (${point})`,
         description:
-          `${SPEC === "draft" ? "Required" : "Closed required"}+conditional schema for interception_point=${point} ` +
+          `${HOOK_RESPONSES ? "Required" : "Closed required"}+conditional schema for interception_point=${point} ` +
           "(AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
         type: variant.type,
         properties: variant.properties,
@@ -316,14 +324,31 @@ function defines(root: Root): boolean {
 }
 
 /** Every output file's text, keyed by its path under spec/<version>/schema/generated/. */
-function render(): Map<string, string> {
+async function render(): Promise<Map<string, string>> {
   const files = new Map<string, Schema>();
+  const types = TYPESPEC ? await typespecSchemas(join(SRC, "main.tsp")) : undefined;
   for (const root of ROOTS) {
-    if (!defines(root)) {
-      console.log(`${SCHEMA_DIR}/src/${root.source} does not define ${root.type}; ${root.file} is not generated for this bundle`);
+    if (types ? root.type !== "*" && !types.has(root.type) : !defines(root)) {
+      console.log(`${SCHEMA_DIR}/src/${TYPESPEC ? "main.tsp" : root.source} does not define ${root.type}; ${root.file} is not generated for this bundle`);
       continue;
     }
-    files.set(root.file, generateRoot(root));
+    if (types) {
+      const schema = bundleSchema(
+        types,
+        root.type === "*" ? [
+          "request", "resolution", "Outcome", "LiftableDeny",
+          "ApproveResolution", "RejectResolution", "UnresolvedResolution",
+        ] : [root.type],
+        root.type === "*",
+      );
+      schema.$id = ID_BASE + root.file;
+      schema.$schema = DRAFT_2020_12;
+      if (root.title !== undefined) schema.title = root.title;
+      if (root.description !== undefined) schema.description = root.description;
+      files.set(root.file, ordered(schema));
+    } else {
+      files.set(root.file, generateRoot(root));
+    }
   }
   for (const [file, schema] of perPointSchemas(files.get(MASTER)!)) files.set(file, schema);
   return new Map([...files].map(([file, schema]) => [file, JSON.stringify(schema, null, 2) + "\n"]));
@@ -352,9 +377,9 @@ export function escapeWorkflowCommandData(value: string): string {
   return value.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
 }
 
-function main(): number {
+async function main(): Promise<number> {
   const check = process.argv.includes("--check");
-  const files = render();
+  const files = await render();
   let failing = 0;
   for (const [file, text] of files) {
     const annotationFile = escapeWorkflowCommandData(file);
@@ -373,7 +398,7 @@ function main(): number {
     const actual = readFileSync(path, "utf8");
     if (actual !== text) {
       failing++;
-      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} differs from the TypeScript source; run npm run generate:schema in spec/scripts`);
+      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} differs from the schema source; run npm run generate:schema in spec/scripts`);
       console.log(`  ${firstDifference(actual, text)}`);
     }
   }
@@ -389,5 +414,5 @@ function main(): number {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.exit(main());
+  process.exit(await main());
 }

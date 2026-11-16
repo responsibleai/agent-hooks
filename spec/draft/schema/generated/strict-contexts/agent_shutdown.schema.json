@@ -5,40 +5,29 @@
   "description": "Required+conditional schema for interception_point=agent_shutdown (AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
   "type": "object",
   "properties": {
-    "interception_point": {
-      "type": "string",
-      "const": "agent_shutdown"
-    },
-    "summary": {
-      "$ref": "#/$defs/Summary"
-    },
-    "extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "$ref": "#/$defs/Extensions"
-    },
     "spec": {
-      "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
       "type": "string",
-      "const": "agent-hooks/draft"
+      "const": "agent-hooks/draft",
+      "description": "This bundle's wire string, rewritten when a specification is cut."
     },
     "timestamp": {
-      "format": "date-time",
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "sequence": {
-      "minimum": 0,
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "agent": {
       "type": "object",
       "properties": {
         "id": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "framework": {
-          "pattern": "^[a-z0-9_-]+$",
-          "type": "string"
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
         },
         "name": {
           "type": "string"
@@ -48,24 +37,24 @@
         }
       },
       "required": [
-        "framework",
-        "id"
+        "id",
+        "framework"
       ]
     },
     "session": {
       "type": "object",
       "properties": {
         "id": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "started_at": {
-          "format": "date-time",
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "turn": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [
@@ -101,13 +90,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "Who acts (§4.5).",
-          "enum": [
-            "agent",
-            "human",
-            "service"
-          ],
-          "type": "string"
+          "$ref": "#/$defs/ActorKind"
         }
       }
     },
@@ -127,40 +110,58 @@
           "type": "number"
         }
       }
+    },
+    "interception_point": {
+      "type": "string",
+      "const": "agent_shutdown"
+    },
+    "extensions": {
+      "$ref": "#/$defs/Extensions"
+    },
+    "summary": {
+      "$ref": "#/$defs/Summary"
     }
   },
   "required": [
-    "agent",
-    "interception_point",
-    "sequence",
-    "session",
     "spec",
-    "summary",
-    "timestamp"
+    "timestamp",
+    "sequence",
+    "agent",
+    "session",
+    "interception_point",
+    "summary"
   ],
   "$defs": {
+    "ActorKind": {
+      "type": "string",
+      "enum": [
+        "human",
+        "service",
+        "agent"
+      ]
+    },
     "Extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "type": "object",
+      "properties": {},
+      "unevaluatedProperties": {},
+      "description": "Namespaced extensions (section 4.6); values are unconstrained JSON.",
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9_]*$"
-      },
-      "type": "object",
-      "additionalProperties": {}
+      }
     },
     "Summary": {
-      "description": "Conditional payload of agent_shutdown (§4.2).",
       "type": "object",
       "properties": {
         "reason": {
           "$ref": "#/$defs/SummaryReason"
         },
         "tool_calls": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "errors": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         },
         "duration_seconds": {
           "type": "number",
@@ -173,7 +174,6 @@
       "additionalProperties": false
     },
     "SummaryReason": {
-      "description": "Why the agent stopped (§4.2).",
       "type": "string",
       "enum": [
         "completed",

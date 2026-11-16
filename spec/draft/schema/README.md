@@ -10,7 +10,9 @@ development and the Python mirror read this folder; an SDK release
 names the specification versions it supports in
 `SUPPORTED_SPEC_VERSIONS` (VERSIONING.md).
 
-The TypeScript files in `src/` are the editable schema source.
+The TypeSpec files in `src/` are the editable schema source, with
+`src/main.tsp` selecting the public schema roots. The generator compiles
+them with `@typespec/json-schema` to JSON Schema Draft 2020-12.
 `generated/` contains the committed draft JSON Schemas. Do not edit generated JSON by hand.
 
 - Root schemas are written to `generated/*.schema.json`.
@@ -27,43 +29,64 @@ The TypeScript files in `src/` are the editable schema source.
   startup and shutdown permit only allow or deny. P-006's metadata limits and
   enforcement separation still apply, including rules enforced by parsers
   rather than JSON Schema.
-- `src/host-declaration.ts` generates the draft declaration schema.
+- `src/host-declaration.tsp` generates the draft declaration schema.
 - The P-193 draft declaration format is not yet implemented by SDK loaders or
   CTK fixtures; released 0.1 retains its existing declaration schema.
 - `path-grammar.abnf` remains a hand-maintained grammar, not generated output.
 
 ## Edit, generate and check
 
-From the repository root:
+Use Node.js 22 or later. From the repository root:
 
 ```bash
 cd spec/scripts
 npm ci
 npm run generate:schema
 npm run check:schema
+npm run check:schema:equivalence -- --old <git-ref>
 npm run check:schema:equivalence -- --old <git-ref> --structural-diff
 ```
 
 Edit the relevant file in `src/`, regenerate, and commit source and output
-together. `check:schema` type-checks the source and rejects missing, changed
-or unexpected generated schemas. Equivalence checks accept Git revisions
-before and after this layout change, a schema output directory, or a
-a `schema/` directory containing `generated/`. They compare schemas by
+together. `check:schema` compiles the TypeSpec source in memory and rejects
+missing, changed or unexpected generated schemas. Equivalence checks accept
+Git revisions before and after this layout change, a schema output directory,
+or a `schema/` directory containing `generated/`. They compare schemas by
 their stable published identities, not checkout paths.
 
-Refresh the Python mirror as in
-[`schema-drift.yml`](../../../.github/workflows/schema-drift.yml):
+TypeSpec expresses constraints directly rather than in TypeScript JSDoc:
 
-```bash
-cp spec/draft/schema/generated/*.schema.json sdk/python/python/agent_hooks/schema/
-cp spec/draft/schema/generated/strict-contexts/*.schema.json sdk/python/python/agent_hooks/schema/agent-context/
+```typespec
+model ToolResult {
+  value: unknown;
+  is_error: boolean;
+  @minValue(0)
+  duration_ms?: float64;
+}
 ```
 
-Run these copy commands from the repository root after generation.
-Vendoring copies only generated JSON; the Python package keeps its existing
-`schema/agent-context/` resource paths. Run the schema-lint CI checks when
-changing schema shapes. See [Contributing](../../../CONTRIBUTING.md#schema-source)
-for source annotations and the broader SDK test matrix.
+Use `integer` for integer-valued fields, `float64` for fractional fields,
+`JsonObject` for an open object and `unknown` for arbitrary JSON.
+`@extension("additionalProperties", false)` closes only the objects the
+contract closes; do not globally seal context metadata or payloads.
+`@extension` also carries the record's conditional `allOf` rules and the
+extension-key `propertyNames` rule.
+
+The generator loads the installed emitter through
+`spec/scripts/schema-emitter.tsp`, then imports this bundle's `src/main.tsp`.
+`typespec-schemas.mts` packages its emitted definitions into the existing
+self-contained published documents. It preserves the approval fragments
+`#/$defs/request` and `#/$defs/resolution`; `generate-schemas.mts` continues
+to derive the strict per-point context schemas from the master union.
+The old TypeScript generator and its dependencies remain only for frozen
+released bundles such as 0.1. Cutting a new bundle rewrites `.tsp` wire
+strings and schema identities along with the JSON.
+
+This changes schema authoring, not the Rust runtime or the handwritten
+language SDKs. JSON Schema remains the normative artifact. The Python
+mirror remains versioned under `schema/0.1/` and `schema/draft/`; update
+draft copies only alongside corresponding SDK changes, as described in
+[Contributing](../../../CONTRIBUTING.md#schema-source).
 
 ## Filesystem paths are not public schema identities
 

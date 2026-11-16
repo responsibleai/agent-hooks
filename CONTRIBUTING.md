@@ -58,40 +58,46 @@
 ## Schema source
 
 Each specification folder's JSON Schemas under `spec/<version>/schema/generated/`
-are generated from the TypeScript in `spec/<version>/schema/src/`. Edit
+are generated from the source in `spec/<version>/schema/src/`: TypeSpec
+in the draft, and the original TypeScript in the frozen 0.1 bundle. Edit
 only `spec/draft/schema/src/`; the generator targets `draft` unless
 `--spec <version>` names another folder. The `lint` job runs the drift
 check for the draft and, with `--spec`, for every released bundle that
 has `schema/src/`, so a frozen source keeps generating its frozen
-output; 0.1 has no source and is named and skipped. The JSON stays the normative artifact: it is
+output. The JSON stays the normative artifact: it is
 what validators, the conformance kit and the SDK mirrors consume. Do not
 edit it by hand; the `lint` and `drift` checks fail on any byte that
 differs from the generated text.
 
-- One source file per root schema (`verdict.ts`, `agent-context.ts`,
-  `approval.ts`, and so on; `host-declaration.ts` builds both contract
-  versions), written as interfaces, string enums and JSDoc. The
-  generator runs typescript-json-schema 0.68.0 with `--required
-  --defaultNumberType integer --skipLibCheck --strictNullChecks` and
-  reads these tags: `@pattern`, `@minimum`, `@maximum`, `@minLength`,
-  `@maxLength`, `@minItems`, `@maxItems`, `@uniqueItems`, `@format`,
-  `@default`, `@title`, `@TJS-type number` for a non-integer number,
-  and `@additionalProperties false` on an interface to close it. String
-  enums keep their declaration order; a union of literals is sorted.
+- Draft sources are TypeSpec models, enums, scalars and unions:
+  `agent-context.tsp`, `verdict.tsp`, `hook-responses.tsp`, `approval.tsp`,
+  `interception-record.tsp`, `host-declaration.tsp`, plus shared types.
+  `main.tsp` selects public roots with `@@jsonSchema`. The generator loads
+  `@typespec/json-schema` from `spec/scripts` and emits Draft 2020-12
+  directly. Use Node.js 22 or later for this tooling.
+- Use `integer` for integer fields and `float64` for fractional values,
+  `@minValue`/`@maxValue` for numeric bounds, and `@pattern`, `@format`,
+  `@minLength`, `@maxLength`, `@minItems`, `@maxItems` and `@uniqueItems`
+  for other constraints. Optional properties use `?`; nullable values
+  explicitly include `| null`. Close individual models with
+  `@extension("additionalProperties", false)`, not global object sealing.
 - A rule one member decides is a discriminated union: verdicts by
   `decision`, agent contexts by `interception_point`, approval
   resolutions by `outcome`, the declared surface by `buffered_output`.
-  A rule the type system cannot state is JSON Schema in an `@allOf` tag
-  on the interface it constrains, copied through by the generator;
-  `@propertyNames` passes through the same way.
-- `spec/scripts/generate-schemas.mts` lists its post-pass at
-  the top of the file. The per-point `generated/strict-contexts/*.schema.json`
-  files are derived there from the master's union members.
+  A rule the type system cannot state is JSON Schema in
+  `@extension("allOf", #[...])`; extension namespace keys use
+  `@extension("propertyNames", #{...})`. Defaults remain schema annotations
+  through `@extension("default", value)`, not runtime default insertion.
+- `spec/scripts/typespec-schemas.mts` packages emitted definitions into the
+  existing self-contained documents, preserving published identities and
+  approval fragments. `generate-schemas.mts` derives the per-point
+  `generated/strict-contexts/*.schema.json` files from the master union.
+  It retains the legacy TypeScript generator for released bundles.
 
 ```bash
 cd spec/scripts && npm ci
 npm run generate:schema      # write spec/draft/schema/generated/**/*.schema.json
-npm run check:schema         # type-check the source, then fail on any drift
+npm run check:schema         # compile the source, then fail on any drift
 npm run check:schema:equivalence -- --old origin/main   # differential validation against another revision
 ```
 
