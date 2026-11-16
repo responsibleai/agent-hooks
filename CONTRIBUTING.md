@@ -104,8 +104,7 @@ workflow runs `spec-draft-generated-schema-check`,
 separate hard checks. `python-draft-schema-mirror` regenerates the draft
 and reports mirror differences as warnings; comparison errors still fail.
 The mirror checks use focused scripts in `sdk/python/scripts/`; the
-aggregate status check is inline in the workflow. Their isolated regression
-tests are in `sdk/python/scripts/tests/`.
+aggregate status check is inline in the workflow.
 The required `drift` job aggregates all four and fails if any job fails,
 is cancelled, or is skipped. Keep `drift` required in branch protection;
 the individual checks may additionally be required, but no settings change

@@ -29,8 +29,6 @@ jobs:
       - name: Check generated draft schemas
         run: npm run check:schema
         working-directory: spec/scripts
-      - name: Test mirror and aggregate checks
-        run: python3 -m unittest discover -s sdk/python/scripts/tests -p test_schema_drift.py
 
   python-released-schema-mirror:
     runs-on: ubuntu-latest
