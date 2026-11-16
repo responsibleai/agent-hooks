@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright (c) Microsoft. All rights reserved.
 
 """Exercise the Python SDK CI schema drift checks against isolated Git repositories."""
@@ -70,14 +69,21 @@ class SchemaDriftTest(unittest.TestCase):
 
     def git(self, *args):
         return subprocess.run(
-            ["git", *args], cwd=self.root, env=self.env, check=True,
-            capture_output=True, text=True,
+            ["git", *args],
+            cwd=self.root,
+            env=self.env,
+            check=True,
+            capture_output=True,
+            text=True,
         )
 
     def run_script(self, script, *args):
         return subprocess.run(
             [BASH, f"sdk/python/scripts/{script}", *args],
-            cwd=self.root, env=self.env, capture_output=True, text=True,
+            cwd=self.root,
+            env=self.env,
+            capture_output=True,
+            text=True,
         )
 
     def test_clean_mirrors(self):
@@ -98,16 +104,18 @@ class SchemaDriftTest(unittest.TestCase):
                     self.write(MIRROR / "schema/9.9/extra.schema.json", "extra\n")
                 self.git("add", "-A")
                 self.git("commit", "-qm", "introduce drift")
-                self.assertNotEqual(
-                    self.run_script(SCHEMA_SCRIPT.name).returncode, 0
+                self.assertNotEqual(self.run_script(SCHEMA_SCRIPT.name).returncode, 0)
+                self.git(
+                    "restore", f"--source={self.base}", "--staged", "--worktree", "--", str(MIRROR)
                 )
-                self.git("restore", f"--source={self.base}", "--staged", "--worktree", "--", str(MIRROR))
                 self.git("commit", "-qm", "restore fixture")
 
     def test_released_fails_on_source_and_version_errors(self):
         (self.root / "spec/0.1/schema/generated/strict-contexts/point.schema.json").unlink()
         self.assertNotEqual(self.run_script(SCHEMA_SCRIPT.name).returncode, 0)
-        self.git("restore", f"--source={self.base}", "--staged", "--worktree", "--", "spec", str(MIRROR))
+        self.git(
+            "restore", f"--source={self.base}", "--staged", "--worktree", "--", "spec", str(MIRROR)
+        )
         self.write("bin/python3", "#!/bin/sh\nexit 2\n")
         self.assertNotEqual(self.run_script(SCHEMA_SCRIPT.name).returncode, 0)
 
@@ -132,10 +140,10 @@ class SchemaDriftTest(unittest.TestCase):
                     self.write(MIRROR / "ctk/vectors/extra.json", "extra\n")
                 self.git("add", "-A")
                 self.git("commit", "-qm", "introduce drift")
-                self.assertNotEqual(
-                    self.run_script(VECTOR_SCRIPT.name).returncode, 0
+                self.assertNotEqual(self.run_script(VECTOR_SCRIPT.name).returncode, 0)
+                self.git(
+                    "restore", f"--source={self.base}", "--staged", "--worktree", "--", str(MIRROR)
                 )
-                self.git("restore", f"--source={self.base}", "--staged", "--worktree", "--", str(MIRROR))
                 self.git("commit", "-qm", "restore fixture")
 
     def test_vectors_fail_when_source_missing_or_new(self):
@@ -174,7 +182,7 @@ class SchemaDriftTest(unittest.TestCase):
                 with self.subTest(position=position, status=status):
                     values = ["success"] * len(names)
                     values[position] = status
-                    env = self.env | dict(zip(names, values))
+                    env = self.env | dict(zip(names, values, strict=True))
                     result = subprocess.run(
                         [BASH, "-c", aggregate_script],
                         cwd=self.root,
@@ -183,11 +191,9 @@ class SchemaDriftTest(unittest.TestCase):
                         text=True,
                     )
                     self.assertNotEqual(result.returncode, 0)
-        env = self.env | dict(zip(names, ["success"] * len(names)))
+        env = self.env | dict(zip(names, ["success"] * len(names), strict=True))
         self.assertEqual(
-            subprocess.run(
-                [BASH, "-c", aggregate_script], cwd=self.root, env=env
-            ).returncode,
+            subprocess.run([BASH, "-c", aggregate_script], cwd=self.root, env=env).returncode,
             0,
         )
 

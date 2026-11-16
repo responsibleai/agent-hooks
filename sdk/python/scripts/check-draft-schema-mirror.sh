@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Copyright (c) Microsoft. All rights reserved.
+
 # Run from the repository root.
 set -euo pipefail
 
