@@ -176,7 +176,12 @@ class SchemaDriftTest(unittest.TestCase):
         )
         self.assertIsNotNone(match)
         aggregate_script = textwrap.dedent(match.group(1))
-        names = ["DRAFT_GENERATED", "RELEASED_PYTHON", "CTK_VECTORS", "DRAFT_PYTHON"]
+        names = [
+            "SPEC_DRAFT_GENERATED_SCHEMA_CHECK",
+            "PYTHON_RELEASED_SCHEMA_MIRROR",
+            "PYTHON_CTK_VECTOR_MIRROR",
+            "PYTHON_DRAFT_SCHEMA_MIRROR",
+        ]
         for position in range(len(names)):
             for status in ("failure", "cancelled", "skipped", ""):
                 with self.subTest(position=position, status=status):
@@ -201,16 +206,22 @@ class SchemaDriftTest(unittest.TestCase):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("if: ${{ always() }}", workflow)
         self.assertIn(
-            "needs: [draft-generated, released-python, ctk-vectors, draft-python-advisory]",
+            "spec-draft-generated-schema-check",
             workflow,
         )
+        self.assertIn("python-released-schema-mirror", workflow)
+        self.assertIn("python-ctk-vector-mirror", workflow)
+        self.assertIn("python-draft-schema-mirror", workflow)
         self.assertIn("check-released-schema-mirror.sh", workflow)
         self.assertIn("check-draft-schema-mirror.sh", workflow)
         self.assertIn("check-ctk-vector-mirror.sh", workflow)
-        self.assertIn("DRAFT_GENERATED: ${{ needs.draft-generated.result }}", workflow)
-        self.assertIn("RELEASED_PYTHON: ${{ needs.released-python.result }}", workflow)
-        self.assertIn("CTK_VECTORS: ${{ needs.ctk-vectors.result }}", workflow)
-        self.assertIn("DRAFT_PYTHON: ${{ needs.draft-python-advisory.result }}", workflow)
+        for job in (
+            "spec-draft-generated-schema-check",
+            "python-released-schema-mirror",
+            "python-ctk-vector-mirror",
+            "python-draft-schema-mirror",
+        ):
+            self.assertIn(f"needs.{job}.result", workflow)
 
 
 if __name__ == "__main__":

@@ -99,8 +99,9 @@ After a change, regenerate. The Python mirror holds one folder per
 supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`
 and `schema/draft/`), each with that bundle's generated schemas and the
 per-point context schemas under `agent-context/`. The `schema-drift`
-workflow runs `draft-generated`, `released-python`, and `ctk-vectors`
-as separate hard checks. `draft-python-advisory` regenerates the draft
+workflow runs `spec-draft-generated-schema-check`,
+`python-released-schema-mirror`, and `python-ctk-vector-mirror` as
+separate hard checks. `python-draft-schema-mirror` regenerates the draft
 and reports mirror differences as warnings; comparison errors still fail.
 The mirror checks use focused scripts in `sdk/python/scripts/`; the
 aggregate status check is inline in the workflow. Their isolated regression

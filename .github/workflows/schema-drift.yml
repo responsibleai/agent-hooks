@@ -1,10 +1,10 @@
 name: schema-drift
 
 # Checks:
-# - draft-generated: ensure generated draft schemas match their TypeScript source.
-# - released-python: refresh released Python schema mirrors, then fail on drift.
-# - ctk-vectors: refresh the Python CTK vector mirror, then fail on drift.
-# - draft-python-advisory: report experimental draft mirror drift as a warning.
+# - spec-draft-generated-schema-check: ensure generated draft schemas match their TypeScript source.
+# - python-released-schema-mirror: refresh released Python schema mirrors, then fail on drift.
+# - python-ctk-vector-mirror: refresh the Python CTK vector mirror, then fail on drift.
+# - python-draft-schema-mirror: report experimental draft mirror drift as a warning.
 # - drift: required aggregate; fails unless every check job succeeds.
 #
 # No pull_request path filter: the required `drift` check must be created
@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 jobs:
-  draft-generated:
+  spec-draft-generated-schema-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,21 +32,21 @@ jobs:
       - name: Test mirror and aggregate checks
         run: python3 -m unittest discover -s sdk/python/scripts/tests -p test_schema_drift.py
 
-  released-python:
+  python-released-schema-mirror:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check released Python schema mirrors
         run: bash sdk/python/scripts/check-released-schema-mirror.sh
 
-  ctk-vectors:
+  python-ctk-vector-mirror:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check Python CTK vector mirror
         run: bash sdk/python/scripts/check-ctk-vector-mirror.sh
 
-  draft-python-advisory:
+  python-draft-schema-mirror:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -62,21 +62,27 @@ jobs:
 
   drift:
     if: ${{ always() }}
-    needs: [draft-generated, released-python, ctk-vectors, draft-python-advisory]
+    needs:
+      [
+        spec-draft-generated-schema-check,
+        python-released-schema-mirror,
+        python-ctk-vector-mirror,
+        python-draft-schema-mirror,
+      ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Require all drift checks to complete successfully
         env:
-          DRAFT_GENERATED: ${{ needs.draft-generated.result }}
-          RELEASED_PYTHON: ${{ needs.released-python.result }}
-          CTK_VECTORS: ${{ needs.ctk-vectors.result }}
-          DRAFT_PYTHON: ${{ needs.draft-python-advisory.result }}
+          SPEC_DRAFT_GENERATED_SCHEMA_CHECK: ${{ needs.spec-draft-generated-schema-check.result }}
+          PYTHON_RELEASED_SCHEMA_MIRROR: ${{ needs.python-released-schema-mirror.result }}
+          PYTHON_CTK_VECTOR_MIRROR: ${{ needs.python-ctk-vector-mirror.result }}
+          PYTHON_DRAFT_SCHEMA_MIRROR: ${{ needs.python-draft-schema-mirror.result }}
         run: |
-          if [[ "${DRAFT_GENERATED:-}" != success ||
-                "${RELEASED_PYTHON:-}" != success ||
-                "${CTK_VECTORS:-}" != success ||
-                "${DRAFT_PYTHON:-}" != success ]]; then
+          if [[ "${SPEC_DRAFT_GENERATED_SCHEMA_CHECK:-}" != success ||
+                "${PYTHON_RELEASED_SCHEMA_MIRROR:-}" != success ||
+                "${PYTHON_CTK_VECTOR_MIRROR:-}" != success ||
+                "${PYTHON_DRAFT_SCHEMA_MIRROR:-}" != success ]]; then
             echo "::error::a drift check failed, was skipped, cancelled, or did not report a result"
             exit 1
           fi
