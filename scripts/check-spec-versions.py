@@ -21,7 +21,7 @@ has a matching schema ID, only same-version external schema refs, and
 valid host declarations with the corresponding wire string. The golden
 documents and contexts use the released 0.1 contract.
 
-Every entry under specification bundles is a regular file or directory whose name does
+Every entry under spec/ is a regular file or directory whose name does
 not start with a dot: a symbolic link, a device or pipe, and a hidden
 file such as .gitattributes fail, so nothing in a bundle can point
 outside it or rewrite other files on checkout.
