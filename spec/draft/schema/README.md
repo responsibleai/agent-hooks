@@ -51,23 +51,9 @@ before and after this layout change, a schema output directory, or a
 a `schema/` directory containing `generated/`. They compare schemas by
 their stable published identities, not checkout paths.
 
-The [`schema-drift.yml`](../../../.github/workflows/schema-drift.yml) workflow
-checks generated draft schemas, released Python mirrors, and CTK vectors
-separately. Its `drift` aggregate remains the required check. The draft
-Python mirror comparison is advisory for differences, but comparison errors
-fail the aggregate. Refresh the draft Python mirror when its implementation
-is ready:
-
-```bash
-cp spec/draft/schema/generated/*.schema.json sdk/python/python/agent_hooks/schema/draft/
-cp spec/draft/schema/generated/strict-contexts/*.schema.json sdk/python/python/agent_hooks/schema/draft/agent-context/
-```
-
-Run these copy commands from the repository root after generation.
-Vendoring copies only generated JSON; the Python package keeps its existing
-`schema/agent-context/` resource paths. Run the schema-lint CI checks when
-changing schema shapes. See [Contributing](../../../CONTRIBUTING.md#schema-source)
-for source annotations and the broader SDK test matrix.
+Run the schema-lint CI checks when changing schema shapes. See
+[Contributing](../../../CONTRIBUTING.md#schema-source) for source annotations
+and the broader SDK test matrix.
 
 ## Filesystem paths are not public schema identities
 
