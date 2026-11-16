@@ -50,7 +50,7 @@ Make normative changes in `draft/`. Edit schema shapes in
 drift check target `draft/` by default.
 
 Released folders are immutable records of a release. The `change-class`
-CI check fails a pull request that changes any `MAJOR.MINOR` folder
+fails a pull request that changes any `MAJOR.MINOR` folder
 that already exists on its base branch, with one exception: a new
 regular `.json` file under `<version>/schema/examples/<Type>/` may be
 added, because an example illustrates a schema without changing it. A
