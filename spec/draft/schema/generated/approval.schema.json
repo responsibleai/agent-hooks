@@ -25,7 +25,7 @@
         },
         "context": {
           "$ref": "#/$defs/AgentContext",
-          "description": "The context as presented to the resolver; may be redacted."
+          "description": "The AgentContext as presented to the resolver. MAY be redacted per host policy."
         }
       },
       "required": [
@@ -33,7 +33,7 @@
         "interception_point",
         "verdict"
       ],
-      "description": "What the host hands the resolver (section 9).\nThe public fragment remains approval.schema.json#/$defs/request.\n[request](../examples/ApprovalRequest/collection-access.json)",
+      "description": "What the host hands the resolver (§9).",
       "additionalProperties": false
     },
     "InterceptionPoint": {
@@ -48,8 +48,8 @@
         "output",
         "agent_shutdown"
       ],
-      "description": "The closed set of agent lifecycle interception points (section 3).",
-      "title": "Agent Hooks - interception point"
+      "description": "The closed set of agent lifecycle interception points (AGENT-HOOKS-0.1 §3).",
+      "title": "Agent Hooks — interception point"
     },
     "LiftableDeny": {
       "type": "object",
@@ -63,7 +63,7 @@
         "decision"
       ],
       "unevaluatedProperties": {},
-      "description": "A consulted deny may carry a host-synthesized host_error reason."
+      "description": "The liftable deny being consulted: an interceptor's (passes §5,\nverdict.schema.json) or the host-synthesized §7.5 shape, whose reason is a\nreserved host_error:* string that §5 forbids interceptors to emit — so this\nmember is validated against the §5 schema only when its reason is not\nhost_error:*."
     },
     "AgentContext": {
       "anyOf": [
@@ -92,8 +92,8 @@
           "$ref": "#/$defs/AgentShutdownRequest"
         }
       ],
-      "description": "Payload a host constructs at each interception point (section 4).",
-      "title": "Agent Hooks - agent context"
+      "description": "Payload a host constructs at each interception point (AGENT-HOOKS-0.1 §4).\nEach variant requires its discriminator and own hook payload, with shared\nmetadata and optional namespaced extensions.",
+      "title": "Agent Hooks — agent context"
     },
     "AgentStartupRequest": {
       "type": "object",
@@ -101,7 +101,7 @@
         "spec": {
           "type": "string",
           "const": "agent-hooks/draft",
-          "description": "This bundle's wire string, rewritten when a specification is cut."
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
         },
         "timestamp": {
           "type": "string",
@@ -224,7 +224,7 @@
         "interception_point",
         "agent_init"
       ],
-      "description": "The request at agent_startup.\n[agent-startup.json](../examples/AgentContext/agent-startup.json)"
+      "description": "The request at agent_startup: agent_init is required (§4.2)."
     },
     "ActorKind": {
       "type": "string",
@@ -232,13 +232,14 @@
         "human",
         "service",
         "agent"
-      ]
+      ],
+      "description": "Who acts (§4.5)."
     },
     "Extensions": {
       "type": "object",
       "properties": {},
       "unevaluatedProperties": {},
-      "description": "Namespaced extensions (section 4.6); values are unconstrained JSON.",
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9_]*$"
       }
@@ -256,7 +257,7 @@
       "required": [
         "tools_registered"
       ],
-      "description": "Conditional payload of agent_startup (section 4.2)."
+      "description": "Conditional payload of agent_startup (§4.2)."
     },
     "InputRequest": {
       "type": "object",
@@ -264,7 +265,7 @@
         "spec": {
           "type": "string",
           "const": "agent-hooks/draft",
-          "description": "This bundle's wire string, rewritten when a specification is cut."
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
         },
         "timestamp": {
           "type": "string",
@@ -387,7 +388,7 @@
         "interception_point",
         "input"
       ],
-      "description": "The request at input.\n[input.json](../examples/AgentContext/input.json)"
+      "description": "The request at input: input is required (§4.2)."
     },
     "Input": {
       "type": "object",
@@ -400,7 +401,8 @@
       "required": [
         "content",
         "role"
-      ]
+      ],
+      "description": "Conditional payload of input (§4.2)."
     },
     "InputRole": {
       "type": "string",
@@ -409,7 +411,7 @@
         "system",
         "external"
       ],
-      "description": "Who produced an input."
+      "description": "Who produced an input (§4.2)."
     },
     "PreModelCallRequest": {
       "type": "object",
@@ -417,7 +419,7 @@
         "spec": {
           "type": "string",
           "const": "agent-hooks/draft",
-          "description": "This bundle's wire string, rewritten when a specification is cut."
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
         },
         "timestamp": {
           "type": "string",
@@ -556,7 +558,7 @@
         "model",
         "messages"
       ],
-      "description": "The request at pre_model_call.\n[pre-model-call.json](../examples/AgentContext/pre-model-call.json)\n[with metadata](../examples/AgentContext/pre-model-call-with-model-metadata.json)\n[with tools](../examples/AgentContext/pre-model-call-with-tools.json)"
+      "description": "The request at pre_model_call: model and messages are required (§4.2)."
     },
     "Model": {
       "type": "object",
@@ -573,7 +575,8 @@
       },
       "required": [
         "id"
-      ]
+      ],
+      "description": "Conditional payload of pre_model_call and post_model_call (§4.2)."
     },
     "JsonObject": {
       "type": "object",
@@ -591,7 +594,8 @@
       "required": [
         "role",
         "content"
-      ]
+      ],
+      "description": "One message of the model request (§4.2)."
     },
     "ToolDecl": {
       "type": "object",
@@ -608,7 +612,8 @@
       },
       "required": [
         "name"
-      ]
+      ],
+      "description": "One declared tool (§4.3)."
     },
     "PostModelCallRequest": {
       "type": "object",
@@ -616,7 +621,7 @@
         "spec": {
           "type": "string",
           "const": "agent-hooks/draft",
-          "description": "This bundle's wire string, rewritten when a specification is cut."
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
         },
         "timestamp": {
           "type": "string",
@@ -749,7 +754,7 @@
         "model",
         "response"
       ],
-      "description": "The request at post_model_call.\n[post-model-call.json](../examples/AgentContext/post-model-call.json)\n[optional tool id](../examples/AgentContext/post-model-call-with-optional-tool-call-id.json)\n[with usage](../examples/AgentContext/post-model-call-with-usage.json)"
+      "description": "The request at post_model_call: model and response are required (§4.2)."
     },
     "Response": {
       "type": "object",
@@ -769,7 +774,8 @@
         "content",
         "tool_calls",
         "finish_reason"
-      ]
+      ],
+      "description": "Conditional payload of post_model_call (§4.2)."
     },
     "ToolCallRequest": {
       "type": "object",
@@ -787,7 +793,8 @@
       "required": [
         "name",
         "args"
-      ]
+      ],
+      "description": "One tool call the model asked for (§4.2)."
     },
     "Usage": {
       "type": "object",
@@ -800,7 +807,8 @@
           "type": "integer",
           "minimum": 0
         }
-      }
+      },
+      "description": "Token usage of a model call (§4.3)."
     },
     "PreToolCallRequest": {
       "type": "object",
@@ -808,7 +816,7 @@
         "spec": {
           "type": "string",
           "const": "agent-hooks/draft",
-          "description": "This bundle's wire string, rewritten when a specification is cut."
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
         },
         "timestamp": {
           "type": "string",
@@ -931,7 +939,7 @@
         "interception_point",
         "tool_call"
       ],
-      "description": "The request at pre_tool_call.\n[pre-tool-call.json](../examples/AgentContext/pre-tool-call.json)"
+      "description": "The request at pre_tool_call: tool_call is required (§4.2)."
     },
     "ToolCall": {
       "type": "object",
@@ -956,7 +964,8 @@
         "id",
         "name",
         "args"
-      ]
+      ],
+      "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2)."
     },
     "PostToolCallRequest": {
       "type": "object",
@@ -964,7 +973,7 @@
         "spec": {
           "type": "string",
           "const": "agent-hooks/draft",
-          "description": "This bundle's wire string, rewritten when a specification is cut."
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
         },
         "timestamp": {
           "type": "string",
@@ -1091,7 +1100,7 @@
         "tool_call",
         "tool_result"
       ],
-      "description": "The request at post_tool_call.\n[post-tool-call.json](../examples/AgentContext/post-tool-call.json)\n[error](../examples/AgentContext/post-tool-call-error.json)"
+      "description": "The request at post_tool_call: tool_call and tool_result are required (§4.2)."
     },
     "ToolResult": {
       "type": "object",
@@ -1108,7 +1117,8 @@
       "required": [
         "value",
         "is_error"
-      ]
+      ],
+      "description": "Conditional payload of post_tool_call (§4.2)."
     },
     "OutputRequest": {
       "type": "object",
@@ -1116,7 +1126,7 @@
         "spec": {
           "type": "string",
           "const": "agent-hooks/draft",
-          "description": "This bundle's wire string, rewritten when a specification is cut."
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
         },
         "timestamp": {
           "type": "string",
@@ -1239,7 +1249,7 @@
         "interception_point",
         "output"
       ],
-      "description": "The request at output.\n[output.json](../examples/AgentContext/output.json)"
+      "description": "The request at output: output is required (§4.2)."
     },
     "Output": {
       "type": "object",
@@ -1248,7 +1258,8 @@
       },
       "required": [
         "content"
-      ]
+      ],
+      "description": "Conditional payload of output (§4.2)."
     },
     "AgentShutdownRequest": {
       "type": "object",
@@ -1256,7 +1267,7 @@
         "spec": {
           "type": "string",
           "const": "agent-hooks/draft",
-          "description": "This bundle's wire string, rewritten when a specification is cut."
+          "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
         },
         "timestamp": {
           "type": "string",
@@ -1379,7 +1390,7 @@
         "interception_point",
         "summary"
       ],
-      "description": "The request at agent_shutdown.\n[agent-shutdown.json](../examples/AgentContext/agent-shutdown.json)"
+      "description": "The request at agent_shutdown: summary is required (§4.2)."
     },
     "Summary": {
       "type": "object",
@@ -1402,7 +1413,8 @@
       },
       "required": [
         "reason"
-      ]
+      ],
+      "description": "Conditional payload of agent_shutdown (§4.2)."
     },
     "SummaryReason": {
       "type": "string",
@@ -1410,7 +1422,8 @@
         "completed",
         "error",
         "cancelled"
-      ]
+      ],
+      "description": "Why the agent stopped (§4.2)."
     },
     "resolution": {
       "anyOf": [
@@ -1424,7 +1437,7 @@
           "$ref": "#/$defs/UnresolvedResolution"
         }
       ],
-      "description": "What the resolver returns; the public fragment keeps this name."
+      "description": "What the resolver returns (§9)."
     },
     "ApproveResolution": {
       "type": "object",
@@ -1438,7 +1451,7 @@
               "type": "null"
             }
           ],
-          "description": "Must echo the request's identity byte for byte; null echoes as null."
+          "description": "MUST equal the request's context_identity byte for byte (echo rule, §9);\nnull echoes as null."
         },
         "outcome": {
           "type": "string",
@@ -1453,7 +1466,7 @@
         "outcome",
         "verdict"
       ],
-      "description": "The resolver lifts the deny with an allow.\n[approve](../examples/ApprovalResolution/approve-allow.json)",
+      "description": "approve: the resolver lifts the deny with an allow verdict.",
       "additionalProperties": false
     },
     "AllowVerdict": {
@@ -1468,7 +1481,8 @@
               "type": "null"
             }
           ],
-          "pattern": "^(?!host_error:).*"
+          "pattern": "^(?!host_error:).*",
+          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11)."
         },
         "message": {
           "anyOf": [
@@ -1478,7 +1492,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Human-readable text for the caller."
         },
         "warnings": {
           "anyOf": [
@@ -1491,7 +1506,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1)."
         },
         "evidence": {
           "$ref": "#/$defs/Evidence"
@@ -1508,7 +1524,7 @@
               "type": "null"
             }
           ],
-          "description": "Labels the host persists with produced data and resurfaces at later hooks."
+          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4)."
         },
         "decision": {
           "type": "string",
@@ -1518,7 +1534,7 @@
       "required": [
         "decision"
       ],
-      "description": "Proceed; warnings do not affect control flow.\n[allow](../examples/Verdict/allow.json)\n[with warning](../examples/Verdict/allow-with-warning.json)\n[with evidence](../examples/Verdict/allow-with-evidence.json)",
+      "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
       "additionalProperties": false
     },
     "Warning": {
@@ -1534,7 +1550,7 @@
             }
           ],
           "pattern": "^(?!host_error:|host_warning:).*",
-          "description": "Host error and warning namespaces are reserved for the host."
+          "description": "Interceptor-supplied warning identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11) and host_warning: for host-synthesized\nwarnings (§11.1); an interceptor warning with either prefix fails §5\nvalidation."
         },
         "message": {
           "anyOf": [
@@ -1547,7 +1563,7 @@
           ]
         }
       },
-      "description": "A recorded concern that does not affect control flow (section 5.1).",
+      "description": "A recorded concern that does not affect control flow (§5.1).",
       "additionalProperties": false
     },
     "Evidence": {
@@ -1561,13 +1577,14 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof."
         },
         "verification_pointers": {
           "$ref": "#/$defs/VerificationPointers"
         }
       },
-      "description": "Offline-verifiable evidence attached to a verdict (section 14).",
+      "description": "Offline-verifiable evidence attached to a verdict (§14).",
       "additionalProperties": false
     },
     "VerificationPointers": {
@@ -1576,7 +1593,7 @@
       "unevaluatedProperties": {
         "type": "string"
       },
-      "description": "Named URIs an auditor may consult; hosts must not dereference automatically."
+      "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14)."
     },
     "RejectResolution": {
       "type": "object",
@@ -1590,7 +1607,7 @@
               "type": "null"
             }
           ],
-          "description": "Must echo the request's identity byte for byte; null echoes as null."
+          "description": "MUST equal the request's context_identity byte for byte (echo rule, §9);\nnull echoes as null."
         },
         "outcome": {
           "type": "string",
@@ -1605,7 +1622,7 @@
         "outcome",
         "verdict"
       ],
-      "description": "The resolver keeps a deny.\n[reject](../examples/ApprovalResolution/reject.json)",
+      "description": "reject: the resolver keeps a deny.",
       "additionalProperties": false
     },
     "DenyVerdict": {
@@ -1620,7 +1637,8 @@
               "type": "null"
             }
           ],
-          "pattern": "^(?!host_error:).*"
+          "pattern": "^(?!host_error:).*",
+          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11)."
         },
         "message": {
           "anyOf": [
@@ -1630,7 +1648,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Human-readable text for the caller."
         },
         "warnings": {
           "anyOf": [
@@ -1643,7 +1662,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1)."
         },
         "evidence": {
           "$ref": "#/$defs/Evidence"
@@ -1660,20 +1680,21 @@
               "type": "null"
             }
           ],
-          "description": "Labels the host persists with produced data and resurfaces at later hooks."
+          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4)."
         },
         "decision": {
           "type": "string",
           "const": "deny"
         },
         "approval": {
-          "$ref": "#/$defs/JsonObject"
+          "$ref": "#/$defs/JsonObject",
+          "description": "Present only on deny: marks the deny as liftable by the approval seam (§9).\nMAY be empty; reserved for approver-facing parameters."
         }
       },
       "required": [
         "decision"
       ],
-      "description": "Stop the action; an approval block makes the deny liftable.\n[deny](../examples/Verdict/deny.json)\n[with approval](../examples/Verdict/deny-with-approval.json)",
+      "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
       "additionalProperties": false
     },
     "UnresolvedResolution": {
@@ -1688,7 +1709,7 @@
               "type": "null"
             }
           ],
-          "description": "Must echo the request's identity byte for byte; null echoes as null."
+          "description": "MUST equal the request's context_identity byte for byte (echo rule, §9);\nnull echoes as null."
         },
         "outcome": {
           "type": "string",
@@ -1699,7 +1720,7 @@
         "context_identity",
         "outcome"
       ],
-      "description": "No decision; the deny stands and no verdict is carried.\n[unresolved](../examples/ApprovalResolution/unresolved.json)",
+      "description": "unresolved: no decision; the deny stands and no verdict is carried.",
       "additionalProperties": false
     },
     "Outcome": {
@@ -1708,7 +1729,8 @@
         "approve",
         "reject",
         "unresolved"
-      ]
+      ],
+      "description": "How a consultation ended (§9)."
     }
   }
 }

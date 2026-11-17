@@ -3,27 +3,31 @@
 using TypeSpec.JsonSchema;
 namespace AgentHooks;
 
-/** A consulted deny may carry a host-synthesized host_error reason. */
+/**
+ * The liftable deny being consulted: an interceptor's (passes §5,
+ * verdict.schema.json) or the host-synthesized §7.5 shape, whose reason is a
+ * reserved host_error:* string that §5 forbids interceptors to emit — so this
+ * member is validated against the §5 schema only when its reason is not
+ * host_error:*.
+ */
 model LiftableDeny {
   decision: Decision.Deny;
   ...Record<unknown>;
 }
 
-/**
- * What the host hands the resolver (section 9).
- * The public fragment remains approval.schema.json#/$defs/request.
- * [request](../examples/ApprovalRequest/collection-access.json)
- */
+// Example: [request](../examples/ApprovalRequest/collection-access.json)
+/** What the host hands the resolver (§9). */
 @extension("additionalProperties", false)
 model request {
   context_identity: string | null;
   interception_point: InterceptionPoint;
   verdict: LiftableDeny;
 
-  /** The context as presented to the resolver; may be redacted. */
+  /** The AgentContext as presented to the resolver. MAY be redacted per host policy. */
   context?: AgentContext;
 }
 
+/** How a consultation ended (§9). */
 enum Outcome {
   Approve: "approve",
   Reject: "reject",
@@ -31,14 +35,15 @@ enum Outcome {
 }
 
 model ResolutionBase {
-  /** Must echo the request's identity byte for byte; null echoes as null. */
+  /**
+   * MUST equal the request's context_identity byte for byte (echo rule, §9);
+   * null echoes as null.
+   */
   context_identity: string | null;
 }
 
-/**
- * The resolver lifts the deny with an allow.
- * [approve](../examples/ApprovalResolution/approve-allow.json)
- */
+// Example: [approve](../examples/ApprovalResolution/approve-allow.json)
+/** approve: the resolver lifts the deny with an allow verdict. */
 @extension("additionalProperties", false)
 model ApproveResolution {
   ...ResolutionBase;
@@ -46,10 +51,8 @@ model ApproveResolution {
   verdict: AllowVerdict;
 }
 
-/**
- * The resolver keeps a deny.
- * [reject](../examples/ApprovalResolution/reject.json)
- */
+// Example: [reject](../examples/ApprovalResolution/reject.json)
+/** reject: the resolver keeps a deny. */
 @extension("additionalProperties", false)
 model RejectResolution {
   ...ResolutionBase;
@@ -57,17 +60,15 @@ model RejectResolution {
   verdict: DenyVerdict;
 }
 
-/**
- * No decision; the deny stands and no verdict is carried.
- * [unresolved](../examples/ApprovalResolution/unresolved.json)
- */
+// Example: [unresolved](../examples/ApprovalResolution/unresolved.json)
+/** unresolved: no decision; the deny stands and no verdict is carried. */
 @extension("additionalProperties", false)
 model UnresolvedResolution {
   ...ResolutionBase;
   outcome: Outcome.Unresolved;
 }
 
-/** What the resolver returns; the public fragment keeps this name. */
+/** What the resolver returns (§9). */
 union resolution {
   ApproveResolution,
   RejectResolution,

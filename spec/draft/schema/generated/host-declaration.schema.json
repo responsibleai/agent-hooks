@@ -1,8 +1,8 @@
 {
   "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/host-declaration.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Agent Hooks - host declaration document (agent-hooks/draft)",
-  "description": "Host declaration whose spec member selects its format and behavior.\nEvery object is closed except binding config and extension values.\nThe loader checks knob consistency, lifecycle floors and registered names.\n[document policy](../examples/HostDeclaration/document-policy.json)\n[default failure posture](../examples/HostDeclaration/default-failure-posture.json)\n[failure posture](../examples/HostDeclaration/failure-posture.json)\n[streaming](../examples/HostDeclaration/streaming-document-policy.json)",
+  "title": "Agent Hooks — host declaration document (agent-hooks/draft)",
+  "description": "A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that\nfixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface\n(§13.1) and its interceptor bindings. The document's spec member selects\nits format and behavior; this file describes agent-hooks/draft. Every object is\nclosed except bindings[].config and the values under extensions. This schema\nis self-contained so a settings validator can use it alone. Rules it cannot\nexpress (knob consistency, the §3.2 floor, surface against the host's code,\nregistered names) live in the loader (§7.7.6).",
   "type": "object",
   "properties": {
     "configuration": {
@@ -14,7 +14,7 @@
         "$ref": "#/$defs/Binding"
       },
       "maxItems": 256,
-      "description": "Required, ordered dispatch list. The loader checks binding id uniqueness."
+      "description": "Ordered: array order is dispatch order. REQUIRED, so an empty-deny host\n(zero bindings) is written down rather than arrived at by omission. Binding\nids are unique."
     },
     "$schema": {
       "type": "string",
@@ -22,22 +22,24 @@
     },
     "spec": {
       "type": "string",
-      "const": "agent-hooks/draft"
+      "const": "agent-hooks/draft",
+      "description": "REQUIRED. The specification version the document is written for\n(§7.7.3, §7.7.6): this version's wire string. A document written for a\nreleased version names that version's own string instead, and is\nread by that version's rules."
     },
     "id": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
-      "description": "Operator label for logs, never stamped on records."
+      "description": "OPTIONAL. An operator label for logs. Never stamped on records."
     },
     "host": {
       "$ref": "#/$defs/Host"
     },
     "surface": {
       "$ref": "#/$defs/Surface",
-      "description": "Must be a subset of the host's implemented surface."
+      "description": "The declared surface (§13.1) in file form. OPTIONAL: when absent the host's\nown code surface applies. Every stated member must be a subset of what the\nhost's code reports; a document a conformance claim cites carries this block\nexplicitly."
     },
     "extensions": {
-      "$ref": "#/$defs/Extensions"
+      "$ref": "#/$defs/Extensions",
+      "description": "Host-specific extras, kept verbatim and never read by the loader. Keys\nfollow the §4.6 namespace rule; the §4.6 reserved namespaces apply."
     }
   },
   "required": [
@@ -51,6 +53,7 @@
       "properties": {
         "mode": {
           "$ref": "#/$defs/Mode",
+          "description": "§8.",
           "default": "enforce"
         },
         "composition": {
@@ -66,7 +69,7 @@
             }
           ],
           "pattern": "^(jcs-sha256|(?!jcs)[a-z][a-z0-9_-]{0,63})$",
-          "description": "jcs-sha256, a registered non-jcs custom name, or null for unbound identity."
+          "description": "§10.1: \"jcs-sha256\" (the default), a registered custom provider name\n(^[a-z][a-z0-9_-]{0,63}$, never a jcs prefix), or null (identity-unbound)."
         },
         "approval": {
           "$ref": "#/$defs/ApprovalConfig"
@@ -84,7 +87,7 @@
           "$ref": "#/$defs/FailureConfig"
         }
       },
-      "description": "Host configuration; omitted members take the specification's defaults.",
+      "description": "Host configuration (§7.1). Every member is OPTIONAL; defaults are the values\nthe specification already names and fail closed.",
       "additionalProperties": false
     },
     "Mode": {
@@ -93,7 +96,7 @@
         "enforce",
         "evaluate_only"
       ],
-      "description": "Enforcement modes (section 8)."
+      "description": "Enforcement modes (§8)."
     },
     "CompositionConfig": {
       "type": "object",
@@ -104,18 +107,18 @@
         },
         "on_approval": {
           "$ref": "#/$defs/OnApproval",
-          "description": "Consulted only by sequential/first_deny."
+          "description": "Consulted by sequential/first_deny only; refused under any other profile (§7.7.3)."
         },
         "on_disagreement": {
           "$ref": "#/$defs/ConflictResolution",
-          "description": "Consulted only by parallel/unanimous."
+          "description": "Consulted by parallel/unanimous only."
         },
         "on_transform_conflict": {
           "$ref": "#/$defs/ConflictResolution",
-          "description": "Consulted only by parallel/strictest."
+          "description": "Consulted by parallel/strictest only."
         }
       },
-      "description": "Unconsulted profile knobs are refused by the loader, never cleared.",
+      "description": "§7.2. A knob the declared profile does not consult is refused, never cleared;\na consulted knob left unset takes the §7.2 default.",
       "additionalProperties": false
     },
     "CompositionProfile": {
@@ -126,7 +129,7 @@
         "parallel/strictest",
         "parallel/unanimous"
       ],
-      "description": "Composition profiles (section 7.1)."
+      "description": "Composition profiles (§7.1), in §7.2 table order."
     },
     "OnApproval": {
       "type": "string",
@@ -134,7 +137,7 @@
         "stop",
         "resume"
       ],
-      "description": "Values of the on_approval knob (section 7.2)."
+      "description": "Values of the on_approval knob (§7.2)."
     },
     "ConflictResolution": {
       "type": "string",
@@ -142,7 +145,7 @@
         "deny",
         "approval"
       ],
-      "description": "Values of the on_disagreement and on_transform_conflict knobs."
+      "description": "Values of the on_disagreement and on_transform_conflict knobs (§7.2)."
     },
     "ApprovalConfig": {
       "type": "object",
@@ -157,7 +160,7 @@
             }
           ],
           "pattern": "^[a-z][a-z0-9_-]{0,63}$",
-          "description": "Registered resolver, or null to leave liftable denies in force."
+          "description": "§9. A registered approval resolver by reference, or null: liftable denies\nstay denies."
         },
         "redactor": {
           "anyOf": [
@@ -168,7 +171,8 @@
               "type": "null"
             }
           ],
-          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "description": "§9 redaction seam. A registered approval redactor by reference, or null."
         }
       },
       "additionalProperties": false
@@ -178,7 +182,7 @@
       "properties": {
         "tool_seam_host_error": {
           "$ref": "#/$defs/ToolSeamHostError",
-          "description": "Must equal the posture implemented by the host.",
+          "description": "§13.1. Must equal the posture the host's code implements.",
           "default": "continue"
         }
       },
@@ -189,18 +193,19 @@
       "enum": [
         "continue",
         "terminate"
-      ]
+      ],
+      "description": "The tool-seam posture a host implements (§13.1)."
     },
     "TimeoutsConfig": {
       "type": "object",
       "properties": {
         "interceptor_ms": {
           "$ref": "#/$defs/TimeoutMs",
-          "description": "Default 5000; null explicitly means unbounded."
+          "description": "§7 interceptor bound; default 5000. null means unbounded and must be written out."
         },
         "approval_resolver_ms": {
           "$ref": "#/$defs/TimeoutMs",
-          "description": "Defaults to interceptor_ms."
+          "description": "§9 resolver bound; defaults to the value of interceptor_ms."
         }
       },
       "additionalProperties": false
@@ -235,7 +240,7 @@
           ],
           "minimum": 1,
           "maximum": 9007199254740991,
-          "description": "Null is unbounded; finite bounds must canonicalize without rounding."
+          "description": "In-memory record buffer bound; null (the default) is unbounded. The maximum\nis 2^53 - 1 so the resolved document always canonicalises (§4.4)."
         }
       },
       "additionalProperties": false
@@ -245,7 +250,7 @@
       "properties": {
         "on_error": {
           "$ref": "#/$defs/OnError",
-          "description": "Document default inherited by each binding.",
+          "description": "§6.3.1. The document default every binding's on_error inherits. deny keeps\nthe §6.3 substituted deny; continue substitutes an allow carrying\nhost_warning:control_failed and records the cause in substituted_for.",
           "default": "deny"
         }
       },
@@ -256,23 +261,24 @@
       "enum": [
         "deny",
         "continue"
-      ]
+      ],
+      "description": "The failure posture (§6.3.1)."
     },
     "Binding": {
       "type": "object",
       "properties": {
         "id": {
           "$ref": "#/$defs/Reference",
-          "description": "Unique within bindings; persisted as the verdict slot's name."
+          "description": "Unique in the array; stamped on verdicts[].name (§10.3)."
         },
         "kind": {
           "type": "string",
           "maxLength": 128,
           "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)+$",
-          "description": "Registry lookup key, never a path, class, module or URL to load."
+          "description": "A lookup key into the host's kind registry and nothing more: never a path,\nclass name, URL or module the loader interprets. At least one dot, so every\nkind carries a namespace the host controls. The first segments agent_hooks\nand ctk are reserved. This specification defines no kinds."
         },
         "config": {
-          "description": "Kind-specific JSON passed unchanged to its resolver; defaults to {}."
+          "description": "Kind-specific; handed to the kind resolver unchanged. The loader interprets\nnone of it; its one check here is the document-wide integer bound of §7.7.6\n(no integer token above 2^53 - 1, so the resolved form canonicalises).\nDefault {}."
         },
         "at": {
           "type": "array",
@@ -281,27 +287,28 @@
           },
           "minItems": 1,
           "uniqueItems": true,
-          "description": "Defaults to every point in the declared surface."
+          "description": "Points this binding runs at, each in the surface. Default: every surface\npoint."
         },
         "timeout_ms": {
-          "$ref": "#/$defs/TimeoutMs"
+          "$ref": "#/$defs/TimeoutMs",
+          "description": "Per-binding bound. Default: configuration.timeouts.interceptor_ms; null is unbounded."
         },
         "on_error": {
           "$ref": "#/$defs/OnError",
-          "description": "Inherits configuration.failure.on_error."
+          "description": "§6.3.1 failure posture for this binding: what the host does when the\ninterceptor raises, times out or returns an invalid verdict. Default:\nconfiguration.failure.on_error."
         }
       },
       "required": [
         "id",
         "kind"
       ],
-      "description": "One interceptor binding (section 7.7.4).",
+      "description": "One interceptor binding (§7.7.4).",
       "additionalProperties": false
     },
     "Reference": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9_-]{0,63}$",
-      "description": "Grammar of a registered provider, resolver, redactor or binding id."
+      "description": "Grammar of a registered name: provider, resolver, redactor or binding id."
     },
     "InterceptionPoint": {
       "type": "string",
@@ -315,15 +322,16 @@
         "output",
         "agent_shutdown"
       ],
-      "description": "The closed set of agent lifecycle interception points (section 3).",
-      "title": "Agent Hooks - interception point"
+      "description": "The closed set of agent lifecycle interception points (AGENT-HOOKS-0.1 §3).",
+      "title": "Agent Hooks — interception point"
     },
     "Host": {
       "type": "object",
       "properties": {
         "name": {
           "type": "string",
-          "pattern": "^[a-z0-9_-]{1,64}$"
+          "pattern": "^[a-z0-9_-]{1,64}$",
+          "description": "Same grammar as agent.framework (§4.1)."
         },
         "version": {
           "type": "string",
@@ -334,7 +342,7 @@
       "required": [
         "name"
       ],
-      "description": "Optional and informative; never checked against code.",
+      "description": "OPTIONAL and informative; never checked against code.",
       "additionalProperties": false
     },
     "Surface": {
@@ -345,7 +353,8 @@
         {
           "$ref": "#/$defs/UnbufferedSurface"
         }
-      ]
+      ],
+      "description": "The declared surface (§13.1) in file form, by output posture."
     },
     "BufferedSurface": {
       "type": "object",
@@ -358,7 +367,7 @@
           "minItems": 4,
           "maxItems": 8,
           "uniqueItems": true,
-          "description": "Lifecycle points form the floor; model/tool points may be omitted in pairs."
+          "description": "Points the host emits; always includes agent_startup, input, output and\nagent_shutdown (§3.2), and omits the model or tool points only in pairs."
         },
         "capabilities": {
           "type": "array",
@@ -373,10 +382,11 @@
         "buffered_output": {
           "type": "boolean",
           "const": true,
+          "description": "§12.1a. false must be declared explicitly and requires exposure_bound.",
           "default": true
         }
       },
-      "description": "Buffered output is the default; exposure_bound must be absent.",
+      "description": "The surface of a host that buffers output (§12.1a), the default:\nexposure_bound is absent.",
       "additionalProperties": false
     },
     "Capability": {
@@ -392,7 +402,7 @@
         "incremental_output",
         "host_declaration"
       ],
-      "description": "Conformance capability vocabulary, with buffering declared separately."
+      "description": "The conformance capability vocabulary (§13.1, conformance/draft/vectors.schema.json)\nless buffered_output, which is the boolean surface member, plus\nhost_declaration."
     },
     "ProfileSupport": {
       "type": "object",
@@ -410,7 +420,7 @@
           "$ref": "#/$defs/UnanimousSupport"
         }
       },
-      "description": "Only the knobs a profile consults may appear.",
+      "description": "Profiles and the knob values supported under each (§13.1). Only the knobs a\nprofile consults may appear; an absent knob member means the §7.2 default\nvalue only.",
       "additionalProperties": false
     },
     "FirstDenySupport": {
@@ -471,7 +481,7 @@
           "minItems": 4,
           "maxItems": 8,
           "uniqueItems": true,
-          "description": "Lifecycle points form the floor; model/tool points may be omitted in pairs."
+          "description": "Points the host emits; always includes agent_startup, input, output and\nagent_shutdown (§3.2), and omits the model or tool points only in pairs."
         },
         "capabilities": {
           "type": "array",
@@ -485,26 +495,28 @@
         },
         "buffered_output": {
           "type": "boolean",
-          "const": false
+          "const": false,
+          "description": "§12.1a. false must be declared explicitly and requires exposure_bound."
         },
         "exposure_bound": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 512
+          "maxLength": 512,
+          "description": "§12.1a. Present iff buffered_output is false."
         }
       },
       "required": [
         "buffered_output",
         "exposure_bound"
       ],
-      "description": "Streaming output must explicitly declare its exposure bound.",
+      "description": "The surface of a host that streams output (§12.1a): buffered_output is\nwritten as false and exposure_bound is present.",
       "additionalProperties": false
     },
     "Extensions": {
       "type": "object",
       "properties": {},
       "unevaluatedProperties": {},
-      "description": "Namespaced extensions (section 4.6); values are unconstrained JSON.",
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9_]*$"
       }

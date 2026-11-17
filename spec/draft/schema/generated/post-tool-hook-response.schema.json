@@ -2,7 +2,7 @@
   "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/post-tool-hook-response.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Hooks — post_tool_call response",
-  "description": "Post-tool responses.\n[allow](../examples/PostToolHookResponse/allow.json)\n[deny](../examples/PostToolHookResponse/deny.json)\n[transform](../examples/PostToolHookResponse/transform.json)",
+  "description": "post_tool_call response.",
   "type": "object",
   "properties": {
     "verdict": {
@@ -39,7 +39,8 @@
               "type": "null"
             }
           ],
-          "pattern": "^(?!host_error:).*"
+          "pattern": "^(?!host_error:).*",
+          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11)."
         },
         "message": {
           "anyOf": [
@@ -49,7 +50,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Human-readable text for the caller."
         },
         "warnings": {
           "anyOf": [
@@ -62,7 +64,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1)."
         },
         "evidence": {
           "$ref": "#/$defs/Evidence"
@@ -79,7 +82,7 @@
               "type": "null"
             }
           ],
-          "description": "Labels the host persists with produced data and resurfaces at later hooks."
+          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4)."
         },
         "decision": {
           "type": "string",
@@ -89,7 +92,7 @@
       "required": [
         "decision"
       ],
-      "description": "Proceed; warnings do not affect control flow.\n[allow](../examples/Verdict/allow.json)\n[with warning](../examples/Verdict/allow-with-warning.json)\n[with evidence](../examples/Verdict/allow-with-evidence.json)",
+      "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
       "additionalProperties": false
     },
     "Warning": {
@@ -105,7 +108,7 @@
             }
           ],
           "pattern": "^(?!host_error:|host_warning:).*",
-          "description": "Host error and warning namespaces are reserved for the host."
+          "description": "Interceptor-supplied warning identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11) and host_warning: for host-synthesized\nwarnings (§11.1); an interceptor warning with either prefix fails §5\nvalidation."
         },
         "message": {
           "anyOf": [
@@ -118,7 +121,7 @@
           ]
         }
       },
-      "description": "A recorded concern that does not affect control flow (section 5.1).",
+      "description": "A recorded concern that does not affect control flow (§5.1).",
       "additionalProperties": false
     },
     "Evidence": {
@@ -132,13 +135,14 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof."
         },
         "verification_pointers": {
           "$ref": "#/$defs/VerificationPointers"
         }
       },
-      "description": "Offline-verifiable evidence attached to a verdict (section 14).",
+      "description": "Offline-verifiable evidence attached to a verdict (§14).",
       "additionalProperties": false
     },
     "VerificationPointers": {
@@ -147,7 +151,7 @@
       "unevaluatedProperties": {
         "type": "string"
       },
-      "description": "Named URIs an auditor may consult; hosts must not dereference automatically."
+      "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14)."
     },
     "DenyVerdict": {
       "type": "object",
@@ -161,7 +165,8 @@
               "type": "null"
             }
           ],
-          "pattern": "^(?!host_error:).*"
+          "pattern": "^(?!host_error:).*",
+          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11)."
         },
         "message": {
           "anyOf": [
@@ -171,7 +176,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Human-readable text for the caller."
         },
         "warnings": {
           "anyOf": [
@@ -184,7 +190,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1)."
         },
         "evidence": {
           "$ref": "#/$defs/Evidence"
@@ -201,20 +208,21 @@
               "type": "null"
             }
           ],
-          "description": "Labels the host persists with produced data and resurfaces at later hooks."
+          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4)."
         },
         "decision": {
           "type": "string",
           "const": "deny"
         },
         "approval": {
-          "$ref": "#/$defs/JsonObject"
+          "$ref": "#/$defs/JsonObject",
+          "description": "Present only on deny: marks the deny as liftable by the approval seam (§9).\nMAY be empty; reserved for approver-facing parameters."
         }
       },
       "required": [
         "decision"
       ],
-      "description": "Stop the action; an approval block makes the deny liftable.\n[deny](../examples/Verdict/deny.json)\n[with approval](../examples/Verdict/deny-with-approval.json)",
+      "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
       "additionalProperties": false
     },
     "JsonObject": {
@@ -234,7 +242,8 @@
               "type": "null"
             }
           ],
-          "pattern": "^(?!host_error:).*"
+          "pattern": "^(?!host_error:).*",
+          "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11)."
         },
         "message": {
           "anyOf": [
@@ -244,7 +253,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Human-readable text for the caller."
         },
         "warnings": {
           "anyOf": [
@@ -257,7 +267,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1)."
         },
         "evidence": {
           "$ref": "#/$defs/Evidence"
@@ -274,7 +285,7 @@
               "type": "null"
             }
           ],
-          "description": "Labels the host persists with produced data and resurfaces at later hooks."
+          "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4)."
         },
         "decision": {
           "type": "string",
@@ -288,7 +299,7 @@
         "decision",
         "transform"
       ],
-      "description": "Proceed with the hook-specific replacement payload.\n[input](../examples/Verdict/transform-input.json)\n[messages](../examples/Verdict/transform-messages.json)\n[output](../examples/Verdict/transform-output.json)\n[response](../examples/Verdict/transform-response.json)\n[args](../examples/Verdict/transform-tool-args.json)\n[value](../examples/Verdict/transform-tool-result.json)",
+      "description": "transform: proceed with the hook-specific replacement payload.",
       "additionalProperties": false
     },
     "PostToolHookTransform": {
@@ -306,7 +317,7 @@
       "type": "object",
       "properties": {},
       "unevaluatedProperties": {},
-      "description": "Namespaced extensions (section 4.6); values are unconstrained JSON.",
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9_]*$"
       }

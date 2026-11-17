@@ -2,8 +2,8 @@
 
 namespace AgentHooks;
 
-/** The closed set of agent lifecycle interception points (section 3). */
-@summary("Agent Hooks - interception point")
+/** The closed set of agent lifecycle interception points (AGENT-HOOKS-0.1 §3). */
+@summary("Agent Hooks — interception point")
 enum InterceptionPoint {
   AgentStartup: "agent_startup",
   Input: "input",

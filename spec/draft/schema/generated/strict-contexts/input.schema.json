@@ -8,7 +8,7 @@
     "spec": {
       "type": "string",
       "const": "agent-hooks/draft",
-      "description": "This bundle's wire string, rewritten when a specification is cut."
+      "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
     },
     "timestamp": {
       "type": "string",
@@ -138,13 +138,14 @@
         "human",
         "service",
         "agent"
-      ]
+      ],
+      "description": "Who acts (§4.5)."
     },
     "Extensions": {
       "type": "object",
       "properties": {},
       "unevaluatedProperties": {},
-      "description": "Namespaced extensions (section 4.6); values are unconstrained JSON.",
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9_]*$"
       }
@@ -161,6 +162,7 @@
         "content",
         "role"
       ],
+      "description": "Conditional payload of input (§4.2).",
       "additionalProperties": false
     },
     "InputRole": {
@@ -170,7 +172,7 @@
         "system",
         "external"
       ],
-      "description": "Who produced an input."
+      "description": "Who produced an input (§4.2)."
     }
   }
 }

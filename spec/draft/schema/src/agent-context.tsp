@@ -2,46 +2,52 @@
 
 namespace AgentHooks;
 
-/** Conditional payload of agent_startup (section 4.2). */
+/** Conditional payload of agent_startup (§4.2). */
 model AgentInit {
   tools_registered: string[];
 }
 
-/** Who produced an input. */
+/** Who produced an input (§4.2). */
 enum InputRole {
   User: "user",
   System: "system",
   External: "external",
 }
 
+/** Conditional payload of input (§4.2). */
 model Input {
   content: unknown;
   role: InputRole;
 }
 
+/** Conditional payload of pre_model_call and post_model_call (§4.2). */
 model Model {
   id: string;
   vendor?: string;
   params?: JsonObject;
 }
 
+/** One message of the model request (§4.2). */
 model Message {
   role: string;
   content: unknown;
 }
 
+/** One tool call the model asked for (§4.2). */
 model ToolCallRequest {
   id?: string;
   name: string;
   args: JsonObject;
 }
 
+/** Conditional payload of post_model_call (§4.2). */
 model Response {
   content: unknown;
   tool_calls: ToolCallRequest[];
   finish_reason: string;
 }
 
+/** Token usage of a model call (§4.3). */
 model Usage {
   @minValue(0)
   prompt_tokens?: integer;
@@ -50,6 +56,7 @@ model Usage {
   completion_tokens?: integer;
 }
 
+/** Conditional payload of pre_tool_call and post_tool_call (§4.2). */
 model ToolCall {
   @minLength(1)
   id: string;
@@ -63,6 +70,7 @@ model ToolCall {
   content_hash?: string;
 }
 
+/** Conditional payload of post_tool_call (§4.2). */
 model ToolResult {
   value: unknown;
   is_error: boolean;
@@ -71,22 +79,26 @@ model ToolResult {
   duration_ms?: float64;
 }
 
+/** One declared tool (§4.3). */
 model ToolDecl {
   name: string;
   description?: string;
   schema?: JsonObject;
 }
 
+/** Conditional payload of output (§4.2). */
 model Output {
   content: unknown;
 }
 
+/** Why the agent stopped (§4.2). */
 enum SummaryReason {
   Completed: "completed",
   Error: "error",
   Cancelled: "cancelled",
 }
 
+/** Conditional payload of agent_shutdown (§4.2). */
 model Summary {
   reason: SummaryReason;
 
@@ -100,6 +112,7 @@ model Summary {
   duration_seconds?: float64;
 }
 
+/** Who acts (§4.5). */
 enum ActorKind {
   Human: "human",
   Service: "service",
@@ -108,7 +121,10 @@ enum ActorKind {
 
 /** Metadata available at every interception point. */
 model ContextMetadata {
-  /** This bundle's wire string, rewritten when a specification is cut. */
+  /**
+   * This version's wire string (§4.1). A released version's contexts
+   * carry that version's own string, agent-hooks/<major>.<minor>.
+   */
   spec: "agent-hooks/draft";
 
   @format("date-time")
@@ -163,30 +179,24 @@ model HooksRequest<TPoint extends InterceptionPoint = InterceptionPoint> {
   extensions?: Extensions;
 }
 
-/**
- * The request at agent_startup.
- * [agent-startup.json](../examples/AgentContext/agent-startup.json)
- */
+// Example: [agent-startup.json](../examples/AgentContext/agent-startup.json)
+/** The request at agent_startup: agent_init is required (§4.2). */
 model AgentStartupRequest {
   ...HooksRequest<InterceptionPoint.AgentStartup>;
   agent_init: AgentInit;
 }
 
-/**
- * The request at input.
- * [input.json](../examples/AgentContext/input.json)
- */
+// Example: [input.json](../examples/AgentContext/input.json)
+/** The request at input: input is required (§4.2). */
 model InputRequest {
   ...HooksRequest<InterceptionPoint.Input>;
   input: Input;
 }
 
-/**
- * The request at pre_model_call.
- * [pre-model-call.json](../examples/AgentContext/pre-model-call.json)
- * [with metadata](../examples/AgentContext/pre-model-call-with-model-metadata.json)
- * [with tools](../examples/AgentContext/pre-model-call-with-tools.json)
- */
+// Example: [pre-model-call.json](../examples/AgentContext/pre-model-call.json)
+// Example: [with metadata](../examples/AgentContext/pre-model-call-with-model-metadata.json)
+// Example: [with tools](../examples/AgentContext/pre-model-call-with-tools.json)
+/** The request at pre_model_call: model and messages are required (§4.2). */
 model PreModelCallRequest {
   ...HooksRequest<InterceptionPoint.PreModelCall>;
   `model`: Model;
@@ -195,12 +205,10 @@ model PreModelCallRequest {
   request_id?: string;
 }
 
-/**
- * The request at post_model_call.
- * [post-model-call.json](../examples/AgentContext/post-model-call.json)
- * [optional tool id](../examples/AgentContext/post-model-call-with-optional-tool-call-id.json)
- * [with usage](../examples/AgentContext/post-model-call-with-usage.json)
- */
+// Example: [post-model-call.json](../examples/AgentContext/post-model-call.json)
+// Example: [optional tool id](../examples/AgentContext/post-model-call-with-optional-tool-call-id.json)
+// Example: [with usage](../examples/AgentContext/post-model-call-with-usage.json)
+/** The request at post_model_call: model and response are required (§4.2). */
 model PostModelCallRequest {
   ...HooksRequest<InterceptionPoint.PostModelCall>;
   `model`: Model;
@@ -209,46 +217,42 @@ model PostModelCallRequest {
   usage?: Usage;
 }
 
-/**
- * The request at pre_tool_call.
- * [pre-tool-call.json](../examples/AgentContext/pre-tool-call.json)
- */
+// Example: [pre-tool-call.json](../examples/AgentContext/pre-tool-call.json)
+/** The request at pre_tool_call: tool_call is required (§4.2). */
 model PreToolCallRequest {
   ...HooksRequest<InterceptionPoint.PreToolCall>;
   tool_call: ToolCall;
 }
 
-/**
- * The request at post_tool_call.
- * [post-tool-call.json](../examples/AgentContext/post-tool-call.json)
- * [error](../examples/AgentContext/post-tool-call-error.json)
- */
+// Example: [post-tool-call.json](../examples/AgentContext/post-tool-call.json)
+// Example: [error](../examples/AgentContext/post-tool-call-error.json)
+/** The request at post_tool_call: tool_call and tool_result are required (§4.2). */
 model PostToolCallRequest {
   ...HooksRequest<InterceptionPoint.PostToolCall>;
   tool_call: ToolCall;
   tool_result: ToolResult;
 }
 
-/**
- * The request at output.
- * [output.json](../examples/AgentContext/output.json)
- */
+// Example: [output.json](../examples/AgentContext/output.json)
+/** The request at output: output is required (§4.2). */
 model OutputRequest {
   ...HooksRequest<InterceptionPoint.Output>;
   output: Output;
 }
 
-/**
- * The request at agent_shutdown.
- * [agent-shutdown.json](../examples/AgentContext/agent-shutdown.json)
- */
+// Example: [agent-shutdown.json](../examples/AgentContext/agent-shutdown.json)
+/** The request at agent_shutdown: summary is required (§4.2). */
 model AgentShutdownRequest {
   ...HooksRequest<InterceptionPoint.AgentShutdown>;
   summary: Summary;
 }
 
-/** Payload a host constructs at each interception point (section 4). */
-@summary("Agent Hooks - agent context")
+/**
+ * Payload a host constructs at each interception point (AGENT-HOOKS-0.1 §4).
+ * Each variant requires its discriminator and own hook payload, with shared
+ * metadata and optional namespaced extensions.
+ */
+@summary("Agent Hooks — agent context")
 union AgentContext {
   AgentStartupRequest,
   InputRequest,

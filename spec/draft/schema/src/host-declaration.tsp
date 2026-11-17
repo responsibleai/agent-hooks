@@ -3,7 +3,7 @@
 using TypeSpec.JsonSchema;
 namespace AgentHooks;
 
-/** Grammar of a registered provider, resolver, redactor or binding id. */
+/** Grammar of a registered name: provider, resolver, redactor or binding id. */
 @pattern("^[a-z][a-z0-9_-]{0,63}$")
 scalar Reference extends string;
 
@@ -17,7 +17,11 @@ union TimeoutMs {
   null,
 }
 
-/** Conformance capability vocabulary, with buffering declared separately. */
+/**
+ * The conformance capability vocabulary (§13.1, conformance/draft/vectors.schema.json)
+ * less buffered_output, which is the boolean surface member, plus
+ * host_declaration.
+ */
 enum Capability {
   ModelCalls: "model_calls",
   ToolCalls: "tool_calls",
@@ -30,19 +34,22 @@ enum Capability {
   HostDeclaration: "host_declaration",
 }
 
+/** The tool-seam posture a host implements (§13.1). */
 enum ToolSeamHostError {
   Continue: "continue",
   Terminate: "terminate",
 }
 
+/** The failure posture (§6.3.1). */
 enum OnError {
   Deny: "deny",
   Continue: "continue",
 }
 
-/** Optional and informative; never checked against code. */
+/** OPTIONAL and informative; never checked against code. */
 @extension("additionalProperties", false)
 model Host {
+  /** Same grammar as agent.framework (§4.1). */
   @pattern("^[a-z0-9_-]{1,64}$")
   name: string;
 
@@ -51,51 +58,61 @@ model Host {
   version?: string;
 }
 
-/** Unconsulted profile knobs are refused by the loader, never cleared. */
+/**
+ * §7.2. A knob the declared profile does not consult is refused, never cleared;
+ * a consulted knob left unset takes the §7.2 default.
+ */
 @extension("additionalProperties", false)
 model CompositionConfig {
   @extension("default", "sequential/first_deny")
   profile?: CompositionProfile;
 
-  /** Consulted only by sequential/first_deny. */
+  /** Consulted by sequential/first_deny only; refused under any other profile (§7.7.3). */
   on_approval?: OnApproval;
 
-  /** Consulted only by parallel/unanimous. */
+  /** Consulted by parallel/unanimous only. */
   on_disagreement?: ConflictResolution;
 
-  /** Consulted only by parallel/strictest. */
+  /** Consulted by parallel/strictest only. */
   on_transform_conflict?: ConflictResolution;
 }
 
 @extension("additionalProperties", false)
 model ApprovalConfig {
-  /** Registered resolver, or null to leave liftable denies in force. */
+  /**
+   * §9. A registered approval resolver by reference, or null: liftable denies
+   * stay denies.
+   */
   @pattern("^[a-z][a-z0-9_-]{0,63}$")
   resolver?: string | null;
 
+  /** §9 redaction seam. A registered approval redactor by reference, or null. */
   @pattern("^[a-z][a-z0-9_-]{0,63}$")
   redactor?: string | null;
 }
 
 @extension("additionalProperties", false)
 model PostureConfig {
-  /** Must equal the posture implemented by the host. */
+  /** §13.1. Must equal the posture the host's code implements. */
   @extension("default", "continue")
   tool_seam_host_error?: ToolSeamHostError;
 }
 
 @extension("additionalProperties", false)
 model TimeoutsConfig {
-  /** Default 5000; null explicitly means unbounded. */
+  /** §7 interceptor bound; default 5000. null means unbounded and must be written out. */
   interceptor_ms?: TimeoutMs;
 
-  /** Defaults to interceptor_ms. */
+  /** §9 resolver bound; defaults to the value of interceptor_ms. */
   approval_resolver_ms?: TimeoutMs;
 }
 
 @extension("additionalProperties", false)
 model RecordsConfig {
-  /** Null is unbounded; finite bounds must canonicalize without rounding. */
+  /**
+   * In-memory record buffer bound; null (the default) is unbounded. The maximum
+   * is 2^53 - 1 so the resolved document always canonicalises (§4.4).
+   */
   @minValue(1)
   @maxValue(9007199254740991)
   max_buffered?: integer | null;
@@ -103,20 +120,31 @@ model RecordsConfig {
 
 @extension("additionalProperties", false)
 model FailureConfig {
-  /** Document default inherited by each binding. */
+  /**
+   * §6.3.1. The document default every binding's on_error inherits. deny keeps
+   * the §6.3 substituted deny; continue substitutes an allow carrying
+   * host_warning:control_failed and records the cause in substituted_for.
+   */
   @extension("default", "deny")
   on_error?: OnError;
 }
 
-/** Host configuration; omitted members take the specification's defaults. */
+/**
+ * Host configuration (§7.1). Every member is OPTIONAL; defaults are the values
+ * the specification already names and fail closed.
+ */
 @extension("additionalProperties", false)
 model Configuration {
+  /** §8. */
   @extension("default", "enforce")
   mode?: Mode;
 
   composition?: CompositionConfig;
 
-  /** jcs-sha256, a registered non-jcs custom name, or null for unbound identity. */
+  /**
+   * §10.1: "jcs-sha256" (the default), a registered custom provider name
+   * (^[a-z][a-z0-9_-]{0,63}$, never a jcs prefix), or null (identity-unbound).
+   */
   @pattern("^(jcs-sha256|(?!jcs)[a-z][a-z0-9_-]{0,63})$")
   identity_provider?: string | null;
 
@@ -151,7 +179,11 @@ model UnanimousSupport {
   on_disagreement?: ConflictResolution[];
 }
 
-/** Only the knobs a profile consults may appear. */
+/**
+ * Profiles and the knob values supported under each (§13.1). Only the knobs a
+ * profile consults may appear; an absent knob member means the §7.2 default
+ * value only.
+ */
 @extension("additionalProperties", false)
 model ProfileSupport {
   `sequential/first_deny`?: FirstDenySupport;
@@ -161,7 +193,10 @@ model ProfileSupport {
 }
 
 model SurfaceBase {
-  /** Lifecycle points form the floor; model/tool points may be omitted in pairs. */
+  /**
+   * Points the host emits; always includes agent_startup, input, output and
+   * agent_shutdown (§3.2), and omits the model or tool points only in pairs.
+   */
   @uniqueItems
   @minItems(4)
   @maxItems(8)
@@ -173,87 +208,140 @@ model SurfaceBase {
   profiles?: ProfileSupport;
 }
 
-/** Buffered output is the default; exposure_bound must be absent. */
+/**
+ * The surface of a host that buffers output (§12.1a), the default:
+ * exposure_bound is absent.
+ */
 @extension("additionalProperties", false)
 model BufferedSurface {
   ...SurfaceBase;
 
+  /** §12.1a. false must be declared explicitly and requires exposure_bound. */
   @extension("default", true)
   buffered_output?: true;
 }
 
-/** Streaming output must explicitly declare its exposure bound. */
+/**
+ * The surface of a host that streams output (§12.1a): buffered_output is
+ * written as false and exposure_bound is present.
+ */
 @extension("additionalProperties", false)
 model UnbufferedSurface {
   ...SurfaceBase;
+
+  /** §12.1a. false must be declared explicitly and requires exposure_bound. */
   buffered_output: false;
 
+  /** §12.1a. Present iff buffered_output is false. */
   @minLength(1)
   @maxLength(512)
   exposure_bound: string;
 }
 
+/** The declared surface (§13.1) in file form, by output posture. */
 union Surface {
   BufferedSurface,
   UnbufferedSurface,
 }
 
-/** One interceptor binding (section 7.7.4). */
+/** One interceptor binding (§7.7.4). */
 @extension("additionalProperties", false)
 model Binding {
-  /** Unique within bindings; persisted as the verdict slot's name. */
+  /** Unique in the array; stamped on verdicts[].name (§10.3). */
   id: Reference;
 
-  /** Registry lookup key, never a path, class, module or URL to load. */
+  /**
+   * A lookup key into the host's kind registry and nothing more: never a path,
+   * class name, URL or module the loader interprets. At least one dot, so every
+   * kind carries a namespace the host controls. The first segments agent_hooks
+   * and ctk are reserved. This specification defines no kinds.
+   */
   @pattern("^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)+$")
   @maxLength(128)
   kind: string;
 
-  /** Kind-specific JSON passed unchanged to its resolver; defaults to {}. */
+  /**
+   * Kind-specific; handed to the kind resolver unchanged. The loader interprets
+   * none of it; its one check here is the document-wide integer bound of §7.7.6
+   * (no integer token above 2^53 - 1, so the resolved form canonicalises).
+   * Default {}.
+   */
   config?: unknown;
 
-  /** Defaults to every point in the declared surface. */
+  /**
+   * Points this binding runs at, each in the surface. Default: every surface
+   * point.
+   */
   @uniqueItems
   @minItems(1)
   at?: InterceptionPoint[];
 
+  /** Per-binding bound. Default: configuration.timeouts.interceptor_ms; null is unbounded. */
   timeout_ms?: TimeoutMs;
 
-  /** Inherits configuration.failure.on_error. */
+  /**
+   * §6.3.1 failure posture for this binding: what the host does when the
+   * interceptor raises, times out or returns an invalid verdict. Default:
+   * configuration.failure.on_error.
+   */
   on_error?: OnError;
 }
 
+// Example: [document policy](../examples/HostDeclaration/document-policy.json)
+// Example: [default failure posture](../examples/HostDeclaration/default-failure-posture.json)
+// Example: [failure posture](../examples/HostDeclaration/failure-posture.json)
+// Example: [streaming](../examples/HostDeclaration/streaming-document-policy.json)
 /**
- * Host declaration whose spec member selects its format and behavior.
- * Every object is closed except binding config and extension values.
- * The loader checks knob consistency, lifecycle floors and registered names.
- * [document policy](../examples/HostDeclaration/document-policy.json)
- * [default failure posture](../examples/HostDeclaration/default-failure-posture.json)
- * [failure posture](../examples/HostDeclaration/failure-posture.json)
- * [streaming](../examples/HostDeclaration/streaming-document-policy.json)
+ * A host declaration document (AGENT-HOOKS-0.1 §7.7): one JSON object that
+ * fixes a host's configuration (§7.1, §8, §10.1, §13.1), its declared surface
+ * (§13.1) and its interceptor bindings. The document's spec member selects
+ * its format and behavior; this file describes agent-hooks/draft. Every object is
+ * closed except bindings[].config and the values under extensions. This schema
+ * is self-contained so a settings validator can use it alone. Rules it cannot
+ * express (knob consistency, the §3.2 floor, surface against the host's code,
+ * registered names) live in the loader (§7.7.6).
  */
-@summary("Agent Hooks - host declaration document (agent-hooks/draft)")
+@summary("Agent Hooks — host declaration document (agent-hooks/draft)")
 @extension("additionalProperties", false)
 model HostDeclaration {
   configuration?: Configuration;
 
-  /** Required, ordered dispatch list. The loader checks binding id uniqueness. */
+  /**
+   * Ordered: array order is dispatch order. REQUIRED, so an empty-deny host
+   * (zero bindings) is written down rather than arrived at by omission. Binding
+   * ids are unique.
+   */
   @maxItems(256)
   bindings: Binding[];
 
   /** Ignored by the loader; kept for editors. */
   $schema?: string;
 
+  /**
+   * REQUIRED. The specification version the document is written for
+   * (§7.7.3, §7.7.6): this version's wire string. A document written for a
+   * released version names that version's own string instead, and is
+   * read by that version's rules.
+   */
   spec: "agent-hooks/draft";
 
-  /** Operator label for logs, never stamped on records. */
+  /** OPTIONAL. An operator label for logs. Never stamped on records. */
   @pattern("^[a-z0-9][a-z0-9._-]{0,63}$")
   id?: string;
 
   host?: Host;
 
-  /** Must be a subset of the host's implemented surface. */
+  /**
+   * The declared surface (§13.1) in file form. OPTIONAL: when absent the host's
+   * own code surface applies. Every stated member must be a subset of what the
+   * host's code reports; a document a conformance claim cites carries this block
+   * explicitly.
+   */
   surface?: Surface;
 
+  /**
+   * Host-specific extras, kept verbatim and never read by the loader. Keys
+   * follow the §4.6 namespace rule; the §4.6 reserved namespaces apply.
+   */
   extensions?: Extensions;
 }
