@@ -273,77 +273,6 @@
       "description": "A payload-free projection of the combined verdict (§10.3): transform\ndetails are omitted, approval members stripped, messages truncated to\n256 UTF-8 bytes.\nwarnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1).",
       "additionalProperties": false
     },
-    "Decision": {
-      "type": "string",
-      "enum": [
-        "allow",
-        "deny",
-        "transform"
-      ],
-      "description": "The three decisions (§5)."
-    },
-    "WarningProjection": {
-      "type": "object",
-      "properties": {
-        "reason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "description": "Warning metadata retained in a payload-free record projection.",
-      "additionalProperties": false
-    },
-    "Evidence": {
-      "type": "object",
-      "properties": {
-        "artefact": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof."
-        },
-        "verification_pointers": {
-          "$ref": "#/$defs/VerificationPointers"
-        }
-      },
-      "description": "Offline-verifiable evidence attached to a verdict (§14).",
-      "additionalProperties": false
-    },
-    "VerificationPointers": {
-      "type": "object",
-      "properties": {},
-      "unevaluatedProperties": {
-        "type": "string"
-      },
-      "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14)."
-    },
-    "ApprovalPresence": {
-      "type": "object",
-      "properties": {},
-      "description": "Presence only; members are stripped by the projection.",
-      "additionalProperties": false
-    },
     "Trace": {
       "type": "object",
       "properties": {
@@ -419,6 +348,77 @@
       "description": "Payload-free summary of one interceptor's verdict (§10.3).",
       "additionalProperties": false
     },
+    "ResolvedBy": {
+      "type": "string",
+      "enum": [
+        "approval",
+        "rejection"
+      ],
+      "description": "Consultation outcomes a record names (§7.6)."
+    },
+    "Decision": {
+      "type": "string",
+      "enum": [
+        "allow",
+        "deny",
+        "transform"
+      ],
+      "description": "The three decisions (§5)."
+    },
+    "WarningProjection": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "description": "Warning metadata retained in a payload-free record projection.",
+      "additionalProperties": false
+    },
+    "Evidence": {
+      "type": "object",
+      "properties": {
+        "artefact": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof."
+        },
+        "verification_pointers": {
+          "$ref": "#/$defs/VerificationPointers"
+        }
+      },
+      "description": "Offline-verifiable evidence attached to a verdict (§14).",
+      "additionalProperties": false
+    },
+    "ApprovalPresence": {
+      "type": "object",
+      "properties": {},
+      "description": "Presence only; members are stripped by the projection.",
+      "additionalProperties": false
+    },
     "SubstitutedFor": {
       "type": "string",
       "enum": [
@@ -428,13 +428,13 @@
       ],
       "description": "The host_error reasons a continue posture may substitute for (§6.3.1)."
     },
-    "ResolvedBy": {
-      "type": "string",
-      "enum": [
-        "approval",
-        "rejection"
-      ],
-      "description": "Consultation outcomes a record names (§7.6)."
+    "VerificationPointers": {
+      "type": "object",
+      "properties": {},
+      "unevaluatedProperties": {
+        "type": "string"
+      },
+      "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14)."
     }
   }
 }

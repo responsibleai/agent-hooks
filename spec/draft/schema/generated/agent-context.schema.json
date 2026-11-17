@@ -161,39 +161,6 @@
       ],
       "description": "The request at agent_startup: agent_init is required (§4.2)."
     },
-    "ActorKind": {
-      "type": "string",
-      "enum": [
-        "human",
-        "service",
-        "agent"
-      ],
-      "description": "Who acts (§4.5)."
-    },
-    "Extensions": {
-      "type": "object",
-      "properties": {},
-      "unevaluatedProperties": {},
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "propertyNames": {
-        "pattern": "^[a-z][a-z0-9_]*$"
-      }
-    },
-    "AgentInit": {
-      "type": "object",
-      "properties": {
-        "tools_registered": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "tools_registered"
-      ],
-      "description": "Conditional payload of agent_startup (§4.2)."
-    },
     "InputRequest": {
       "type": "object",
       "properties": {
@@ -324,29 +291,6 @@
         "input"
       ],
       "description": "The request at input: input is required (§4.2)."
-    },
-    "Input": {
-      "type": "object",
-      "properties": {
-        "content": {},
-        "role": {
-          "$ref": "#/$defs/InputRole"
-        }
-      },
-      "required": [
-        "content",
-        "role"
-      ],
-      "description": "Conditional payload of input (§4.2)."
-    },
-    "InputRole": {
-      "type": "string",
-      "enum": [
-        "user",
-        "system",
-        "external"
-      ],
-      "description": "Who produced an input (§4.2)."
     },
     "PreModelCallRequest": {
       "type": "object",
@@ -495,61 +439,6 @@
       ],
       "description": "The request at pre_model_call: model and messages are required (§4.2)."
     },
-    "Model": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "vendor": {
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/$defs/JsonObject"
-        }
-      },
-      "required": [
-        "id"
-      ],
-      "description": "Conditional payload of pre_model_call and post_model_call (§4.2)."
-    },
-    "JsonObject": {
-      "type": "object",
-      "properties": {},
-      "description": "An open JSON object, not an arbitrary JSON value."
-    },
-    "Message": {
-      "type": "object",
-      "properties": {
-        "role": {
-          "type": "string"
-        },
-        "content": {}
-      },
-      "required": [
-        "role",
-        "content"
-      ],
-      "description": "One message of the model request (§4.2)."
-    },
-    "ToolDecl": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "schema": {
-          "$ref": "#/$defs/JsonObject"
-        }
-      },
-      "required": [
-        "name"
-      ],
-      "description": "One declared tool (§4.3)."
-    },
     "PostModelCallRequest": {
       "type": "object",
       "properties": {
@@ -691,60 +580,6 @@
       ],
       "description": "The request at post_model_call: model and response are required (§4.2)."
     },
-    "Response": {
-      "type": "object",
-      "properties": {
-        "content": {},
-        "tool_calls": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolCallRequest"
-          }
-        },
-        "finish_reason": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "content",
-        "tool_calls",
-        "finish_reason"
-      ],
-      "description": "Conditional payload of post_model_call (§4.2)."
-    },
-    "ToolCallRequest": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "args": {
-          "$ref": "#/$defs/JsonObject"
-        }
-      },
-      "required": [
-        "name",
-        "args"
-      ],
-      "description": "One tool call the model asked for (§4.2)."
-    },
-    "Usage": {
-      "type": "object",
-      "properties": {
-        "prompt_tokens": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "completion_tokens": {
-          "type": "integer",
-          "minimum": 0
-        }
-      },
-      "description": "Token usage of a model call (§4.3)."
-    },
     "PreToolCallRequest": {
       "type": "object",
       "properties": {
@@ -875,32 +710,6 @@
         "tool_call"
       ],
       "description": "The request at pre_tool_call: tool_call is required (§4.2)."
-    },
-    "ToolCall": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string",
-          "minLength": 1
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "args": {
-          "$ref": "#/$defs/JsonObject"
-        },
-        "content_hash": {
-          "type": "string",
-          "pattern": "^sha256:[0-9a-f]{64}$"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "args"
-      ],
-      "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2)."
     },
     "PostToolCallRequest": {
       "type": "object",
@@ -1037,24 +846,6 @@
       ],
       "description": "The request at post_tool_call: tool_call and tool_result are required (§4.2)."
     },
-    "ToolResult": {
-      "type": "object",
-      "properties": {
-        "value": {},
-        "is_error": {
-          "type": "boolean"
-        },
-        "duration_ms": {
-          "type": "number",
-          "minimum": 0
-        }
-      },
-      "required": [
-        "value",
-        "is_error"
-      ],
-      "description": "Conditional payload of post_tool_call (§4.2)."
-    },
     "OutputRequest": {
       "type": "object",
       "properties": {
@@ -1185,16 +976,6 @@
         "output"
       ],
       "description": "The request at output: output is required (§4.2)."
-    },
-    "Output": {
-      "type": "object",
-      "properties": {
-        "content": {}
-      },
-      "required": [
-        "content"
-      ],
-      "description": "Conditional payload of output (§4.2)."
     },
     "AgentShutdownRequest": {
       "type": "object",
@@ -1327,6 +1108,192 @@
       ],
       "description": "The request at agent_shutdown: summary is required (§4.2)."
     },
+    "ActorKind": {
+      "type": "string",
+      "enum": [
+        "human",
+        "service",
+        "agent"
+      ],
+      "description": "Who acts (§4.5)."
+    },
+    "Extensions": {
+      "type": "object",
+      "properties": {},
+      "unevaluatedProperties": {},
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      }
+    },
+    "AgentInit": {
+      "type": "object",
+      "properties": {
+        "tools_registered": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "tools_registered"
+      ],
+      "description": "Conditional payload of agent_startup (§4.2)."
+    },
+    "Input": {
+      "type": "object",
+      "properties": {
+        "content": {},
+        "role": {
+          "$ref": "#/$defs/InputRole"
+        }
+      },
+      "required": [
+        "content",
+        "role"
+      ],
+      "description": "Conditional payload of input (§4.2)."
+    },
+    "Model": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "vendor": {
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "description": "Conditional payload of pre_model_call and post_model_call (§4.2)."
+    },
+    "Message": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string"
+        },
+        "content": {}
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "description": "One message of the model request (§4.2)."
+    },
+    "ToolDecl": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "schema": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "description": "One declared tool (§4.3)."
+    },
+    "Response": {
+      "type": "object",
+      "properties": {
+        "content": {},
+        "tool_calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ToolCallRequest"
+          }
+        },
+        "finish_reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content",
+        "tool_calls",
+        "finish_reason"
+      ],
+      "description": "Conditional payload of post_model_call (§4.2)."
+    },
+    "Usage": {
+      "type": "object",
+      "properties": {
+        "prompt_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completion_tokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "description": "Token usage of a model call (§4.3)."
+    },
+    "ToolCall": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "args": {
+          "$ref": "#/$defs/JsonObject"
+        },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "args"
+      ],
+      "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2)."
+    },
+    "ToolResult": {
+      "type": "object",
+      "properties": {
+        "value": {},
+        "is_error": {
+          "type": "boolean"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "value",
+        "is_error"
+      ],
+      "description": "Conditional payload of post_tool_call (§4.2)."
+    },
+    "Output": {
+      "type": "object",
+      "properties": {
+        "content": {}
+      },
+      "required": [
+        "content"
+      ],
+      "description": "Conditional payload of output (§4.2)."
+    },
     "Summary": {
       "type": "object",
       "properties": {
@@ -1350,6 +1317,39 @@
         "reason"
       ],
       "description": "Conditional payload of agent_shutdown (§4.2)."
+    },
+    "InputRole": {
+      "type": "string",
+      "enum": [
+        "user",
+        "system",
+        "external"
+      ],
+      "description": "Who produced an input (§4.2)."
+    },
+    "JsonObject": {
+      "type": "object",
+      "properties": {},
+      "description": "An open JSON object, not an arbitrary JSON value."
+    },
+    "ToolCallRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "args": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      },
+      "required": [
+        "name",
+        "args"
+      ],
+      "description": "One tool call the model asked for (§4.2)."
     },
     "SummaryReason": {
       "type": "string",

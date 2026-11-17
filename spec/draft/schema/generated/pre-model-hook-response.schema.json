@@ -95,64 +95,6 @@
       "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
       "additionalProperties": false
     },
-    "Warning": {
-      "type": "object",
-      "properties": {
-        "reason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "pattern": "^(?!host_error:|host_warning:).*",
-          "description": "Interceptor-supplied warning identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11) and host_warning: for host-synthesized\nwarnings (§11.1); an interceptor warning with either prefix fails §5\nvalidation."
-        },
-        "message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "description": "A recorded concern that does not affect control flow (§5.1).",
-      "additionalProperties": false
-    },
-    "Evidence": {
-      "type": "object",
-      "properties": {
-        "artefact": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof."
-        },
-        "verification_pointers": {
-          "$ref": "#/$defs/VerificationPointers"
-        }
-      },
-      "description": "Offline-verifiable evidence attached to a verdict (§14).",
-      "additionalProperties": false
-    },
-    "VerificationPointers": {
-      "type": "object",
-      "properties": {},
-      "unevaluatedProperties": {
-        "type": "string"
-      },
-      "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14)."
-    },
     "DenyVerdict": {
       "type": "object",
       "properties": {
@@ -224,11 +166,6 @@
       ],
       "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
       "additionalProperties": false
-    },
-    "JsonObject": {
-      "type": "object",
-      "properties": {},
-      "description": "An open JSON object, not an arbitrary JSON value."
     },
     "TransformVerdictPreModelHookTransform": {
       "type": "object",
@@ -302,6 +239,70 @@
       "description": "transform: proceed with the hook-specific replacement payload.",
       "additionalProperties": false
     },
+    "Extensions": {
+      "type": "object",
+      "properties": {},
+      "unevaluatedProperties": {},
+      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      }
+    },
+    "Warning": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "pattern": "^(?!host_error:|host_warning:).*",
+          "description": "Interceptor-supplied warning identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11) and host_warning: for host-synthesized\nwarnings (§11.1); an interceptor warning with either prefix fails §5\nvalidation."
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "description": "A recorded concern that does not affect control flow (§5.1).",
+      "additionalProperties": false
+    },
+    "Evidence": {
+      "type": "object",
+      "properties": {
+        "artefact": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof."
+        },
+        "verification_pointers": {
+          "$ref": "#/$defs/VerificationPointers"
+        }
+      },
+      "description": "Offline-verifiable evidence attached to a verdict (§14).",
+      "additionalProperties": false
+    },
+    "JsonObject": {
+      "type": "object",
+      "properties": {},
+      "description": "An open JSON object, not an arbitrary JSON value."
+    },
     "PreModelHookTransform": {
       "type": "object",
       "properties": {
@@ -318,6 +319,14 @@
       "description": "Replaces the complete model-message array.",
       "additionalProperties": false
     },
+    "VerificationPointers": {
+      "type": "object",
+      "properties": {},
+      "unevaluatedProperties": {
+        "type": "string"
+      },
+      "description": "Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14)."
+    },
     "Message": {
       "type": "object",
       "properties": {
@@ -331,15 +340,6 @@
         "content"
       ],
       "description": "One message of the model request (§4.2)."
-    },
-    "Extensions": {
-      "type": "object",
-      "properties": {},
-      "unevaluatedProperties": {},
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "propertyNames": {
-        "pattern": "^[a-z][a-z0-9_]*$"
-      }
     }
   }
 }

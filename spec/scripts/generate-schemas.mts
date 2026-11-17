@@ -17,9 +17,8 @@
 // --validationKeywords propertyNames allOf, so that the two JSDoc tags that
 // carry JSON Schema the type system cannot express are copied through.
 //
-// TypeSpec emits 2020-12 directly; typespec-schemas.mts only packages roots
-// and references for publication. Both paths derive the strict contexts
-// and preserve published IDs. The legacy TypeScript post-pass:
+// TypeSpec emits self-contained 2020-12 schemas directly. Both paths derive
+// the strict contexts and preserve published IDs. The legacy TypeScript post-pass:
 //   1. $schema: draft-07 becomes 2020-12.
 //   2. definitions becomes $defs, in the member and in every $ref.
 //   3. A $ref keeps only description beside it. Draft-07 ignores the siblings
@@ -40,7 +39,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as TJS from "typescript-json-schema";
-import { bundleSchema, typespecSchemas } from "./typespec-schemas.mts";
+import { typespecSchema } from "./typespec-schemas.mts";
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Schema = { [key: string]: Json };
@@ -174,7 +173,9 @@ const ROOTS: Root[] = [
       "null (§10.1); the only normative constraint is the echo rule.",
   },
   { file: "interception-record.schema.json", source: "interception-record.ts", type: "InterceptionRecord" },
-  { file: "host-declaration-1.0.schema.json", source: "host-declaration.ts", type: "HostDeclaration10" },
+  ...(TYPESPEC ? [] : [
+    { file: "host-declaration-1.0.schema.json", source: "host-declaration.ts", type: "HostDeclaration10" },
+  ]),
   { file: "host-declaration.schema.json", source: "host-declaration.ts", type: "HostDeclaration" },
 ];
 
@@ -326,23 +327,20 @@ function defines(root: Root): boolean {
 /** Every output file's text, keyed by its path under spec/<version>/schema/generated/. */
 async function render(): Promise<Map<string, string>> {
   const files = new Map<string, Schema>();
-  const types = TYPESPEC ? await typespecSchemas(join(SRC, "main.tsp")) : undefined;
   for (const root of ROOTS) {
-    if (types ? root.type !== "*" && !types.has(root.type) : !defines(root)) {
-      console.log(`${SCHEMA_DIR}/src/${TYPESPEC ? "main.tsp" : root.source} does not define ${root.type}; ${root.file} is not generated for this bundle`);
+    if (!TYPESPEC && !defines(root)) {
+      console.log(`${SCHEMA_DIR}/src/${root.source} does not define ${root.type}; ${root.file} is not generated for this bundle`);
       continue;
     }
-    if (types) {
-      const schema = bundleSchema(
-        types,
+    if (TYPESPEC) {
+      const schema = await typespecSchema(
+        join(SRC, "main.tsp"),
         root.type === "*" ? [
           "request", "resolution", "Outcome", "LiftableDeny",
           "ApproveResolution", "RejectResolution", "UnresolvedResolution",
         ] : [root.type],
-        root.type === "*",
+        ID_BASE + root.file,
       );
-      schema.$id = ID_BASE + root.file;
-      schema.$schema = DRAFT_2020_12;
       if (root.title !== undefined) schema.title = root.title;
       if (root.description !== undefined) schema.description = root.description;
       files.set(root.file, ordered(schema));

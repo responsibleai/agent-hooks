@@ -11,7 +11,7 @@ names the specification versions it supports in
 `SUPPORTED_SPEC_VERSIONS` (VERSIONING.md).
 
 The TypeSpec files in `src/` are the editable schema source, with
-`src/main.tsp` selecting the public schema roots. The generator compiles
+`src/main.tsp` importing the bundle's schema sources. The generator compiles
 them with `@typespec/json-schema` to JSON Schema Draft 2020-12.
 `generated/` contains the committed draft JSON Schemas. Do not edit generated JSON by hand.
 
@@ -74,10 +74,15 @@ extension-key `propertyNames` rule.
 
 The generator loads the installed emitter through
 `spec/scripts/schema-emitter.tsp`, then imports this bundle's `src/main.tsp`.
-`typespec-schemas.mts` packages its emitted definitions into the existing
-self-contained published documents. It preserves the approval fragments
-`#/$defs/request` and `#/$defs/resolution`; `generate-schemas.mts` continues
-to derive the strict per-point context schemas from the master union.
+`generate-schemas.mts` selects one public root per compilation and passes
+its published ID to the native `@jsonSchema` decorator. The emitter handles
+local references and embeds dependencies in `$defs`, keeping every document
+self-contained without reference rewriting or custom dependency traversal.
+For approval's definitions-only document, `typespec-schemas.mts` uses a
+temporary model to collect the public definitions, then keeps only `$defs`
+and schema identity. This preserves `#/$defs/request` and
+`#/$defs/resolution`. `generate-schemas.mts` continues to derive the strict
+per-point context schemas from the master union.
 The old TypeScript generator and its dependencies remain only for frozen
 released bundles such as 0.1. Cutting a new bundle rewrites `.tsp` wire
 strings and schema identities along with the JSON.

@@ -13,6 +13,5 @@
     "post_tool_call",
     "output",
     "agent_shutdown"
-  ],
-  "$defs": {}
+  ]
 }
