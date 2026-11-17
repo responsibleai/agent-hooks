@@ -35,14 +35,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check released Python schema mirrors
-        run: bash sdk/python/scripts/check-released-schema-mirror.sh
+        run: python3 sdk/python/scripts/check-released-schema-mirror.py
 
   python-ctk-vector-mirror:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check Python CTK vector mirror
-        run: bash sdk/python/scripts/check-ctk-vector-mirror.sh
+        run: python3 sdk/python/scripts/check-ctk-vector-mirror.py
 
   python-draft-schema-mirror:
     runs-on: ubuntu-latest
@@ -56,7 +56,7 @@ jobs:
         run: npm run generate:schema
         working-directory: spec/scripts
       - name: Report experimental draft mirror drift
-        run: bash sdk/python/scripts/check-draft-schema-mirror.sh
+        run: python3 sdk/python/scripts/check-draft-schema-mirror.py
 
   drift:
     if: ${{ always() }}
