@@ -72,17 +72,17 @@ contract closes; do not globally seal context metadata or payloads.
 `@extension` also carries the record's conditional `allOf` rules and the
 extension-key `propertyNames` rule.
 
-`src/main.tsp` names every published schema and its `$id` with
-`@@jsonSchema`, relative to the `@@baseUri` of the bundle. The generator
-compiles it once with `@typespec/json-schema`, loaded through
-`spec/scripts/schema-emitter.tsp`, and writes each emitted schema at its
-`$id` path. A schema embeds the types it uses in `$defs` and refers to
-another published schema by `$id`, so validators load the bundle's
-schemas together. The approval request and resolution are published as
-`approval-request.schema.json` and `approval-resolution.schema.json`;
-0.1 keeps both under `approval.schema.json#/$defs/`.
-`generate-schemas.mts` derives the strict per-point context schemas from
-the master union.
+The generator loads the installed emitter through
+`spec/scripts/schema-emitter.tsp`, then imports this bundle's `src/main.tsp`.
+`generate-schemas.mts` selects one public root per compilation and passes
+its published ID to the native `@jsonSchema` decorator. The emitter handles
+local references and embeds dependencies in `$defs`, keeping every document
+self-contained without reference rewriting or custom dependency traversal.
+For approval's definitions-only document, `typespec-schemas.mts` uses a
+temporary model to collect the public definitions, then keeps only `$defs`
+and schema identity. This preserves `#/$defs/request` and
+`#/$defs/resolution`. `generate-schemas.mts` continues to derive the strict
+per-point context schemas from the master union.
 The old TypeScript generator and its dependencies remain only for frozen
 released bundles such as 0.1. Cutting a new bundle rewrites `.tsp` wire
 strings and schema identities along with the JSON.

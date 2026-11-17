@@ -17,15 +17,9 @@ model LiftableDeny {
 
 // Example: [request](../examples/ApprovalRequest/collection-access.json)
 /** What the host hands the resolver (§9). */
-@summary("Agent Hooks — approval request")
 @extension("additionalProperties", false)
 model request {
-  /**
-   * Opaque provider-produced string, or null when identity_provider is null
-   * (§10.1); the only normative constraint is the echo rule.
-   */
   context_identity: string | null;
-
   interception_point: InterceptionPoint;
   verdict: LiftableDeny;
 
@@ -75,7 +69,6 @@ model UnresolvedResolution {
 }
 
 /** What the resolver returns (§9). */
-@summary("Agent Hooks — approval resolution")
 union resolution {
   ApproveResolution,
   RejectResolution,

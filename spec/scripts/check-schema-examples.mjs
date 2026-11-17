@@ -8,8 +8,7 @@
 // A bundle is spec/draft or spec/<MAJOR.MINOR>; with no argument every
 // bundle is checked. Each example sits at
 // <bundle>/schema/examples/<Type>/<name>.json and is validated against the
-// schema `schemaMapping` names for <Type> (the first one the bundle has,
-// where a type moved between files across versions), using only the bundle's own
+// schema `schemaMapping` names for <Type>, using only the bundle's own
 // schemas (under schema/generated/ when that folder exists, else flat
 // under schema/; no fetching). A bundle without an examples/ folder is
 // skipped and said so; 0.1 predates the examples. Anything under
@@ -30,9 +29,8 @@ export const schemaMapping = {
   // The generic verdict root is retained only in the released 0.1 bundle.
   Verdict: "verdict.schema.json",
   InterceptorResponse: "interceptor-response.schema.json#/$defs/ResponseEnvelope",
-  // The draft publishes each approval shape on its own; 0.1 kept both in one file.
-  ApprovalRequest: ["approval-request.schema.json", "approval.schema.json#/$defs/request"],
-  ApprovalResolution: ["approval-resolution.schema.json", "approval.schema.json#/$defs/resolution"],
+  ApprovalRequest: "approval.schema.json#/$defs/request",
+  ApprovalResolution: "approval.schema.json#/$defs/resolution",
   HostDeclaration10: "host-declaration-1.0.schema.json",
   HostDeclaration11: "host-declaration-1.1.schema.json",
   HostDeclaration: "host-declaration.schema.json",
@@ -183,9 +181,9 @@ export async function validateExamples(root = schemaRoot) {
         references = hookResponseSchemas;
       }
     } else {
-      const mapped = [schemaMapping[parts[0]] ?? []].flat();
-      if (mapped.length === 0) throw new Error(`${filename}: no schema mapping for example`);
-      references = [mapped.find((reference) => schemas.has(reference.split("#")[0])) ?? mapped[0]];
+      const reference = schemaMapping[parts[0]];
+      if (!reference) throw new Error(`${filename}: no schema mapping for example`);
+      references = [reference];
     }
     const responseInstance = parts[0] === "Verdict" && !schemas.has("verdict.schema.json")
       ? { verdict: instance }
