@@ -97,6 +97,15 @@ under the draft). An unknown version is refused as before.
   `expect.host_messages_must_contain`, and `RunRecord.host_messages`;
   a vector document validates against the schema of the version it
   writes. Claims gain the `on_error: continue` disclosure. Additive.
+- .NET SDK: typed tool hooks, additive. `IPreToolCallHook` and
+  `IPostToolCallHook` receive `PreToolCallRequest` / `PostToolCallRequest`,
+  read-only views over the context (no copy, so identity and unknown
+  members are untouched) with `ToolCall` and `ToolResult` views.
+  `HookRegistration.RegisterHook`, `OnPreToolCall` and `OnPostToolCall`
+  register them through `RegisterWithOptions` at the one point each runs
+  at; `TransformArgs` / `TransformValue` build `$target` transforms and
+  `ForTest` builds requests for unit tests. `PublicApi.approved.txt`
+  records the additions.
 
 ## Unreleased specification
 
