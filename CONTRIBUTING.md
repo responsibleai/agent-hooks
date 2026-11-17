@@ -72,11 +72,11 @@ differs from the generated text.
 - Draft sources are TypeSpec models, enums, scalars and unions:
   `agent-context.tsp`, `verdict.tsp`, `hook-responses.tsp`, `approval.tsp`,
   `interception-record.tsp`, `host-declaration.tsp`, plus shared types.
-  `main.tsp` imports the bundle's sources. The generator selects one public
-  root per compilation with `@@jsonSchema`, so the native emitter embeds
-  dependencies in each standalone document. The generator loads
-  `@typespec/json-schema` from `spec/scripts` and emits Draft 2020-12
-  directly. Use Node.js 22 or later for this tooling.
+  `main.tsp` imports the bundle's sources and names each published schema
+  and its `$id` with `@@jsonSchema`. The generator compiles it once with
+  `@typespec/json-schema` from `spec/scripts`, which emits Draft 2020-12
+  directly; a schema refers to another published schema by its `$id`.
+  Use Node.js 22 or later for this tooling.
 - Use `integer` for integer fields and `float64` for fractional values,
   `@minValue`/`@maxValue` for numeric bounds, and `@pattern`, `@format`,
   `@minLength`, `@maxLength`, `@minItems`, `@maxItems` and `@uniqueItems`
@@ -90,10 +90,8 @@ differs from the generated text.
   `@extension("allOf", #[...])`; extension namespace keys use
   `@extension("propertyNames", #{...})`. Defaults remain schema annotations
   through `@extension("default", value)`, not runtime default insertion.
-- `spec/scripts/typespec-schemas.mts` invokes the native emitter in memory,
-  preserving published identities. Approval's definitions-only document
-  uses a temporary model to collect its public fragments, then discards
-  that model's instance shape. `generate-schemas.mts` derives the per-point
+- `generate-schemas.mts` writes each emitted schema at its `$id` path and
+  derives the per-point
   `generated/strict-contexts/*.schema.json` files from the master union.
   It retains the legacy TypeScript generator for released bundles.
 

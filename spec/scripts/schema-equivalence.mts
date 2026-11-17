@@ -691,6 +691,8 @@ interface Target {
   file: string;
   shape?: Shape;
   pointer: string;
+  /** Where a set that predates the target's own file defines it. */
+  legacy?: { file: string; pointer: string };
 }
 
 const RESPONSE_SCHEMA_NAMES: Record<string, string> = {
@@ -714,8 +716,20 @@ const TARGETS: Target[] = [
     shape: "response" as Shape,
     pointer: "",
   })),
-  { name: "approval request", file: "approval.schema.json", shape: "request", pointer: "#/$defs/request" },
-  { name: "approval resolution", file: "approval.schema.json", shape: "resolution", pointer: "#/$defs/resolution" },
+  {
+    name: "approval request",
+    file: "approval-request.schema.json",
+    shape: "request",
+    pointer: "",
+    legacy: { file: "approval.schema.json", pointer: "#/$defs/request" },
+  },
+  {
+    name: "approval resolution",
+    file: "approval-resolution.schema.json",
+    shape: "resolution",
+    pointer: "",
+    legacy: { file: "approval.schema.json", pointer: "#/$defs/resolution" },
+  },
   { name: "agent-context", file: "agent-context.schema.json", shape: "context", pointer: "" },
   ...POINTS.map((p) => ({ name: `agent-context/${p}`, file: `agent-context/${p}.schema.json`, shape: "context" as Shape, pointer: "" })),
   { name: "interception-record", file: "interception-record.schema.json", shape: "record", pointer: "" },
@@ -724,7 +738,7 @@ const TARGETS: Target[] = [
 ];
 
 function targetsFor(oldSet: SchemaSet, newSet: SchemaSet): Target[] {
-  const known = new Set(TARGETS.map((target) => target.file));
+  const known = new Set(TARGETS.flatMap((target) => [target.file, ...(target.legacy ? [target.legacy.file] : [])]));
   const extraFiles = new Set([...oldSet.keys(), ...newSet.keys()]);
   const additional = [...extraFiles]
     .filter((file) => !known.has(file))
@@ -736,11 +750,18 @@ function targetsFor(oldSet: SchemaSet, newSet: SchemaSet): Target[] {
 /** "old" or "new" when the target's file exists in only that set, "neither"
  *  when both lack it (a version that predates the file), else undefined. */
 function onlyOneSide(oldSet: SchemaSet, newSet: SchemaSet, t: Target): "old" | "new" | "neither" | undefined {
-  const inOld = oldSet.has(t.file);
-  const inNew = newSet.has(t.file);
+  const inOld = located(oldSet, t) !== undefined;
+  const inNew = located(newSet, t) !== undefined;
   if (inOld && !inNew) return "old";
   if (!inOld && inNew) return "new";
   if (!inOld && !inNew) return "neither";
+  return undefined;
+}
+
+/** The file and pointer that define a target in one set, if it has either. */
+function located(set: SchemaSet, t: Target): { file: string; pointer: string } | undefined {
+  if (set.has(t.file)) return { file: t.file, pointer: t.pointer };
+  if (t.legacy && set.has(t.legacy.file)) return t.legacy;
   return undefined;
 }
 
@@ -864,8 +885,10 @@ function main(): number {
         console.log(`== ${t.name}: 1 differing path(s): the file exists only in the ${side} set`);
         continue;
       }
-      const a = normalize(oldSet, t.file, pointerSchema(oldSet, t.file, t.pointer), WIRE_OLD);
-      const b = normalize(newSet, t.file, pointerSchema(newSet, t.file, t.pointer), WIRE_NEW);
+      const o = located(oldSet, t)!;
+      const n = located(newSet, t)!;
+      const a = normalize(oldSet, o.file, pointerSchema(oldSet, o.file, o.pointer), WIRE_OLD);
+      const b = normalize(newSet, n.file, pointerSchema(newSet, n.file, n.pointer), WIRE_NEW);
       const lines: string[] = [];
       diff(a, b, "", lines);
       total += lines.length;
@@ -910,9 +933,11 @@ function main(): number {
       console.log(`${t.name.padEnd(29)} ${"-".padStart(9)}  ${"-".padStart(10)}  ${"-".padStart(10)}  ${"1".padStart(8)}  (file exists only in the ${side} set)`);
       continue;
     }
-    const validateOld = oldAjv.getSchema(baseOf(oldSet) + t.file + t.pointer);
-    const validateNew = newAjv.getSchema(baseOf(newSet) + t.file + t.pointer);
-    if (!validateOld || !validateNew) throw new Error(`${t.name}: validator missing at ${t.pointer || "the root"}`);
+    const o = located(oldSet, t)!;
+    const n = located(newSet, t)!;
+    const validateOld = oldAjv.getSchema(baseOf(oldSet) + o.file + o.pointer);
+    const validateNew = newAjv.getSchema(baseOf(newSet) + n.file + n.pointer);
+    if (!validateOld || !validateNew) throw new Error(`${t.name}: validator missing`);
     const own = t.shape === undefined ? [] : seeds.get(t.shape) ?? [];
     const corpus = new Map<string, Json>();
     const add = (v: Json) => {
@@ -921,9 +946,9 @@ function main(): number {
     };
     for (const s of everySeed) add(s);
     for (const s of own) {
-      for (const set of [oldSet, newSet]) {
-        const schema = pointerSchema(set, t.file, t.pointer);
-        for (const m of mutate(set, t.file, schema, s)) add(m);
+      for (const [set, at] of [[oldSet, o], [newSet, n]] as const) {
+        const schema = pointerSchema(set, at.file, at.pointer);
+        for (const m of mutate(set, at.file, schema, s)) add(m);
       }
       for (let i = 0; i < RANDOM; i++) add(randomMutant(random, s));
     }

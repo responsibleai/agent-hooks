@@ -17,8 +17,10 @@
 // --validationKeywords propertyNames allOf, so that the two JSDoc tags that
 // carry JSON Schema the type system cannot express are copied through.
 //
-// TypeSpec emits self-contained 2020-12 schemas directly. Both paths derive
-// the strict contexts and preserve published IDs. The legacy TypeScript post-pass:
+// A TypeSpec bundle compiles once: main.tsp names every published schema and
+// its $id, and @typespec/json-schema emits 2020-12 directly, referencing other
+// published schemas by $id. Both paths derive the strict contexts below.
+// The legacy TypeScript post-pass:
 //   1. $schema: draft-07 becomes 2020-12.
 //   2. definitions becomes $defs, in the member and in every $ref.
 //   3. A $ref keeps only description beside it. Draft-07 ignores the siblings
@@ -39,7 +41,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as TJS from "typescript-json-schema";
-import { typespecSchema } from "./typespec-schemas.mts";
+import { typespecSchemas } from "./typespec-schemas.mts";
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Schema = { [key: string]: Json };
@@ -51,10 +53,10 @@ const SCHEMA_DIR = `spec/${SPEC}/schema`;
 const SRC = join(ROOT, "spec", SPEC, "schema", "src");
 const OUT = join(ROOT, "spec", SPEC, "schema", "generated");
 const TYPESPEC = existsSync(join(SRC, "main.tsp"));
-const HOOK_RESPONSES = TYPESPEC || SPEC === "draft";
 // Published identity of the bundle's schemas. The draft publishes under
 // schema/draft/ (mutable); a released version X.Y publishes under
-// schema/vX.Y/ (immutable). --id-base <url> overrides both.
+// schema/vX.Y/ (immutable). --id-base <url> overrides both for a TypeScript
+// bundle; a TypeSpec bundle declares its base in main.tsp, which must match.
 const ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/";
 const idBaseArg = process.argv.indexOf("--id-base");
 const ID_BASE =
@@ -99,69 +101,17 @@ function allowFractionalJsonNumbers(schema: Schema): void {
   }
 }
 
+// Roots of a frozen TypeScript bundle. A TypeSpec bundle declares its own in main.tsp.
 const ROOTS: Root[] = [
   { file: "interception-point.schema.json", source: "interception-point.ts", type: "InterceptionPoint" },
-  ...(HOOK_RESPONSES
-    ? []
-    : [{ file: "verdict.schema.json", source: "verdict.ts", type: "Verdict" }]),
+  { file: "verdict.schema.json", source: "verdict.ts", type: "Verdict" },
   { file: "agent-context.schema.json", source: "agent-context.ts", type: "AgentContext" },
-  ...(HOOK_RESPONSES
-    ? [
-        {
-          file: "agent-startup-hook-response.schema.json",
-          source: "hook-responses.ts",
-          type: "AgentStartupHookResponse",
-          title: "Agent Hooks — agent_startup response",
-        },
-        {
-          file: "input-hook-response.schema.json",
-          source: "hook-responses.ts",
-          type: "InputHookResponse",
-          title: "Agent Hooks — input response",
-        },
-        {
-          file: "pre-model-hook-response.schema.json",
-          source: "hook-responses.ts",
-          type: "PreModelHookResponse",
-          title: "Agent Hooks — pre_model_call response",
-        },
-        {
-          file: "post-model-hook-response.schema.json",
-          source: "hook-responses.ts",
-          type: "PostModelHookResponse",
-          title: "Agent Hooks — post_model_call response",
-        },
-        {
-          file: "pre-tool-hook-response.schema.json",
-          source: "hook-responses.ts",
-          type: "PreToolHookResponse",
-          title: "Agent Hooks — pre_tool_call response",
-        },
-        {
-          file: "post-tool-hook-response.schema.json",
-          source: "hook-responses.ts",
-          type: "PostToolHookResponse",
-          title: "Agent Hooks — post_tool_call response",
-        },
-        {
-          file: "output-hook-response.schema.json",
-          source: "hook-responses.ts",
-          type: "OutputHookResponse",
-          title: "Agent Hooks — output response",
-        },
-        {
-          file: "agent-shutdown-hook-response.schema.json",
-          source: "hook-responses.ts",
-          type: "AgentShutdownHookResponse",
-          title: "Agent Hooks — agent_shutdown response",
-        },
-      ]
-    : [{
-        file: "interceptor-response.schema.json",
-        source: "interceptor-response.ts",
-        type: "InterceptorResponse",
-        title: "Agent Hooks — interceptor response",
-      }]),
+  {
+    file: "interceptor-response.schema.json",
+    source: "interceptor-response.ts",
+    type: "InterceptorResponse",
+    title: "Agent Hooks — interceptor response",
+  },
   {
     file: "approval.schema.json",
     source: "approval.ts",
@@ -173,22 +123,18 @@ const ROOTS: Root[] = [
       "null (§10.1); the only normative constraint is the echo rule.",
   },
   { file: "interception-record.schema.json", source: "interception-record.ts", type: "InterceptionRecord" },
-  ...(TYPESPEC ? [] : [
-    { file: "host-declaration-1.0.schema.json", source: "host-declaration.ts", type: "HostDeclaration10" },
-  ]),
+  { file: "host-declaration-1.0.schema.json", source: "host-declaration.ts", type: "HostDeclaration10" },
   { file: "host-declaration.schema.json", source: "host-declaration.ts", type: "HostDeclaration" },
 ];
 
 const MASTER = "agent-context.schema.json";
 
-const compilerOptions = TYPESPEC
-  ? {}
-  : JSON.parse(readFileSync(join(SRC, "tsconfig.json"), "utf8")).compilerOptions;
 const programs = new Map<string, TJS.Program>();
 
 function programFor(source: string): TJS.Program {
   let program = programs.get(source);
   if (!program) {
+    const { compilerOptions } = JSON.parse(readFileSync(join(SRC, "tsconfig.json"), "utf8"));
     program = TJS.getProgramFromFiles([join(SRC, source)], compilerOptions, SRC);
     programs.set(source, program);
   }
@@ -304,7 +250,7 @@ function perPointSchemas(master: Schema): Map<string, Schema> {
         $schema: DRAFT_2020_12,
         title: `Agent Hooks — agent context (${point})`,
         description:
-          `${HOOK_RESPONSES ? "Required" : "Closed required"}+conditional schema for interception_point=${point} ` +
+          `${TYPESPEC ? "Required" : "Closed required"}+conditional schema for interception_point=${point} ` +
           "(AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
         type: variant.type,
         properties: variant.properties,
@@ -327,25 +273,14 @@ function defines(root: Root): boolean {
 /** Every output file's text, keyed by its path under spec/<version>/schema/generated/. */
 async function render(): Promise<Map<string, string>> {
   const files = new Map<string, Schema>();
-  for (const root of ROOTS) {
-    if (!TYPESPEC && !defines(root)) {
-      console.log(`${SCHEMA_DIR}/src/${root.source} does not define ${root.type}; ${root.file} is not generated for this bundle`);
-      continue;
+  if (TYPESPEC) {
+    for (const [file, schema] of await typespecSchemas(join(SRC, "main.tsp"), ID_BASE)) {
+      files.set(file, ordered(schema));
     }
-    if (TYPESPEC) {
-      const schema = await typespecSchema(
-        join(SRC, "main.tsp"),
-        root.type === "*" ? [
-          "request", "resolution", "Outcome", "LiftableDeny",
-          "ApproveResolution", "RejectResolution", "UnresolvedResolution",
-        ] : [root.type],
-        ID_BASE + root.file,
-      );
-      if (root.title !== undefined) schema.title = root.title;
-      if (root.description !== undefined) schema.description = root.description;
-      files.set(root.file, ordered(schema));
-    } else {
-      files.set(root.file, generateRoot(root));
+  } else {
+    for (const root of ROOTS) {
+      if (defines(root)) files.set(root.file, generateRoot(root));
+      else console.log(`${SCHEMA_DIR}/src/${root.source} does not define ${root.type}; ${root.file} is not generated for this bundle`);
     }
   }
   for (const [file, schema] of perPointSchemas(files.get(MASTER)!)) files.set(file, schema);

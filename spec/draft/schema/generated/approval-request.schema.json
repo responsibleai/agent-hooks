@@ -1,0 +1,52 @@
+{
+  "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/approval-request.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Hooks — approval request",
+  "description": "What the host hands the resolver (§9).",
+  "type": "object",
+  "properties": {
+    "context_identity": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Opaque provider-produced string, or null when identity_provider is null\n(§10.1); the only normative constraint is the echo rule."
+    },
+    "interception_point": {
+      "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/interception-point.schema.json"
+    },
+    "verdict": {
+      "$ref": "#/$defs/LiftableDeny"
+    },
+    "context": {
+      "$ref": "https://responsibleai.github.io/agent-hooks/schema/draft/agent-context.schema.json",
+      "description": "The AgentContext as presented to the resolver. MAY be redacted per host policy."
+    }
+  },
+  "required": [
+    "context_identity",
+    "interception_point",
+    "verdict"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "LiftableDeny": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "const": "deny"
+        }
+      },
+      "required": [
+        "decision"
+      ],
+      "unevaluatedProperties": {},
+      "description": "The liftable deny being consulted: an interceptor's (passes §5,\nverdict.schema.json) or the host-synthesized §7.5 shape, whose reason is a\nreserved host_error:* string that §5 forbids interceptors to emit — so this\nmember is validated against the §5 schema only when its reason is not\nhost_error:*."
+    }
+  }
+}
