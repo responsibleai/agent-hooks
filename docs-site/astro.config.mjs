@@ -1,10 +1,9 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 import { readFileSync } from "node:fs";
-import { unified } from "@astrojs/markdown-remark";
 import starlight from "@astrojs/starlight";
+import mermaid from "astro-mermaid";
 import { defineConfig } from "astro/config";
-import { legacyAnchors } from "./legacy-anchors.mjs";
 
 const versions = JSON.parse(readFileSync(new URL("./.spec-versions.json", import.meta.url), "utf8"));
 
@@ -12,8 +11,9 @@ export default defineConfig({
   site: "https://responsibleai.github.io",
   base: "/agent-hooks",
   trailingSlash: "always",
-  markdown: { processor: unified({ rehypePlugins: [legacyAnchors] }) },
   integrations: [
+    // Must precede Starlight so Mermaid fences skip code highlighting.
+    mermaid({ enableLog: false }),
     starlight({
       title: "Agent Hooks",
       description: "Framework-neutral control contract for AI agents.",

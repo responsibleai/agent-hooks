@@ -2,8 +2,6 @@
 title: Agent Hooks
 ---
 
-import Mermaid from "../../components/Mermaid.astro";
-
 Agent Hooks is a framework-neutral control contract for AI agents. It
 defines the eight lifecycle points at which an agent host must consult
 registered controls, the JSON context the host supplies at each point,
@@ -28,7 +26,8 @@ normative statement is [§1.4 of the specification](./spec/#14-trust-model-and-n
 
 ## The loop
 
-<Mermaid source={`flowchart TB
+```mermaid
+flowchart TB
     accTitle: Agent lifecycle interception points
     accDescr: The agent starts, accepts input, loops through model and tool calls, emits output, and shuts down.
     S[agent_startup] --> I[input]
@@ -40,7 +39,8 @@ normative statement is [§1.4 of the specification](./spec/#14-trust-model-and-n
     T --> QT[post_tool_call]
     QT --> PM
     QM --> O[output]
-    O --> E[agent_shutdown]`} />
+    O --> E[agent_shutdown]
+```
 
 Every box is an interception point: the host constructs an
 `AgentContext`, dispatches it to the registered interceptors under a
