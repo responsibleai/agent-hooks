@@ -3,8 +3,8 @@ packages:
   - sdk/typescript
 
 overrides:
-  minimatch: ^11.0.1
-  glob: ^14.0.2
+  minimatch: ^11.0.9
+  glob: ^14.0.6
 
 allowBuilds:
   esbuild: true

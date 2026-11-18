@@ -10,10 +10,10 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+    - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
     - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
-        node-version: "22"
+        node-version: "26.13.1"
         cache: pnpm
         registry-url: ${{ inputs.registry-url }}
     - run: pnpm install --frozen-lockfile
