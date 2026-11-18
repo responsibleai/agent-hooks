@@ -32,9 +32,9 @@ jobs:
             [ -d "${spec_dir}schema" ] || continue
             root="${spec_dir}schema/generated"
             [ -d "$root" ] || root="${spec_dir}schema"
-            mapfile -t schemas < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort)
+            mapfile -t schemas < <(find "$root" -name '*.json' -not -path '*/src/*' -not -path '*/examples/*' | sort)
             if [ "${#schemas[@]}" -eq 0 ]; then
-              echo "::error::$root holds no *.schema.json files"
+              echo "::error::$root holds no JSON Schema files"
               exit 1
             fi
             version=$(basename "$spec_dir")
@@ -77,7 +77,7 @@ jobs:
               echo "::error::$suite/vectors contains no vectors"
               exit 1
             fi
-            mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+            mapfile -t refs < <(find "$root" -name '*.json' -not -path '*/src/*' -not -path '*/examples/*' | sort | sed 's/^/-r=/')
             echo "Validating $suite/vectors against $root"
             ajv validate --spec=draft2020 -c ajv-formats \
               -s "$suite/vectors.schema.json" "${refs[@]}" \
@@ -384,7 +384,7 @@ jobs:
           set -eu
           npm install -g ajv-cli@5.0.0 ajv-formats@3.0.1
           mapfile -t vectors < <(python3 scripts/vectors-for-bundle.py list draft)
-          mapfile -t refs < <(find spec/draft/schema/generated -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+          mapfile -t refs < <(find spec/draft/schema/generated -name '*.json' | sort | sed 's/^/-r=/')
           data=()
           for v in "${vectors[@]}"; do data+=(-d "$v"); done
           ajv validate --spec=draft2020 -c ajv-formats -s conformance/draft/vectors.schema.json "${refs[@]}" "${data[@]}"

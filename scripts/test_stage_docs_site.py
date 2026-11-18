@@ -240,7 +240,7 @@ class StageTest(unittest.TestCase):
             "spec/0.3 and spec/0.2 both publish schema/v0.2/agent-context.schema.json",
             message,
         )
-        self.assertIn("ID_BASE", message)
+        self.assertIn("@baseUri", message)
 
     @unittest.skipIf(os.name == "nt", "symlink creation may require Windows elevation")
     def test_symbolic_links_fail(self) -> None:

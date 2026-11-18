@@ -72,9 +72,10 @@ differs from the generated text.
 - Draft sources are TypeSpec models, enums, scalars and unions:
   `agent-context.tsp`, `verdict.tsp`, `hook-responses.tsp`, `approval.tsp`,
   `interception-record.tsp`, `host-declaration.tsp`, plus shared types.
-  `main.tsp` imports the bundle's sources. The generator selects one public
-  root per compilation with `@@jsonSchema`, so the native emitter embeds
-  dependencies in each standalone document. The generator loads
+  `main.tsp` imports the bundle's sources; public roots use `@jsonSchema`.
+  One native compilation emits the whole schema graph:
+  public roots reference sibling documents and private dependencies use `$defs`.
+  The generator loads
   `@typespec/json-schema` from `spec/scripts` and emits Draft 2020-12
   directly. Use Node.js 22 or later for this tooling.
 - Use `integer` for integer fields and `float64` for fractional values,
@@ -92,24 +93,27 @@ differs from the generated text.
   `@extension("propertyNames", #{...})`. Defaults remain schema annotations
   through native property defaults (`property?: Type = value`), not runtime
   default insertion.
-- `spec/scripts/typespec-schemas.mts` invokes the native emitter in memory,
-  preserving published identities. Approval's definitions-only document
-  uses a temporary model to collect its public fragments, then discards
-  that model's instance shape. `generate-schemas.mts` derives the per-point
-  `generated/strict-contexts/*.schema.json` files from the master union.
-  It retains the legacy TypeScript generator for released bundles.
+- `spec/draft/schema/tspconfig.yaml` configures the native JSON Schema emitter.
+  Public roots, titles and the schema base URI live in TypeSpec source.
+  Output is unmodified native `generated/<Type>.json`, including
+  `ApprovalRequest.json` and `ApprovalResolution.json`, not approval fragments.
+  Per-hook `*Request.json` models explicitly close required object payloads;
+  the `AgentContext` union, request metadata, array elements and response
+  replacements retain their open shapes. Identity hashing still uses its
+  separate required-field projection, not schema-driven object sealing.
+  `generate-legacy-schemas.mts` exists only to reproduce frozen TypeScript bundles.
 
 ```bash
 cd spec/scripts && npm ci
-npm run generate:schema      # write spec/draft/schema/generated/**/*.schema.json
+npm run generate:schema      # write spec/draft/schema/generated/*.json
 npm run check:schema         # compile the source, then fail on any drift
 npm run check:schema:equivalence -- --old origin/main   # differential validation against another revision
 ```
 
 After a change, regenerate. The Python mirror holds one folder per
 supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`
-and `schema/draft/`), each with that bundle's generated schemas and the
-per-point context schemas under `agent-context/`. The `schema-drift`
+and `schema/draft/`). Legacy mirrors keep per-point schemas under
+`agent-context/`; native mirrors retain the emitter's filenames. The `schema-drift`
 workflow runs `spec-draft-generated-schema-check`,
 `python-released-schema-mirror`, and `python-ctk-vector-mirror` as
 separate hard checks. `python-draft-schema-mirror` regenerates the draft

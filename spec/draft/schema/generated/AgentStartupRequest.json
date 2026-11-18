@@ -1,0 +1,168 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/AgentStartupRequest.json",
+    "type": "object",
+    "properties": {
+        "spec": {
+            "type": "string",
+            "const": "agent-hooks/draft",
+            "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "sequence": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "agent": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "framework": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_-]+$"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "framework"
+            ]
+        },
+        "session": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "turn": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            },
+            "required": [
+                "id"
+            ]
+        },
+        "trace": {
+            "type": "object",
+            "properties": {
+                "trace_id": {
+                    "type": "string"
+                },
+                "span_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "tenant": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "actor": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/$defs/ActorKind"
+                }
+            }
+        },
+        "budgets": {
+            "type": "object",
+            "properties": {
+                "tool_call_count": {
+                    "type": "number"
+                },
+                "token_count": {
+                    "type": "number"
+                },
+                "elapsed_seconds": {
+                    "type": "number"
+                },
+                "cost_usd": {
+                    "type": "number"
+                }
+            }
+        },
+        "interception_point": {
+            "type": "string",
+            "const": "agent_startup"
+        },
+        "extensions": {
+            "$ref": "#/$defs/Extensions"
+        },
+        "agent_init": {
+            "type": "object",
+            "properties": {
+                "tools_registered": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "tools_registered"
+            ],
+            "unevaluatedProperties": {
+                "not": {}
+            }
+        }
+    },
+    "required": [
+        "spec",
+        "timestamp",
+        "sequence",
+        "agent",
+        "session",
+        "interception_point",
+        "agent_init"
+    ],
+    "description": "Candidate request at agent_startup, with a closed required payload.",
+    "title": "Agent Hooks agent_startup request",
+    "$defs": {
+        "ActorKind": {
+            "type": "string",
+            "enum": [
+                "human",
+                "service",
+                "agent"
+            ],
+            "description": "Who acts (§4.5)."
+        },
+        "Extensions": {
+            "type": "object",
+            "properties": {},
+            "unevaluatedProperties": {},
+            "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+            "propertyNames": {
+                "pattern": "^[a-z][a-z0-9_]*$"
+            }
+        }
+    }
+}

@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 
+using TypeSpec.JsonSchema;
 namespace AgentHooks;
 
 /** Conditional payload of agent_startup (§4.2). */
@@ -181,14 +182,14 @@ model HooksRequest<TPoint extends InterceptionPoint = InterceptionPoint> {
 
 // Example: [agent-startup.json](../examples/AgentContext/agent-startup.json)
 /** The request at agent_startup: agent_init is required (§4.2). */
-model AgentStartupRequest {
+model AgentStartupContext {
   ...HooksRequest<InterceptionPoint.AgentStartup>;
   agent_init: AgentInit;
 }
 
 // Example: [input.json](../examples/AgentContext/input.json)
 /** The request at input: input is required (§4.2). */
-model InputRequest {
+model InputContext {
   ...HooksRequest<InterceptionPoint.Input>;
   input: Input;
 }
@@ -197,7 +198,7 @@ model InputRequest {
 // Example: [with metadata](../examples/AgentContext/pre-model-call-with-model-metadata.json)
 // Example: [with tools](../examples/AgentContext/pre-model-call-with-tools.json)
 /** The request at pre_model_call: model and messages are required (§4.2). */
-model PreModelCallRequest {
+model PreModelCallContext {
   ...HooksRequest<InterceptionPoint.PreModelCall>;
   `model`: Model;
   messages: Message[];
@@ -209,7 +210,7 @@ model PreModelCallRequest {
 // Example: [optional tool id](../examples/AgentContext/post-model-call-with-optional-tool-call-id.json)
 // Example: [with usage](../examples/AgentContext/post-model-call-with-usage.json)
 /** The request at post_model_call: model and response are required (§4.2). */
-model PostModelCallRequest {
+model PostModelCallContext {
   ...HooksRequest<InterceptionPoint.PostModelCall>;
   `model`: Model;
   response: Response;
@@ -219,7 +220,7 @@ model PostModelCallRequest {
 
 // Example: [pre-tool-call.json](../examples/AgentContext/pre-tool-call.json)
 /** The request at pre_tool_call: tool_call is required (§4.2). */
-model PreToolCallRequest {
+model PreToolCallContext {
   ...HooksRequest<InterceptionPoint.PreToolCall>;
   tool_call: ToolCall;
 }
@@ -227,7 +228,7 @@ model PreToolCallRequest {
 // Example: [post-tool-call.json](../examples/AgentContext/post-tool-call.json)
 // Example: [error](../examples/AgentContext/post-tool-call-error.json)
 /** The request at post_tool_call: tool_call and tool_result are required (§4.2). */
-model PostToolCallRequest {
+model PostToolCallContext {
   ...HooksRequest<InterceptionPoint.PostToolCall>;
   tool_call: ToolCall;
   tool_result: ToolResult;
@@ -235,14 +236,14 @@ model PostToolCallRequest {
 
 // Example: [output.json](../examples/AgentContext/output.json)
 /** The request at output: output is required (§4.2). */
-model OutputRequest {
+model OutputContext {
   ...HooksRequest<InterceptionPoint.Output>;
   output: Output;
 }
 
 // Example: [agent-shutdown.json](../examples/AgentContext/agent-shutdown.json)
 /** The request at agent_shutdown: summary is required (§4.2). */
-model AgentShutdownRequest {
+model AgentShutdownContext {
   ...HooksRequest<InterceptionPoint.AgentShutdown>;
   summary: Summary;
 }
@@ -253,13 +254,110 @@ model AgentShutdownRequest {
  * metadata and optional namespaced extensions.
  */
 @summary("Agent Hooks — agent context")
+@jsonSchema
 union AgentContext {
-  AgentStartupRequest,
-  InputRequest,
-  PreModelCallRequest,
-  PostModelCallRequest,
-  PreToolCallRequest,
-  PostToolCallRequest,
-  OutputRequest,
-  AgentShutdownRequest,
+  AgentStartupContext,
+  InputContext,
+  PreModelCallContext,
+  PostModelCallContext,
+  PreToolCallContext,
+  PostToolCallContext,
+  OutputContext,
+  AgentShutdownContext,
+}
+
+/** Candidate request at agent_startup, with a closed required payload. */
+@jsonSchema
+@summary("Agent Hooks agent_startup request")
+model AgentStartupRequest {
+  ...OmitProperties<AgentStartupContext, "agent_init">;
+  agent_init: {
+    ...AgentInit;
+    ...Record<never>;
+  };
+}
+
+/** Candidate request at input, with a closed required payload. */
+@jsonSchema
+@summary("Agent Hooks input request")
+model InputRequest {
+  ...OmitProperties<InputContext, "input">;
+  input: {
+    ...Input;
+    ...Record<never>;
+  };
+}
+
+/** Candidate request at pre_model_call, with a closed required model payload. */
+@jsonSchema
+@summary("Agent Hooks pre_model_call request")
+model PreModelCallRequest {
+  ...OmitProperties<PreModelCallContext, "model">;
+  `model`: {
+    ...Model;
+    ...Record<never>;
+  };
+}
+
+/** Candidate request at post_model_call, with closed required object payloads. */
+@jsonSchema
+@summary("Agent Hooks post_model_call request")
+model PostModelCallRequest {
+  ...OmitProperties<PostModelCallContext, "model" | "response">;
+  `model`: {
+    ...Model;
+    ...Record<never>;
+  };
+  response: {
+    ...Response;
+    ...Record<never>;
+  };
+}
+
+/** Candidate request at pre_tool_call, with a closed required payload. */
+@jsonSchema
+@summary("Agent Hooks pre_tool_call request")
+model PreToolCallRequest {
+  ...OmitProperties<PreToolCallContext, "tool_call">;
+  tool_call: {
+    ...ToolCall;
+    ...Record<never>;
+  };
+}
+
+/** Candidate request at post_tool_call, with closed required object payloads. */
+@jsonSchema
+@summary("Agent Hooks post_tool_call request")
+model PostToolCallRequest {
+  ...OmitProperties<PostToolCallContext, "tool_call" | "tool_result">;
+  tool_call: {
+    ...ToolCall;
+    ...Record<never>;
+  };
+  tool_result: {
+    ...ToolResult;
+    ...Record<never>;
+  };
+}
+
+/** Candidate request at output, with a closed required payload. */
+@jsonSchema
+@summary("Agent Hooks output request")
+model OutputRequest {
+  ...OmitProperties<OutputContext, "output">;
+  output: {
+    ...Output;
+    ...Record<never>;
+  };
+}
+
+/** Candidate request at agent_shutdown, with a closed required payload. */
+@jsonSchema
+@summary("Agent Hooks agent_shutdown request")
+model AgentShutdownRequest {
+  ...OmitProperties<AgentShutdownContext, "summary">;
+  summary: {
+    ...Summary;
+    ...Record<never>;
+  };
 }

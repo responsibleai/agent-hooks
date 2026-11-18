@@ -30,8 +30,9 @@ Each folder is a complete specification bundle with the same layout:
   draft on, `reserved-warnings.json`: machine-readable inventories
 - `schema/`: the normative JSON Schemas, generated from TypeSpec in the
   draft and the original TypeScript in the frozen 0.1 bundle. Both keep
-  source under `src/`, output under `generated/` with per-point context schemas in
-  `strict-contexts/`, standalone examples under
+  source under `src/` and output under `generated/`. The draft uses native
+  `<Type>.json` documents, including per-hook `*Request.json` roots;
+  0.1 retains its derived `strict-contexts/` schemas. Both keep examples under
   `examples/<Type>/<example>.json`, and the path grammar. See
   [`draft/schema/README.md`](draft/schema/README.md) for how to edit,
   generate and check them. 0.1 retains its original TypeScript source;

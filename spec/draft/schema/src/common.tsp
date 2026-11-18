@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 using TypeSpec.JsonSchema;
+@baseUri("https://responsibleai.github.io/agent-hooks/schema/draft/")
 namespace AgentHooks;
 
 /** Enforcement modes (§8). */

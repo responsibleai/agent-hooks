@@ -311,6 +311,7 @@ model Binding {
  * registered names) live in the loader (§7.7.6).
  */
 @summary("Agent Hooks — host declaration document (agent-hooks/draft)")
+@jsonSchema
 model HostDeclaration {
   ...Record<never>;
 

@@ -69,7 +69,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    python3 scripts/stage-docs-site.py
    for version in 0.1 draft; do
      root="spec/$version/schema/generated"
-     mapfile -t refs < <(find "$root" -name '*.schema.json' | sed 's/^/-r=/')
+     mapfile -t refs < <(find "$root" -name '*.json' | sed 's/^/-r=/')
      ajv validate --spec=draft2020 -c ajv-formats \
        -s "conformance/$version/vectors.schema.json" "${refs[@]}" \
        -d "conformance/$version/vectors/*.json"
