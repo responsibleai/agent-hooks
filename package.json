@@ -10,6 +10,8 @@
     "ajv-formats": "3.0.1"
   },
   "scripts": {
+    "generate:csharp": "pnpm --dir spec/scripts run generate:csharp",
+    "check:csharp": "pnpm --dir spec/scripts run check:csharp",
     "generate:schema": "pnpm --dir spec/scripts run generate:schema",
     "check:schema": "pnpm --dir spec/scripts run check:schema",
     "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"

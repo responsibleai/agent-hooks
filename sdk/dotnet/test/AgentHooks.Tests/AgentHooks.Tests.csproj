@@ -8,6 +8,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" />
     <ProjectReference Include="..\..\src\AgentHooks\AgentHooks.csproj" />
     <ProjectReference Include="..\..\src\AgentHooks.Conformance\AgentHooks.Conformance.csproj" />
+    <ProjectReference Include="..\..\src\AgentHooks.Contracts\AgentHooks.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Public API pin read by PublicApiTests (see the rule there). -->
