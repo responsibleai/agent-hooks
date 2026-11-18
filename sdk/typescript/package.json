@@ -32,8 +32,8 @@
   "scripts": {
     "build:native": "napi build --release --platform --js binding.js --dts binding.d.ts",
     "build:native:debug": "napi build --platform --js binding.js --dts binding.d.ts",
-    "build": "npm run build:native && tsc",
-    "test": "npm run build && node --test test/*.mjs",
+    "build": "pnpm run build:native && tsc",
+    "test": "pnpm run build && node --test test/*.mjs",
     "test:draft": "node --test test/draft/*.mjs"
   },
   "devDependencies": {
@@ -47,9 +47,5 @@
   },
   "engines": {
     "node": ">=20"
-  },
-  "overrides": {
-    "minimatch": "^11.0.1",
-    "glob": "^14.0.2"
   }
 }

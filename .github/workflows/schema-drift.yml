@@ -22,12 +22,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22" }
-      - run: npm ci
-        working-directory: spec/scripts
+        with: { node-version: "22", cache: pnpm }
+      - run: pnpm install --frozen-lockfile
       - name: Check generated draft schemas
-        run: npm run check:schema
+        run: pnpm run check:schema
         working-directory: spec/scripts
 
   python-released-schema-mirror:
@@ -48,12 +48,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22" }
-      - run: npm ci
-        working-directory: spec/scripts
+        with: { node-version: "22", cache: pnpm }
+      - run: pnpm install --frozen-lockfile
       - name: Regenerate draft schemas for comparison
-        run: npm run generate:schema
+        run: pnpm run generate:schema
         working-directory: spec/scripts
       - name: Report experimental draft mirror drift
         run: python3 sdk/python/scripts/check-draft-schema-mirror.py

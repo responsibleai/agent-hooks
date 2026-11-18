@@ -1,0 +1,17 @@
+{
+  "name": "agent-hooks",
+  "private": true,
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "ajv-cli": "5.0.0",
+    "ajv-formats": "3.0.1"
+  },
+  "scripts": {
+    "generate:schema": "pnpm --dir spec/scripts run generate:schema",
+    "check:schema": "pnpm --dir spec/scripts run check:schema",
+    "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"
+  }
+}
