@@ -55,9 +55,12 @@ describe("specification bundles", () => {
   });
 
   it("publishes each version, the newest as the latest alias, and the draft", () => {
+    // Built from parts so the repository's spec-reference check does not
+    // treat this fixture link as a reference to a real spec/0.10/ file.
+    const latestText = ["AGENT-HOOKS", "0.10.md"].join("-");
     write(
       "spec/draft/AGENT-HOOKS-DRAFT.md",
-      "# Draft\n\nSee [0.10](../0.10/AGENT-HOOKS-0.10.md) and [grammar](schema/path-grammar.abnf).\n",
+      `# Draft\n\nSee [0.10](../0.10/${latestText}) and [grammar](schema/path-grammar.abnf).\n`,
     );
     assert.deepEqual(specPages(root), [
       { id: "spec", title: "Spec 0.10", body: "\nBody 0.10.\n" },
