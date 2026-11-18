@@ -460,10 +460,11 @@ sdk/go/**/*.test
 .idea/
 .DS_Store
 .claude/
-docs-site/docs/spec.md
-docs-site/docs/spec/
-docs-site/docs/schema/
-docs-site/mkdocs.staged.yml
+docs-site/.astro/
+docs-site/.spec-versions.json
+docs-site/src/content/docs/spec.md
+docs-site/src/content/docs/spec/
+docs-site/public/schema/
 
 # Native pack staging (release pipeline / local pack verification)
 sdk/dotnet/src/AgentHooks/runtimes/

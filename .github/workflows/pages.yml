@@ -1,12 +1,10 @@
-# Documentation site (docs-site/, mkdocs-material).
+# Documentation site (docs-site/, Astro Starlight).
 #
 # Builds on every PR so site breakage is caught pre-merge; deploys on
 # push to main only when GitHub Pages is enabled for the repository
 # (Settings -> Pages -> Source: GitHub Actions), so the job stays green
-# while Pages is disabled. scripts/stage-docs-site.py copies every
-# spec/<version>/ folder and spec/draft/ into the site at build time:
-# one page per version, spec.md as the latest alias, each version's
-# schemas at the path its $id names, and the navigation entries. Nothing
+# while Pages is disabled. The site build stages each specification
+# bundle, the latest alias, and each schema at the path its $id names. Nothing
 # is committed, and a new version folder needs no edit here.
 name: pages
 
@@ -23,23 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-      - name: Build site (strict)
-        # Every bundle's schemas are published at the paths their $id
-        # values name, so every $id dereferences: schema/v<X.Y>/ for a
-        # release (byte-immutable) and schema/draft/ for the draft
-        # (mutable).
-        run: |
-          set -euo pipefail
-          uv venv .mkdocs-venv
-          uv pip install --python .mkdocs-venv/bin/python "mkdocs-material==9.6.23"
-          python3 scripts/stage-docs-site.py
-          .mkdocs-venv/bin/mkdocs build --strict -f docs-site/mkdocs.staged.yml -d "$PWD/site"
+      - uses: ./.github/actions/setup
+      - name: Build site
+        run: pnpm --filter @agent-hooks/docs build
       - name: Upload Pages artifact
         if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: site
+          path: docs-site/dist
 
   deploy:
     if: github.event_name == 'push'

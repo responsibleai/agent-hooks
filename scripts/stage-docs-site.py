@@ -3,14 +3,17 @@
 
 """Stage the specification bundles into the documentation site.
 
-The pages workflow runs this before mkdocs. For every
+The Astro site runs this before development and production builds. For every
 spec/<MAJOR.MINOR>/ folder and for spec/draft/ it writes, under
-docs-site/docs/:
+docs-site/src/content/docs/:
 
   spec/<version>.md   one page per released version, from AGENT-HOOKS-<version>.md
   spec/draft.md       the draft, from AGENT-HOOKS-DRAFT.md, its banner link
                       pointed at the version page beside it
   spec.md             the newest released version again, the stable "latest" URL
+
+Under docs-site/public/:
+
   schema/<path>       every *.schema.json under a bundle's schema/ (outside
                       src/ and examples/) at the path its own $id names
                       (schema/vX.Y/ for a release, schema/draft/ for the
@@ -18,9 +21,8 @@ docs-site/docs/:
                       root schemas; and each conformance/<version>/vectors.schema.json
                       at its own $id path
 
-and docs-site/mkdocs.staged.yml: the committed mkdocs.yml with the
-Specification navigation entries generated from the same folders, newest
-first, then the draft. Nothing it writes is committed.
+It also writes docs-site/.spec-versions.json with the released versions,
+newest first, for navigation. Nothing it writes is committed.
 
 A published path is immutable: two bundles may stage the same path only
 with identical bytes, so a release that changes a schema must publish
@@ -47,7 +49,6 @@ VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 BACK_LINK = re.compile(
     r"\]\(\.\./((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))/AGENT-HOOKS-\1\.md\)"
 )
-NAV_HEAD = "  - Specification:\n"
 INVENTORIES = (
     "reserved-reasons.json",
     "reserved-warnings.json",
@@ -196,24 +197,22 @@ def stage_schemas(root: Path, bundles: list[str], schema_out: Path) -> None:
         )
 
 
-def staged_config(config: str, versions: list[str]) -> str:
-    """mkdocs.yml with the Specification entries regenerated: one per
-    released version, newest first, then the draft."""
-    lines = config.splitlines(keepends=True)
-    if NAV_HEAD not in lines:
-        raise SystemExit("docs-site/mkdocs.yml has no '  - Specification:' nav entry")
-    start = lines.index(NAV_HEAD)
-    end = start + 1
-    while end < len(lines) and lines[end].startswith("      "):
-        end += 1
-    entries = [f'      - "{v}": spec/{v}.md\n' for v in versions]
-    entries.append("      - Draft: spec/draft.md\n")
-    return "".join(lines[: start + 1] + entries + lines[end:])
+def write_page(text: str, target: Path, slug: str) -> None:
+    """Move the document's H1 to Starlight frontmatter without changing the source."""
+    heading, _, body = text.partition("\n")
+    if not heading.startswith("# "):
+        raise SystemExit(f"{target.name}: specification text must start with an H1")
+    # Explicit slugs prevent Astro from changing the dots in version URLs.
+    title = json.dumps(heading[2:], ensure_ascii=False)
+    target.write_text(
+        f"---\ntitle: {title}\nslug: {slug}\n---\n{body}", encoding="utf-8"
+    )
 
 
 def stage(root: Path) -> list[str]:
     spec = root / "spec"
-    docs = root / "docs-site" / "docs"
+    site = root / "docs-site"
+    docs = site / "src" / "content" / "docs"
     versions = released_versions(spec)
     if not versions:
         raise SystemExit("spec/ has no released MAJOR.MINOR folder")
@@ -222,24 +221,25 @@ def stage(root: Path) -> list[str]:
     shutil.rmtree(pages, ignore_errors=True)
     pages.mkdir(parents=True)
     for version in versions:
-        shutil.copyfile(spec_text(spec / version), pages / f"{version}.md")
-    shutil.copyfile(spec_text(spec / versions[0]), docs / "spec.md")
+        text = spec_text(spec / version).read_text(encoding="utf-8")
+        write_page(text, pages / f"{version}.md", f"spec/{version}")
+        if version == versions[0]:
+            write_page(text, docs / "spec.md", "spec")
     draft = spec_text(spec / "draft").read_text(encoding="utf-8")
-    draft = BACK_LINK.sub(r"](\1.md)", draft)
+    draft = BACK_LINK.sub(r"](../\1/)", draft)
     draft = draft.replace(
-        "](schema/path-grammar.abnf)", "](../schema/draft/path-grammar.abnf)"
+        "](schema/path-grammar.abnf)", "](../../schema/draft/path-grammar.abnf)"
     )
-    (pages / "draft.md").write_text(draft, encoding="utf-8")
+    write_page(draft, pages / "draft.md", "spec/draft")
 
-    schema_out = docs / "schema"
+    schema_out = site / "public" / "schema"
     shutil.rmtree(schema_out, ignore_errors=True)
     # Oldest release first, the draft last, so a conflict names the
     # bundle that arrived later.
     stage_schemas(root, [*reversed(versions), "draft"], schema_out)
 
-    config = (root / "docs-site" / "mkdocs.yml").read_text(encoding="utf-8")
-    (root / "docs-site" / "mkdocs.staged.yml").write_text(
-        staged_config(config, versions), encoding="utf-8"
+    (site / ".spec-versions.json").write_text(
+        json.dumps(versions) + "\n", encoding="utf-8"
     )
     return versions
 

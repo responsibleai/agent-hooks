@@ -1,4 +1,8 @@
-# Agent Hooks
+---
+title: Agent Hooks
+---
+
+import Mermaid from "../../components/Mermaid.astro";
 
 Agent Hooks is a framework-neutral control contract for AI agents. It
 defines the eight lifecycle points at which an agent host must consult
@@ -13,18 +17,20 @@ One Rust core implements everything normative. Python, TypeScript,
 directly, so the same context produces the same canonical bytes and the
 same decisions in all five languages.
 
-!!! warning "Trust model"
-    Agent Hooks is a cooperative contract, not a security boundary.
-    The host is fully trusted: nothing in the contract detects a host
-    that skips interception points or ignores verdicts. Registered
-    interceptors are fully trusted by the host and receive raw
-    payloads. Conformance is not a security certification. The
-    normative statement is [§1.4 of the specification](spec.md).
+:::caution[Trust model]
+Agent Hooks is a cooperative contract, not a security boundary.
+The host is fully trusted: nothing in the contract detects a host
+that skips interception points or ignores verdicts. Registered
+interceptors are fully trusted by the host and receive raw
+payloads. Conformance is not a security certification. The
+normative statement is [§1.4 of the specification](./spec/#14-trust-model-and-non-goals).
+:::
 
 ## The loop
 
-```mermaid
-flowchart TB
+<Mermaid source={`flowchart TB
+    accTitle: Agent lifecycle interception points
+    accDescr: The agent starts, accepts input, loops through model and tool calls, emits output, and shuts down.
     S[agent_startup] --> I[input]
     I --> PM[pre_model_call]
     PM --> M((model))
@@ -34,13 +40,12 @@ flowchart TB
     T --> QT[post_tool_call]
     QT --> PM
     QM --> O[output]
-    O --> E[agent_shutdown]
-```
+    O --> E[agent_shutdown]`} />
 
 Every box is an interception point: the host constructs an
 `AgentContext`, dispatches it to the registered interceptors under a
-declared [composition profile](concepts/composition.md), and honours
-the combined [verdict](concepts/verdicts.md) before the next arrow is
+declared [composition profile](./concepts/composition/), and honours
+the combined [verdict](./concepts/verdicts/) before the next arrow is
 allowed to happen. A deny at `pre_tool_call` means the tool is never
 invoked; a deny at `post_tool_call` means the result never enters agent
 state.
@@ -61,10 +66,10 @@ their quickstarts for the one build step this adds today.
 ## Where to start
 
 - Build a **host** (you maintain an agent framework): start with a
-  [quickstart](quickstart/python.md) and then the
-  [conformance guide](conformance.md).
+  [quickstart](./quickstart/python/) and then the
+  [conformance guide](./conformance/).
 - Build an **interceptor** (you maintain a control): read
-  [verdicts](concepts/verdicts.md) and the
-  [examples](examples/policy-deny.md).
-- Evaluate the design: read the [specification](spec.md) and the
-  [FAQ](faq.md).
+  [verdicts](./concepts/verdicts/) and the
+  [examples](./examples/policy-deny/).
+- Evaluate the design: read the [specification](./spec/) and the
+  [FAQ](./faq/).

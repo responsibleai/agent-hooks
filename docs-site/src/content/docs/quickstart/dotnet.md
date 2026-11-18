@@ -1,4 +1,6 @@
-# .NET quickstart
+---
+title: .NET quickstart
+---
 
 ```sh
 dotnet add package ResponsibleAI.AgentHooks --prerelease

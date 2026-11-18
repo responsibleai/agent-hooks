@@ -1,4 +1,6 @@
-# Example: policy deny with remediation detail
+---
+title: "Example: policy deny with remediation detail"
+---
 
 A deny should tell the operator what to do about it. The `reason` is a
 low-cardinality machine identifier for dashboards and alerts; the

@@ -1,4 +1,6 @@
-# Interception records
+---
+title: Interception records
+---
 
 Every emission produces one record. It is the audit trail's unit: what
 was evaluated, by whom, under which composition, with what outcome.

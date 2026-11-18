@@ -22,15 +22,6 @@ stage = importlib.util.module_from_spec(MODULE_SPEC)
 MODULE_SPEC.loader.exec_module(stage)
 
 ID_BASE = "https://responsibleai.github.io/agent-hooks/schema/"
-MKDOCS = """site_name: test
-nav:
-  - Home: index.md
-  # The Specification entries are regenerated at build time.
-  - Specification:
-      - "0.0": spec/0.0.md
-      - Draft: spec/draft.md
-  - FAQ: faq.md
-"""
 
 
 def schema(identity: str, marker: str) -> str:
@@ -90,7 +81,7 @@ class StageTest(unittest.TestCase):
         bundle(self.root, "0.10", "v0.10", "tenth")
         draft = bundle(self.root, "draft", "draft", "working")
         (draft / "AGENT-HOOKS-DRAFT.md").write_text(
-            "> The latest released version is [0.10](../0.10/AGENT-HOOKS-0.10.md).\n# draft\n",
+            "# draft\n\n> The latest released version is [0.10](../0.10/AGENT-HOOKS-0.10.md).\n",
             encoding="utf-8",
         )
         for version, published in (
@@ -105,12 +96,12 @@ class StageTest(unittest.TestCase):
                 schema(f"{published}/conformance/vectors.schema.json", version),
                 encoding="utf-8",
             )
-        (self.root / "docs-site/docs").mkdir(parents=True)
-        (self.root / "docs-site/mkdocs.yml").write_text(MKDOCS, encoding="utf-8")
-        self.docs = self.root / "docs-site/docs"
+        self.docs = self.root / "docs-site/src/content/docs"
+        self.public = self.root / "docs-site/public"
 
     def read(self, relative: str) -> str:
-        return (self.docs / relative).read_text(encoding="utf-8")
+        base = self.public if relative.startswith("schema/") else self.docs
+        return (base / relative).read_text(encoding="utf-8")
 
     def test_versions_are_ordered_numerically_newest_first(self) -> None:
         self.assertEqual(stage.stage(self.root), ["0.10", "0.2", "0.1"])
@@ -124,17 +115,18 @@ class StageTest(unittest.TestCase):
             file.write("[grammar](schema/path-grammar.abnf)\n")
         stage.stage(self.root)
         self.assertIn(
-            "](../schema/draft/path-grammar.abnf)", self.read("spec/draft.md")
+            "](../../schema/draft/path-grammar.abnf)", self.read("spec/draft.md")
         )
         self.assertEqual(self.read("schema/draft/path-grammar.abnf"), 'path = "test"\n')
 
     def test_one_page_per_version_the_draft_page_and_the_latest_alias(self) -> None:
         for version in stage.stage(self.root):
-            self.assertEqual(self.read(f"spec/{version}.md"), f"# spec {version}\n")
-        self.assertEqual(self.read("spec.md"), "# spec 0.10\n")
+            self.assertIn(f"slug: spec/{version}\n", self.read(f"spec/{version}.md"))
+        self.assertIn('title: "spec 0.10"\n', self.read("spec.md"))
         self.assertEqual(
             self.read("spec/draft.md"),
-            "> The latest released version is [0.10](0.10.md).\n# draft\n",
+            '---\ntitle: "draft"\nslug: spec/draft\n---\n\n'
+            "> The latest released version is [0.10](../0.10/).\n",
         )
         self.assertFalse((self.docs / "spec-draft.md").exists())
 
@@ -185,8 +177,8 @@ class StageTest(unittest.TestCase):
                 )["title"],
                 "0.1" if version == "v0.1" else version.removeprefix("v"),
             )
-        self.assertFalse((self.docs / "schema/strict-contexts").exists())
-        self.assertFalse((self.docs / "schema/v0.2/src").exists())
+        self.assertFalse((self.public / "schema/strict-contexts").exists())
+        self.assertFalse((self.public / "schema/v0.2/src").exists())
 
     def test_inventories_follow_the_bundle_and_absent_ones_are_not_published(
         self,
@@ -196,7 +188,7 @@ class StageTest(unittest.TestCase):
             self.assertEqual(
                 json.loads(self.read(f"schema/v0.1/{name}"))["from"], "0.1"
             )
-        self.assertFalse((self.docs / "schema/v0.1/reserved-warnings.json").exists())
+        self.assertFalse((self.public / "schema/v0.1/reserved-warnings.json").exists())
         for name in stage.INVENTORIES:
             self.assertEqual(
                 json.loads(self.read(f"schema/v0.10/{name}"))["from"], "0.10"
@@ -275,31 +267,21 @@ class StageTest(unittest.TestCase):
             stage.stage(self.root)
         self.assertIn("schema is a symbolic link", str(raised.exception))
 
-    def test_navigation_lists_versions_newest_first_then_the_draft(self) -> None:
+    def test_navigation_metadata_lists_versions_newest_first(self) -> None:
         stage.stage(self.root)
-        staged = (self.root / "docs-site/mkdocs.staged.yml").read_text(encoding="utf-8")
+        staged = (self.root / "docs-site/.spec-versions.json").read_text(encoding="utf-8")
         self.assertEqual(
-            staged,
-            """site_name: test
-nav:
-  - Home: index.md
-  # The Specification entries are regenerated at build time.
-  - Specification:
-      - "0.10": spec/0.10.md
-      - "0.2": spec/0.2.md
-      - "0.1": spec/0.1.md
-      - Draft: spec/draft.md
-  - FAQ: faq.md
-""",
+            json.loads(staged),
+            ["0.10", "0.2", "0.1"],
         )
 
     def test_restaging_replaces_stale_output(self) -> None:
         stage.stage(self.root)
         (self.docs / "spec/9.9.md").write_text("stale\n", encoding="utf-8")
-        (self.docs / "schema/v9.9").mkdir()
+        (self.public / "schema/v9.9").mkdir()
         stage.stage(self.root)
         self.assertFalse((self.docs / "spec/9.9.md").exists())
-        self.assertFalse((self.docs / "schema/v9.9").exists())
+        self.assertFalse((self.public / "schema/v9.9").exists())
 
 
 class PublishedPathTest(unittest.TestCase):
