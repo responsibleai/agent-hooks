@@ -66,8 +66,9 @@ env:
 
 jobs:
   # Runs first, on the tag and on every dry run: the SDKs' version
-  # surfaces agree, every supported specification version has a
-  # spec/<version>/ folder and every released one its tag, the
+  # surfaces agree with each other and the SDK tag (when run on a tag),
+  # every supported specification version has a spec/<version>/ folder
+  # and every released one its tag, the
   # conformance vectors validate against their matching schemas, and examples of
   # every bundle validate against that bundle's schemas. Every build job
   # depends on it.
@@ -92,7 +93,14 @@ jobs:
         # spec/<X.Y> on an ancestor of this commit, so an SDK tag cannot
         # claim a specification version that was never released. The
         # draft is supported too and has no tag.
-        run: python3 scripts/check-version-consistency.py --require-spec-tags
+        # A tag-triggered run must also match the SDK manifest version;
+        # branch dispatches still rehearse the release without an SDK tag.
+        run: |
+          args=(--require-spec-tags)
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            args+=(--release-tag "$GITHUB_REF_NAME")
+          fi
+          python3 scripts/check-version-consistency.py "${args[@]}"
       - name: Specification folders are complete and references current
         run: python3 scripts/check-spec-versions.py
       - name: Released conformance suites validate against matching schemas
