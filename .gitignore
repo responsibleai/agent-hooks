@@ -461,7 +461,6 @@ sdk/go/**/*.test
 .DS_Store
 .claude/
 docs-site/.astro/
-docs-site/.spec-versions.json
 docs-site/src/content/docs/spec.md
 docs-site/src/content/docs/spec/
 docs-site/public/schema/
