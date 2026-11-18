@@ -84,22 +84,11 @@ references and arbitrary JSON payload values. Requiredness does not change.
 
 ## Rationale
 
-Keeping both representations preserves compatibility but leaves consumers
-handling an extra state with no defined purpose. Removing all `null`
+Keeping both representations leaves consumers handling an extra state
+with no defined purpose. Removing all `null`
 unions would instead erase meaningful states, such as an explicitly
 unbounded timeout versus an omitted timeout that inherits a default.
 This proposal removes only redundant nullability.
-
-## Backward compatibility
-
-This narrows accepted verdict and record shapes, a specification MAJOR
-change under [VERSIONING.md](../../VERSIONING.md). It is not a
-conversion-only correction. Released 0.1 sources, schemas, conformance
-vectors and SDK behavior remain unchanged.
-
-When upgrading to this draft, producers must omit absent metadata rather
-than serialize it as `null`. Old consumers already accept omission.
-Consumers implementing the new draft reject explicit null metadata.
 
 ## SDK surface and implementation impact
 
@@ -107,8 +96,7 @@ This review PR changes the specification, schema sources, generated draft
 schemas and schema regression coverage only. It does not update SDK
 runtime behavior or packaged draft schemas. Draft support is experimental
 and already lags the normative draft; follow-up implementation must apply
-the new validation and omission rules in the Rust core and all five SDKs
-without changing released 0.1 behavior.
+the new validation and omission rules in the Rust core and all five SDKs.
 
 ## Conformance and tests
 
