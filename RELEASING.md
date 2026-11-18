@@ -232,6 +232,11 @@ git tag -s v<version> -m "agent-hooks <version>"
 git push origin v<version>
 ```
 
+The release gate requires this tag to be exactly `v` followed by the
+shared SDK version in its SemVer spelling. A mismatch stops the workflow
+before artifact builds or publication. This also applies to manual runs
+on tags, including dry runs; manual branch dry runs do not require a tag.
+
 ### What the tag run publishes
 
 - crates.io `agent-hooks-sdk`
