@@ -128,6 +128,23 @@ against `origin/main` to see which instances change verdict.
 See [`spec/draft/schema/README.md`](spec/draft/schema/README.md) for the layout and
 the mapping to unchanged published URLs.
 
+## Local toolchain setup
+
+With [mise](https://mise.jdx.dev/) installed, run from the repository root:
+
+```bash
+mise trust
+mise install
+```
+
+Activate mise in your shell, or prefix commands with `mise exec --`.
+The root `mise.toml` pins Node.js, Python, Go and the .NET SDK to patch
+releases within the versions used by CI, plus `uv`. Rust matches
+`sdk/rust/rust-toolchain.toml`, including Clippy and rustfmt; update both
+pins together. These tools do not replace the per-SDK dependency
+installation steps below or a native C/C++ toolchain for FFI and cgo.
+The protected Windows FFI build still uses its separate pinned nightly.
+
 ## Local test matrix
 
 ```bash
