@@ -162,7 +162,7 @@ function loadSet(source: string): SchemaSet {
   if (existsSync(source)) {
     const dir = existsSync(join(source, "generated")) ? join(source, "generated") : source;
     const files = readdirSync(dir, { recursive: true }).map(String)
-      .filter((f) => f.endsWith(".json"));
+      .filter((f) => f.endsWith(".json") && !f.split(/[\\/]/).slice(0, -1).some((part) => part === "examples" || part === "src"));
     for (const f of files) addDocument(set, readFileSync(join(dir, f), "utf8"));
     return set;
   }
