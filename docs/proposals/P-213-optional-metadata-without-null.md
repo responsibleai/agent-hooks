@@ -1,9 +1,9 @@
-# P-XXX: Omit absent metadata instead of sending null
+# P-213: Omit absent metadata instead of sending null
 
 - **Status:** Draft
 - **Created:** 2026-11-18
 - **Author(s):** Timothee Guerin (@timotheeguerin)
-- **PR:** Assigned when this pull request is opened.
+- **PR:** https://github.com/responsibleai/agent-hooks/pull/213
 
 ## Abstract and motivation
 
