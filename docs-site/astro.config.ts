@@ -1,14 +1,15 @@
 // Copyright (c) Microsoft. All rights reserved.
 
+import { fileURLToPath } from "node:url";
 import { unified } from "@astrojs/markdown-remark";
 import starlight from "@astrojs/starlight";
 import mermaid from "astro-mermaid";
 import rehypeAstroRelativeMarkdownLinks from "astro-rehype-relative-markdown-links";
 import { defineConfig } from "astro/config";
-import { REPOSITORY_ROOT, releasedVersions, specBundles } from "./src/spec-bundles.ts";
+import { releasedVersions } from "./src/spec.ts";
 
 const base = "/agent-hooks";
-const versions = releasedVersions(`${REPOSITORY_ROOT}/spec`);
+const versions = releasedVersions(fileURLToPath(new URL("../", import.meta.url)));
 
 export default defineConfig({
   site: "https://responsibleai.github.io",
@@ -23,7 +24,6 @@ export default defineConfig({
     }),
   },
   integrations: [
-    specBundles(),
     // Must precede Starlight so Mermaid fences skip code highlighting.
     mermaid({ enableLog: false }),
     starlight({

@@ -21,7 +21,7 @@ The host is fully trusted: nothing in the contract detects a host
 that skips interception points or ignores verdicts. Registered
 interceptors are fully trusted by the host and receive raw
 payloads. Conformance is not a security certification. The
-normative statement is [§1.4 of the specification](spec.md#14-trust-model-and-non-goals).
+normative statement is [§1.4 of the specification](spec/#14-trust-model-and-non-goals).
 :::
 
 ## The loop
@@ -71,5 +71,5 @@ their quickstarts for the one build step this adds today.
 - Build an **interceptor** (you maintain a control): read
   [verdicts](concepts/verdicts.md) and the
   [examples](examples/policy-deny.md).
-- Evaluate the design: read the [specification](spec.md) and the
+- Evaluate the design: read the [specification](spec/) and the
   [FAQ](faq.md).

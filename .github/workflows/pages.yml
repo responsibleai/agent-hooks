@@ -3,10 +3,9 @@
 # Builds on every PR so site breakage is caught pre-merge; deploys on
 # push to main only when GitHub Pages is enabled for the repository
 # (Settings -> Pages -> Source: GitHub Actions), so the job stays green
-# while Pages is disabled. The site build (docs-site/src/spec-bundles.ts)
-# stages each specification bundle, the latest alias, and each schema at
-# the path its $id names. Nothing is committed, and a new version folder
-# needs no edit here.
+# while Pages is disabled. The site (docs-site/src/spec.ts) publishes each
+# specification bundle, the latest alias, and each schema at the path its
+# $id names, so a new version folder needs no edit here.
 name: pages
 
 on:
@@ -23,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
-      - name: Test spec staging
+      - name: Test spec publishing
         run: pnpm --filter @agent-hooks/docs test
       - name: Build site
         run: pnpm --filter @agent-hooks/docs build
