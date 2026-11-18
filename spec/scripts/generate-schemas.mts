@@ -6,8 +6,8 @@
 // files match. <version> is draft unless --spec <version> names another folder;
 // released folders are immutable, so only the draft is normally regenerated.
 //
-//   npm run generate:schema        write every schema file
-//   npm run check:schema           type-check the source, then compare the
+//   pnpm run generate:schema       write every schema file
+//   pnpm run check:schema          type-check the source, then compare the
 //                                  committed files with the generated text
 //
 // Frozen TypeScript bundles keep their original generator below.
@@ -390,13 +390,13 @@ async function main(): Promise<number> {
     }
     if (!existsSync(path)) {
       failing++;
-      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} is missing; run npm run generate:schema in spec/scripts`);
+      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} is missing; run pnpm run generate:schema at the repository root`);
       continue;
     }
     const actual = readFileSync(path, "utf8");
     if (actual !== text) {
       failing++;
-      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} differs from the schema source; run npm run generate:schema in spec/scripts`);
+      console.log(`::error::${escapeWorkflowCommandData(SCHEMA_DIR)}/generated/${annotationFile} differs from the schema source; run pnpm run generate:schema at the repository root`);
       console.log(`  ${firstDifference(actual, text)}`);
     }
   }
