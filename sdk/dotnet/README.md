@@ -23,7 +23,80 @@ dotnet build sdk/dotnet
 # LD_LIBRARY_PATH=sdk/rust/target/release dotnet run
 ```
 
-## Usage
+## Generated draft contracts (no Rust dependency)
+
+`src/AgentHooks.Contracts/` is a separate, experimental .NET 8 assembly generated
+from `spec/draft/schema/src/main.tsp`. It provides typed requests, hook-specific
+responses and transforms, approval requests/resolutions, interception records,
+host declarations, and their supporting models and enums in
+`AgentHooks.Contracts.Draft`. It is the contract foundation for a future native
+C# implementation: it has no reference to the existing SDK or Rust/FFI and does
+not implement composition, validation, identity, or dispatch. The existing
+`AgentHooks` package and its released 0.1 API remain unchanged.
+
+From the repository root:
+
+```bash
+pnpm install
+pnpm run generate:csharp
+pnpm run check:csharp
+dotnet build sdk/dotnet/src/AgentHooks.Contracts
+dotnet test sdk/dotnet/test/AgentHooks.Tests --filter FullyQualifiedName~GeneratedContractTests
+```
+
+The build and contract tests do not require Rust or a native library. Reference
+`AgentHooks.Contracts.csproj` to experiment with the generated types; it is not
+yet part of the NuGet release pipeline.
+
+```csharp
+using System.Text.Json;
+using AgentHooks.Contracts;
+using AgentHooks.Contracts.Draft;
+
+InputHookResponse response = new()
+{
+    Verdict = new TransformVerdictInputHookTransform
+    {
+        Transform = new InputHookTransform
+        {
+            Input = new Input
+            {
+                Role = InputRole.User,
+                Content = JsonSerializer.SerializeToElement("redacted"),
+            },
+        },
+    },
+};
+string json = JsonSerializer.Serialize(response);
+// {"verdict":{"decision":"transform","transform":{"input":{"content":"redacted","role":"user"}}}}
+
+var timeouts = new TimeoutsConfig();
+// InterceptorMs is absent: the specification's default applies.
+timeouts.InterceptorMs = new Optional<System.Numerics.BigInteger?>(null);
+// Now it is explicitly null: unbounded, not the default.
+```
+
+Unions are interfaces with concrete model variants and built-in
+`System.Text.Json` converters. For example, deserialize an `AgentContext` and
+pattern-match `PreToolCallRequest`; a startup/shutdown response's
+`NonTransformVerdict` cannot carry a transform verdict. Required constant wire members
+are supplied automatically on construction and checked on deserialization.
+String enums preserve their exact wire names and reject unknown or numeric
+values. Integers use `BigInteger`, arbitrary JSON uses `JsonElement`, and open
+objects retain unknown properties. Constrained scalars map to their underlying
+C# types; nullable scalar unions such as `TimeoutMs` become nullable values.
+Generic TypeSpec templates are emitted as their concrete contract instantiations.
+Every optional property uses `Optional<T>` (`IsDefined`/`Value` and implicit
+conversion from `T`), preserving omission separately from explicit null, false,
+or zero. Timestamps remain strings to preserve their wire representation.
+
+These are typed wire contracts, **not a specification validator**. Numeric
+bounds, patterns, explicit null on non-nullable reference properties, extension
+namespace rules, and cross-field constraints still need validation. Generated
+code enforces required members, required constant values, closed-object properties,
+enum vocabulary, and discriminated-union selection during deserialization.
+
+## Usage (existing Rust-backed SDK)
 
 ```csharp
 using AgentHooks;

@@ -1,13 +1,25 @@
 {
   "name": "agent-hooks-spec-scripts",
+  "type": "module",
   "private": true,
   "scripts": {
+    "build:csharp": "tsc -p csharp/tsconfig.json && babel csharp --extensions .tsx --out-dir dist/csharp --config-file ./csharp/babel.config.json",
+    "generate:csharp": "pnpm run build:csharp && tsx generate-csharp.mts",
+    "check:csharp": "pnpm run build:csharp && tsx generate-csharp.mts --check",
     "generate:schema": "tsx generate-schemas.mts",
     "check:schema": "tsx generate-schemas.mts --check",
     "check:schema:equivalence": "tsx schema-equivalence.mts"
   },
   "devDependencies": {
+    "@alloy-js/babel-preset": "0.4.0",
+    "@alloy-js/core": "0.25.0",
+    "@alloy-js/csharp": "0.25.0",
+    "@babel/cli": "^7.29.7",
+    "@babel/core": "^7.29.13",
+    "@babel/preset-typescript": "^7.29.7",
+    "@types/node": "^26.6.6",
     "@typespec/compiler": "1.18.0",
+    "@typespec/emitter-framework": "0.22.0",
     "@typespec/json-schema": "1.18.0",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
