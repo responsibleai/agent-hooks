@@ -29,14 +29,17 @@ VERSIONING.md row for the current SDK version lists the same entries.
 With --require-spec-tags, as the release workflow runs it, every
 released entry must also carry the tag spec/<X.Y> on an ancestor of
 HEAD, so an SDK tag cannot claim a specification version that was
-never released; the draft is cut, never tagged. With --print-supported
-the script prints the entries one per line, for workflows that loop
+never released; the draft is cut, never tagged. With --release-tag TAG,
+the SDK tag must match the shared manifest version, using its SemVer
+spelling. With --print-supported the script prints the entries one
+per line, for workflows that loop
 over them. Finally, sdk/typescript/package.json must not commit
 platform pins.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import subprocess
@@ -331,14 +334,17 @@ def check_no_committed_platform_pins(
 
 
 def main(argv: list[str] | None = None) -> int:
-    argv = [] if argv is None else argv
-    if argv not in ([], ["--require-spec-tags"], ["--print-supported"]):
-        print(
-            "usage: check-version-consistency.py [--require-spec-tags | --print-supported]",
-            file=sys.stderr,
-        )
-        return 2
-    if argv == ["--print-supported"]:
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--require-spec-tags", action="store_true")
+    mode.add_argument("--print-supported", action="store_true")
+    parser.add_argument(
+        "--release-tag", help="SDK tag to compare with the manifest version"
+    )
+    args = parser.parse_args([] if argv is None else argv)
+    if args.print_supported and args.release_tag is not None:
+        parser.error("--print-supported cannot be combined with --release-tag")
+    if args.print_supported:
         for version in supported_spec_versions():
             print(version)
         return 0
@@ -348,11 +354,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if check_spec_versions() != 0:
         return 1
-    if argv == ["--require-spec-tags"] and check_spec_tags() != 0:
+    if args.require_spec_tags and check_spec_tags() != 0:
         return 1
     versions = read_versions()
     normalized = {path: normalize(v) for path, v in versions.items()}
     if len(set(normalized.values())) == 1:
+        expected_tag = f"v{versions['sdk/rust/Cargo.toml']}"
+        if args.release_tag is not None and args.release_tag != expected_tag:
+            error(
+                f"SDK release tag {args.release_tag!r} does not match "
+                f"manifest version; expected {expected_tag}"
+            )
+            return 1
         print(f"version surfaces agree: {next(iter(normalized.values()))}")
         return 0
     error("SDK version surfaces disagree (VERSIONING.md):")

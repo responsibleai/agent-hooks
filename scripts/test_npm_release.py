@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) Microsoft. All rights reserved.
 
-"""Run the workflow's actual npm loops offline: python3 scripts/test-npm-release.py."""
+"""Run the workflow's actual npm loops offline: python3 scripts/test_npm_release.py."""
 
 import json
 from pathlib import Path
