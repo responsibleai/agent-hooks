@@ -26,13 +26,12 @@ function main(): number {
   if (!spec || (spec !== "draft" && !/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(spec))) {
     throw new Error("--spec must name draft or a MAJOR.MINOR version");
   }
-  const schema = resolve(directory, "..", spec, "schema");
-  if (!existsSync(join(schema, "src/main.tsp"))) {
-    execFileSync(process.execPath, ["--import", "tsx", join(directory, "generate-legacy-schemas.mts"), ...args], { stdio: "inherit" });
-    return 0;
-  }
   if (args.some((arg, index) => arg !== "--check" && arg !== "--spec" && !(specIndex >= 0 && index === specIndex + 1))) {
     throw new Error("usage: generate-schemas.mts [--check] [--spec draft|MAJOR.MINOR]");
+  }
+  const schema = resolve(directory, "..", spec, "schema");
+  if (!existsSync(join(schema, "src/main.tsp"))) {
+    throw new Error(`spec/${spec} has no TypeSpec source; frozen legacy schemas cannot be regenerated`);
   }
   const output = join(schema, "generated");
   const temporary = mkdtempSync(join(tmpdir(), "agent-hooks-schema-"));

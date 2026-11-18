@@ -55,7 +55,8 @@ npx tsp compile schema-emitter.tsp \
 `check:schema` runs the same native compilation into a temporary directory
 and compares bytes, including missing and unexpected JSON files. The wrapper
 does not parse or transform emitted JSON. `--spec X.Y` selects another
-bundle; the isolated legacy generator reproduces frozen TypeScript bundles.
+TypeSpec bundle. Legacy 0.1 artifacts stay committed and are not regenerated;
+attempting to generate or drift-check a bundle without TypeSpec source fails.
 Equivalence checks map old and native public roots for comparison and include
 the draft's actual examples among their mutation seeds.
 

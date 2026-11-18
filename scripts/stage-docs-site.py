@@ -131,8 +131,8 @@ class Publisher:
             raise SystemExit(
                 f"{origin} and {earlier[0]} both publish schema/{relative} with different "
                 "content; a published $id path is immutable, so the newer bundle must "
-                "publish under its own path (set the TypeSpec @baseUri, or the "
-                "legacy generator's --id-base, before regenerating)"
+                "publish under its own path (set the TypeSpec @baseUri "
+                "before regenerating)"
             )
         self.staged[relative] = (origin, data)
         target = self.schema_out / relative

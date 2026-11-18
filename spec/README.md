@@ -35,7 +35,8 @@ Each folder is a complete specification bundle with the same layout:
   0.1 retains its derived `strict-contexts/` schemas. Both keep examples under
   `examples/<Type>/<example>.json`, and the path grammar. See
   [`draft/schema/README.md`](draft/schema/README.md) for how to edit,
-  generate and check them. 0.1 retains its original TypeScript source;
+  generate and check TypeSpec bundles. 0.1 retains its original TypeScript source
+  for historical reference, but its committed schemas are no longer regenerated;
   its schemas are instance-equivalent to the ones
   the tag shipped ([RELEASING.md](../RELEASING.md)).
 

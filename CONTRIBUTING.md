@@ -58,12 +58,13 @@
 ## Schema source
 
 Each specification folder's JSON Schemas under `spec/<version>/schema/generated/`
-are generated from the source in `spec/<version>/schema/src/`: TypeSpec
-in the draft, and the original TypeScript in the frozen 0.1 bundle. Edit
+are generated from TypeSpec in `spec/<version>/schema/src/`, except for
+the frozen 0.1 bundle, whose committed artifacts and historical TypeScript
+source are retained without regeneration. Edit
 only `spec/draft/schema/src/`; the generator targets `draft` unless
 `--spec <version>` names another folder. The `lint` job runs the drift
 check for the draft and, with `--spec`, for every released bundle that
-has `schema/src/`, so a frozen source keeps generating its frozen
+has `schema/src/main.tsp`, so a frozen TypeSpec source keeps generating its frozen
 output. The JSON stays the normative artifact: it is
 what validators, the conformance kit and the SDK mirrors consume. Do not
 edit it by hand; the `lint` and `drift` checks fail on any byte that
@@ -101,7 +102,7 @@ differs from the generated text.
   the `AgentContext` union, request metadata, array elements and response
   replacements retain their open shapes. Identity hashing still uses its
   separate required-field projection, not schema-driven object sealing.
-  `generate-legacy-schemas.mts` exists only to reproduce frozen TypeScript bundles.
+  There is no legacy TypeScript generator; 0.1 schemas remain committed and immutable.
 
 ```bash
 cd spec/scripts && npm ci

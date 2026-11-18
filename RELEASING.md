@@ -29,7 +29,8 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
 
 2. Regenerate the copy's schemas under their own id path,
    `https://responsibleai.github.io/agent-hooks/schema/vX.Y/`. The
-   generator sets the base from `--spec`; a published path is
+   version cut sets the TypeSpec `@baseUri`; `--spec` selects the copied bundle.
+   A published path is
    immutable, so the staging of the site fails when two bundles bring
    different bytes to one path.
 
@@ -76,7 +77,6 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    done
    cd spec/scripts && npm ci
    node check-schema-examples.mjs
-   npx tsc -p ../X.Y/schema/src/tsconfig.json
    npx tsx generate-schemas.mts --check --spec X.Y
    ```
 
@@ -107,8 +107,10 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    git diff --stat v0.1.0-beta.3:spec/AGENT-HOOKS-0.1.md HEAD:spec/0.1/AGENT-HOOKS-0.1.md
    ```
 
-   The schemas are generated from `spec/0.1/schema/src/`, the draft
-   source with everything after 0.1 removed, and are instance-equivalent
+   The schemas were generated from `spec/0.1/schema/src/`, the draft
+   source with everything after 0.1 removed. The committed artifacts are
+   frozen and no longer regenerated; their bytes and URLs must remain unchanged.
+   They are instance-equivalent
    to the tag's hand-written schemas: the equivalence tool reports 0
    disagreements for every schema both sides have, and
    host-declaration-1.1 on neither side.
