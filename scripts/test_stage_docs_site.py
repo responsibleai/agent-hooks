@@ -269,7 +269,9 @@ class StageTest(unittest.TestCase):
 
     def test_navigation_metadata_lists_versions_newest_first(self) -> None:
         stage.stage(self.root)
-        staged = (self.root / "docs-site/.spec-versions.json").read_text(encoding="utf-8")
+        staged = (self.root / "docs-site/.spec-versions.json").read_text(
+            encoding="utf-8"
+        )
         self.assertEqual(
             json.loads(staged),
             ["0.10", "0.2", "0.1"],
