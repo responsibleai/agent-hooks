@@ -3,10 +3,12 @@
   "private": true,
   "scripts": {
     "generate:schema": "tsx generate-schemas.mts",
-    "check:schema": "tsc -p ../draft/schema/src/tsconfig.json && tsx generate-schemas.mts --check",
+    "check:schema": "tsx generate-schemas.mts --check",
     "check:schema:equivalence": "tsx schema-equivalence.mts"
   },
   "devDependencies": {
+    "@typespec/compiler": "1.18.0",
+    "@typespec/json-schema": "1.18.0",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "tsx": "4.23.15",
@@ -14,7 +16,7 @@
     "typescript-json-schema": "0.68.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "overrides": {
     "minimatch": "^11.0.1",

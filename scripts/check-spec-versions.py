@@ -55,8 +55,8 @@ HEADER = re.compile(
 ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"
 WIRE = re.compile(r"agent-hooks/((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)|draft)")
 DRAFT_WIRE = "agent-hooks/draft"
-TEXT_SUFFIXES = {".md", ".json", ".ts", ".abnf", ".txt"}
-# Folders under schema/ that hold no schema: TypeScript source and instances.
+TEXT_SUFFIXES = {".md", ".json", ".ts", ".tsp", ".abnf", ".txt"}
+# Folders under schema/ that hold no schema: source and instances.
 NOT_SCHEMAS = ("src", "examples")
 
 # References the rest of the repository must not make.
@@ -74,6 +74,7 @@ SCAN_SUFFIXES = {
     ".mjs",
     ".mts",
     ".ts",
+    ".tsp",
     ".rs",
     ".cs",
     ".go",

@@ -1,7 +1,7 @@
 name: schema-drift
 
 # Checks:
-# - spec-draft-generated-schema-check: ensure generated draft schemas match their TypeScript source.
+# - spec-draft-generated-schema-check: ensure generated draft schemas match their TypeSpec source.
 # - python-released-schema-mirror: refresh released Python schema mirrors, then fail on drift.
 # - python-ctk-vector-mirror: refresh the Python CTK vector mirror, then fail on drift.
 # - python-draft-schema-mirror: report experimental draft mirror drift as a warning.
