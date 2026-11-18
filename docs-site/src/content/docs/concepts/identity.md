@@ -5,9 +5,9 @@ title: Identity providers
 `context_identity` is an opaque string produced by the host's declared
 identity provider, a pure function from context to string. The
 contract imposes exactly two rules on it: the
-[echo rule](../approval/) at the approval seam, and the record rule
+[echo rule](approval.md) at the approval seam, and the record rule
 (the identities in effect, or explicit `null`, appear on every
-[record](../records/) together with the provider's name).
+[record](records.md) together with the provider's name).
 
 | Declaration | Meaning |
 | --- | --- |

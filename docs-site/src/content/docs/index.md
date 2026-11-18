@@ -21,7 +21,7 @@ The host is fully trusted: nothing in the contract detects a host
 that skips interception points or ignores verdicts. Registered
 interceptors are fully trusted by the host and receive raw
 payloads. Conformance is not a security certification. The
-normative statement is [§1.4 of the specification](./spec/#14-trust-model-and-non-goals).
+normative statement is [§1.4 of the specification](spec.md#14-trust-model-and-non-goals).
 :::
 
 ## The loop
@@ -44,8 +44,8 @@ flowchart TB
 
 Every box is an interception point: the host constructs an
 `AgentContext`, dispatches it to the registered interceptors under a
-declared [composition profile](./concepts/composition/), and honours
-the combined [verdict](./concepts/verdicts/) before the next arrow is
+declared [composition profile](concepts/composition.md), and honours
+the combined [verdict](concepts/verdicts.md) before the next arrow is
 allowed to happen. A deny at `pre_tool_call` means the tool is never
 invoked; a deny at `post_tool_call` means the result never enters agent
 state.
@@ -66,10 +66,10 @@ their quickstarts for the one build step this adds today.
 ## Where to start
 
 - Build a **host** (you maintain an agent framework): start with a
-  [quickstart](./quickstart/python/) and then the
-  [conformance guide](./conformance/).
+  [quickstart](quickstart/python.md) and then the
+  [conformance guide](conformance.md).
 - Build an **interceptor** (you maintain a control): read
-  [verdicts](./concepts/verdicts/) and the
-  [examples](./examples/policy-deny/).
-- Evaluate the design: read the [specification](./spec/) and the
-  [FAQ](./faq/).
+  [verdicts](concepts/verdicts.md) and the
+  [examples](examples/policy-deny.md).
+- Evaluate the design: read the [specification](spec.md) and the
+  [FAQ](faq.md).

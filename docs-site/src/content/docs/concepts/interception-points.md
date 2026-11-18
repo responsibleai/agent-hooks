@@ -50,5 +50,5 @@ non-finite floats or lone surrogates in any field, and SHOULD encode
 64-bit integer identifiers as decimal strings (the proto3 convention):
 JavaScript's `JSON.parse` rounds `9007199254740993` before any
 interceptor can see it, and the default
-[identity provider](../identity/) rejects integers beyond ±(2^53−1)
+[identity provider](identity.md) rejects integers beyond ±(2^53−1)
 rather than hashing a rounded value.

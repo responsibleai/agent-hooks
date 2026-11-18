@@ -1,16 +1,27 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 import { readFileSync } from "node:fs";
+import { unified } from "@astrojs/markdown-remark";
 import starlight from "@astrojs/starlight";
 import mermaid from "astro-mermaid";
+import rehypeAstroRelativeMarkdownLinks from "astro-rehype-relative-markdown-links";
 import { defineConfig } from "astro/config";
 
+const base = "/agent-hooks";
 const versions = JSON.parse(readFileSync(new URL("./.spec-versions.json", import.meta.url), "utf8"));
 
 export default defineConfig({
   site: "https://responsibleai.github.io",
-  base: "/agent-hooks",
+  base,
   trailingSlash: "always",
+  markdown: {
+    // Lets pages link to source files, e.g. `[Verdicts](concepts/verdicts.md)`.
+    processor: unified({
+      rehypePlugins: [
+        [rehypeAstroRelativeMarkdownLinks, { base, collectionBase: false, trailingSlash: "always" }],
+      ],
+    }),
+  },
   integrations: [
     // Must precede Starlight so Mermaid fences skip code highlighting.
     mermaid({ enableLog: false }),

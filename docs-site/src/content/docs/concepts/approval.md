@@ -32,7 +32,7 @@ Two rules make the seam safe:
 2. **Escalation-time binding.** The identity in the request is computed
    from the context as presented to the resolver, after any transforms
    that folded earlier in the dispatch. When the declared
-   [identity provider](../identity/) is content-derived, an approval
+   [identity provider](identity.md) is content-derived, an approval
    obtained for one payload cannot be replayed against another.
 
 If the host also registers an approval redactor, the request's context

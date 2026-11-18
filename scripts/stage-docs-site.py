@@ -226,7 +226,7 @@ def stage(root: Path) -> list[str]:
         if version == versions[0]:
             write_page(text, docs / "spec.md", "spec")
     draft = spec_text(spec / "draft").read_text(encoding="utf-8")
-    draft = BACK_LINK.sub(r"](../\1/)", draft)
+    draft = BACK_LINK.sub(r"](\1.md)", draft)
     draft = draft.replace(
         "](schema/path-grammar.abnf)", "](../../schema/draft/path-grammar.abnf)"
     )

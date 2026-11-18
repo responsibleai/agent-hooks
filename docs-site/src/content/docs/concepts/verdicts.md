@@ -33,7 +33,7 @@ SDKs ship `Verdict.warn(...)` sugar that produces exactly that shape.
 
 There is no `escalate` decision either. An escalation is a `deny`
 carrying an `approval` block: denied as-is, unless the
-[approval seam](../approval/) lifts it. This makes fail-closed a
+[approval seam](approval.md) lifts it. This makes fail-closed a
 property of the type. An unresolved escalation is not a state the host
 must remember to handle; it is simply a deny. A host with no approval
 resolver enforces it as a plain deny, and that is conformant behaviour,

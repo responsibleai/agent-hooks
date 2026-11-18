@@ -126,7 +126,7 @@ class StageTest(unittest.TestCase):
         self.assertEqual(
             self.read("spec/draft.md"),
             '---\ntitle: "draft"\nslug: spec/draft\n---\n\n'
-            "> The latest released version is [0.10](../0.10/).\n",
+            "> The latest released version is [0.10](0.10.md).\n",
         )
         self.assertFalse((self.docs / "spec-draft.md").exists())
 
