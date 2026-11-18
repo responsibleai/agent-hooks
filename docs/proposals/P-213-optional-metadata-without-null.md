@@ -10,11 +10,41 @@
 The draft schemas accept both omission and explicit `null` for verdict
 metadata, although `null` has no specified meaning for those members.
 For example, `warnings: null` is accepted by the schema even though
-§5 requires an array when `warnings` is present. This predates the
-TypeSpec conversion; the old TypeScript sources explicitly allowed it.
+§5 requires an array when `warnings` is present.
 
 Use omission for absent metadata and require the documented type when
 present. Retain `null` wherever the specification gives it a meaning.
+
+### Why this is not a TypeSpec conversion bug
+
+Before [the TypeSpec conversion in PR #201](https://github.com/responsibleai/agent-hooks/pull/201),
+the draft's schema source was TypeScript. Its
+[`VerdictBase` declarations](https://github.com/responsibleai/agent-hooks/blob/3015ea24329be9e01c560f741e66c3be0bf3aca7/spec/draft/schema/src/verdict.ts#L43-L65)
+already included both optionality and nullability:
+
+```typescript
+reason?: string | null;
+message?: string | null;
+warnings?: Warning[] | null;
+result_labels?: string[] | null;
+```
+
+These are two independent choices. The `?` allows a property to be
+omitted. The `| null` additionally permits the property to be present
+with the JSON value `null`. For example, `warnings?: Warning[] | null`
+accepts all three wire representations: no `warnings` member,
+`"warnings": []`, and `"warnings": null`.
+
+The [generated JSON Schema before the conversion](https://github.com/responsibleai/agent-hooks/blob/3015ea24329be9e01c560f741e66c3be0bf3aca7/spec/draft/schema/generated/input-hook-response.schema.json)
+already accepted those nulls: `reason` and `message` allowed both
+`"null"` and `"string"` types, while `warnings` allowed either an array
+or `null`. TypeSpec preserved the explicit `| null` unions; it did not
+infer nullability from optional properties or introduce an extra state.
+
+This establishes where the schema behavior came from, not why the
+original authors chose it or whether SDK runtimes consistently accepted
+it. This proposal changes that existing schema contract by removing
+`| null` while retaining `?`; it is not repairing a mistranslation.
 
 ## Specification
 
