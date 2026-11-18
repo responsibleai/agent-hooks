@@ -95,8 +95,10 @@
       "required": [
         "profile"
       ],
-      "description": "The composition profile and knobs in effect for this emission (§7.1).",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "The composition profile and knobs in effect for this emission (§7.1)."
     },
     "verdicts": {
       "type": "array",
@@ -138,6 +140,9 @@
     "composition",
     "interceptors_registered"
   ],
+  "unevaluatedProperties": {
+    "not": {}
+  },
   "allOf": [
     {
       "if": {
@@ -183,7 +188,6 @@
       }
     }
   ],
-  "additionalProperties": false,
   "$defs": {
     "InterceptionPoint": {
       "type": "string",
@@ -270,8 +274,10 @@
       "required": [
         "decision"
       ],
-      "description": "A payload-free projection of the combined verdict (§10.3): transform\ndetails are omitted, approval members stripped, messages truncated to\n256 UTF-8 bytes.\nwarnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1).",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "A payload-free projection of the combined verdict (§10.3): transform\ndetails are omitted, approval members stripped, messages truncated to\n256 UTF-8 bytes.\nwarnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1)."
     },
     "Trace": {
       "type": "object",
@@ -283,8 +289,10 @@
           "type": "string"
         }
       },
-      "description": "W3C Trace Context identifiers echoed from the context's optional trace block\n(§4.5, §10.3).",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "W3C Trace Context identifiers echoed from the context's optional trace block\n(§4.5, §10.3)."
     },
     "CompositionProfile": {
       "type": "string",
@@ -345,8 +353,10 @@
         "index",
         "decision"
       ],
-      "description": "Payload-free summary of one interceptor's verdict (§10.3).",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "Payload-free summary of one interceptor's verdict (§10.3)."
     },
     "ResolvedBy": {
       "type": "string",
@@ -389,8 +399,10 @@
           ]
         }
       },
-      "description": "Warning metadata retained in a payload-free record projection.",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "Warning metadata retained in a payload-free record projection."
     },
     "Evidence": {
       "type": "object",
@@ -410,14 +422,18 @@
           "$ref": "#/$defs/VerificationPointers"
         }
       },
-      "description": "Offline-verifiable evidence attached to a verdict (§14).",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "Offline-verifiable evidence attached to a verdict (§14)."
     },
     "ApprovalPresence": {
       "type": "object",
       "properties": {},
-      "description": "Presence only; members are stripped by the projection.",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "Presence only; members are stripped by the projection."
     },
     "SubstitutedFor": {
       "type": "string",
