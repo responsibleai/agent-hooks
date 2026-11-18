@@ -58,10 +58,12 @@
 ## Node.js tooling
 
 Use Node.js 22 or later and pnpm at the version pinned in the root
-`package.json` (`npm install --global pnpm@10.34.9` if needed). From
+`package.json` (`npm install --global pnpm@12.21.0` if needed). From
 the repository root, run `pnpm install` once for both `spec/scripts`
 and `sdk/typescript`. Commit dependency updates in the root
-`pnpm-lock.yaml`; CI installs with `pnpm install --frozen-lockfile`.
+`pnpm-lock.yaml`. CI uses `.github/actions/setup` to configure Node.js,
+the pinned pnpm version and caching, then install with
+`pnpm install --frozen-lockfile`.
 The manifests under `sdk/typescript/npm/` are release-only native-binary
 packages, not development workspaces. Publishing still uses npm.
 

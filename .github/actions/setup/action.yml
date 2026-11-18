@@ -1,0 +1,21 @@
+# Copyright (c) Microsoft. All rights reserved.
+
+name: Set up Node.js workspace
+description: Install the pinned pnpm version, configure Node.js and caching, and install workspace dependencies.
+inputs:
+  registry-url:
+    description: Optional npm registry URL for publishing.
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: "22"
+        cache: pnpm
+        registry-url: ${{ inputs.registry-url }}
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+      working-directory: ${{ github.workspace }}

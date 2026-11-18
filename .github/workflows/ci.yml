@@ -18,10 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22", cache: pnpm }
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - name: Validate schemas are well-formed
         run: |
           set -e
@@ -119,10 +116,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: stable }
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22", cache: pnpm }
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - name: Schema examples match their JSON Schemas (every bundle)
         run: node check-schema-examples.mjs
         working-directory: spec/scripts
@@ -365,10 +359,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22", cache: pnpm }
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with: { python-version: "3.12" }
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
@@ -471,9 +462,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22", cache: pnpm }
+      - uses: ./.github/actions/setup
       - name: actionlint (pinned, checksum-verified)
         run: |
           curl -sSfL -o actionlint.tgz \
@@ -487,7 +476,6 @@ jobs:
         run: python3 scripts/check-spec-versions.py
       - name: Repository script regression tests
         run: python3 -m unittest discover -s scripts -p "test_*.py" -v
-      - run: pnpm install --frozen-lockfile
       - name: Committed JSON Schemas match their TypeSpec source
         # Compiles spec/draft/schema/src, regenerates to memory and compares
         # with the committed files (spec/scripts/generate-schemas.mts).
@@ -570,16 +558,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: stable }
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22", cache: pnpm }
+      - uses: ./.github/actions/setup
       - name: Build native binding and test
         # Mirrors the Linux typescript job minus the drift gate: napi
         # writes the host-platform .node next to binding.js, tsc emits
         # dist/ (the tests import dist/index.js), then the full suite runs.
         shell: bash
         run: |
-          pnpm install --frozen-lockfile
           cargo fetch --locked
           pnpm run build:native:debug
           pnpm exec tsc
