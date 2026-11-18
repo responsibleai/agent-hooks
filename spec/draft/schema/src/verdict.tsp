@@ -97,6 +97,7 @@ model DenyVerdict {
 // Example: [args](../examples/Verdict/transform-tool-args.json)
 // Example: [value](../examples/Verdict/transform-tool-result.json)
 /** transform: proceed with the hook-specific replacement payload. */
+@friendlyName("TransformVerdict{name}", TTransform)
 @extension("additionalProperties", false)
 model TransformVerdict<TTransform> {
   ...VerdictBase;

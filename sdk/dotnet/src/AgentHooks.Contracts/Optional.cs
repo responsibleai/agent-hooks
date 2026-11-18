@@ -1,25 +1,16 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-using System.Text.Json.Serialization;
-using AgentHooks.Contracts.Serialization;
-
 namespace AgentHooks.Contracts;
 
-/// <summary>Distinguishes an omitted JSON property from a present value, including null.</summary>
-[JsonConverter(typeof(OptionalJsonConverterFactory))]
-public readonly struct Optional<T>
+/// <summary>
+/// A <c>?: T | null</c> member: distinguishes an omitted JSON property
+/// (<c>default</c>) from a present value, including an explicit null.
+/// </summary>
+public readonly struct Optional<T>(T value)
 {
-    private readonly T _value;
+    public bool IsDefined { get; } = true;
 
-    public Optional(T value)
-    {
-        _value = value;
-        IsDefined = true;
-    }
-
-    public bool IsDefined { get; }
-
-    public T Value => IsDefined ? _value : throw new InvalidOperationException("The property is absent.");
+    public T Value => IsDefined ? value : throw new InvalidOperationException("The property is absent.");
 
     public static implicit operator Optional<T>(T value) => new(value);
 }

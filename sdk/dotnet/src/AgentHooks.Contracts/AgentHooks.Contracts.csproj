@@ -1,7 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <IsAotCompatible>true</IsAotCompatible>
     <PackageId>ResponsibleAI.AgentHooks.Contracts</PackageId>
     <Description>Generated, Rust-independent C# contracts for the Agent Hooks draft specification.</Description>
     <RootNamespace>AgentHooks.Contracts</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- IsAotCompatible implicitly references the trim/AOT analyzer pack at the running
+         SDK's patch version. Pin it so locked restore does not depend on that SDK patch. -->
+    <KnownILLinkPack Update="Microsoft.NET.ILLink.Tasks" ILLinkPackVersion="10.0.2" />
+  </ItemGroup>
 </Project>

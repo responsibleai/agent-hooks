@@ -3,7 +3,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build:csharp": "tsc -p csharp/tsconfig.json && babel csharp --extensions .tsx --out-dir dist/csharp --config-file ./csharp/babel.config.json",
+    "build:csharp": "tsc -p csharp/tsconfig.json && babel csharp --extensions .ts,.tsx --out-dir dist/csharp --config-file ./csharp/babel.config.json",
     "generate:csharp": "pnpm run build:csharp && tsx generate-csharp.mts",
     "check:csharp": "pnpm run build:csharp && tsx generate-csharp.mts --check",
     "generate:schema": "tsx generate-schemas.mts",

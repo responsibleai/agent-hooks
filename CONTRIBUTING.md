@@ -118,12 +118,9 @@ pnpm run generate:csharp      # regenerate Rust-independent draft C# contracts
 pnpm run check:csharp         # check generated C# drift without writing files
 ```
 
-The draft TypeSpec source also generates `sdk/dotnet/src/AgentHooks.Contracts/Generated/`.
-Commit that output with source changes; the schema-drift workflow checks it.
-This separate assembly is the foundation for a native C# SDK and has no Rust
-dependency; the existing SDK runtime is unchanged. See the
-[.NET contract documentation](sdk/dotnet/README.md#generated-draft-contracts-no-rust-dependency)
-for type mappings and the focused contract tests, which need no native library.
+The draft TypeSpec source also generates the C# contracts in
+`sdk/dotnet/src/AgentHooks.Contracts/Generated/`; commit them with source
+changes. See [Generated draft contracts](sdk/dotnet/README.md#generated-draft-contracts-no-rust-dependency).
 
 After a change, regenerate. The Python mirror holds one folder per
 supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`

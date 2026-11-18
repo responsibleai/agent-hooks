@@ -94,24 +94,10 @@ draft copies only alongside corresponding SDK changes, as described in
 
 ## C# contract generation
 
-The same TypeSpec entrypoint also drives the experimental, Rust-independent
-`sdk/dotnet/src/AgentHooks.Contracts/` assembly. From the repository root, run
-`pnpm run generate:csharp` and commit the generated `Generated/Contracts.g.cs`
-alongside source changes; `pnpm run check:csharp` checks for drift without
-writing files. Do not edit the generated C# by hand. This targets the draft
-only, not the frozen 0.1 bundle or the existing Rust-backed .NET SDK.
-
-`spec/scripts/csharp/emitter.tsx` uses `@typespec/emitter-framework` for
-TypeSpec context, model/enum declarations, properties, documentation and type
-references. Its component overrides preserve optional-property presence,
-literal wire values, arbitrary JSON, and unbounded integers. Raw
-`@alloy-js/csharp` components supply discriminated-union interfaces/converters,
-dictionary models and extension-data members not covered by the framework.
-`json-components.tsx` shares converter declarations, converter attributes and
-dictionary initializers between enum and union emission.
-The [C# SDK README](../../../sdk/dotnet/README.md#generated-draft-contracts-no-rust-dependency)
-describes the generated API and the distinction between typed contracts and
-specification validation.
+The same TypeSpec entrypoint drives the experimental C# contracts in
+`sdk/dotnet/src/AgentHooks.Contracts/`; see
+[Generated draft contracts](../../../sdk/dotnet/README.md#generated-draft-contracts-no-rust-dependency).
+`@friendlyName` on a declaration sets its C# name without changing the schema.
 
 ## Filesystem paths are not public schema identities
 

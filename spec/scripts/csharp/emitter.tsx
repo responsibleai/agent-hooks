@@ -2,16 +2,21 @@
 
 import { code, For, type Children } from "@alloy-js/core";
 import * as cs from "@alloy-js/csharp";
+import { Numerics } from "@alloy-js/csharp/global/System";
+import { Generic } from "@alloy-js/csharp/global/System/Collections";
+import { Json } from "@alloy-js/csharp/global/System/Text";
+import { Serialization } from "@alloy-js/csharp/global/System/Text/Json";
 import {
   type EmitContext, type Enum, type Model, type ModelProperty, type Program, type Type,
-  type Union, isTemplateDeclaration,
+  type Union, getFriendlyName, isTemplateDeclaration,
 } from "@typespec/compiler";
+import type { Typekit } from "@typespec/compiler/typekit";
 import {
   Experimental_ComponentOverrides, Experimental_ComponentOverridesConfig, Output, useTsp, writeOutput,
 } from "@typespec/emitter-framework";
 import * as ef from "@typespec/emitter-framework/csharp";
 import { getExtensions } from "@typespec/json-schema";
-import { DictionaryInitializer, JsonConverterAttribute, JsonConverterDeclaration } from "./json-components.js";
+import { Contracts } from "./runtime.js";
 
 type Declaration = Model | Enum | Union;
 type UnionContractInfo = ReturnType<typeof unionInfo>;
@@ -38,6 +43,32 @@ function closed(program: Program, type: Model): boolean {
   );
 }
 
+/** Property-less models (`Record<T>`, `{}`) are plain dictionaries, not declarations. */
+function dictionary(type: Type): boolean {
+  return type.kind === "Model" && type.properties.size === 0;
+}
+
+function isInteger($: Typekit, type: Type): boolean {
+  return type.kind === "Scalar" && $.scalar.getStdBase(type)?.name === "integer";
+}
+
+function isUnknown(type: Type): boolean {
+  return type.kind === "Intrinsic" && type.name === "unknown";
+}
+
+function typeOf(type: Children): Children {
+  return code`typeof(${type})`;
+}
+
+function converter(type: Children): Children {
+  return <cs.Attribute name={Serialization.JsonConverterAttribute} args={[typeOf(type)]} />;
+}
+
+function ignoreWhen(condition: "WhenWritingDefault" | "WhenWritingNull"): Children {
+  return <cs.Attribute name={Serialization.JsonIgnoreAttribute}
+    args={[code`Condition = ${Serialization.JsonIgnoreCondition[condition]}`]} />;
+}
+
 /**
  * Collect concrete contracts, including instantiated verdicts and anonymous
  * metadata. Keep the TypeSpec objects as identities for Alloy's reference binder.
@@ -51,30 +82,20 @@ function contracts(program: Program) {
     const type = unwrap(source);
     const inner = nullableInner(type);
     if (inner) return visit(inner, hint);
+    if (type.kind === "Model" && type.indexer) visit(type.indexer.value, `${hint}Value`);
+    if (dictionary(type)) return;
     if (type.kind !== "Model" && type.kind !== "Union" && type.kind !== "Enum") return;
-    if (type.kind === "Model" && type.name === "Array" && type.indexer) {
-      return visit(type.indexer.value, `${hint}Item`);
-    }
     if (names.has(type)) return;
-    const templateArguments = type.kind === "Model" ? type.templateMapper?.args : undefined;
-    const sourceName = type.name === "request" ? "ApprovalRequest"
-      : type.name === "resolution" ? "ApprovalResolution" : type.name;
-    const name = policy.getName(
-      templateArguments
-        ? `${sourceName}${templateArguments.map((arg) => {
-          if (!("name" in arg) || !arg.name) throw new Error("Unsupported unnamed template argument.");
-          return arg.name;
-        }).join("")}`
-        : sourceName || hint,
-      "class",
-    );
+    if (type.kind === "Model" && type.templateMapper && !getFriendlyName(program, type)) {
+      throw new Error(`Template instance ${type.name} needs @friendlyName for a stable C# name.`);
+    }
+    const name = policy.getName(getFriendlyName(program, type) ?? (type.name || hint), "class");
     if ([...names.values()].includes(name)) throw new Error(`Duplicate C# contract name: ${name}`);
     names.set(type, name);
     if (type.kind === "Model") {
       for (const property of type.properties.values()) {
         visit(property.type, `${name}${policy.getName(property.name, "class")}`);
       }
-      if (type.indexer) visit(type.indexer.value, `${name}Value`);
     } else if (type.kind === "Union") {
       for (const [index, variant] of [...type.variants.values()].entries()) {
         visit(variant.type, `${name}Variant${index + 1}`);
@@ -87,6 +108,7 @@ function contracts(program: Program) {
   return names;
 }
 
+/** Infer the literal member that selects each variant (`@discriminated` cannot express boolean or templated unions). */
 function unionInfo(type: Union) {
   const models = [...type.variants.values()].map((variant) => unwrap(variant.type));
   if (!models.every((variant): variant is Model => variant.kind === "Model")) {
@@ -101,78 +123,91 @@ function unionInfo(type: Union) {
   return { type, models, discriminator };
 }
 
+/**
+ * Optional members are nullable and omitted when null; only `?: T | null`
+ * needs Optional<T> to keep an explicit null distinct from omission.
+ */
 function ContractProperty(props: { type: ModelProperty }): Children {
   const { $ } = useTsp();
   const property = props.type;
   const type = unwrap(property.type);
+  const inner = nullableInner(type);
   const value = literal(type);
-  const constant = value !== undefined && !property.optional;
+  const expression = <ef.TypeExpression type={type} />;
   const attributes = [
-    <cs.Attribute name="JsonPropertyName" args={[JSON.stringify(property.name)]} />,
+    <cs.Attribute name={Serialization.JsonPropertyNameAttribute} args={[JSON.stringify(property.name)]} />,
   ];
-  if (property.optional) {
-    attributes.push(<cs.Attribute name="JsonIgnore" args={["Condition = JsonIgnoreCondition.WhenWritingDefault"]} />);
+  const doc = ef.getDocComments($, property);
+
+  if (value !== undefined && !property.optional) {
+    // Required literals are fixed wire values: supplied on write, checked on read.
+    const initializer = type.kind === "EnumMember" ? <cs.Reference refkey={ef.efRefkey(type)} /> : JSON.stringify(value);
+    attributes.push(<cs.Attribute name={Serialization.JsonRequiredAttribute} />);
+    return <cs.Property public name={property.name} type={expression} attributes={attributes} doc={doc}
+      get={code`return ${initializer};`}
+      set={code`if (value != ${initializer}) throw new ${Json.JsonException}(${JSON.stringify(`Expected ${property.name} = ${String(value)}.`)});`} />;
+  }
+
+  let propertyType: Children = expression;
+  if (property.optional && inner) {
+    propertyType = code`${Contracts.Optional}<${expression}>`;
+    attributes.push(converter(isInteger($, inner)
+      ? code`${Contracts.OptionalJsonConverter}<${Numerics.BigInteger}, ${Contracts.BigIntegerJsonConverter}>`
+      : code`${Contracts.OptionalJsonConverter}<${expression}>`));
+    attributes.push(ignoreWhen("WhenWritingDefault"));
   } else {
-    attributes.push(<cs.Attribute name="JsonRequired" />);
-    const scalar = nullableInner(type) ?? type;
-    if (scalar.kind === "Scalar" && $.scalar.getStdBase(scalar)?.name === "integer") {
-      attributes.push(<JsonConverterAttribute name="BigIntegerJsonConverter" />);
+    if (isInteger($, inner ?? type)) attributes.push(converter(Contracts.BigIntegerJsonConverter));
+    if (property.optional && isUnknown(type)) {
+      // An unset JsonElement is Undefined, so a present JSON null still round-trips.
+      attributes.push(ignoreWhen("WhenWritingDefault"));
+    } else if (property.optional) {
+      propertyType = code`${expression}?`;
+      attributes.push(ignoreWhen("WhenWritingNull"));
     }
   }
-  const expression = <ef.TypeExpression type={type} />;
-  const initializer = type.kind === "EnumMember"
-    ? code`${<ef.TypeExpression type={type.enum} />}.${cs.createCSharpNamePolicy().getName(type.name, "enum-member")}`
-    : JSON.stringify(value);
-  return <cs.Property
-    public name={property.name}
-    type={property.optional ? code`Optional<${expression}>` : expression}
-    required={!property.optional && !constant}
-    get={constant ? code`return ${initializer};` : true}
-    set={constant ? code`if (value != ${initializer}) throw new JsonException(${JSON.stringify(`Expected ${property.name} = ${String(value)}.`)});` : true}
-    attributes={attributes}
-    doc={ef.getDocComments($, property)}
-  />;
+  return <cs.Property public name={property.name} type={propertyType} required={!property.optional}
+    get set attributes={attributes} doc={doc} />;
 }
 
+/** The framework's EnumDeclaration cannot attach per-member wire names. */
 function EnumContract(props: { type: Enum; name: string }): Children {
-  const reference = <ef.TypeExpression type={props.type} />;
-  const name = `${props.name}JsonConverter`;
+  const { $ } = useTsp();
   const policy = cs.useCSharpNamePolicy();
-  return <>
-    <ef.EnumDeclaration public type={props.type}
-      attributes={[<JsonConverterAttribute name={name} />]} />
-    <hbr /><hbr />
-    <JsonConverterDeclaration name={name}
-      baseType={code`StringEnumJsonConverter<${reference}>`}
-      baseArguments={[<DictionaryInitializer keyType={reference} valueType="string"
-        entries={[...props.type.members.values()].map((member) => ({
-          key: code`${reference}.${policy.getName(member.name, "enum-member")}`,
-          value: JSON.stringify(member.value ?? member.name),
-        }))} />]} />
-  </>;
+  const reference = <cs.Reference refkey={ef.efRefkey(props.type)} />;
+  return <cs.EnumDeclaration public name={props.name} refkey={ef.efRefkey(props.type)}
+    doc={ef.getDocComments($, props.type)}
+    attributes={[converter(code`${Contracts.StrictJsonStringEnumConverter}<${reference}>`)]}>
+    <For each={[...props.type.members.values()]} joiner={",\n"}>
+      {(member) => <>
+        <cs.DocWhen doc={ef.getDocComments($, member)} />
+        <cs.EnumMember name={policy.getName(member.name, "enum-member")} refkey={ef.efRefkey(member)}
+          attributes={[<cs.Attribute name={Serialization.JsonStringEnumMemberNameAttribute}
+            args={[JSON.stringify(member.value ?? member.name)]} />]} />
+      </>}
+    </For>
+  </cs.EnumDeclaration>;
 }
 
 function UnionContract(props: { type: Union; name: string; info: UnionContractInfo }): Children {
+  const { $ } = useTsp();
   const { models, discriminator } = props.info;
-  const name = `${props.name}JsonConverter`;
+  const converterName = `${props.name}JsonConverter`;
   const reference = <cs.Reference refkey={ef.efRefkey(props.type)} />;
   const defaultModel = models.find((model) => model.properties.get(discriminator)!.optional);
-  const defaultType = defaultModel ? code`typeof(${<ef.TypeExpression type={defaultModel} />})` : "null";
+  const variants = models.map((model) =>
+    code`(${JSON.stringify(String(literal(model.properties.get(discriminator)!.type)))}, ${typeOf(<ef.TypeExpression type={model} />)})`);
   return <>
-    <cs.InterfaceDeclaration public name={props.name} refkey={ef.efRefkey(props.type)}
-      attributes={[<JsonConverterAttribute name={name} />]} />
+    <cs.InterfaceDeclaration public name={`I${props.name}`} refkey={ef.efRefkey(props.type)}
+      doc={ef.getDocComments($, props.type)} attributes={[converter(converterName)]} />
     <hbr /><hbr />
-    <JsonConverterDeclaration name={name}
-      baseType={code`DiscriminatedUnionJsonConverter<${reference}>`}
-      baseArguments={[
+    <cs.ClassDeclaration internal sealed name={converterName}
+      baseType={code`${Contracts.DiscriminatedUnionJsonConverter}<${reference}>`}>
+      <cs.Constructor public baseConstructor={[
         JSON.stringify(discriminator),
-        <DictionaryInitializer keyType="string" valueType="Type"
-          entries={models.map((model) => ({
-            key: JSON.stringify(String(literal(model.properties.get(discriminator)!.type))),
-            value: code`typeof(${<ef.TypeExpression type={model} />})`,
-          }))} />,
-        defaultType,
+        defaultModel ? typeOf(<ef.TypeExpression type={defaultModel} />) : "null",
+        ...variants,
       ]} />
+    </cs.ClassDeclaration>
   </>;
 }
 
@@ -180,27 +215,34 @@ function ModelContract(props: { type: Model; name: string; unions: UnionContract
   const { program, $ } = useTsp();
   const interfaces = props.unions.filter((union) => union.models.includes(props.type))
     .map((union) => <cs.Reference refkey={ef.efRefkey(union.type)} />);
-  // The framework owns ordinary model declarations. Alloy supplies dictionaries
-  // and extension-data members, which the C# framework does not yet expose.
   if (closed(program, props.type)) {
     return <ef.ClassDeclaration public sealed type={props.type} name={props.name}
       jsonAttributes interfaceTypes={interfaces}
-      attributes={[<cs.Attribute name="JsonUnmappedMemberHandling" args={["JsonUnmappedMemberHandling.Disallow"]} />]} />;
+      attributes={[<cs.Attribute name={Serialization.JsonUnmappedMemberHandlingAttribute}
+        args={[Serialization.JsonUnmappedMemberHandling.Disallow]} />]} />;
   }
-  const dictionary = props.type.properties.size === 0;
+  // The framework's ClassDeclaration derives its whole body from the model, so
+  // open models add their extension-data member here.
   return <cs.ClassDeclaration public sealed name={props.name} refkey={ef.efRefkey(props.type)}
-    interfaceTypes={interfaces}
-    baseType={dictionary ? code`Dictionary<string, ${props.type.indexer ? <ef.TypeExpression type={props.type.indexer.value} /> : "JsonElement"}>` : undefined}
-    doc={ef.getDocComments($, props.type)}>
+    interfaceTypes={interfaces} doc={ef.getDocComments($, props.type)}>
     <For each={[...props.type.properties.values()]} doubleHardline>
       {(property) => <ef.Property type={property} jsonAttributes />}
     </For>
-    {!dictionary && <>
-      <hbr /><hbr />
-      <cs.Property public name="AdditionalProperties" type="Dictionary<string, JsonElement>"
-        get set initializer="new()" attributes={[<cs.Attribute name="JsonExtensionData" />]} />
-    </>}
+    <hbr /><hbr />
+    <cs.Property public name="AdditionalProperties" type={code`${Generic.Dictionary}<string, ${Json.JsonElement}>`}
+      get set initializer="[]" attributes={[<cs.Attribute name={Serialization.JsonExtensionDataAttribute} />]} />
   </cs.ClassDeclaration>;
+}
+
+/**
+ * Source-generated metadata, so the contracts also serialize under trimming and
+ * Native AOT. Every declaration is listed because union variants are reachable
+ * only through their converters.
+ */
+function SerializerContext(props: { names: Map<Declaration, string> }): Children {
+  return <cs.ClassDeclaration public partial name="ContractsJsonContext" baseType={Serialization.JsonSerializerContext}
+    attributes={[...props.names.keys()].map((type) => <cs.Attribute name={Serialization.JsonSerializableAttribute}
+      args={[typeOf(<cs.Reference refkey={ef.efRefkey(type)} />)]} />)} />;
 }
 
 function GeneratedContracts(): Children {
@@ -211,13 +253,15 @@ function GeneratedContracts(): Children {
   const overrides = new Experimental_ComponentOverridesConfig()
     .forTypeKind("ModelProperty", { declaration: ({ type }) => <ContractProperty type={type} /> })
     .forTypeKind("Intrinsic", {
-      reference: ({ type, default: fallback }) => type.name === "unknown" ? "JsonElement" : fallback,
+      reference: ({ type, default: fallback }) => isUnknown(type) ? Json.JsonElement : fallback,
     })
     .forTypeKind("Scalar", {
-      reference: ({ type, default: fallback }) => {
-        const { $ } = useTsp();
-        return $.scalar.getStdBase(type)?.name === "integer" ? "BigInteger" : fallback;
-      },
+      reference: ({ type, default: fallback }) => isInteger(useTsp().$, type) ? Numerics.BigInteger : fallback,
+    })
+    .forTypeKind("Model", {
+      reference: ({ type, default: fallback }) => dictionary(type) && type.name !== "Array"
+        ? code`${Generic.IDictionary}<string, ${type.indexer ? <ef.TypeExpression type={type.indexer.value} /> : Json.JsonElement}>`
+        : fallback,
     });
   for (const [type] of names) {
     overrides.forType(type, { reference: () => <cs.Reference refkey={ef.efRefkey(type)} /> });
@@ -225,14 +269,15 @@ function GeneratedContracts(): Children {
   return <Experimental_ComponentOverrides overrides={overrides}>
     <cs.Namespace name="AgentHooks.Contracts.Draft">
       <cs.SourceFile path="Contracts.g.cs"
-        header={"// Copyright (c) Microsoft. All rights reserved.\n\n// <auto-generated />\n// Generated from spec/draft/schema/src/. Do not edit by hand."}
-        using={["System", "System.Collections.Generic", "System.Numerics", "System.Text.Json", "System.Text.Json.Serialization", "AgentHooks.Contracts.Serialization"]}>
+        header={"// Copyright (c) Microsoft. All rights reserved.\n\n// <auto-generated />\n// Generated from spec/draft/schema/src/. Do not edit by hand."}>
         {"#nullable enable"}<hbr /><hbr />
         <For each={[...names.entries()]} doubleHardline>
           {([type, name]) => type.kind === "Enum" ? <EnumContract type={type} name={name} />
             : type.kind === "Union" ? <UnionContract type={type} name={name} info={unionByType.get(type)!} />
             : <ModelContract type={type} name={name} unions={unions} />}
         </For>
+        <hbr /><hbr />
+        <SerializerContext names={names} />
       </cs.SourceFile>
     </cs.Namespace>
   </Experimental_ComponentOverrides>;

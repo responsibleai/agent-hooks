@@ -17,6 +17,7 @@ model LiftableDeny {
 
 // Example: [request](../examples/ApprovalRequest/collection-access.json)
 /** What the host hands the resolver (§9). */
+@friendlyName("ApprovalRequest")
 @extension("additionalProperties", false)
 model request {
   context_identity: string | null;
@@ -69,6 +70,7 @@ model UnresolvedResolution {
 }
 
 /** What the resolver returns (§9). */
+@friendlyName("ApprovalResolution")
 union resolution {
   ApproveResolution,
   RejectResolution,

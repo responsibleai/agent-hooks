@@ -9,5 +9,5 @@
     "jsxImportSource": "@alloy-js/core",
     "types": ["node"]
   },
-  "include": ["*.tsx"]
+  "include": ["*.ts", "*.tsx"]
 }

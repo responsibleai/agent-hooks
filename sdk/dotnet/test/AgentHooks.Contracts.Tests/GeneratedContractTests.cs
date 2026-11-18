@@ -8,7 +8,7 @@ using AgentHooks.Contracts;
 using Draft = AgentHooks.Contracts.Draft;
 using Xunit;
 
-namespace AgentHooks.Tests;
+namespace AgentHooks.Contracts.Tests;
 
 [Trait("Category", "draft")]
 public sealed class GeneratedContractTests
@@ -21,16 +21,20 @@ public sealed class GeneratedContractTests
         foreach (var path in Directory.EnumerateFiles(ExamplesDirectory(), "*.json", SearchOption.AllDirectories).Order())
         {
             var group = Path.GetFileName(Path.GetDirectoryName(path))!;
-            var type = group == "Verdict" ? VerdictType(path) :
-                typeof(Draft.AgentContext).Assembly.GetType($"AgentHooks.Contracts.Draft.{group}", throwOnError: true)!;
+            var type = group == "Verdict" ? VerdictType(path) : ContractType(group);
             yield return [Path.GetRelativePath(ExamplesDirectory(), path), type];
         }
     }
 
+    // Unions are interfaces: AgentContext is IAgentContext.
+    private static Type ContractType(string name) =>
+        typeof(Draft.IAgentContext).Assembly.GetType($"AgentHooks.Contracts.Draft.{name}")
+        ?? typeof(Draft.IAgentContext).Assembly.GetType($"AgentHooks.Contracts.Draft.I{name}", throwOnError: true)!;
+
     private static Type VerdictType(string path)
     {
         var json = JsonNode.Parse(File.ReadAllText(path))!;
-        if (json["decision"]!.GetValue<string>() != "transform") return typeof(Draft.NonTransformVerdict);
+        if (json["decision"]!.GetValue<string>() != "transform") return typeof(Draft.INonTransformVerdict);
         return json["transform"]!.AsObject().Single().Key switch
         {
             "input" => typeof(Draft.TransformVerdictInputHookTransform),
@@ -48,10 +52,14 @@ public sealed class GeneratedContractTests
     public void SpecExamplesRoundTripWithoutChangingWireShape(string example, Type contract)
     {
         var json = File.ReadAllText(Path.Combine(ExamplesDirectory(), example));
-        var value = JsonSerializer.Deserialize(json, contract);
-        Assert.NotNull(value);
-        var actual = JsonSerializer.Serialize(value, contract);
-        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(json), JsonNode.Parse(actual)), actual);
+        // Reflection and the source-generated (trimming/AOT) metadata must agree.
+        foreach (var options in new[] { JsonSerializerOptions.Default, Draft.ContractsJsonContext.Default.Options })
+        {
+            var value = JsonSerializer.Deserialize(json, contract, options);
+            Assert.NotNull(value);
+            var actual = JsonSerializer.Serialize(value, contract, options);
+            Assert.True(JsonNode.DeepEquals(JsonNode.Parse(json), JsonNode.Parse(actual)), actual);
+        }
     }
 
     [Fact]
@@ -69,7 +77,13 @@ public sealed class GeneratedContractTests
         Assert.Equal("""{"prompt_tokens":0}""",
             JsonSerializer.Serialize(JsonSerializer.Deserialize<Draft.Usage>("""{"prompt_tokens":0}""")));
         Assert.Equal("""{"buffered_output":false,"exposure_bound":"one token"}""",
-            JsonSerializer.Serialize<Draft.Surface>(new Draft.UnbufferedSurface { ExposureBound = "one token" }));
+            JsonSerializer.Serialize<Draft.ISurface>(new Draft.UnbufferedSurface { ExposureBound = "one token" }));
+
+        // An explicit null is a value of an optional `unknown` member, distinct from omission.
+        var declaration = JsonNode.Parse(File.ReadAllText(Path.Combine(ExamplesDirectory(), "HostDeclaration/document-policy.json")))!;
+        declaration["bindings"]![0]!["config"] = null;
+        var roundTripped = JsonSerializer.Serialize(JsonSerializer.Deserialize<Draft.HostDeclaration>(declaration.ToJsonString()));
+        Assert.True(JsonNode.DeepEquals(declaration, JsonNode.Parse(roundTripped)), roundTripped);
     }
 
     [Fact]
@@ -98,21 +112,23 @@ public sealed class GeneratedContractTests
         json["agent"]!["extra"] = new JsonObject { ["nested"] = JsonNode.Parse(integer) };
         json["tool_call"]!["args"] = new JsonObject { ["n"] = JsonNode.Parse(integer), ["empty"] = null };
         var context = Assert.IsType<Draft.PreToolCallRequest>(
-            JsonSerializer.Deserialize<Draft.AgentContext>(json.ToJsonString()));
+            JsonSerializer.Deserialize<Draft.IAgentContext>(json.ToJsonString()));
         Assert.Equal(BigInteger.Parse(integer), context.Sequence);
         Assert.Equal(integer, context.Agent.AdditionalProperties["extra"].GetProperty("nested").GetRawText());
         Assert.Equal(integer, context.ToolCall.Args["n"].GetRawText());
-        Assert.True(JsonNode.DeepEquals(json, JsonNode.Parse(JsonSerializer.Serialize<Draft.AgentContext>(context))));
+        Assert.True(JsonNode.DeepEquals(json, JsonNode.Parse(JsonSerializer.Serialize<Draft.IAgentContext>(context))));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Draft.Usage>("""{"prompt_tokens":0.5}"""));
     }
 
     [Fact]
     public void UnionSelectionHonorsOptionalSurfaceDiscriminatorAndLiteralWireValues()
     {
-        Assert.IsType<Draft.BufferedSurface>(JsonSerializer.Deserialize<Draft.Surface>("{}"));
-        Assert.IsType<Draft.UnbufferedSurface>(JsonSerializer.Deserialize<Draft.Surface>(
+        Assert.IsType<Draft.BufferedSurface>(JsonSerializer.Deserialize<Draft.ISurface>("{}"));
+        Assert.IsType<Draft.DenyVerdict>(JsonSerializer.Deserialize<Draft.INonTransformVerdict>(
+            """{"reason":"policy","decision":"deny"}"""));
+        Assert.IsType<Draft.UnbufferedSurface>(JsonSerializer.Deserialize<Draft.ISurface>(
             """{"buffered_output":false,"exposure_bound":"one token"}"""));
-        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Draft.Surface>("""{"buffered_output":"false"}"""));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Draft.ISurface>("""{"buffered_output":"false"}"""));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Draft.HostDeclaration>(
             """{"spec":"agent-hooks/0.1","bindings":[]}"""));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Draft.HostDeclaration>("""{"bindings":[]}"""));

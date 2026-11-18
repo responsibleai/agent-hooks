@@ -25,7 +25,7 @@ dotnet build sdk/dotnet
 
 ## Generated draft contracts (no Rust dependency)
 
-`src/AgentHooks.Contracts/` is a separate, experimental .NET 8 assembly generated
+`src/AgentHooks.Contracts/` is a separate, experimental .NET 10 assembly generated
 from `spec/draft/schema/src/main.tsp`. It provides typed requests, hook-specific
 responses and transforms, approval requests/resolutions, interception records,
 host declarations, and their supporting models and enums in
@@ -38,19 +38,17 @@ From the repository root:
 
 ```bash
 pnpm install
-pnpm run generate:csharp
-pnpm run check:csharp
-dotnet build sdk/dotnet/src/AgentHooks.Contracts
-dotnet test sdk/dotnet/test/AgentHooks.Tests --filter FullyQualifiedName~GeneratedContractTests
+pnpm run generate:csharp   # regenerate Generated/Contracts.g.cs; commit it with spec changes
+pnpm run check:csharp      # fail on drift without writing (run by the schema-drift workflow)
+dotnet test sdk/dotnet/test/AgentHooks.Contracts.Tests
 ```
 
-The build and contract tests do not require Rust or a native library. Reference
-`AgentHooks.Contracts.csproj` to experiment with the generated types; it is not
-yet part of the NuGet release pipeline.
+The build and contract tests need the .NET 10 SDK but not Rust or a native
+library. Reference `AgentHooks.Contracts.csproj` to experiment with the
+generated types; it is not yet part of the NuGet release pipeline.
 
 ```csharp
 using System.Text.Json;
-using AgentHooks.Contracts;
 using AgentHooks.Contracts.Draft;
 
 InputHookResponse response = new()
@@ -70,31 +68,52 @@ InputHookResponse response = new()
 string json = JsonSerializer.Serialize(response);
 // {"verdict":{"decision":"transform","transform":{"input":{"content":"redacted","role":"user"}}}}
 
-var timeouts = new TimeoutsConfig();
-// InterceptorMs is absent: the specification's default applies.
-timeouts.InterceptorMs = new Optional<System.Numerics.BigInteger?>(null);
-// Now it is explicitly null: unbounded, not the default.
+// Trimmed and Native AOT apps use the generated source-generation context.
+var context = JsonSerializer.Deserialize(json, ContractsJsonContext.Default.InputHookResponse);
 ```
 
-Unions are interfaces with concrete model variants and built-in
-`System.Text.Json` converters. For example, deserialize an `AgentContext` and
-pattern-match `PreToolCallRequest`; a startup/shutdown response's
-`NonTransformVerdict` cannot carry a transform verdict. Required constant wire members
-are supplied automatically on construction and checked on deserialization.
-String enums preserve their exact wire names and reject unknown or numeric
-values. Integers use `BigInteger`, arbitrary JSON uses `JsonElement`, and open
-objects retain unknown properties. Constrained scalars map to their underlying
-C# types; nullable scalar unions such as `TimeoutMs` become nullable values.
-Generic TypeSpec templates are emitted as their concrete contract instantiations.
-Every optional property uses `Optional<T>` (`IsDefined`/`Value` and implicit
-conversion from `T`), preserving omission separately from explicit null, false,
-or zero. Timestamps remain strings to preserve their wire representation.
+How the specification maps to C#:
+
+- **Unions** are interfaces (`IAgentContext`, `INonTransformVerdict`, ...)
+  implemented by their model variants; pattern-match the concrete type. A
+  converter selects the variant from its literal member wherever it appears in
+  the object, including the boolean, defaulted `buffered_output` of `ISurface`.
+- **Required literal members** such as `decision` are fixed: supplied on
+  serialization and checked on deserialization.
+- **Enums** use `JsonStringEnumMemberName` with their exact wire names and reject
+  numbers, other casing, and C# member names.
+- **Optional members** (`?: T`) are nullable and omitted when null. Only
+  `?: T | null` members, where an explicit null means something different from
+  omission, use `Optional<T>` (`IsDefined`, `Value`, implicit conversion from `T`):
+
+  ```csharp
+  var timeouts = new TimeoutsConfig();
+  // InterceptorMs is absent: the specification's default applies.
+  timeouts.InterceptorMs = new Optional<System.Numerics.BigInteger?>(null);
+  // Now it is explicitly null: unbounded, not the default.
+  ```
+
+- **Integers** use `BigInteger`, so large values are lossless. **Arbitrary JSON**
+  (`unknown`) uses `JsonElement`; an optional one keeps an explicit `null`.
+  Open-object and record types are `IDictionary<string, T>`, and open models
+  keep unknown members in `AdditionalProperties`. Timestamps remain strings to
+  preserve their wire representation.
 
 These are typed wire contracts, **not a specification validator**. Numeric
-bounds, patterns, explicit null on non-nullable reference properties, extension
-namespace rules, and cross-field constraints still need validation. Generated
-code enforces required members, required constant values, closed-object properties,
-enum vocabulary, and discriminated-union selection during deserialization.
+bounds, patterns, explicit null on non-nullable members, extension namespace
+rules, and cross-field constraints still need validation. Deserialization
+enforces required members, required literal values, closed-object properties,
+enum vocabulary, and union variant selection.
+
+### Generator
+
+`spec/scripts/csharp/emitter.tsx` is a TypeSpec emitter built on
+`@typespec/emitter-framework`, which supplies declarations, properties,
+documentation, and type references. It adds what the framework's C# layer does
+not cover yet: enum wire names, discriminated unions, open models with extension
+data, and `unknown` as `JsonElement`. C# names come from the TypeSpec names, or
+from `@friendlyName` where the schema name differs (`request` is
+`ApprovalRequest`) or a template is instantiated (`TransformVerdict<T>`).
 
 ## Usage (existing Rust-backed SDK)
 

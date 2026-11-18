@@ -251,7 +251,11 @@ jobs:
         run: cargo build --locked -p agent-hooks-ffi --release
         working-directory: sdk/rust
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
-        with: { dotnet-version: "8.0.x" }
+        with:
+          # 8.0 for the SDK and its tests; 10.0 for the generated draft contracts.
+          dotnet-version: |
+            8.0.x
+            10.0.x
       - run: dotnet restore --locked-mode
         working-directory: sdk/dotnet
       - run: dotnet format --no-restore --verify-no-changes
@@ -332,7 +336,11 @@ jobs:
         run: ./scripts/test-windows-cfg.ps1 -Dll ${{ env.FFI_NATIVE_DIR }}/agent_hooks_ffi.dll
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         if: runner.os != 'Windows'
-        with: { dotnet-version: "8.0.x" }
+        with:
+          # 8.0 for the SDK and its tests; 10.0 for the generated draft contracts.
+          dotnet-version: |
+            8.0.x
+            10.0.x
       - run: dotnet restore --locked-mode
         working-directory: sdk/dotnet
       - name: Expose native library to the per-OS loader
@@ -366,7 +374,11 @@ jobs:
         with: { toolchain: stable }
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
-        with: { dotnet-version: "8.0.x" }
+        with:
+          # 8.0 for the SDK and its tests; 10.0 for the generated draft contracts.
+          dotnet-version: |
+            8.0.x
+            10.0.x
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: "1.22" }
       - name: Draft suite vectors validate against the draft schemas
@@ -412,6 +424,7 @@ jobs:
         run: |
           dotnet restore --locked-mode
           dotnet test test/AgentHooks.Tests/ --nologo --filter "Category=draft"
+          dotnet test test/AgentHooks.Contracts.Tests/ --nologo
         working-directory: sdk/dotnet
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
