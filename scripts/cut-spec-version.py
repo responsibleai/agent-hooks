@@ -39,7 +39,7 @@ HEADER = re.compile(
 )
 DRAFT_WIRE = "agent-hooks/draft"
 ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"
-TEXT_SUFFIXES = {".md", ".json", ".ts", ".abnf", ".txt"}
+TEXT_SUFFIXES = {".md", ".json", ".ts", ".tsp", ".abnf", ".txt"}
 
 
 def released_text(draft_text: str, version: str, date: str) -> str:

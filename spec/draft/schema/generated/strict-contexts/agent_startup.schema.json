@@ -5,40 +5,29 @@
   "description": "Required+conditional schema for interception_point=agent_startup (AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
   "type": "object",
   "properties": {
-    "interception_point": {
-      "type": "string",
-      "const": "agent_startup"
-    },
-    "agent_init": {
-      "$ref": "#/$defs/AgentInit"
-    },
-    "extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "$ref": "#/$defs/Extensions"
-    },
     "spec": {
-      "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
       "type": "string",
-      "const": "agent-hooks/draft"
+      "const": "agent-hooks/draft",
+      "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
     },
     "timestamp": {
-      "format": "date-time",
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "sequence": {
-      "minimum": 0,
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "agent": {
       "type": "object",
       "properties": {
         "id": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "framework": {
-          "pattern": "^[a-z0-9_-]+$",
-          "type": "string"
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
         },
         "name": {
           "type": "string"
@@ -48,24 +37,24 @@
         }
       },
       "required": [
-        "framework",
-        "id"
+        "id",
+        "framework"
       ]
     },
     "session": {
       "type": "object",
       "properties": {
         "id": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "started_at": {
-          "format": "date-time",
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "turn": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [
@@ -101,13 +90,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "Who acts (§4.5).",
-          "enum": [
-            "agent",
-            "human",
-            "service"
-          ],
-          "type": "string"
+          "$ref": "#/$defs/ActorKind"
         }
       }
     },
@@ -127,20 +110,38 @@
           "type": "number"
         }
       }
+    },
+    "interception_point": {
+      "type": "string",
+      "const": "agent_startup"
+    },
+    "extensions": {
+      "$ref": "#/$defs/Extensions"
+    },
+    "agent_init": {
+      "$ref": "#/$defs/AgentInit"
     }
   },
   "required": [
-    "agent",
-    "agent_init",
-    "interception_point",
-    "sequence",
-    "session",
     "spec",
-    "timestamp"
+    "timestamp",
+    "sequence",
+    "agent",
+    "session",
+    "interception_point",
+    "agent_init"
   ],
   "$defs": {
+    "ActorKind": {
+      "type": "string",
+      "enum": [
+        "human",
+        "service",
+        "agent"
+      ],
+      "description": "Who acts (§4.5)."
+    },
     "AgentInit": {
-      "description": "Conditional payload of agent_startup (§4.2).",
       "type": "object",
       "properties": {
         "tools_registered": {
@@ -153,15 +154,17 @@
       "required": [
         "tools_registered"
       ],
+      "description": "Conditional payload of agent_startup (§4.2).",
       "additionalProperties": false
     },
     "Extensions": {
+      "type": "object",
+      "properties": {},
+      "unevaluatedProperties": {},
       "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9_]*$"
-      },
-      "type": "object",
-      "additionalProperties": {}
+      }
     }
   }
 }

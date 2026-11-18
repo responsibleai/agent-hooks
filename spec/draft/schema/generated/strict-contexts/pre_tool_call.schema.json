@@ -5,40 +5,29 @@
   "description": "Required+conditional schema for interception_point=pre_tool_call (AGENT-HOOKS-0.1 §4.2). Used by the CTK for strict validation.",
   "type": "object",
   "properties": {
-    "interception_point": {
-      "type": "string",
-      "const": "pre_tool_call"
-    },
-    "tool_call": {
-      "$ref": "#/$defs/ToolCall"
-    },
-    "extensions": {
-      "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
-      "$ref": "#/$defs/Extensions"
-    },
     "spec": {
-      "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>.",
       "type": "string",
-      "const": "agent-hooks/draft"
+      "const": "agent-hooks/draft",
+      "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
     },
     "timestamp": {
-      "format": "date-time",
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     },
     "sequence": {
-      "minimum": 0,
-      "type": "integer"
+      "type": "integer",
+      "minimum": 0
     },
     "agent": {
       "type": "object",
       "properties": {
         "id": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "framework": {
-          "pattern": "^[a-z0-9_-]+$",
-          "type": "string"
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
         },
         "name": {
           "type": "string"
@@ -48,24 +37,24 @@
         }
       },
       "required": [
-        "framework",
-        "id"
+        "id",
+        "framework"
       ]
     },
     "session": {
       "type": "object",
       "properties": {
         "id": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "started_at": {
-          "format": "date-time",
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "turn": {
-          "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [
@@ -101,13 +90,7 @@
           "type": "string"
         },
         "kind": {
-          "description": "Who acts (§4.5).",
-          "enum": [
-            "agent",
-            "human",
-            "service"
-          ],
-          "type": "string"
+          "$ref": "#/$defs/ActorKind"
         }
       }
     },
@@ -127,53 +110,76 @@
           "type": "number"
         }
       }
+    },
+    "interception_point": {
+      "type": "string",
+      "const": "pre_tool_call"
+    },
+    "extensions": {
+      "$ref": "#/$defs/Extensions"
+    },
+    "tool_call": {
+      "$ref": "#/$defs/ToolCall"
     }
   },
   "required": [
-    "agent",
-    "interception_point",
-    "sequence",
-    "session",
     "spec",
     "timestamp",
+    "sequence",
+    "agent",
+    "session",
+    "interception_point",
     "tool_call"
   ],
   "$defs": {
+    "ActorKind": {
+      "type": "string",
+      "enum": [
+        "human",
+        "service",
+        "agent"
+      ],
+      "description": "Who acts (§4.5)."
+    },
     "Extensions": {
+      "type": "object",
+      "properties": {},
+      "unevaluatedProperties": {},
       "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9_]*$"
-      },
+      }
+    },
+    "JsonObject": {
       "type": "object",
-      "additionalProperties": {}
+      "properties": {},
+      "description": "An open JSON object, not an arbitrary JSON value."
     },
     "ToolCall": {
-      "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
       "type": "object",
       "properties": {
         "id": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "name": {
-          "minLength": 1,
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "args": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": true
+          "$ref": "#/$defs/JsonObject"
         },
         "content_hash": {
-          "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
         }
       },
       "required": [
-        "args",
         "id",
-        "name"
+        "name",
+        "args"
       ],
+      "description": "Conditional payload of pre_tool_call and post_tool_call (§4.2).",
       "additionalProperties": false
     }
   }

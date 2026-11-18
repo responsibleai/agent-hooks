@@ -28,13 +28,14 @@ Each folder is a complete specification bundle with the same layout:
   contract versions; the draft versions its declaration by `spec`
 - `declaration-errors.json`, `reserved-reasons.json` and, from the
   draft on, `reserved-warnings.json`: machine-readable inventories
-- `schema/`: the normative JSON Schemas, generated from TypeScript
-  source: `src/`, `generated/` with the per-point context schemas in
+- `schema/`: the normative JSON Schemas, generated from TypeSpec in the
+  draft and the original TypeScript in the frozen 0.1 bundle. Both keep
+  source under `src/`, output under `generated/` with per-point context schemas in
   `strict-contexts/`, standalone examples under
   `examples/<Type>/<example>.json`, and the path grammar. See
   [`draft/schema/README.md`](draft/schema/README.md) for how to edit,
-  generate and check them. 0.1's source is the draft's with everything
-  after 0.1 removed; its schemas are instance-equivalent to the ones
+  generate and check them. 0.1 retains its original TypeScript source;
+  its schemas are instance-equivalent to the ones
   the tag shipped ([RELEASING.md](../RELEASING.md)).
 
 From `spec/scripts` after `npm ci`, run

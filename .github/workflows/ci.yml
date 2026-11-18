@@ -490,12 +490,12 @@ jobs:
         run: python3 -m unittest discover -s scripts -p "test_*.py" -v
       - run: npm ci
         working-directory: spec/scripts
-      - name: Committed JSON Schemas match their TypeScript source
-        # Type-checks spec/draft/schema/src, regenerates to memory and compares
+      - name: Committed JSON Schemas match their TypeSpec source
+        # Compiles spec/draft/schema/src, regenerates to memory and compares
         # with the committed files (spec/scripts/generate-schemas.mts).
         run: npm run check:schema
         working-directory: spec/scripts
-      - name: Released schema bundles match their TypeScript source
+      - name: Released schema bundles match their source
         # The same check for every spec/<MAJOR.MINOR>/ bundle: the frozen
         # source must still generate the frozen output.
         run: |
@@ -506,7 +506,9 @@ jobs:
             version=$(basename "$dir")
             [[ $version =~ $version_pattern ]] || continue
             echo "Checking spec/$version/schema"
-            npx tsc -p "${dir}schema/src/tsconfig.json"
+            if [ -f "${dir}schema/src/tsconfig.json" ]; then
+              npx tsc -p "${dir}schema/src/tsconfig.json"
+            fi
             npx tsx generate-schemas.mts --check --spec "$version"
             checked=$((checked + 1))
           done
