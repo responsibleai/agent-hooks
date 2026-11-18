@@ -568,6 +568,12 @@ Every `Verdict` MUST contain the following required members and MAY contain the 
 | `evidence` | no | See §5.3. Serialized size MUST NOT exceed 10240 bytes. |
 | `result_labels` | no | Array of strings. See §5.4. |
 
+Optional verdict metadata MUST be omitted when absent, not serialized as
+`null`. When present, `reason`, `message`, warning `reason` and `message`,
+and evidence `artefact` MUST be strings; `warnings` and `result_labels`
+MUST be arrays of their declared element types. Explicit `null` in any
+of these members is invalid and follows the §5 validation-failure path.
+
 ##### 5.1.2.2 Allow Verdict Data
 An Allow Verdict is when `decision == "allow"`. There are no additional members on an Allow Verdict.
 
@@ -1847,7 +1853,7 @@ of the record.
   "verdicts": [ { "index": 0, "decision": "allow", "reason": "string", "name": "string",
                   "substituted_for": "host_error:interceptor_timeout" }, ... ], // substituted_for present iff a §6.3.1 continuation filled this slot
   "fold_truncated": false,
-  "resolved_by": "approval" | "rejection" | null,
+  "resolved_by": "approval" | "rejection",            // absent iff approval was never consulted
   "interceptors_registered": 0
 }
 ```
@@ -1866,6 +1872,12 @@ of the record.
 | `fold_truncated` | `true` iff one or more registered interceptors were never invoked in this emission — a first-deny short-circuit, an approval-stop, or a failed fold-transform (§7.4). Defined for the sequential profiles. |
 | `resolved_by` | Consultation outcome (§7.6): `"approval"` iff a permit resolution substituted for a verdict; `"rejection"` iff the seam was consulted and did **not** lift the deny (reject, unresolved, resolver failure, or echo violation); absent iff the seam was never consulted. A record reader can therefore always answer "was a human consulted, and did they permit?". |
 | `interceptors_registered` | Number of interceptors registered at emission time; with per-point bindings (§7.7.5), the number bound at the emitted point. Together with `verdicts`/`fold_truncated` this makes skipped interceptors detectable from the record alone. |
+
+The verdict projection, its warnings and evidence, and each `verdicts`
+entry follow §5.1.2.1's metadata types and omission rule: absent metadata
+MUST be omitted, not written as `null`. `resolved_by` likewise MUST be
+omitted when the seam was never consulted and MUST NOT be `null`.
+This does not change the defined `null` states of identities or `decided_by`.
 
 **Host projection failure.** The reserved reasons of §11 assume an
 emission: a context reached the emitter and something about it or its
