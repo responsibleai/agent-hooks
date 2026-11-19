@@ -1,115 +1,58 @@
-# P-213: Omit absent metadata instead of sending null
+# P-213: Use null only when it has a defined meaning
 
 - **Status:** Draft
 - **Created:** 2026-11-18
 - **Author(s):** Timothee Guerin (@timotheeguerin)
 - **PR:** https://github.com/responsibleai/agent-hooks/pull/213
 
-## Abstract and motivation
+## Context
 
-The draft schemas accept both omission and explicit `null` for verdict
-metadata, although `null` has no specified meaning for those members.
-For example, `warnings: null` is accepted by the schema even though
-§5 requires an array when `warnings` is present.
+Optionality and nullability are independent: an optional property may be
+omitted, while a nullable property may carry the explicit JSON value
+`null`. Allowing both without defining what `null` means introduces a
+second representation of absence that producers and consumers must handle.
 
-Use omission for absent metadata and require the documented type when
-present. Retain `null` wherever the specification gives it a meaning.
+Some draft metadata fields allowed both forms without assigning `null`
+a meaning. This was already explicit in the TypeScript schema sources
+before the TypeSpec conversion; the conversion preserved it.
 
-### Why this is not a TypeSpec conversion bug
+## Decision
 
-Before [the TypeSpec conversion in PR #201](https://github.com/responsibleai/agent-hooks/pull/201),
-the draft's schema source was TypeScript. Its
-[`VerdictBase` declarations](https://github.com/responsibleai/agent-hooks/blob/3015ea24329be9e01c560f741e66c3be0bf3aca7/spec/draft/schema/src/verdict.ts#L43-L65)
-already included both optionality and nullability:
+Use optional properties (`?`) when a value may be absent. Add explicit
+nullability (`| null`) only when `null` is a value with a specific,
+documented meaning.
 
-```typescript
-reason?: string | null;
-message?: string | null;
-warnings?: Warning[] | null;
-result_labels?: string[] | null;
+```typespec
+model Example {
+  // Omit when there is no message.
+  message?: string;
+
+  // Omission inherits the configured timeout; null explicitly means unbounded.
+  timeout_ms?: integer | null;
+}
 ```
 
-These are two independent choices. The `?` allows a property to be
-omitted. The `| null` additionally permits the property to be present
-with the JSON value `null`. For example, `warnings?: Warning[] | null`
-accepts all three wire representations: no `warnings` member,
-`"warnings": []`, and `"warnings": null`.
+Decide requiredness separately. A required property can still be nullable
+when its defined states include `null`. Values that accept arbitrary JSON
+also continue to accept `null` as a JSON value.
 
-The [generated JSON Schema before the conversion](https://github.com/responsibleai/agent-hooks/blob/3015ea24329be9e01c560f741e66c3be0bf3aca7/spec/draft/schema/generated/input-hook-response.schema.json)
-already accepted those nulls: `reason` and `message` allowed both
-`"null"` and `"string"` types, while `warnings` allowed either an array
-or `null`. TypeSpec preserved the explicit `| null` unions; it did not
-infer nullability from optional properties or introduce an extra state.
-
-This establishes where the schema behavior came from, not why the
-original authors chose it or whether SDK runtimes consistently accepted
-it. This proposal changes that existing schema contract by removing
-`| null` while retaining `?`; it is not repairing a mistranslation.
-
-## Specification
-
-In §5, remove explicit nullability, without making members required, from:
-
-- Verdict `reason`, `message`, `warnings`, and `result_labels`.
-- Warning `reason` and `message`.
-- Evidence `artefact`.
-
-Apply the same constraints to the payload-free verdict and warning
-projections and per-interceptor `reason` in §10.3. Make `resolved_by`
-optional-only as well: §10.3 already says to omit it when approval was
-never consulted; otherwise it is `"approval"` or `"rejection"`.
-
-An interceptor-supplied verdict with explicit `null` in these members is
-invalid under §5 and follows the existing `host_error:verdict_invalid`
-failure path and configured §6.3.1 posture. Do not silently normalize
-invalid nulls into omission. A host must omit absent metadata from records.
-
-The normative schema changes are in
-[`verdict.tsp`](../../spec/draft/schema/src/verdict.tsp) and
-[`interception-record.tsp`](../../spec/draft/schema/src/interception-record.tsp).
-Regenerated hook responses, approval definitions and interception records
-inherit the narrower types.
-
-Proposed wire examples:
-
-```jsonc
-{"verdict": {"decision": "allow"}}                    // valid: omitted
-{"verdict": {"decision": "allow", "warnings": []}}    // valid: declared type
-{"verdict": {"decision": "allow", "warnings": null}}  // invalid
-```
-
-Identity and approval `context_identity` nulls remain valid, as do
-`decided_by: null`, unbounded configuration values, nullable registry
-references and arbitrary JSON payload values. Requiredness does not change.
+Express accepted types and property presence in the schema. Use
+specification prose to explain the meaning of a null state, rather than
+repeat each property's schema constraints.
 
 ## Rationale
 
-Keeping both representations leaves consumers handling an extra state
-with no defined purpose. Removing all `null`
-unions would instead erase meaningful states, such as an explicitly
-unbounded timeout versus an omitted timeout that inherits a default.
-This proposal removes only redundant nullability.
+Omission provides one representation for missing data. Explicit nullability
+remains useful for domain states such as an unbounded timeout or an
+identity-unbound emission. Keeping that distinction avoids unnecessary
+states without erasing meaningful ones.
 
-## SDK surface and implementation impact
+## Application
 
-This review PR changes the specification, schema sources, generated draft
-schemas and schema regression coverage only. It does not update SDK
-runtime behavior or packaged draft schemas. Draft support is experimental
-and already lags the normative draft; follow-up implementation must apply
-the new validation and omission rules in the Rust core and all five SDKs.
+Apply this rule to verdict metadata and record projections by removing
+redundant `| null` unions, including `resolved_by` where omission already
+means the approval seam was never consulted. Keep nullability for defined
+identity, attribution and configuration states.
 
-## Conformance and tests
-
-Schema regression cases cover omitted metadata, correctly typed metadata,
-explicit nulls on verdicts and their record projections, and `resolved_by`.
-Records with meaningful null identities and `decided_by` remain valid.
-Existing declaration examples retain meaningful null configuration values.
-Shared CTK runtime coverage must accompany the SDK implementation follow-up;
-this PR does not claim that existing SDKs enforce the new draft.
-
-## Security and privacy
-
-Trust boundaries, approval binding, payload-free projection and resource
-bounds are unchanged. Invalid verdicts retain the existing failure path;
-the change does not add a permissive fallback or allow null metadata to
-bypass type validation.
+The schema changes and regression cases in this PR illustrate the
+decision; they are not an exhaustive inventory of where it applies.
