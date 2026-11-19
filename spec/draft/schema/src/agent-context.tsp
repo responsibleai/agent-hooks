@@ -1,13 +1,16 @@
 // Copyright (c) Microsoft. All rights reserved.
 
+using AgentHooks.Docs;
 namespace AgentHooks;
 
 /** Conditional payload of agent_startup (§4.2). */
+@category(Categories.Requests)
 model AgentInit {
   tools_registered: string[];
 }
 
 /** Who produced an input (§4.2). */
+@category(Categories.Requests)
 enum InputRole {
   User: "user",
   System: "system",
@@ -15,12 +18,14 @@ enum InputRole {
 }
 
 /** Conditional payload of input (§4.2). */
+@category(Categories.Requests)
 model Input {
   content: unknown;
   role: InputRole;
 }
 
 /** Conditional payload of pre_model_call and post_model_call (§4.2). */
+@category(Categories.Requests)
 model Model {
   id: string;
   vendor?: string;
@@ -28,12 +33,14 @@ model Model {
 }
 
 /** One message of the model request (§4.2). */
+@category(Categories.Requests)
 model Message {
   role: string;
   content: unknown;
 }
 
 /** One tool call the model asked for (§4.2). */
+@category(Categories.Requests)
 model ToolCallRequest {
   id?: string;
   name: string;
@@ -41,6 +48,7 @@ model ToolCallRequest {
 }
 
 /** Conditional payload of post_model_call (§4.2). */
+@category(Categories.Requests)
 model Response {
   content: unknown;
   tool_calls: ToolCallRequest[];
@@ -48,6 +56,7 @@ model Response {
 }
 
 /** Token usage of a model call (§4.3). */
+@category(Categories.Requests)
 model Usage {
   @minValue(0)
   prompt_tokens?: integer;
@@ -57,6 +66,7 @@ model Usage {
 }
 
 /** Conditional payload of pre_tool_call and post_tool_call (§4.2). */
+@category(Categories.Requests)
 model ToolCall {
   @minLength(1)
   id: string;
@@ -71,6 +81,7 @@ model ToolCall {
 }
 
 /** Conditional payload of post_tool_call (§4.2). */
+@category(Categories.Requests)
 model ToolResult {
   value: unknown;
   is_error: boolean;
@@ -80,6 +91,7 @@ model ToolResult {
 }
 
 /** One declared tool (§4.3). */
+@category(Categories.Requests)
 model ToolDecl {
   name: string;
   description?: string;
@@ -87,11 +99,13 @@ model ToolDecl {
 }
 
 /** Conditional payload of output (§4.2). */
+@category(Categories.Requests)
 model Output {
   content: unknown;
 }
 
 /** Why the agent stopped (§4.2). */
+@category(Categories.Requests)
 enum SummaryReason {
   Completed: "completed",
   Error: "error",
@@ -99,6 +113,7 @@ enum SummaryReason {
 }
 
 /** Conditional payload of agent_shutdown (§4.2). */
+@category(Categories.Requests)
 model Summary {
   reason: SummaryReason;
 
@@ -113,6 +128,7 @@ model Summary {
 }
 
 /** Who acts (§4.5). */
+@category(Categories.Requests)
 enum ActorKind {
   Human: "human",
   Service: "service",
@@ -120,6 +136,7 @@ enum ActorKind {
 }
 
 /** Metadata available at every interception point. */
+@category(Categories.Requests)
 model ContextMetadata {
   /**
    * This version's wire string (§4.1). A released version's contexts
@@ -173,6 +190,7 @@ model ContextMetadata {
   };
 }
 
+@category(Categories.Requests)
 model HooksRequest<TPoint extends InterceptionPoint = InterceptionPoint> {
   ...ContextMetadata;
   interception_point: TPoint;
@@ -181,6 +199,7 @@ model HooksRequest<TPoint extends InterceptionPoint = InterceptionPoint> {
 
 // Example: [agent-startup.json](../examples/AgentContext/agent-startup.json)
 /** The request at agent_startup: agent_init is required (§4.2). */
+@category(Categories.Requests)
 model AgentStartupRequest {
   ...HooksRequest<InterceptionPoint.AgentStartup>;
   agent_init: AgentInit;
@@ -188,6 +207,7 @@ model AgentStartupRequest {
 
 // Example: [input.json](../examples/AgentContext/input.json)
 /** The request at input: input is required (§4.2). */
+@category(Categories.Requests)
 model InputRequest {
   ...HooksRequest<InterceptionPoint.Input>;
   input: Input;
@@ -197,6 +217,7 @@ model InputRequest {
 // Example: [with metadata](../examples/AgentContext/pre-model-call-with-model-metadata.json)
 // Example: [with tools](../examples/AgentContext/pre-model-call-with-tools.json)
 /** The request at pre_model_call: model and messages are required (§4.2). */
+@category(Categories.Requests)
 model PreModelCallRequest {
   ...HooksRequest<InterceptionPoint.PreModelCall>;
   `model`: Model;
@@ -209,6 +230,7 @@ model PreModelCallRequest {
 // Example: [optional tool id](../examples/AgentContext/post-model-call-with-optional-tool-call-id.json)
 // Example: [with usage](../examples/AgentContext/post-model-call-with-usage.json)
 /** The request at post_model_call: model and response are required (§4.2). */
+@category(Categories.Requests)
 model PostModelCallRequest {
   ...HooksRequest<InterceptionPoint.PostModelCall>;
   `model`: Model;
@@ -219,6 +241,7 @@ model PostModelCallRequest {
 
 // Example: [pre-tool-call.json](../examples/AgentContext/pre-tool-call.json)
 /** The request at pre_tool_call: tool_call is required (§4.2). */
+@category(Categories.Requests)
 model PreToolCallRequest {
   ...HooksRequest<InterceptionPoint.PreToolCall>;
   tool_call: ToolCall;
@@ -227,6 +250,7 @@ model PreToolCallRequest {
 // Example: [post-tool-call.json](../examples/AgentContext/post-tool-call.json)
 // Example: [error](../examples/AgentContext/post-tool-call-error.json)
 /** The request at post_tool_call: tool_call and tool_result are required (§4.2). */
+@category(Categories.Requests)
 model PostToolCallRequest {
   ...HooksRequest<InterceptionPoint.PostToolCall>;
   tool_call: ToolCall;
@@ -235,6 +259,7 @@ model PostToolCallRequest {
 
 // Example: [output.json](../examples/AgentContext/output.json)
 /** The request at output: output is required (§4.2). */
+@category(Categories.Requests)
 model OutputRequest {
   ...HooksRequest<InterceptionPoint.Output>;
   output: Output;
@@ -242,6 +267,7 @@ model OutputRequest {
 
 // Example: [agent-shutdown.json](../examples/AgentContext/agent-shutdown.json)
 /** The request at agent_shutdown: summary is required (§4.2). */
+@category(Categories.Requests)
 model AgentShutdownRequest {
   ...HooksRequest<InterceptionPoint.AgentShutdown>;
   summary: Summary;
@@ -253,6 +279,7 @@ model AgentShutdownRequest {
  * metadata and optional namespaced extensions.
  */
 @summary("Agent Hooks — agent context")
+@category(Categories.Requests)
 union AgentContext {
   AgentStartupRequest,
   InputRequest,

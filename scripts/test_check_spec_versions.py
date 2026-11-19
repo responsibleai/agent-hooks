@@ -154,6 +154,7 @@ class CheckTest(unittest.TestCase):
 
     def test_complete_tree_passes(self) -> None:
         (self.root / "spec/scripts/node_modules/.bin").mkdir(parents=True)
+        (self.root / "spec/scripts/reference-docs/node_modules/.bin").mkdir(parents=True)
         (self.root / "spec/scripts/package.json").write_text("{}", encoding="utf-8")
         self.assertEqual(versions.check(self.root), [])
         result = subprocess.run(

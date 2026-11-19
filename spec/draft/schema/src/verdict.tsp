@@ -1,9 +1,11 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 using TypeSpec.JsonSchema;
+using AgentHooks.Docs;
 namespace AgentHooks;
 
 /** The three decisions (§5). */
+@category(Categories.Verdicts)
 enum Decision {
   Allow: "allow",
   Deny: "deny",
@@ -12,6 +14,7 @@ enum Decision {
 
 /** A recorded concern that does not affect control flow (§5.1). */
 @extension("additionalProperties", false)
+@category(Categories.Verdicts)
 model Warning {
   /**
    * Interceptor-supplied warning identifier. The host_error: prefix is reserved
@@ -26,10 +29,12 @@ model Warning {
 }
 
 /** Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14). */
+@category(Categories.Verdicts)
 model VerificationPointers is Record<string>;
 
 /** Offline-verifiable evidence attached to a verdict (§14). */
 @extension("additionalProperties", false)
+@category(Categories.Verdicts)
 model Evidence {
   /** Content address (sha256:<hex>) or URI of an offline-verifiable proof. */
   artefact?: string | null;
@@ -38,6 +43,7 @@ model Evidence {
 }
 
 /** Members every decision may carry. */
+@category(Categories.Verdicts)
 model VerdictBase {
   /**
    * Interceptor-supplied machine identifier. The host_error: prefix is reserved
@@ -70,6 +76,7 @@ model VerdictBase {
 // Example: [with evidence](../examples/Verdict/allow-with-evidence.json)
 /** allow: proceed. Absorbs warn through warnings[] (§5.1). */
 @extension("additionalProperties", false)
+@category(Categories.Verdicts)
 model AllowVerdict {
   ...VerdictBase;
   decision: Decision.Allow;
@@ -79,6 +86,7 @@ model AllowVerdict {
 // Example: [with approval](../examples/Verdict/deny-with-approval.json)
 /** deny: stop the action. Absorbs escalate through the approval block (§5.1). */
 @extension("additionalProperties", false)
+@category(Categories.Verdicts)
 model DenyVerdict {
   ...VerdictBase;
   decision: Decision.Deny;
@@ -98,6 +106,7 @@ model DenyVerdict {
 // Example: [value](../examples/Verdict/transform-tool-result.json)
 /** transform: proceed with the hook-specific replacement payload. */
 @extension("additionalProperties", false)
+@category(Categories.Verdicts)
 model TransformVerdict<TTransform> {
   ...VerdictBase;
   decision: Decision.Transform;
@@ -105,6 +114,7 @@ model TransformVerdict<TTransform> {
 }
 
 /** Verdict choices for hooks that do not support transforms. */
+@category(Categories.Verdicts)
 union NonTransformVerdict {
   AllowVerdict,
   DenyVerdict,

@@ -1,9 +1,11 @@
 // Copyright (c) Microsoft. All rights reserved.
 
+using AgentHooks.Docs;
 namespace AgentHooks;
 
 /** The closed set of agent lifecycle interception points (AGENT-HOOKS-0.1 §3). */
 @summary("Agent Hooks — interception point")
+@category(Categories.Common)
 enum InterceptionPoint {
   AgentStartup: "agent_startup",
   Input: "input",

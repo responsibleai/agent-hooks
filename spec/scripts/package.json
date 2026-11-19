@@ -2,11 +2,16 @@
   "name": "agent-hooks-spec-scripts",
   "private": true,
   "scripts": {
-    "generate:schema": "tsx generate-schemas.mts",
-    "check:schema": "tsx generate-schemas.mts --check",
-    "check:schema:equivalence": "tsx schema-equivalence.mts"
+    "build:reference": "pnpm --dir reference-docs run build",
+    "generate:reference": "pnpm run build:reference && tsx generate-reference.mts",
+    "check:reference": "pnpm run build:reference && tsx generate-reference.mts --check",
+    "test:reference": "pnpm run build:reference && node --test reference-docs/test/*.test.mjs",
+    "generate:schema": "pnpm run build:reference && tsx generate-schemas.mts",
+    "check:schema": "pnpm run build:reference && tsx generate-schemas.mts --check",
+    "check:schema:equivalence": "pnpm run build:reference && tsx schema-equivalence.mts"
   },
   "devDependencies": {
+    "@agent-hooks/reference-docs": "workspace:*",
     "@typespec/compiler": "1.18.0",
     "@typespec/json-schema": "1.18.0",
     "ajv": "8.20.0",

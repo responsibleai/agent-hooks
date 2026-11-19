@@ -13,6 +13,13 @@ names the specification versions it supports in
 The TypeSpec files in `src/` are the editable schema source, with
 `src/main.tsp` importing the bundle's schema sources. The generator compiles
 them with `@typespec/json-schema` to JSON Schema Draft 2020-12.
+
+The same declarations generate the [draft reference](../REFERENCE.md) and
+[reference tables](../REFERENCE-TABLES.md) via `pnpm run generate:reference`
+at the repository root. Add `@category(Categories.<member>)` to include a type;
+the shared categories live in `spec/scripts/reference-docs/lib/main.tsp`.
+`pnpm run check:reference` detects stale documentation. Category annotations
+only select documentation and do not alter the normative JSON Schemas.
 `generated/` contains the committed draft JSON Schemas. Do not edit generated JSON by hand.
 
 - Root schemas are written to `generated/*.schema.json`.

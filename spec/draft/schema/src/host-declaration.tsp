@@ -1,17 +1,21 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 using TypeSpec.JsonSchema;
+using AgentHooks.Docs;
 namespace AgentHooks;
 
 /** Grammar of a registered name: provider, resolver, redactor or binding id. */
 @pattern("^[a-z][a-z0-9_-]{0,63}$")
+@category(Categories.Declaration)
 scalar Reference extends string;
 
 @minValue(1)
 @maxValue(3600000)
+@category(Categories.Declaration)
 scalar BoundedTimeoutMs extends integer;
 
 /** A bound in milliseconds; null is unbounded. */
+@category(Categories.Declaration)
 union TimeoutMs {
   BoundedTimeoutMs,
   null,
@@ -22,6 +26,7 @@ union TimeoutMs {
  * less buffered_output, which is the boolean surface member, plus
  * host_declaration.
  */
+@category(Categories.Declaration)
 enum Capability {
   ModelCalls: "model_calls",
   ToolCalls: "tool_calls",
@@ -35,12 +40,14 @@ enum Capability {
 }
 
 /** The tool-seam posture a host implements (§13.1). */
+@category(Categories.Declaration)
 enum ToolSeamHostError {
   Continue: "continue",
   Terminate: "terminate",
 }
 
 /** The failure posture (§6.3.1). */
+@category(Categories.Declaration)
 enum OnError {
   Deny: "deny",
   Continue: "continue",
@@ -48,6 +55,7 @@ enum OnError {
 
 /** OPTIONAL and informative; never checked against code. */
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model Host {
   /** Same grammar as agent.framework (§4.1). */
   @pattern("^[a-z0-9_-]{1,64}$")
@@ -63,6 +71,7 @@ model Host {
  * a consulted knob left unset takes the §7.2 default.
  */
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model CompositionConfig {
   @extension("default", "sequential/first_deny")
   profile?: CompositionProfile;
@@ -78,6 +87,7 @@ model CompositionConfig {
 }
 
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model ApprovalConfig {
   /**
    * §9. A registered approval resolver by reference, or null: liftable denies
@@ -92,6 +102,7 @@ model ApprovalConfig {
 }
 
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model PostureConfig {
   /** §13.1. Must equal the posture the host's code implements. */
   @extension("default", "continue")
@@ -99,6 +110,7 @@ model PostureConfig {
 }
 
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model TimeoutsConfig {
   /** §7 interceptor bound; default 5000. null means unbounded and must be written out. */
   interceptor_ms?: TimeoutMs;
@@ -108,6 +120,7 @@ model TimeoutsConfig {
 }
 
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model RecordsConfig {
   /**
    * In-memory record buffer bound; null (the default) is unbounded. The maximum
@@ -119,6 +132,7 @@ model RecordsConfig {
 }
 
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model FailureConfig {
   /**
    * §6.3.1. The document default every binding's on_error inherits. deny keeps
@@ -134,6 +148,7 @@ model FailureConfig {
  * the specification already names and fail closed.
  */
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model Configuration {
   /** §8. */
   @extension("default", "enforce")
@@ -156,6 +171,7 @@ model Configuration {
 }
 
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model FirstDenySupport {
   @uniqueItems
   @minItems(1)
@@ -163,9 +179,11 @@ model FirstDenySupport {
 }
 
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model RunAllSupport {}
 
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model StrictestSupport {
   @uniqueItems
   @minItems(1)
@@ -173,6 +191,7 @@ model StrictestSupport {
 }
 
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model UnanimousSupport {
   @uniqueItems
   @minItems(1)
@@ -185,6 +204,7 @@ model UnanimousSupport {
  * value only.
  */
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model ProfileSupport {
   `sequential/first_deny`?: FirstDenySupport;
   `sequential/run_all`?: RunAllSupport;
@@ -192,6 +212,7 @@ model ProfileSupport {
   `parallel/unanimous`?: UnanimousSupport;
 }
 
+@category(Categories.Declaration)
 model SurfaceBase {
   /**
    * Points the host emits; always includes agent_startup, input, output and
@@ -213,6 +234,7 @@ model SurfaceBase {
  * exposure_bound is absent.
  */
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model BufferedSurface {
   ...SurfaceBase;
 
@@ -226,6 +248,7 @@ model BufferedSurface {
  * written as false and exposure_bound is present.
  */
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model UnbufferedSurface {
   ...SurfaceBase;
 
@@ -239,6 +262,7 @@ model UnbufferedSurface {
 }
 
 /** The declared surface (§13.1) in file form, by output posture. */
+@category(Categories.Declaration)
 union Surface {
   BufferedSurface,
   UnbufferedSurface,
@@ -246,6 +270,7 @@ union Surface {
 
 /** One interceptor binding (§7.7.4). */
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model Binding {
   /** Unique in the array; stamped on verdicts[].name (§10.3). */
   id: Reference;
@@ -303,6 +328,7 @@ model Binding {
  */
 @summary("Agent Hooks — host declaration document (agent-hooks/draft)")
 @extension("additionalProperties", false)
+@category(Categories.Declaration)
 model HostDeclaration {
   configuration?: Configuration;
 

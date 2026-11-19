@@ -69,6 +69,8 @@ export default defineConfig({
           items: [
             ...versions.map((version) => ({ label: version, slug: `spec/${version}` })),
             { label: "Draft", slug: "spec/draft" },
+            { label: "Draft schema reference", slug: "spec/draft/reference" },
+            { label: "Draft reference tables", slug: "spec/draft/reference-tables" },
           ],
         },
         { slug: "faq" },

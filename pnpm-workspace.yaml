@@ -1,6 +1,7 @@
 packages:
   - docs-site
   - spec/scripts
+  - spec/scripts/reference-docs
   - sdk/typescript
 
 overrides:

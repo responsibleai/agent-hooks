@@ -1,14 +1,17 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 using TypeSpec.JsonSchema;
+using AgentHooks.Docs;
 namespace AgentHooks;
 
 /** Presence only; members are stripped by the projection. */
 @extension("additionalProperties", false)
+@category(Categories.Records)
 model ApprovalPresence {}
 
 /** Warning metadata retained in a payload-free record projection. */
 @extension("additionalProperties", false)
+@category(Categories.Records)
 model WarningProjection {
   reason?: string | null;
   message?: string | null;
@@ -21,6 +24,7 @@ model WarningProjection {
  * warnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1).
  */
 @extension("additionalProperties", false)
+@category(Categories.Records)
 model VerdictProjection {
   decision: Decision;
   reason?: string | null;
@@ -36,12 +40,14 @@ model VerdictProjection {
  * (§4.5, §10.3).
  */
 @extension("additionalProperties", false)
+@category(Categories.Records)
 model Trace {
   trace_id?: string;
   span_id?: string;
 }
 
 /** The host_error reasons a continue posture may substitute for (§6.3.1). */
+@category(Categories.Records)
 enum SubstitutedFor {
   InterceptorFailed: "host_error:interceptor_failed",
   InterceptorTimeout: "host_error:interceptor_timeout",
@@ -50,6 +56,7 @@ enum SubstitutedFor {
 
 /** Payload-free summary of one interceptor's verdict (§10.3). */
 @extension("additionalProperties", false)
+@category(Categories.Records)
 model VerdictSlot {
   @minValue(0)
   index: integer;
@@ -69,6 +76,7 @@ model VerdictSlot {
 }
 
 /** Consultation outcomes a record names (§7.6). */
+@category(Categories.Records)
 enum ResolvedBy {
   Approval: "approval",
   Rejection: "rejection",
@@ -125,6 +133,7 @@ enum ResolvedBy {
     }
   ]
 )
+@category(Categories.Records)
 model InterceptionRecord {
   interception_point: InterceptionPoint;
   mode: Mode;

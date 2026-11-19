@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 using TypeSpec.JsonSchema;
+using AgentHooks.Docs;
 namespace AgentHooks;
 
 /**
@@ -10,6 +11,7 @@ namespace AgentHooks;
  * member is validated against the §5 schema only when its reason is not
  * host_error:*.
  */
+@category(Categories.Approval)
 model LiftableDeny {
   decision: Decision.Deny;
   ...Record<unknown>;
@@ -18,6 +20,7 @@ model LiftableDeny {
 // Example: [request](../examples/ApprovalRequest/collection-access.json)
 /** What the host hands the resolver (§9). */
 @extension("additionalProperties", false)
+@category(Categories.Approval)
 model request {
   context_identity: string | null;
   interception_point: InterceptionPoint;
@@ -28,12 +31,14 @@ model request {
 }
 
 /** How a consultation ended (§9). */
+@category(Categories.Approval)
 enum Outcome {
   Approve: "approve",
   Reject: "reject",
   Unresolved: "unresolved",
 }
 
+@category(Categories.Approval)
 model ResolutionBase {
   /**
    * MUST equal the request's context_identity byte for byte (echo rule, §9);
@@ -45,6 +50,7 @@ model ResolutionBase {
 // Example: [approve](../examples/ApprovalResolution/approve-allow.json)
 /** approve: the resolver lifts the deny with an allow verdict. */
 @extension("additionalProperties", false)
+@category(Categories.Approval)
 model ApproveResolution {
   ...ResolutionBase;
   outcome: Outcome.Approve;
@@ -54,6 +60,7 @@ model ApproveResolution {
 // Example: [reject](../examples/ApprovalResolution/reject.json)
 /** reject: the resolver keeps a deny. */
 @extension("additionalProperties", false)
+@category(Categories.Approval)
 model RejectResolution {
   ...ResolutionBase;
   outcome: Outcome.Reject;
@@ -63,12 +70,14 @@ model RejectResolution {
 // Example: [unresolved](../examples/ApprovalResolution/unresolved.json)
 /** unresolved: no decision; the deny stands and no verdict is carried. */
 @extension("additionalProperties", false)
+@category(Categories.Approval)
 model UnresolvedResolution {
   ...ResolutionBase;
   outcome: Outcome.Unresolved;
 }
 
 /** What the resolver returns (§9). */
+@category(Categories.Approval)
 union resolution {
   ApproveResolution,
   RejectResolution,
