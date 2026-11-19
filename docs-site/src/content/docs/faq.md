@@ -1,4 +1,6 @@
-# FAQ
+---
+title: FAQ
+---
 
 ## Is this a sandbox?
 

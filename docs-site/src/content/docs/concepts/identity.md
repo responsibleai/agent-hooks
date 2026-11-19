@@ -1,4 +1,6 @@
-# Identity providers
+---
+title: Identity providers
+---
 
 `context_identity` is an opaque string produced by the host's declared
 identity provider, a pure function from context to string. The

@@ -59,13 +59,23 @@
 
 Use Node.js 22 or later and pnpm at the version pinned in the root
 `package.json` (`npm install --global pnpm@12.21.0` if needed). From
-the repository root, run `pnpm install` once for both `spec/scripts`
-and `sdk/typescript`. Commit dependency updates in the root
-`pnpm-lock.yaml`. CI uses `.github/actions/setup` to configure Node.js 26.13.1,
-the pinned pnpm version and caching, then install with
-`pnpm install --frozen-lockfile`.
+the repository root, run `pnpm install` once for the workspace. Commit
+dependency updates in the root `pnpm-lock.yaml`. CI uses `.github/actions/setup`
+to configure Node.js 26.13.1, the pinned pnpm version, and caching, then
+installs with `pnpm install --frozen-lockfile`.
 The manifests under `sdk/typescript/npm/` are release-only native-binary
 packages, not development workspaces. Publishing still uses npm.
+
+## Documentation site
+
+With a current Node.js 22 release or newer, run
+`pnpm --filter @agent-hooks/docs dev` and open `/agent-hooks/` at the
+address Astro prints. Edit site pages under `docs-site/src/content/docs/`.
+The specification pages and schema URLs come straight from `spec/` and
+`conformance/` (`docs-site/src/spec.ts`); run
+`pnpm --filter @agent-hooks/docs test` after changing it. To preview the
+same build GitHub Pages deploys, run `pnpm --filter @agent-hooks/docs build`
+and then `pnpm --filter @agent-hooks/docs preview`. The artifact is `docs-site/dist/`.
 
 ## Schema source
 

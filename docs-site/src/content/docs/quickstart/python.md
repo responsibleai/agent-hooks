@@ -1,4 +1,6 @@
-# Python quickstart
+---
+title: Python quickstart
+---
 
 ```sh
 pip install --pre agent-hooks-sdk
