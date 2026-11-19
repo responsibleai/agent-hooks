@@ -95,6 +95,9 @@
         "dependencies": {
           "ResponsibleAI.AgentHooks": "[0.1.0-beta.4, )"
         }
+      },
+      "ResponsibleAI.AgentHooks.Contracts": {
+        "type": "Project"
       }
     }
   }

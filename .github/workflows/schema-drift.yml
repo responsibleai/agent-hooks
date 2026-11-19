@@ -26,6 +26,8 @@ jobs:
       - name: Check generated draft schemas
         run: pnpm run check:schema
         working-directory: spec/scripts
+      - name: Check generated C# contracts
+        run: pnpm run check:csharp
 
   python-released-schema-mirror:
     runs-on: ubuntu-latest

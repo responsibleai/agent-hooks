@@ -1,0 +1,6 @@
+{
+  "presets": [
+    ["@alloy-js/babel-preset", { "dev": false }],
+    "@babel/preset-typescript"
+  ]
+}
