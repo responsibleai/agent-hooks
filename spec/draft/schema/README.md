@@ -2,7 +2,7 @@
 
 This is the draft specification's schema folder, and this file is the
 one to follow for editing, generating and checking schemas. Edit `src/`
-here; `npm run generate:schema` and `npm run check:schema` target this
+here; `pnpm run generate:schema` and `pnpm run check:schema` target this
 folder by default. A bundle cut from the draft keeps the copy of this
 file that stood at its cut; that copy describes a frozen folder and is
 never edited. 0.1 predates the source layout and has no copy. SDK
@@ -39,12 +39,11 @@ them with `@typespec/json-schema` to JSON Schema Draft 2020-12.
 Use Node.js 22 or later. From the repository root:
 
 ```bash
-cd spec/scripts
-npm ci
-npm run generate:schema
-npm run check:schema
-npm run check:schema:equivalence -- --old <git-ref>
-npm run check:schema:equivalence -- --old <git-ref> --structural-diff
+pnpm install
+pnpm run generate:schema
+pnpm run check:schema
+pnpm run check:schema:equivalence --old <git-ref>
+pnpm run check:schema:equivalence --old <git-ref> --structural-diff
 ```
 
 Edit the relevant file in `src/`, regenerate, and commit source and output
