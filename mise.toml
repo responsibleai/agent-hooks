@@ -1,0 +1,10 @@
+# Copyright (c) Microsoft. All rights reserved.
+
+[tools]
+node = "22.23.5"
+python = "3.12.16"
+go = "1.22.12"
+dotnet = "8.0.428"
+uv = "0.13.8"
+# Keep in sync with sdk/rust/rust-toolchain.toml.
+rust = { version = "1.95.0", components = ["clippy", "rustfmt"] }

@@ -55,6 +55,18 @@
   Python, TypeScript, .NET, and Go agree; the Rust core is the single
   source of truth and the wrappers delegate to it.
 
+## Node.js tooling
+
+Use Node.js 22 or later and pnpm at the version pinned in the root
+`package.json` (`npm install --global pnpm@12.21.0` if needed). From
+the repository root, run `pnpm install` once for both `spec/scripts`
+and `sdk/typescript`. Commit dependency updates in the root
+`pnpm-lock.yaml`. CI uses `.github/actions/setup` to configure Node.js 26.13.1,
+the pinned pnpm version and caching, then install with
+`pnpm install --frozen-lockfile`.
+The manifests under `sdk/typescript/npm/` are release-only native-binary
+packages, not development workspaces. Publishing still uses npm.
+
 ## Schema source
 
 Each specification folder's JSON Schemas under `spec/<version>/schema/generated/`
@@ -98,10 +110,10 @@ differs from the generated text.
   It retains the legacy TypeScript generator for released bundles.
 
 ```bash
-cd spec/scripts && npm ci
-npm run generate:schema      # write spec/draft/schema/generated/**/*.schema.json
-npm run check:schema         # compile the source, then fail on any drift
-npm run check:schema:equivalence -- --old origin/main   # differential validation against another revision
+pnpm install
+pnpm run generate:schema      # write spec/draft/schema/generated/**/*.schema.json
+pnpm run check:schema         # compile the source, then fail on any drift
+pnpm run check:schema:equivalence --old origin/main   # differential validation against another revision
 ```
 
 After a change, regenerate. The Python mirror holds one folder per
@@ -128,6 +140,23 @@ against `origin/main` to see which instances change verdict.
 See [`spec/draft/schema/README.md`](spec/draft/schema/README.md) for the layout and
 the mapping to unchanged published URLs.
 
+## Local toolchain setup
+
+With [mise](https://mise.jdx.dev/) installed, run from the repository root:
+
+```bash
+mise trust
+mise install
+```
+
+Activate mise in your shell, or prefix commands with `mise exec --`.
+The root `mise.toml` pins Node.js, Python, Go and the .NET SDK to patch
+releases within the versions used by CI, plus `uv`. Rust matches
+`sdk/rust/rust-toolchain.toml`, including Clippy and rustfmt; update both
+pins together. These tools do not replace the per-SDK dependency
+installation steps below or a native C/C++ toolchain for FFI and cgo.
+The protected Windows FFI build still uses its separate pinned nightly.
+
 ## Local test matrix
 
 ```bash
@@ -136,7 +165,7 @@ cd sdk/rust && cargo test --workspace --all-features && cargo clippy --workspace
 # Python (rebuild bindings when core changed)
 cd sdk/python && maturin develop --release && python -m pytest tests/ && ruff check
 # TypeScript (rebuild native when core changed)
-cd spec/scripts && npm ci && cd ../../sdk/typescript && npm ci && npm test
+pnpm install && pnpm --dir sdk/typescript test
 # .NET (needs the FFI cdylib on the library path)
 cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
 cd sdk/dotnet && LD_LIBRARY_PATH=../rust/target/release dotnet test

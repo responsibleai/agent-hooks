@@ -87,8 +87,13 @@ in its own spelling:
 | .NET `ResponsibleAI.AgentHooks` | `sdk/dotnet/Directory.Build.props` | SemVer |
 
 `scripts/check-version-consistency.py` (CI `lint` job) fails when
-they disagree. SDK versions are not independent per language. An SDK
-bumps its MAJOR only when its own API breaks; it records the
+they disagree. In the release workflow, `--release-tag TAG` also requires
+the root tag to be exactly `v` followed by the SemVer manifest version.
+This check runs for tag pushes and manual runs on tags, including dry
+runs; manual branch runs do not require a release tag.
+
+SDK versions are not independent per language. An SDK bumps its MAJOR
+only when its own API breaks; it records the
 specification versions it supports in `SUPPORTED_SPEC_VERSIONS`, and a
 specification MAJOR does not force an SDK MAJOR, because an SDK can
 carry a breaking specification change behind an unchanged API.
