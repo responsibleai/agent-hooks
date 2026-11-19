@@ -17,15 +17,9 @@ def main() -> int:
     source = Path("spec/draft/schema/generated")
     with tempfile.TemporaryDirectory() as temporary:
         draft = Path(temporary) / "draft"
-        (draft / "agent-context").mkdir(parents=True)
-        for src, dst in ((source, draft), (source / "strict-contexts", draft / "agent-context")):
-            files = sorted(
-                path for path in src.glob("*.schema.json") if not path.name.startswith(".")
-            )
-            if not files:
-                raise FileNotFoundError(f"no schema files in {src}")
-            for path in files:
-                shutil.copy2(path, dst)
+        shutil.copytree(source, draft)
+        if not list(draft.rglob("*.json")):
+            raise FileNotFoundError(f"no schema files in {source}")
 
         result = subprocess.run(
             ["diff", "-ru", "sdk/python/python/agent_hooks/schema/draft", str(draft)],

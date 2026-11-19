@@ -40,6 +40,9 @@ def main() -> int:
         if not points.is_dir():
             points = source / "agent-context"
         destination = mirror / version
+        if (source / "AgentContext.json").is_file():
+            shutil.copytree(source, destination)
+            continue
         (destination / "agent-context").mkdir(parents=True, exist_ok=True)
         for src, dst in ((source, destination), (points, destination / "agent-context")):
             files = sorted(

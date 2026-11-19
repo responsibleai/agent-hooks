@@ -211,10 +211,10 @@ importers:
     devDependencies:
       '@typespec/compiler':
         specifier: 1.18.0
-        version: 1.18.0(@types/node@24.19.2)
+        version: 1.18.0(@types/node@26.6.6)
       '@typespec/json-schema':
         specifier: 1.18.0
-        version: 1.18.0(@typespec/compiler@1.18.0(@types/node@24.19.2))
+        version: 1.18.0(@typespec/compiler@1.18.0(@types/node@26.6.6))
       ajv:
         specifier: 8.20.0
         version: 8.20.0
@@ -227,9 +227,6 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
-      typescript-json-schema:
-        specifier: 0.68.0
-        version: 0.68.0
 
 packages:
 
@@ -994,12 +991,6 @@ packages:
   '@tybys/wasm-util@0.10.5':
     resolution: {integrity: sha512-dOGOPxlaNV+G046mZzN+9C0dAcQZeSKcXiVaM0TYy/LM4ttTmgSBDxYfovcYI8Em3+eAbiAYpvWLOv8+ZVRJKA==}
 
-  '@types/json-schema@7.0.15':
-    resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
-
-  '@types/node@24.19.2':
-    resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
-
   '@types/node@26.6.6':
     resolution: {integrity: sha512-MzQj+8Kx3XI40OmUAE6Qoh58ZMNstNNMwn2nfd3qWsfe7nDNSqJNzes4njhz6AHwrSHOffSLwXU6yb474Q4aog==}
 
@@ -1380,9 +1371,6 @@ packages:
     resolution: {integrity: sha512-5vvB5+W7ePv+p3uqxi+RcW1XAzLW0/hxt3/4X4Lc4qHudzOhmBiBwOY6DRob4WnanAEGvNcLjF+KNOufrUoEQw==}
     engines: {node: '>=12.20.0'}
 
-  path-equal@1.2.8:
-    resolution: {integrity: sha512-rCJWMlXlk9lZ2FEllgvh2IgPj/kxMx2sOeqtFNLO8dxEY0I4hBTa+ZW3JAsgeiTe8vL4MifATVDwxF9nGUI7HQ==}
-
   path-scurry@3.0.0:
     resolution: {integrity: sha512-1pTbQqH1wIwMi/eleQ5leFTTCkzFsPcgXNjwOA8YGGW/W4/kHT3dssE7Z6NH+zuqNLOzOB0uaD61yl7cAcVhgg==}
     engines: {node: 18 || 20 || >=22}
@@ -1398,10 +1386,6 @@ packages:
   require-from-string@2.0.2:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
     engines: {node: '>=0.10.0'}
-
-  safe-stable-stringify@2.5.0:
-    resolution: {integrity: sha512-b3rppTKm9T+PsVCBEOUR46GWI7fdOs00VKZ1+9c1EWDaDMvjQc6tUwuFyIprgGgTcWoVHSKrU8H31ZHA2e0RHA==}
-    engines: {node: '>=10'}
 
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
@@ -1468,15 +1452,6 @@ packages:
   typanion@3.14.0:
     resolution: {integrity: sha512-ZW/lVMRabETuYCd9O9ZvMhAh8GslSqaUjxmK/JLPCh6l73CvLBiuXswj/+7LdnWOgYsQ130FqLzFz5aGT4I3Ug==}
 
-  typescript-json-schema@0.68.0:
-    resolution: {integrity: sha512-1X60xXxkZpLAr125Jt5MT9VJTTxT0xfafbjdcbtml26nvpUr2p/P4V34JEXa+ObrHc71W9ksH5pemstY6y+SEw==}
-    hasBin: true
-
-  typescript@5.9.3:
-    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
-    engines: {node: '>=14.17'}
-    hasBin: true
-
   typescript@6.0.3:
     resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
@@ -1486,9 +1461,6 @@ packages:
     resolution: {integrity: sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==}
     engines: {node: '>=16.20.0'}
     hasBin: true
-
-  undici-types@7.24.6:
-    resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
 
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
@@ -1557,6 +1529,7 @@ snapshots:
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
+    optional: true
 
   '@emnapi/core@2.0.0-beta.3':
     dependencies:
@@ -1654,15 +1627,6 @@ snapshots:
 
   '@inquirer/ansi@2.1.0': {}
 
-  '@inquirer/checkbox@5.3.0(@types/node@24.19.2)':
-    dependencies:
-      '@inquirer/ansi': 2.1.0
-      '@inquirer/core': 12.1.0(@types/node@24.19.2)
-      '@inquirer/figures': 2.1.0
-      '@inquirer/type': 4.3.0(@types/node@24.19.2)
-    optionalDependencies:
-      '@types/node': 24.19.2
-
   '@inquirer/checkbox@5.3.0(@types/node@26.6.6)':
     dependencies:
       '@inquirer/ansi': 2.1.0
@@ -1672,31 +1636,12 @@ snapshots:
     optionalDependencies:
       '@types/node': 26.6.6
 
-  '@inquirer/confirm@6.4.0(@types/node@24.19.2)':
-    dependencies:
-      '@inquirer/core': 12.1.0(@types/node@24.19.2)
-      '@inquirer/type': 4.3.0(@types/node@24.19.2)
-    optionalDependencies:
-      '@types/node': 24.19.2
-
   '@inquirer/confirm@6.4.0(@types/node@26.6.6)':
     dependencies:
       '@inquirer/core': 12.1.0(@types/node@26.6.6)
       '@inquirer/type': 4.3.0(@types/node@26.6.6)
     optionalDependencies:
       '@types/node': 26.6.6
-
-  '@inquirer/core@12.1.0(@types/node@24.19.2)':
-    dependencies:
-      '@inquirer/ansi': 2.1.0
-      '@inquirer/figures': 2.1.0
-      '@inquirer/type': 4.3.0(@types/node@24.19.2)
-      cli-width: 4.1.0
-      fast-wrap-ansi: 0.2.2
-      mute-stream: 4.0.0
-      signal-exit: 4.1.0
-    optionalDependencies:
-      '@types/node': 24.19.2
 
   '@inquirer/core@12.1.0(@types/node@26.6.6)':
     dependencies:
@@ -1733,13 +1678,6 @@ snapshots:
       '@types/node': 26.6.6
 
   '@inquirer/figures@2.1.0': {}
-
-  '@inquirer/input@5.2.0(@types/node@24.19.2)':
-    dependencies:
-      '@inquirer/core': 12.1.0(@types/node@24.19.2)
-      '@inquirer/type': 4.3.0(@types/node@24.19.2)
-    optionalDependencies:
-      '@types/node': 24.19.2
 
   '@inquirer/input@5.2.0(@types/node@26.6.6)':
     dependencies:
@@ -1793,15 +1731,6 @@ snapshots:
     optionalDependencies:
       '@types/node': 26.6.6
 
-  '@inquirer/select@5.3.0(@types/node@24.19.2)':
-    dependencies:
-      '@inquirer/ansi': 2.1.0
-      '@inquirer/core': 12.1.0(@types/node@24.19.2)
-      '@inquirer/figures': 2.1.0
-      '@inquirer/type': 4.3.0(@types/node@24.19.2)
-    optionalDependencies:
-      '@types/node': 24.19.2
-
   '@inquirer/select@5.3.0(@types/node@26.6.6)':
     dependencies:
       '@inquirer/ansi': 2.1.0
@@ -1810,10 +1739,6 @@ snapshots:
       '@inquirer/type': 4.3.0(@types/node@26.6.6)
     optionalDependencies:
       '@types/node': 26.6.6
-
-  '@inquirer/type@4.3.0(@types/node@24.19.2)':
-    optionalDependencies:
-      '@types/node': 24.19.2
 
   '@inquirer/type@4.3.0(@types/node@26.6.6)':
     optionalDependencies:
@@ -1825,14 +1750,17 @@ snapshots:
 
   '@isaacs/nonrecursive-glob-match@1.1.0': {}
 
-  '@jridgewell/resolve-uri@3.1.2': {}
+  '@jridgewell/resolve-uri@3.1.2':
+    optional: true
 
-  '@jridgewell/sourcemap-codec@1.6.0': {}
+  '@jridgewell/sourcemap-codec@1.6.0':
+    optional: true
 
   '@jridgewell/trace-mapping@0.3.9':
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+    optional: true
 
   '@napi-rs/cli@3.10.12(@emnapi/core@2.0.0-beta.3)(@emnapi/runtime@2.0.0-beta.3)(@types/node@26.6.6)':
     dependencies:
@@ -2154,24 +2082,22 @@ snapshots:
     dependencies:
       '@octokit/openapi-types': 29.0.1
 
-  '@tsconfig/node10@1.0.13': {}
+  '@tsconfig/node10@1.0.13':
+    optional: true
 
-  '@tsconfig/node12@1.0.11': {}
+  '@tsconfig/node12@1.0.11':
+    optional: true
 
-  '@tsconfig/node14@1.0.3': {}
+  '@tsconfig/node14@1.0.3':
+    optional: true
 
-  '@tsconfig/node16@1.0.4': {}
+  '@tsconfig/node16@1.0.4':
+    optional: true
 
   '@tybys/wasm-util@0.10.5':
     dependencies:
       tslib: 2.9.1
     optional: true
-
-  '@types/json-schema@7.0.15': {}
-
-  '@types/node@24.19.2':
-    dependencies:
-      undici-types: 7.24.6
 
   '@types/node@26.6.6':
     dependencies:
@@ -2237,17 +2163,17 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@typespec/asset-emitter@0.79.3(@typespec/compiler@1.18.0(@types/node@24.19.2))':
+  '@typespec/asset-emitter@0.79.3(@typespec/compiler@1.18.0(@types/node@26.6.6))':
     dependencies:
-      '@typespec/compiler': 1.18.0(@types/node@24.19.2)
+      '@typespec/compiler': 1.18.0(@types/node@26.6.6)
 
-  '@typespec/compiler@1.18.0(@types/node@24.19.2)':
+  '@typespec/compiler@1.18.0(@types/node@26.6.6)':
     dependencies:
       '@babel/code-frame': 8.0.6
-      '@inquirer/checkbox': 5.3.0(@types/node@24.19.2)
-      '@inquirer/confirm': 6.4.0(@types/node@24.19.2)
-      '@inquirer/input': 5.2.0(@types/node@24.19.2)
-      '@inquirer/select': 5.3.0(@types/node@24.19.2)
+      '@inquirer/checkbox': 5.3.0(@types/node@26.6.6)
+      '@inquirer/confirm': 6.4.0(@types/node@26.6.6)
+      '@inquirer/input': 5.2.0(@types/node@26.6.6)
+      '@inquirer/select': 5.3.0(@types/node@26.6.6)
       ajv: 8.20.0
       change-case: 5.4.4
       env-paths: 4.0.0
@@ -2265,17 +2191,19 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@typespec/json-schema@1.18.0(@typespec/compiler@1.18.0(@types/node@24.19.2))':
+  '@typespec/json-schema@1.18.0(@typespec/compiler@1.18.0(@types/node@26.6.6))':
     dependencies:
-      '@typespec/asset-emitter': 0.79.3(@typespec/compiler@1.18.0(@types/node@24.19.2))
-      '@typespec/compiler': 1.18.0(@types/node@24.19.2)
+      '@typespec/asset-emitter': 0.79.3(@typespec/compiler@1.18.0(@types/node@26.6.6))
+      '@typespec/compiler': 1.18.0(@types/node@26.6.6)
       yaml: 2.9.1
 
   acorn-walk@8.3.5:
     dependencies:
       acorn: 8.19.0
+    optional: true
 
-  acorn@8.19.0: {}
+  acorn@8.19.0:
+    optional: true
 
   ajv-cli@5.0.0(ts-node@10.9.2(@types/node@26.6.6)(typescript@7.0.2)):
     dependencies:
@@ -2304,7 +2232,8 @@ snapshots:
 
   ansi-styles@6.2.3: {}
 
-  arg@4.1.3: {}
+  arg@4.1.3:
+    optional: true
 
   argparse@1.0.10:
     dependencies:
@@ -2342,13 +2271,15 @@ snapshots:
 
   content-type@3.1.1: {}
 
-  create-require@1.1.1: {}
+  create-require@1.1.1:
+    optional: true
 
   debug@4.4.3:
     dependencies:
       ms: 2.1.3
 
-  diff@4.0.4: {}
+  diff@4.0.4:
+    optional: true
 
   emoji-regex@10.6.0: {}
 
@@ -2455,7 +2386,8 @@ snapshots:
 
   lru-cache@11.5.3: {}
 
-  make-error@1.3.6: {}
+  make-error@1.3.6:
+    optional: true
 
   minimatch@11.0.9:
     dependencies:
@@ -2478,8 +2410,6 @@ snapshots:
 
   obug@3.0.0: {}
 
-  path-equal@1.2.8: {}
-
   path-scurry@3.0.0:
     dependencies:
       lru-cache: 11.5.3
@@ -2490,8 +2420,6 @@ snapshots:
   prettier@3.10.1: {}
 
   require-from-string@2.0.2: {}
-
-  safe-stable-stringify@2.5.0: {}
 
   safer-buffer@2.1.2: {}
 
@@ -2533,24 +2461,6 @@ snapshots:
 
   temporal-utils@1.0.4: {}
 
-  ts-node@10.9.2(@types/node@24.19.2)(typescript@5.9.3):
-    dependencies:
-      '@cspotcode/source-map-support': 0.8.1
-      '@tsconfig/node10': 1.0.13
-      '@tsconfig/node12': 1.0.11
-      '@tsconfig/node14': 1.0.3
-      '@tsconfig/node16': 1.0.4
-      '@types/node': 24.19.2
-      acorn: 8.19.0
-      acorn-walk: 8.3.5
-      arg: 4.1.3
-      create-require: 1.1.1
-      diff: 4.0.4
-      make-error: 1.3.6
-      typescript: 5.9.3
-      v8-compile-cache-lib: 3.0.1
-      yn: 3.1.1
-
   ts-node@10.9.2(@types/node@26.6.6)(typescript@7.0.2):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
@@ -2581,22 +2491,6 @@ snapshots:
 
   typanion@3.14.0: {}
 
-  typescript-json-schema@0.68.0:
-    dependencies:
-      '@types/json-schema': 7.0.15
-      '@types/node': 24.19.2
-      glob: 14.0.6
-      path-equal: 1.2.8
-      safe-stable-stringify: 2.5.0
-      ts-node: 10.9.2(@types/node@24.19.2)(typescript@5.9.3)
-      typescript: 5.9.3
-      yargs: 18.2.0
-    transitivePeerDependencies:
-      - '@swc/core'
-      - '@swc/wasm'
-
-  typescript@5.9.3: {}
-
   typescript@6.0.3: {}
 
   typescript@7.0.2:
@@ -2622,13 +2516,12 @@ snapshots:
       '@typescript/typescript-win32-arm64': 7.0.2
       '@typescript/typescript-win32-x64': 7.0.2
 
-  undici-types@7.24.6: {}
-
   undici-types@8.9.0: {}
 
   universal-user-agent@7.0.3: {}
 
-  v8-compile-cache-lib@3.0.1: {}
+  v8-compile-cache-lib@3.0.1:
+    optional: true
 
   vscode-jsonrpc@10.0.0: {}
 
@@ -2668,4 +2561,5 @@ snapshots:
       y18n: 5.0.8
       yargs-parser: 22.0.0
 
-  yn@3.1.1: {}
+  yn@3.1.1:
+    optional: true

@@ -24,7 +24,7 @@ import addFormats from "ajv-formats";
 export const specRoot = fileURLToPath(new URL("../", import.meta.url));
 const VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 
-export const schemaMapping = {
+export const legacySchemaMapping = {
   AgentContext: "agent-context.schema.json",
   // The generic verdict root is retained only in the released 0.1 bundle.
   Verdict: "verdict.schema.json",
@@ -43,6 +43,19 @@ export const schemaMapping = {
   PostToolHookResponse: "post-tool-hook-response.schema.json",
   OutputHookResponse: "output-hook-response.schema.json",
   AgentShutdownHookResponse: "agent-shutdown-hook-response.schema.json",
+};
+export const schemaMapping = Object.fromEntries(
+  Object.keys(legacySchemaMapping).map((name) => [name, `${name}.json`]),
+);
+export const requestSchemas = {
+  agent_startup: "AgentStartupRequest.json",
+  input: "InputRequest.json",
+  pre_model_call: "PreModelCallRequest.json",
+  post_model_call: "PostModelCallRequest.json",
+  pre_tool_call: "PreToolCallRequest.json",
+  post_tool_call: "PostToolCallRequest.json",
+  output: "OutputRequest.json",
+  agent_shutdown: "AgentShutdownRequest.json",
 };
 const hookResponseSchemas = [
   "agent-startup-hook-response.schema.json",
@@ -89,11 +102,12 @@ export async function bundles(root = specRoot) {
   return names.sort();
 }
 
-async function jsonFiles(directory) {
+async function jsonFiles(directory, excluded = []) {
   const files = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const filename = path.join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...await jsonFiles(filename));
+    if (entry.isDirectory() && !excluded.includes(entry.name)) files.push(...await jsonFiles(filename, excluded));
+    else if (entry.isDirectory()) continue;
     else if (!entry.isFile()) throw new Error(`${filename}: not a regular file or directory`);
     else if (entry.name.endsWith(".json")) files.push(filename);
   }
@@ -137,8 +151,8 @@ export async function validateExamples(root = schemaRoot) {
   addFormats(ajv);
   const generated = await schemaDirectory(root);
   const schemas = new Map();
-  for (const filename of await jsonFiles(generated)) {
-    if (!filename.endsWith(".schema.json")) continue;
+  for (const filename of await jsonFiles(generated, ["src", "examples"])) {
+    if (!filename.endsWith(".json")) continue;
     const schema = await readJson(filename);
     if (!ajv.validateSchema(schema)) {
       throw new Error(`${filename}: invalid schema: ${ajv.errorsText()}`);
@@ -149,6 +163,11 @@ export async function validateExamples(root = schemaRoot) {
     ajv.addSchema(schema);
     schemas.set(path.relative(generated, filename).split(path.sep).join("/"), schema);
   }
+  const native = schemas.has("AgentContext.json");
+  const mapping = native ? schemaMapping : legacySchemaMapping;
+  const responseSchema = (filename) => native
+    ? schemaMapping[Object.keys(legacySchemaMapping).find((key) => legacySchemaMapping[key] === filename)]
+    : filename;
   function validate(instance, filename, reference) {
     const [schemaFile, fragment] = reference.split("#");
     const schema = schemas.get(schemaFile);
@@ -176,12 +195,12 @@ export async function validateExamples(root = schemaRoot) {
         if (transformMembers.length !== 1 || !transformHookResponseSchema[transformMembers[0]]) {
           throw new Error(`${filename}: no hook response schema for transform payload`);
         }
-        references = [transformHookResponseSchema[transformMembers[0]]];
+        references = [responseSchema(transformHookResponseSchema[transformMembers[0]])];
       } else {
-        references = hookResponseSchemas;
+        references = hookResponseSchemas.map(responseSchema);
       }
     } else {
-      const reference = schemaMapping[parts[0]];
+      const reference = Object.hasOwn(mapping, parts[0]) ? mapping[parts[0]] : undefined;
       if (!reference) throw new Error(`${filename}: no schema mapping for example`);
       references = [reference];
     }
@@ -194,7 +213,7 @@ export async function validateExamples(root = schemaRoot) {
       // and agent-context/ in the flat one.
       const point = `${instance.interception_point}.schema.json`;
       const folder = schemas.has(`strict-contexts/${point}`) ? "strict-contexts" : "agent-context";
-      validate(instance, filename, `${folder}/${point}`);
+      validate(instance, filename, native ? requestSchemas[instance.interception_point] : `${folder}/${point}`);
     }
   }
   return files.length;

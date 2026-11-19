@@ -126,6 +126,7 @@ enum ResolvedBy {
     }
   ]
 )
+@jsonSchema
 model InterceptionRecord {
   ...Record<never>;
   interception_point: InterceptionPoint;

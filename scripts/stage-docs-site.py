@@ -11,7 +11,7 @@ docs-site/docs/:
   spec/draft.md       the draft, from AGENT-HOOKS-DRAFT.md, its banner link
                       pointed at the version page beside it
   spec.md             the newest released version again, the stable "latest" URL
-  schema/<path>       every *.schema.json under a bundle's schema/ (outside
+  schema/<path>       every JSON Schema under a bundle's schema/ (outside
                       src/ and examples/) at the path its own $id names
                       (schema/vX.Y/ for a release, schema/draft/ for the
                       draft); the inventories the bundle carries beside its
@@ -131,8 +131,8 @@ class Publisher:
             raise SystemExit(
                 f"{origin} and {earlier[0]} both publish schema/{relative} with different "
                 "content; a published $id path is immutable, so the newer bundle must "
-                "publish under its own path (set ID_BASE in "
-                "spec/scripts/generate-schemas.mts before regenerating)"
+                "publish under its own path (set the TypeSpec @baseUri "
+                "before regenerating)"
             )
         self.staged[relative] = (origin, data)
         target = self.schema_out / relative
@@ -141,8 +141,8 @@ class Publisher:
 
 
 def bundle_schemas(root: Path) -> list[Path]:
-    """Every *.schema.json under a bundle's schema/ folder, refusing
-    symbolic links on the way; src/ holds TypeScript and examples/ hold
+    """Every JSON Schema under a bundle's schema/ folder, refusing
+    symbolic links on the way; src/ holds source and examples/ hold
     instances, so neither contributes a schema."""
     if root.is_symlink():
         raise SystemExit(f"{root} {SYMLINK}")
@@ -152,7 +152,7 @@ def bundle_schemas(root: Path) -> list[Path]:
             path = Path(dirpath) / name
             if path.is_symlink():
                 raise SystemExit(f"{path} {SYMLINK}")
-            if path.is_file() and name.endswith(".schema.json"):
+            if path.is_file() and name.endswith(".json"):
                 files.append(path)
         dirnames[:] = [d for d in sorted(dirnames) if d not in ("src", "examples")]
     return sorted(files)
