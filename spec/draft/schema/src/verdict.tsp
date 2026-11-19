@@ -1,6 +1,5 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-using TypeSpec.JsonSchema;
 namespace AgentHooks;
 
 /** The three decisions (§5). */
@@ -11,8 +10,9 @@ enum Decision {
 }
 
 /** A recorded concern that does not affect control flow (§5.1). */
-@extension("additionalProperties", false)
 model Warning {
+  ...Record<never>;
+
   /**
    * Interceptor-supplied warning identifier. The host_error: prefix is reserved
    * for host-synthesized failures (§11) and host_warning: for host-synthesized
@@ -29,8 +29,9 @@ model Warning {
 model VerificationPointers is Record<string>;
 
 /** Offline-verifiable evidence attached to a verdict (§14). */
-@extension("additionalProperties", false)
 model Evidence {
+  ...Record<never>;
+
   /** Content address (sha256:<hex>) or URI of an offline-verifiable proof. */
   artefact?: string | null;
 
@@ -69,8 +70,8 @@ model VerdictBase {
 // Example: [with warning](../examples/Verdict/allow-with-warning.json)
 // Example: [with evidence](../examples/Verdict/allow-with-evidence.json)
 /** allow: proceed. Absorbs warn through warnings[] (§5.1). */
-@extension("additionalProperties", false)
 model AllowVerdict {
+  ...Record<never>;
   ...VerdictBase;
   decision: Decision.Allow;
 }
@@ -78,8 +79,8 @@ model AllowVerdict {
 // Example: [deny](../examples/Verdict/deny.json)
 // Example: [with approval](../examples/Verdict/deny-with-approval.json)
 /** deny: stop the action. Absorbs escalate through the approval block (§5.1). */
-@extension("additionalProperties", false)
 model DenyVerdict {
+  ...Record<never>;
   ...VerdictBase;
   decision: Decision.Deny;
 
@@ -97,8 +98,8 @@ model DenyVerdict {
 // Example: [args](../examples/Verdict/transform-tool-args.json)
 // Example: [value](../examples/Verdict/transform-tool-result.json)
 /** transform: proceed with the hook-specific replacement payload. */
-@extension("additionalProperties", false)
 model TransformVerdict<TTransform> {
+  ...Record<never>;
   ...VerdictBase;
   decision: Decision.Transform;
   transform: TTransform;

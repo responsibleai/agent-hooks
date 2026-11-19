@@ -1,6 +1,5 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-using TypeSpec.JsonSchema;
 namespace AgentHooks;
 
 /**
@@ -17,8 +16,8 @@ model LiftableDeny {
 
 // Example: [request](../examples/ApprovalRequest/collection-access.json)
 /** What the host hands the resolver (§9). */
-@extension("additionalProperties", false)
 model request {
+  ...Record<never>;
   context_identity: string | null;
   interception_point: InterceptionPoint;
   verdict: LiftableDeny;
@@ -44,8 +43,8 @@ model ResolutionBase {
 
 // Example: [approve](../examples/ApprovalResolution/approve-allow.json)
 /** approve: the resolver lifts the deny with an allow verdict. */
-@extension("additionalProperties", false)
 model ApproveResolution {
+  ...Record<never>;
   ...ResolutionBase;
   outcome: Outcome.Approve;
   verdict: AllowVerdict;
@@ -53,8 +52,8 @@ model ApproveResolution {
 
 // Example: [reject](../examples/ApprovalResolution/reject.json)
 /** reject: the resolver keeps a deny. */
-@extension("additionalProperties", false)
 model RejectResolution {
+  ...Record<never>;
   ...ResolutionBase;
   outcome: Outcome.Reject;
   verdict: DenyVerdict;
@@ -62,8 +61,8 @@ model RejectResolution {
 
 // Example: [unresolved](../examples/ApprovalResolution/unresolved.json)
 /** unresolved: no decision; the deny stands and no verdict is carried. */
-@extension("additionalProperties", false)
 model UnresolvedResolution {
+  ...Record<never>;
   ...ResolutionBase;
   outcome: Outcome.Unresolved;
 }

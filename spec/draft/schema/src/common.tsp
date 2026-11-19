@@ -37,4 +37,4 @@ enum ConflictResolution {
 model Extensions is Record<unknown>;
 
 /** An open JSON object, not an arbitrary JSON value. */
-model JsonObject {}
+model JsonObject is Record<unknown>;

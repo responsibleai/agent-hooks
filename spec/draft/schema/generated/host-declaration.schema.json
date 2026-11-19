@@ -46,15 +46,17 @@
     "bindings",
     "spec"
   ],
-  "additionalProperties": false,
+  "unevaluatedProperties": {
+    "not": {}
+  },
   "$defs": {
     "Configuration": {
       "type": "object",
       "properties": {
         "mode": {
           "$ref": "#/$defs/Mode",
-          "description": "§8.",
-          "default": "enforce"
+          "default": "enforce",
+          "description": "§8."
         },
         "composition": {
           "$ref": "#/$defs/CompositionConfig"
@@ -87,8 +89,10 @@
           "$ref": "#/$defs/FailureConfig"
         }
       },
-      "description": "Host configuration (§7.1). Every member is OPTIONAL; defaults are the values\nthe specification already names and fail closed.",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "Host configuration (§7.1). Every member is OPTIONAL; defaults are the values\nthe specification already names and fail closed."
     },
     "Binding": {
       "type": "object",
@@ -128,8 +132,10 @@
         "id",
         "kind"
       ],
-      "description": "One interceptor binding (§7.7.4).",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "One interceptor binding (§7.7.4)."
     },
     "Host": {
       "type": "object",
@@ -148,8 +154,10 @@
       "required": [
         "name"
       ],
-      "description": "OPTIONAL and informative; never checked against code.",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "OPTIONAL and informative; never checked against code."
     },
     "Surface": {
       "anyOf": [
@@ -199,8 +207,10 @@
           "description": "Consulted by parallel/strictest only."
         }
       },
-      "description": "§7.2. A knob the declared profile does not consult is refused, never cleared;\na consulted knob left unset takes the §7.2 default.",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "§7.2. A knob the declared profile does not consult is refused, never cleared;\na consulted knob left unset takes the §7.2 default."
     },
     "ApprovalConfig": {
       "type": "object",
@@ -230,18 +240,22 @@
           "description": "§9 redaction seam. A registered approval redactor by reference, or null."
         }
       },
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      }
     },
     "PostureConfig": {
       "type": "object",
       "properties": {
         "tool_seam_host_error": {
           "$ref": "#/$defs/ToolSeamHostError",
-          "description": "§13.1. Must equal the posture the host's code implements.",
-          "default": "continue"
+          "default": "continue",
+          "description": "§13.1. Must equal the posture the host's code implements."
         }
       },
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      }
     },
     "TimeoutsConfig": {
       "type": "object",
@@ -255,7 +269,9 @@
           "description": "§9 resolver bound; defaults to the value of interceptor_ms."
         }
       },
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      }
     },
     "RecordsConfig": {
       "type": "object",
@@ -274,18 +290,22 @@
           "description": "In-memory record buffer bound; null (the default) is unbounded. The maximum\nis 2^53 - 1 so the resolved document always canonicalises (§4.4)."
         }
       },
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      }
     },
     "FailureConfig": {
       "type": "object",
       "properties": {
         "on_error": {
           "$ref": "#/$defs/OnError",
-          "description": "§6.3.1. The document default every binding's on_error inherits. deny keeps\nthe §6.3 substituted deny; continue substitutes an allow carrying\nhost_warning:control_failed and records the cause in substituted_for.",
-          "default": "deny"
+          "default": "deny",
+          "description": "§6.3.1. The document default every binding's on_error inherits. deny keeps\nthe §6.3 substituted deny; continue substitutes an allow carrying\nhost_warning:control_failed and records the cause in substituted_for."
         }
       },
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      }
     },
     "Reference": {
       "type": "string",
@@ -352,12 +372,14 @@
         "buffered_output": {
           "type": "boolean",
           "const": true,
-          "description": "§12.1a. false must be declared explicitly and requires exposure_bound.",
-          "default": true
+          "default": true,
+          "description": "§12.1a. false must be declared explicitly and requires exposure_bound."
         }
       },
-      "description": "The surface of a host that buffers output (§12.1a), the default:\nexposure_bound is absent.",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "The surface of a host that buffers output (§12.1a), the default:\nexposure_bound is absent."
     },
     "UnbufferedSurface": {
       "type": "object",
@@ -398,8 +420,10 @@
         "buffered_output",
         "exposure_bound"
       ],
-      "description": "The surface of a host that streams output (§12.1a): buffered_output is\nwritten as false and exposure_bound is present.",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "The surface of a host that streams output (§12.1a): buffered_output is\nwritten as false and exposure_bound is present."
     },
     "CompositionProfile": {
       "type": "string",
@@ -471,8 +495,10 @@
           "$ref": "#/$defs/UnanimousSupport"
         }
       },
-      "description": "Profiles and the knob values supported under each (§13.1). Only the knobs a\nprofile consults may appear; an absent knob member means the §7.2 default\nvalue only.",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "Profiles and the knob values supported under each (§13.1). Only the knobs a\nprofile consults may appear; an absent knob member means the §7.2 default\nvalue only."
     },
     "FirstDenySupport": {
       "type": "object",
@@ -486,12 +512,16 @@
           "uniqueItems": true
         }
       },
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      }
     },
     "RunAllSupport": {
       "type": "object",
       "properties": {},
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      }
     },
     "StrictestSupport": {
       "type": "object",
@@ -505,7 +535,9 @@
           "uniqueItems": true
         }
       },
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      }
     },
     "UnanimousSupport": {
       "type": "object",
@@ -519,7 +551,9 @@
           "uniqueItems": true
         }
       },
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      }
     }
   }
 }

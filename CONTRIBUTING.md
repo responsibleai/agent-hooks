@@ -94,14 +94,16 @@ differs from the generated text.
   `@minLength`, `@maxLength`, `@minItems`, `@maxItems` and `@uniqueItems`
   for other constraints. Optional properties use `?`; nullable values
   explicitly include `| null`. Close individual models with
-  `@extension("additionalProperties", false)`, not global object sealing.
+  `...Record<never>`, not global object sealing. Use `Record<unknown>` for
+  explicitly open objects.
 - A rule one member decides is a discriminated union: verdicts by
   `decision`, agent contexts by `interception_point`, approval
   resolutions by `outcome`, the declared surface by `buffered_output`.
   A rule the type system cannot state is JSON Schema in
   `@extension("allOf", #[...])`; extension namespace keys use
   `@extension("propertyNames", #{...})`. Defaults remain schema annotations
-  through `@extension("default", value)`, not runtime default insertion.
+  through native property defaults (`property?: Type = value`), not runtime
+  default insertion.
 - `spec/scripts/typespec-schemas.mts` invokes the native emitter in memory,
   preserving published identities. Approval's definitions-only document
   uses a temporary model to collect its public fragments, then discards
