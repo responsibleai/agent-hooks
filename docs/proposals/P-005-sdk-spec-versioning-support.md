@@ -1,1 +1,0 @@
-P-XXX: Versioning strategy for SDK
