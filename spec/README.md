@@ -40,7 +40,7 @@ Each folder is a complete specification bundle with the same layout:
   its schemas are instance-equivalent to the ones
   the tag shipped ([RELEASING.md](../RELEASING.md)).
 
-From `spec/scripts` after `npm ci`, run
+After `pnpm install` at the repository root, from `spec/scripts` run
 `node check-schema-examples.mjs` to validate the examples of
 every bundle, or name one bundle to limit the run. CI runs the full
 check; a symbolic link under `examples/` fails.
@@ -49,7 +49,7 @@ check; a symbolic link under `examples/` fails.
 
 Make normative changes in `draft/`. Edit schema shapes in
 `draft/schema/src/` and regenerate `draft/schema/generated/` with
-`npm run generate:schema` in `spec/scripts`; the generator and its
+`pnpm run generate:schema` at the repository root; the generator and its
 drift check target `draft/` by default.
 
 Released folders are immutable records of a release. The `change-class`

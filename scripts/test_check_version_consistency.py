@@ -71,6 +71,90 @@ class PlatformPinTest(unittest.TestCase):
         declarations.assert_not_called()
 
 
+class ReleaseTagTest(unittest.TestCase):
+    def run_check(self, args, version="0.1.0-beta.4", python_version="0.1.0b4"):
+        output = io.StringIO()
+        with (
+            patch.object(
+                check_version_consistency,
+                "check_no_committed_platform_pins",
+                return_value=0,
+            ),
+            patch.object(
+                check_version_consistency, "check_declaration_versions", return_value=0
+            ),
+            patch.object(
+                check_version_consistency, "check_spec_versions", return_value=0
+            ),
+            patch.object(
+                check_version_consistency,
+                "read_versions",
+                return_value={
+                    "sdk/rust/Cargo.toml": version,
+                    "sdk/python/pyproject.toml": python_version,
+                    "sdk/typescript/package.json": version,
+                    "sdk/dotnet/Directory.Build.props": version,
+                },
+            ),
+            contextlib.redirect_stdout(output),
+        ):
+            result = check_version_consistency.main(args)
+        return result, output.getvalue()
+
+    def test_matching_prerelease_and_stable_tags_pass(self):
+        for version, python_version in (
+            ("0.1.0-beta.4", "0.1.0b4"),
+            ("1.0.0", "1.0.0"),
+        ):
+            with self.subTest(version=version):
+                result, output = self.run_check(
+                    ["--release-tag", f"v{version}"], version, python_version
+                )
+                self.assertEqual(result, 0, output)
+
+    def test_mismatched_or_noncanonical_tags_fail(self):
+        for tag in (
+            "v0.1.0-beta.5",
+            "v0.1.0",
+            "0.1.0-beta.4",
+            "v0.1.0b4",
+            "spec/0.1",
+            "v0.1.0-beta.4 ",
+            "",
+        ):
+            with self.subTest(tag=tag):
+                result, output = self.run_check(["--release-tag", tag])
+                self.assertEqual(result, 1)
+                self.assertIn("expected v0.1.0-beta.4", output)
+                self.assertNotIn("version surfaces agree:", output)
+
+    def test_release_tag_does_not_replace_manifest_agreement(self):
+        result, output = self.run_check(
+            ["--release-tag", "v0.1.0-beta.4"], python_version="0.1.0b5"
+        )
+        self.assertEqual(result, 1)
+        self.assertIn("SDK version surfaces disagree", output)
+
+    def test_release_tag_and_spec_tags_are_checked_together(self):
+        with patch.object(
+            check_version_consistency, "check_spec_tags", return_value=0
+        ) as tags:
+            result, output = self.run_check(
+                ["--require-spec-tags", "--release-tag", "v0.1.0-beta.4"]
+            )
+        self.assertEqual(result, 0, output)
+        tags.assert_called_once_with()
+        with patch.object(check_version_consistency, "check_spec_tags", return_value=1):
+            result, _ = self.run_check(
+                ["--require-spec-tags", "--release-tag", "v0.1.0-beta.4"]
+            )
+        self.assertEqual(result, 1)
+
+    def test_checks_without_a_release_tag_still_pass(self):
+        result, output = self.run_check([])
+        self.assertEqual(result, 0, output)
+
+
 CURRENT = "agent-hooks-declaration/1.1"
 TYPES_RS = (
     'pub const DECLARATION_VERSION: &str = "agent-hooks-declaration/1.1";\n'
@@ -381,13 +465,15 @@ class SpecTagsTest(unittest.TestCase):
         self.assertIn("tag spec/0.1 is not an ancestor of HEAD", output)
 
     def test_main_accepts_the_flags_only(self):
-        self.assertEqual(check_version_consistency.main(["--something"]), 2)
-        self.assertEqual(
-            check_version_consistency.main(
-                ["--require-spec-tags", "--print-supported"]
-            ),
-            2,
-        )
+        for args in (
+            ["--something"],
+            ["--require-spec-tags", "--print-supported"],
+            ["--release-tag"],
+            ["--print-supported", "--release-tag", "v0.1.0-beta.4"],
+        ):
+            with self.subTest(args=args), self.assertRaises(SystemExit) as raised:
+                check_version_consistency.main(args)
+            self.assertEqual(raised.exception.code, 2)
 
     def test_print_supported_lists_the_entries_and_checks_nothing(self):
         output = io.StringIO()

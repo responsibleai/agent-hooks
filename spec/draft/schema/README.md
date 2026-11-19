@@ -35,18 +35,19 @@ reference rewriting or strict-schema derivation.
 Use Node.js 22 or later. From the repository root:
 
 ```bash
-cd spec/scripts
-npm ci
-npm run generate:schema
-npm run check:schema
-node check-schema-examples.mjs
-npm run check:schema:equivalence -- --old <git-ref>
+pnpm install
+pnpm run generate:schema
+pnpm run check:schema
+node spec/scripts/check-schema-examples.mjs
+pnpm run check:schema:equivalence --old <git-ref>
+pnpm run check:schema:equivalence --old <git-ref> --structural-diff
 ```
 
 The generation command invokes the native CLI, equivalent to:
 
 ```bash
-npx tsp compile schema-emitter.tsp \
+cd spec/scripts
+pnpm exec tsp compile schema-emitter.tsp \
   --import ../draft/schema/src/main.tsp \
   --config ../draft/schema/tspconfig.yaml
 ```

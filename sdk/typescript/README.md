@@ -155,6 +155,7 @@ The napi-rs native module (`*.node`) ships as per-platform
 `optionalDependencies` packages (the standard napi-rs multi-platform
 layout): `linux-x64-gnu`, `linux-arm64-gnu`, `darwin-x64`,
 `darwin-arm64` and `win32-x64-msvc`. On other platforms, install from
-source (needs a Rust toolchain): `npm run build` produces the module
+source (needs a Rust toolchain): run `pnpm install` at the repository root,
+then `pnpm --dir sdk/typescript build` to produce the module
 for your host platform. A platform mismatch fails at `require` time
 with a module-load error naming the missing `.node` binary.

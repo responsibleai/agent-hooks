@@ -53,7 +53,7 @@ function main(): number {
       const committed = join(output, file);
       if (!existsSync(generated) || !existsSync(committed) ||
           readFileSync(generated, "utf8") !== readFileSync(committed, "utf8")) {
-        console.error(`::error::${escapeWorkflowCommandData(join(output, file))} differs from native TypeSpec output; run npm run generate:schema`);
+        console.error(`::error::${escapeWorkflowCommandData(join(output, file))} differs from native TypeSpec output; run pnpm run generate:schema`);
         failing++;
       }
     }

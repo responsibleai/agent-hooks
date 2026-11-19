@@ -26,7 +26,7 @@ updates:
     groups:
       python: { patterns: ["*"] }
   - package-ecosystem: npm
-    directory: /sdk/typescript
+    directory: /
     schedule: { interval: weekly }
     groups:
       node: { patterns: ["*"] }

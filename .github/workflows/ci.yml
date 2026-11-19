@@ -18,9 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22" }
-      - run: npm install -g ajv-cli@5.0.0 ajv-formats@3.0.1
+      - uses: ./.github/actions/setup
       - name: Validate schemas are well-formed
         run: |
           set -e
@@ -48,7 +46,7 @@ jobs:
               for r in "${schemas[@]}"; do
                 [ "$r" = "$f" ] || refs+=(-r "$r")
               done
-              ajv compile --spec=draft2020 -c ajv-formats -s "$f" "${refs[@]}"
+              pnpm exec ajv compile --spec=draft2020 -c ajv-formats -s "$f" "${refs[@]}"
             done
             validated=$((validated + 1))
           done
@@ -79,7 +77,7 @@ jobs:
             fi
             mapfile -t refs < <(find "$root" -name '*.json' -not -path '*/src/*' -not -path '*/examples/*' | sort | sed 's/^/-r=/')
             echo "Validating $suite/vectors against $root"
-            ajv validate --spec=draft2020 -c ajv-formats \
+            pnpm exec ajv validate --spec=draft2020 -c ajv-formats \
               -s "$suite/vectors.schema.json" "${refs[@]}" \
               -d "$suite/vectors/*.json"
             validated=$((validated + 1))
@@ -118,12 +116,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: stable }
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22" }
-      - run: npm ci
-        working-directory: sdk/typescript
-      - run: npm ci
-        working-directory: spec/scripts
+      - uses: ./.github/actions/setup
       - name: Schema examples match their JSON Schemas (every bundle)
         run: node check-schema-examples.mjs
         working-directory: spec/scripts
@@ -157,10 +150,10 @@ jobs:
           validation="$RUNNER_TEMP/schema-drift-validation.txt"
           structure="$RUNNER_TEMP/schema-drift-structure.txt"
           validation_status=0
-          npm run --silent check:schema:equivalence -- --old "$old" --new "$new" "${wires[@]}" \
+          pnpm --silent run check:schema:equivalence --old "$old" --new "$new" "${wires[@]}" \
             > "$validation" 2>&1 || validation_status=$?
           structure_status=0
-          npm run --silent check:schema:equivalence -- --old "$old" --new "$new" "${wires[@]}" --structural-diff \
+          pnpm --silent run check:schema:equivalence --old "$old" --new "$new" "${wires[@]}" --structural-diff \
             > "$structure" 2>&1 || structure_status=$?
           cat "$validation" "$structure"
           disagreements=$(sed -nE 's/^total: .* ([0-9]+) disagreements .*$/\1/p' "$validation" | tail -1)
@@ -221,12 +214,12 @@ jobs:
         # napi-cli does not forward --locked; fetching first pins the
         # graph, and the build below resolves offline-consistent.
         working-directory: sdk/typescript
-      - run: npm run build:native:debug
+      - run: pnpm run build:native:debug
         working-directory: sdk/typescript
       - name: Generated-binding drift (mirrors schema-drift)
         run: git diff --exit-code -- binding.js binding.d.ts
         working-directory: sdk/typescript
-      - run: npx tsc
+      - run: pnpm exec tsc
         working-directory: sdk/typescript
       # All test files, never an allowlist: the emitter suite shipped
       # ~100 tests before first running in CI because this line named
@@ -366,8 +359,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22" }
+      - uses: ./.github/actions/setup
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with: { python-version: "3.12" }
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
@@ -382,12 +374,11 @@ jobs:
         continue-on-error: true
         run: |
           set -eu
-          npm install -g ajv-cli@5.0.0 ajv-formats@3.0.1
           mapfile -t vectors < <(python3 scripts/vectors-for-bundle.py list draft)
           mapfile -t refs < <(find spec/draft/schema/generated -name '*.json' | sort | sed 's/^/-r=/')
           data=()
           for v in "${vectors[@]}"; do data+=(-d "$v"); done
-          ajv validate --spec=draft2020 -c ajv-formats -s conformance/draft/vectors.schema.json "${refs[@]}" "${data[@]}"
+          pnpm exec ajv validate --spec=draft2020 -c ajv-formats -s conformance/draft/vectors.schema.json "${refs[@]}" "${data[@]}"
           echo "validated ${#vectors[@]} draft vectors against spec/draft"
       - name: Rust draft suite tests
         id: rust
@@ -410,11 +401,9 @@ jobs:
         id: typescript
         continue-on-error: true
         run: |
-          npm ci
-          npm ci --prefix ../../spec/scripts
           cargo fetch --locked
-          npm run build:native:debug
-          npx tsc
+          pnpm run build:native:debug
+          pnpm exec tsc
           node --test test/draft/*.mjs
         working-directory: sdk/typescript
       - name: .NET draft suite tests
@@ -473,8 +462,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22" }
+      - uses: ./.github/actions/setup
       - name: actionlint (pinned, checksum-verified)
         run: |
           curl -sSfL -o actionlint.tgz \
@@ -488,12 +476,10 @@ jobs:
         run: python3 scripts/check-spec-versions.py
       - name: Repository script regression tests
         run: python3 -m unittest discover -s scripts -p "test_*.py" -v
-      - run: npm ci
-        working-directory: spec/scripts
       - name: Committed JSON Schemas match their TypeSpec source
         # Compiles spec/draft/schema/src into a temporary directory and compares
         # with the committed files (spec/scripts/generate-schemas.mts).
-        run: npm run check:schema
+        run: pnpm run check:schema
         working-directory: spec/scripts
       - name: Released TypeSpec schema bundles match their source
         # Legacy 0.1 schemas stay committed and are never regenerated.
@@ -510,7 +496,7 @@ jobs:
               continue
             fi
             echo "Checking spec/$version/schema"
-            npx tsx generate-schemas.mts --check --spec "$version"
+            pnpm exec tsx generate-schemas.mts --check --spec "$version"
             checked=$((checked + 1))
           done
           echo "checked $checked released TypeSpec bundle(s)"
@@ -569,19 +555,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: stable }
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22" }
+      - uses: ./.github/actions/setup
       - name: Build native binding and test
         # Mirrors the Linux typescript job minus the drift gate: napi
         # writes the host-platform .node next to binding.js, tsc emits
         # dist/ (the tests import dist/index.js), then the full suite runs.
         shell: bash
         run: |
-          npm ci
-          npm ci --prefix ../../spec/scripts
           cargo fetch --locked
-          npm run build:native:debug
-          npx tsc
+          pnpm run build:native:debug
+          pnpm exec tsc
           node --test test/*.mjs
         working-directory: sdk/typescript
 
