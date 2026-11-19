@@ -55,6 +55,18 @@
   Python, TypeScript, .NET, and Go agree; the Rust core is the single
   source of truth and the wrappers delegate to it.
 
+## Node.js tooling
+
+Use Node.js 22 or later and pnpm at the version pinned in the root
+`package.json` (`npm install --global pnpm@12.21.0` if needed). From
+the repository root, run `pnpm install` once for both `spec/scripts`
+and `sdk/typescript`. Commit dependency updates in the root
+`pnpm-lock.yaml`. CI uses `.github/actions/setup` to configure Node.js 26.13.1,
+the pinned pnpm version and caching, then install with
+`pnpm install --frozen-lockfile`.
+The manifests under `sdk/typescript/npm/` are release-only native-binary
+packages, not development workspaces. Publishing still uses npm.
+
 ## Schema source
 
 Each specification folder's JSON Schemas under `spec/<version>/schema/generated/`
@@ -98,10 +110,10 @@ differs from the generated text.
   It retains the legacy TypeScript generator for released bundles.
 
 ```bash
-cd spec/scripts && npm ci
-npm run generate:schema      # write spec/draft/schema/generated/**/*.schema.json
-npm run check:schema         # compile the source, then fail on any drift
-npm run check:schema:equivalence -- --old origin/main   # differential validation against another revision
+pnpm install
+pnpm run generate:schema      # write spec/draft/schema/generated/**/*.schema.json
+pnpm run check:schema         # compile the source, then fail on any drift
+pnpm run check:schema:equivalence --old origin/main   # differential validation against another revision
 ```
 
 After a change, regenerate. The Python mirror holds one folder per
@@ -153,7 +165,7 @@ cd sdk/rust && cargo test --workspace --all-features && cargo clippy --workspace
 # Python (rebuild bindings when core changed)
 cd sdk/python && maturin develop --release && python -m pytest tests/ && ruff check
 # TypeScript (rebuild native when core changed)
-cd spec/scripts && npm ci && cd ../../sdk/typescript && npm ci && npm test
+pnpm install && pnpm --dir sdk/typescript test
 # .NET (needs the FFI cdylib on the library path)
 cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
 cd sdk/dotnet && LD_LIBRARY_PATH=../rust/target/release dotnet test

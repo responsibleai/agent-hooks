@@ -34,7 +34,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    different bytes to one path.
 
    ```bash
-   cd spec/scripts && npm ci && npx tsx generate-schemas.mts --spec X.Y
+   pnpm install && pnpm run generate:schema --spec X.Y
    ```
 
 3. In `spec/draft/AGENT-HOOKS-DRAFT.md`, point the banner at the new
@@ -58,9 +58,10 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    the draft.
 7. Run the checks that read the new folder; the `lint`,
    `schema-lint`, `typescript`, `change-class` and `pages` jobs run
-   the same commands (`ajv` is `ajv-cli`, installed as in `ci.yml`):
+   the same commands (install the root pnpm workspace first):
 
    ```bash
+   pnpm install
    python3 scripts/check-spec-versions.py
    python3 scripts/check-released-specs-immutable.py origin/main HEAD
    python3 scripts/check-version-consistency.py
@@ -70,14 +71,14 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    for version in 0.1 draft; do
      root="spec/$version/schema/generated"
      mapfile -t refs < <(find "$root" -name '*.schema.json' | sed 's/^/-r=/')
-     ajv validate --spec=draft2020 -c ajv-formats \
+     pnpm exec ajv validate --spec=draft2020 -c ajv-formats \
        -s "conformance/$version/vectors.schema.json" "${refs[@]}" \
        -d "conformance/$version/vectors/*.json"
    done
-   cd spec/scripts && npm ci
+   cd spec/scripts
    node check-schema-examples.mjs
-   npx tsc -p ../X.Y/schema/src/tsconfig.json
-   npx tsx generate-schemas.mts --check --spec X.Y
+   pnpm exec tsc -p ../X.Y/schema/src/tsconfig.json
+   pnpm exec tsx generate-schemas.mts --check --spec X.Y
    ```
 
    Each suite validates only against its matching schema bundle. SDK
@@ -95,7 +96,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    ```bash
    git worktree add /tmp/cut-check origin/main
    (cd /tmp/cut-check && python3 scripts/cut-spec-version.py X.Y --date YYYY-MM-DD \
-     && cd spec/scripts && npm ci && npx tsx generate-schemas.mts --spec X.Y)
+     && pnpm install && pnpm run generate:schema --spec X.Y)
    diff -r /tmp/cut-check/spec/X.Y spec/X.Y && echo reproducible
    ```
 
@@ -118,7 +119,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    for f in $(git ls-tree -r --name-only v0.1.0-beta.3 spec/schema | grep '\.schema\.json$'); do
      git show "v0.1.0-beta.3:$f" > "/tmp/beta3/${f#spec/schema/}"
    done
-   cd spec/scripts && npm run check:schema:equivalence -- --old /tmp/beta3 --new ../0.1/schema/generated
+   pnpm --dir spec/scripts run check:schema:equivalence --old /tmp/beta3 --new ../0.1/schema/generated
    ```
 
    The examples are the draft's that validate against those schemas
@@ -147,11 +148,14 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    - `sdk/python/Cargo.toml`, `sdk/python/Cargo.lock`,
      `sdk/python/pyproject.toml`
    - `sdk/typescript/Cargo.toml`, `sdk/typescript/Cargo.lock`,
-     `sdk/typescript/package.json`, `sdk/typescript/package-lock.json`,
+     `sdk/typescript/package.json`,
      `sdk/typescript/npm/*/package.json`
    - `sdk/dotnet/Directory.Build.props` and
      `sdk/dotnet/test/AgentHooks.Tests/packages.lock.json`
    - install pins in `README.md` and the per-SDK READMEs
+
+   Run `pnpm install` from the repository root to refresh `pnpm-lock.yaml`
+   after manifest changes.
 
    The draft's header says Status Draft and Version DRAFT with the date
    of its last change; no SDK tag edits it.
@@ -164,7 +168,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    `agent-hooks/draft`. Add or drop an entry in all five cores together,
    with its rules in the Rust core's `SpecVersion`.
 
-   Regenerate `sdk/typescript/binding.js` after the bump (`npm run
+   Regenerate `sdk/typescript/binding.js` after the bump (`pnpm run
    build:native` in `sdk/typescript`); the napi version strings it
    embeds come from `package.json`, and the CI `typescript` job fails
    on drift.

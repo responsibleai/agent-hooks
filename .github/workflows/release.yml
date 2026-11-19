@@ -83,11 +83,7 @@ jobs:
           # The tag check below needs the history and the spec/<X.Y> tags.
           fetch-depth: 0
           fetch-tags: true
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22" }
-      # The same pinned ajv-cli ci.yml uses; no vendored copy exists, so
-      # the gate fetches it from npm by version.
-      - run: npm install -g ajv-cli@5.0.0 ajv-formats@3.0.1
+      - uses: ./.github/actions/setup
       - name: SDK version surfaces, supported specification versions and their tags agree
         # Every released version the SDKs support must carry the tag
         # spec/<X.Y> on an ancestor of this commit, so an SDK tag cannot
@@ -124,7 +120,7 @@ jobs:
               exit 1
             fi
             mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
-            ajv validate --spec=draft2020 -c ajv-formats \
+            pnpm exec ajv validate --spec=draft2020 -c ajv-formats \
               -s "$suite/vectors.schema.json" "${refs[@]}" \
               -d "$suite/vectors/*.json"
             validated=$((validated + 1))
@@ -134,7 +130,6 @@ jobs:
         # Draft validation stays in CI, not in the release gate.
         run: |
           set -eu
-          npm ci
           version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
           checked=0
           for dir in ../*/; do
@@ -326,14 +321,12 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22" }
+      - uses: ./.github/actions/setup
       - name: Build native binding for ${{ matrix.target }}
         shell: bash
         run: |
-          npm ci
           cargo fetch --locked
-          npx napi build --release --platform --target ${{ matrix.target }} \
+          pnpm exec napi build --release --platform --target ${{ matrix.target }} \
             --js binding.js --dts binding.d.ts
         working-directory: sdk/typescript
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -352,8 +345,9 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with: { node-version: "22", registry-url: "https://registry.npmjs.org" }
+      - uses: ./.github/actions/setup
+        with:
+          registry-url: https://registry.npmjs.org
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: sdk/typescript/artifacts
@@ -361,9 +355,8 @@ jobs:
         # napi artifacts copies each downloaded *.node into the matching
         # committed npm/<platform>/ package dir (napi create-npm-dirs).
         run: |
-          npm ci
-          npx napi artifacts -d artifacts
-          npx tsc
+          pnpm exec napi artifacts -d artifacts
+          pnpm exec tsc
           npm pack
         working-directory: sdk/typescript
       - name: Compute the npm dist-tags and rehearse the publish
@@ -419,9 +412,9 @@ jobs:
           # The committed loader manifest carries NO optionalDependencies:
           # pinning platform packages that only exist after this run makes
           # main unbuildable between a version-bump merge and its publish.
-          # npx napi version syncs the platform dirs; the block is injected
+          # pnpm exec napi version syncs the platform dirs; the block is injected
           # here from the loader version, so it cannot mismatch.
-          npx napi version
+          pnpm exec napi version
           node -e '
             const fs = require("fs");
             const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
