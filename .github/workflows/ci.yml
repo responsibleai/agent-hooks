@@ -477,9 +477,9 @@ jobs:
         run: python3 scripts/check-spec-versions.py
       - name: Repository script regression tests
         run: python3 -m unittest discover -s scripts -p "test_*.py" -v
-      - name: Committed schemas and TypeScript types match their TypeSpec source
+      - name: Committed schemas and TypeScript contract match their TypeSpec source
         # Compiles spec/draft/schema/src, regenerates to memory and compares
-        # with the committed files (spec/scripts/generate-schemas.mts).
+        # the normative schemas and TypeScript contract with committed output.
         run: pnpm run check:typescript
         working-directory: spec/scripts
       - name: Released schema bundles match their source

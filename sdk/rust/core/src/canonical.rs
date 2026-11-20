@@ -192,11 +192,6 @@ fn project_preimage(ctx: &AgentContext) -> Result<Value, (HostError, String)> {
     let ip = interception_point_str(ctx)?;
     let mut out = serde_json::Map::new();
     for (key, sub) in REQUIRED.iter().chain(conditional_for(ip)) {
-        if *key == "target"
-            && crate::types::SpecVersion::of_context(ctx) == Some(crate::types::SpecVersion::Draft)
-        {
-            continue;
-        }
         if let Some(v) = ctx.get(*key) {
             let v = match sub {
                 Some(keep) => filter_obj(v, keep),
@@ -290,18 +285,11 @@ pub fn scan_projection_raw(ctx_json: &str) -> Result<(), (HostError, String)> {
     // Unknown/absent point: an empty ip yields the empty conditional
     // set, so only the required core is scanned; envelope validation
     // rejects the context itself (§10.2).
-    let ip = top
+    let ip: &str = top
         .get("interception_point")
-        .and_then(|rv| serde_json::from_str::<String>(rv.get()).ok())
+        .and_then(|rv| serde_json::from_str::<&str>(rv.get()).ok())
         .unwrap_or_default();
-    let draft = top
-        .get("spec")
-        .and_then(|rv| serde_json::from_str::<String>(rv.get()).ok())
-        .is_some_and(|spec| spec == crate::types::SPEC_VERSION_DRAFT);
-    for (key, sub) in REQUIRED.iter().chain(conditional_for(&ip)) {
-        if *key == "target" && draft {
-            continue;
-        }
+    for (key, sub) in REQUIRED.iter().chain(conditional_for(ip)) {
         let Some(rv) = top.get(*key) else { continue };
         match sub {
             None => scan_raw_integer_domain(rv.get())?,
@@ -387,9 +375,7 @@ pub fn validate_envelope(ctx: &AgentContext) -> Result<(), (HostError, String)> 
     if !session_ok {
         return err("session.id", "a non-empty string");
     }
-    if crate::types::SpecVersion::of_context(ctx) == Some(crate::types::SpecVersion::V0_1)
-        && ctx.get("target").is_none()
-    {
+    if ctx.get("target").is_none() {
         return err("target", "present");
     }
     // Conditional (§4.2): presence of each per-point field and its
@@ -442,36 +428,6 @@ pub fn context_identity(ctx: &AgentContext) -> Result<String, (HostError, String
 mod tests {
     use super::*;
     use serde_json::json;
-
-    #[test]
-    fn draft_identity_uses_hook_payload_without_target_alias() {
-        let mut context = ctx(json!({"url": "before"}));
-        context.insert("spec".into(), json!(crate::types::SPEC_VERSION_DRAFT));
-        context.remove("target");
-        let identity = context_identity(&context).unwrap();
-        context.insert("target".into(), json!({"ignored": 9007199254740992_u64}));
-        assert_eq!(context_identity(&context).unwrap(), identity);
-        let raw = serde_json::to_string(&context)
-            .unwrap()
-            .replace("agent-hooks/draft", "agent-hooks\\/draft");
-        scan_projection_raw(&raw).unwrap();
-        context["tool_call"]["args"] = json!({"url": "after"});
-        assert_ne!(context_identity(&context).unwrap(), identity);
-        let raw = serde_json::to_string(&context)
-            .unwrap()
-            .replace("\"after\"", "18446744073709551616")
-            .replace("pre_tool_call", "pre_\\u0074ool_call");
-        assert_eq!(
-            scan_projection_raw(&raw).unwrap_err().0,
-            HostError::ContextInvalid
-        );
-        context.insert("spec".into(), json!(crate::types::SPEC_VERSION_0_1));
-        context.remove("target");
-        assert_eq!(
-            validate_envelope(&context).unwrap_err().0,
-            HostError::ContextInvalid
-        );
-    }
 
     fn ctx(target: Value) -> AgentContext {
         json!({

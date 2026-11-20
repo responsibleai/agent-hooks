@@ -16,9 +16,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
-  RuntimeAgentContext as AgentContext,
-  LegacyApprovalRequest as ApprovalRequest,
-  LegacyApprovalResolution as ApprovalResolution,
+  AgentContext,
+  ApprovalRequest,
+  ApprovalResolution,
   Composition,
   CompositionConfig,
   CompositionProfile,
@@ -37,7 +37,7 @@ import {
   OnError,
   ResolvedDeclaration,
   SPEC_VERSION_DRAFT,
-  LegacyVerdict as Verdict,
+  Verdict,
   canonicalDeclaration,
   requireSpecVersion,
 } from "../index";

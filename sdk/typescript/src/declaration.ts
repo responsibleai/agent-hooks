@@ -20,7 +20,7 @@
 import { open, stat } from "node:fs/promises";
 
 import {
-  RuntimeAgentContext as AgentContext,
+  AgentContext,
   ApprovalResolver,
   CompositionConfig,
   CompositionProfile,

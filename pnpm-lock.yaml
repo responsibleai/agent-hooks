@@ -208,13 +208,6 @@ importers:
         version: 12.3.0
 
   sdk/typescript:
-    dependencies:
-      ajv:
-        specifier: 8.20.0
-        version: 8.20.0
-      ajv-formats:
-        specifier: 3.0.1
-        version: 3.0.1
     devDependencies:
       '@napi-rs/cli':
         specifier: ^3.7.2
@@ -222,6 +215,12 @@ importers:
       '@types/node':
         specifier: ^26.1.1
         version: 26.6.6
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1
       tsx:
         specifier: 4.23.15
         version: 4.23.15

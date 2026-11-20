@@ -152,24 +152,23 @@ the mapping to unchanged published URLs.
 
 ## TypeScript contract types
 
-The TypeScript SDK's draft wire types come from the same TypeSpec source.
 `spec/scripts/generate-typescript.mts` uses Alloy and the TypeSpec emitter
-framework to generate `sdk/typescript/src/generated/types.ts`, including
-source documentation, literal enums, discriminated requests and hook responses.
-It also copies the matching normative schemas into `src/generated/schemas/`
-for draft runtime validation. Do not edit either generated output by hand.
+framework to generate `sdk/typescript/src/generated/types.ts` directly from
+the draft source. The independent `@responsibleai/agent-hooks/contract` entry
+point exposes interfaces, discriminated unions and string-literal unions;
+it has no runtime or native dependency.
 
 ```bash
-pnpm run generate:typescript  # regenerate schemas and TypeScript SDK artifacts
+pnpm run generate:typescript  # regenerate normative schemas and TypeScript contract types
 pnpm run check:typescript     # check schema/type drift and type-check the emitter
 pnpm --dir sdk/typescript run check:types
 ```
 
-Commit TypeSpec edits and generated output together. The lint job checks
-generation drift; compile-time draft API assertions and draft runtime cases
-live in `sdk/typescript/test/draft/` and run in the advisory draft job.
-The SDK retains explicitly named `Legacy*` types and version-selected runtime
-behavior for 0.1; do not generate its contract from the mutable draft.
+Commit TypeSpec edits and generated contract types together; do not edit the
+generated TypeScript by hand. No JSON Schema copies are needed in the SDK.
+Compile-time contract assertions live in `sdk/typescript/test/draft/`.
+This POC does not integrate with or migrate the existing SDK runtime.
+The new contract has no 0.1 compatibility requirement or compatibility aliases.
 
 ## Local toolchain setup
 

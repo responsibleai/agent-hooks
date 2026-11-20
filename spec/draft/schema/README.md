@@ -86,16 +86,12 @@ The old TypeScript generator and its dependencies remain only for frozen
 released bundles such as 0.1. Cutting a new bundle rewrites `.tsp` wire
 strings and schema identities along with the JSON.
 
-The TypeScript SDK also generates its draft contract types from this source
-with Alloy and the TypeSpec emitter framework. Run `pnpm run generate:typescript`
-to regenerate schemas, `sdk/typescript/src/generated/types.ts` and the
-SDK's packaged draft validation schemas together; `pnpm run check:typescript`
-checks drift. Draft TypeScript requests have no `target` alias and interceptors
-return hook-specific response envelopes. The shared core continues to perform
-composition and transform application through its internal path/value representation.
-Other SDKs have not migrated to these hook-specific request/response APIs.
-The P-193 declaration loader migration remains separate: the generated
-TypeScript declaration document type does not imply loader support.
+The draft also generates an independent TypeScript contract using Alloy and
+the TypeSpec emitter framework. `pnpm run generate:typescript` regenerates
+the normative schemas and `sdk/typescript/src/generated/types.ts`;
+`pnpm run check:typescript` checks drift. The SDK exposes these types through
+`@responsibleai/agent-hooks/contract`, without runtime code, compatibility
+aliases or copied schemas. Runtime design and integration remain separate.
 
 JSON Schema remains the normative artifact. The Python
 mirror remains versioned under `schema/0.1/` and `schema/draft/`; update

@@ -71,8 +71,6 @@ export declare function managedOutcome(spec: string, outcomeJson: string): strin
 
 export declare function normalizeInterceptorResponse(spec: string, responseJson: string): string
 
-export declare function parseResponseJson(responseJson: string): string
-
 /** §4/§6.3: envelope validation (fail closed, value-free detail). */
 export declare function validateEnvelope(ctxJson: string): string
 

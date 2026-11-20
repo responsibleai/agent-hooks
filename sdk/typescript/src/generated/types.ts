@@ -8,25 +8,7 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
 /**
  * Enforcement modes (§8).
  */
-export const Mode = Object.freeze({
-  Enforce: "enforce",
-  EvaluateOnly: "evaluate_only"
-} as const);
-
-/**
- * Enforcement modes (§8).
- */
 export type Mode = "enforce" | "evaluate_only";
-
-/**
- * Composition profiles (§7.1), in §7.2 table order.
- */
-export const CompositionProfile = Object.freeze({
-  SequentialFirstDeny: "sequential/first_deny",
-  SequentialRunAll: "sequential/run_all",
-  ParallelStrictest: "parallel/strictest",
-  ParallelUnanimous: "parallel/unanimous"
-} as const);
 
 /**
  * Composition profiles (§7.1), in §7.2 table order.
@@ -36,23 +18,7 @@ export type CompositionProfile = "sequential/first_deny" | "sequential/run_all" 
 /**
  * Values of the on_approval knob (§7.2).
  */
-export const OnApproval = Object.freeze({
-  Stop: "stop",
-  Resume: "resume"
-} as const);
-
-/**
- * Values of the on_approval knob (§7.2).
- */
 export type OnApproval = "stop" | "resume";
-
-/**
- * Values of the on_disagreement and on_transform_conflict knobs (§7.2).
- */
-export const ConflictResolution = Object.freeze({
-  Deny: "deny",
-  Approval: "approval"
-} as const);
 
 /**
  * Values of the on_disagreement and on_transform_conflict knobs (§7.2).
@@ -62,30 +28,7 @@ export type ConflictResolution = "deny" | "approval";
 /**
  * The closed set of agent lifecycle interception points (AGENT-HOOKS-0.1 §3).
  */
-export const InterceptionPoint = Object.freeze({
-  AgentStartup: "agent_startup",
-  Input: "input",
-  PreModelCall: "pre_model_call",
-  PostModelCall: "post_model_call",
-  PreToolCall: "pre_tool_call",
-  PostToolCall: "post_tool_call",
-  Output: "output",
-  AgentShutdown: "agent_shutdown"
-} as const);
-
-/**
- * The closed set of agent lifecycle interception points (AGENT-HOOKS-0.1 §3).
- */
 export type InterceptionPoint = "agent_startup" | "input" | "pre_model_call" | "post_model_call" | "pre_tool_call" | "post_tool_call" | "output" | "agent_shutdown";
-
-/**
- * Who produced an input (§4.2).
- */
-export const InputRole = Object.freeze({
-  User: "user",
-  System: "system",
-  External: "external"
-} as const);
 
 /**
  * Who produced an input (§4.2).
@@ -95,25 +38,7 @@ export type InputRole = "user" | "system" | "external";
 /**
  * Why the agent stopped (§4.2).
  */
-export const SummaryReason = Object.freeze({
-  Completed: "completed",
-  Error: "error",
-  Cancelled: "cancelled"
-} as const);
-
-/**
- * Why the agent stopped (§4.2).
- */
 export type SummaryReason = "completed" | "error" | "cancelled";
-
-/**
- * Who acts (§4.5).
- */
-export const ActorKind = Object.freeze({
-  Human: "human",
-  Service: "service",
-  Agent: "agent"
-} as const);
 
 /**
  * Who acts (§4.5).
@@ -123,25 +48,7 @@ export type ActorKind = "human" | "service" | "agent";
 /**
  * The three decisions (§5).
  */
-export const Decision = Object.freeze({
-  Allow: "allow",
-  Deny: "deny",
-  Transform: "transform"
-} as const);
-
-/**
- * The three decisions (§5).
- */
 export type Decision = "allow" | "deny" | "transform";
-
-/**
- * How a consultation ended (§9).
- */
-export const Outcome = Object.freeze({
-  Approve: "approve",
-  Reject: "reject",
-  Unresolved: "unresolved"
-} as const);
 
 /**
  * How a consultation ended (§9).
@@ -151,24 +58,7 @@ export type Outcome = "approve" | "reject" | "unresolved";
 /**
  * The host_error reasons a continue posture may substitute for (§6.3.1).
  */
-export const SubstitutedFor = Object.freeze({
-  InterceptorFailed: "host_error:interceptor_failed",
-  InterceptorTimeout: "host_error:interceptor_timeout",
-  VerdictInvalid: "host_error:verdict_invalid"
-} as const);
-
-/**
- * The host_error reasons a continue posture may substitute for (§6.3.1).
- */
 export type SubstitutedFor = "host_error:interceptor_failed" | "host_error:interceptor_timeout" | "host_error:verdict_invalid";
-
-/**
- * Consultation outcomes a record names (§7.6).
- */
-export const ResolvedBy = Object.freeze({
-  Approval: "approval",
-  Rejection: "rejection"
-} as const);
 
 /**
  * Consultation outcomes a record names (§7.6).
@@ -180,45 +70,12 @@ export type ResolvedBy = "approval" | "rejection";
  * less buffered_output, which is the boolean surface member, plus
  * host_declaration.
  */
-export const Capability = Object.freeze({
-  ModelCalls: "model_calls",
-  ToolCalls: "tool_calls",
-  ParallelToolCalls: "parallel_tool_calls",
-  Streaming: "streaming",
-  MultiTurn: "multi_turn",
-  Int64Json: "int64_json",
-  BigintJson: "bigint_json",
-  IncrementalOutput: "incremental_output",
-  HostDeclaration: "host_declaration"
-} as const);
-
-/**
- * The conformance capability vocabulary (§13.1, conformance/draft/vectors.schema.json)
- * less buffered_output, which is the boolean surface member, plus
- * host_declaration.
- */
 export type Capability = "model_calls" | "tool_calls" | "parallel_tool_calls" | "streaming" | "multi_turn" | "int64_json" | "bigint_json" | "incremental_output" | "host_declaration";
 
 /**
  * The tool-seam posture a host implements (§13.1).
  */
-export const ToolSeamHostError = Object.freeze({
-  Continue: "continue",
-  Terminate: "terminate"
-} as const);
-
-/**
- * The tool-seam posture a host implements (§13.1).
- */
 export type ToolSeamHostError = "continue" | "terminate";
-
-/**
- * The failure posture (§6.3.1).
- */
-export const OnError = Object.freeze({
-  Deny: "deny",
-  Continue: "continue"
-} as const);
 
 /**
  * The failure posture (§6.3.1).
@@ -1137,7 +994,7 @@ export type LiftableDeny = Record<string, JsonValue> & {
 /**
  * What the host hands the resolver (§9).
  */
-export interface request {
+export interface ApprovalRequest {
   context_identity: string | null;
   interception_point: InterceptionPoint;
   verdict: Record<string, JsonValue> & {
@@ -1617,7 +1474,7 @@ export type NonTransformVerdict = AllowVerdict | DenyVerdict;
 /**
  * What the resolver returns (§9).
  */
-export type resolution = ApproveResolution | RejectResolution | UnresolvedResolution;
+export type ApprovalResolution = ApproveResolution | RejectResolution | UnresolvedResolution;
 
 /**
  * A bound in milliseconds; null is unbounded.

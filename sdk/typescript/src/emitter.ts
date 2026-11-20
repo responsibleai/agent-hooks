@@ -49,13 +49,12 @@
  */
 
 import {
-  RuntimeAgentContext as AgentContext,
+  AgentContext,
   ApprovalOutcome,
   ApprovalResolver,
   Composition,
   CompositionConfig,
   CompositionProfile,
-  ContextForSpec,
   ControlFailureNotice,
   ControlFailureNotifier,
   Decision,
@@ -66,7 +65,7 @@ import {
   EmitOutcome,
   InterceptionBlocked,
   InterceptionPoint,
-  RuntimeInterceptionRecord as InterceptionRecord,
+  InterceptionRecord,
   Interceptor,
   JCS_SHA256,
   JsonValue,
@@ -75,12 +74,9 @@ import {
   OnError,
   RegistrationError,
   RegistrationOptions,
-  RecordForSpec,
   SPEC_VERSION_DRAFT,
-  LegacyVerdict as Verdict,
-  Verdict as VerdictConstructors,
-  LegacyVerdictSummary as VerdictSummary,
-  HookResponse,
+  Verdict,
+  VerdictSummary,
   Warning,
   findNonFinite,
   finalize,
@@ -101,10 +97,6 @@ import {
   resolveDeclaration,
 } from "./declaration";
 import { AgentHooksCoreError, native } from "./native";
-import {
-  draftResponse, draftContextWithTarget, withoutTarget,
-  validateDraftContext, validateDraftResolution,
-} from "./draft";
 
 /** §7 RECOMMENDED interceptor/resolver timeout (milliseconds). */
 export const DEFAULT_TIMEOUT_MS = 5000;
@@ -117,6 +109,8 @@ class InterceptTimeout extends Error {
   }
 }
 
+/** Thrown when a setter or `register` is called on an emitter built
+ * from a host declaration (§7.7.7): the declaration must stay what ran. */
 /** Recursively freeze a JSON-shaped value in place and return it. */
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
@@ -126,7 +120,6 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-/** Thrown when reconfiguring a declaration-built emitter (§7.7.7). */
 export class EmitterSealed extends Error {
   constructor(what: string) {
     super(
@@ -366,7 +359,7 @@ function onErrorOf(v: OnError | undefined): OnError {
   return v;
 }
 
-export class InterceptionEmitter<S extends string = string> {
+export class InterceptionEmitter {
   private readonly interceptors: Bound[] = [];
   private _records: InterceptionRecord[] = [];
   private composition: CompositionConfig = Composition.default();
@@ -393,7 +386,7 @@ export class InterceptionEmitter<S extends string = string> {
    * version is denied `host_error:context_invalid`. A `continue`
    * registration (§6.3.1) needs the draft, because 0.1 defines no
    * failure posture. */
-  readonly spec: S;
+  readonly spec: string;
 
   /**
    * `spec` is required: there is no default version. Pass
@@ -409,13 +402,12 @@ export class InterceptionEmitter<S extends string = string> {
    * loop cannot be interrupted. `timeoutMs: null` disables enforcement.
    */
   constructor(
-    spec: S,
+    spec: string,
     mode: EnforcementMode = EnforcementMode.Enforce,
-    resolver: ApprovalResolver<S> | null = null,
+    resolver: ApprovalResolver | null = null,
     timeoutMs: number | null = DEFAULT_TIMEOUT_MS,
   ) {
-    requireSpecVersion(spec, "InterceptionEmitter spec");
-    this.spec = spec;
+    this.spec = requireSpecVersion(spec, "InterceptionEmitter spec");
     this.mode = mode;
     this.resolver = resolver;
     this.timeoutMs = timeoutMs;
@@ -639,8 +631,8 @@ export class InterceptionEmitter<S extends string = string> {
     }
   }
 
-  get records(): readonly RecordForSpec<S>[] {
-    return this._records as RecordForSpec<S>[];
+  get records(): readonly InterceptionRecord[] {
+    return this._records;
   }
 
   /** Register an interceptor, optionally with a host-chosen
@@ -650,7 +642,7 @@ export class InterceptionEmitter<S extends string = string> {
    * order; `interceptors_registered`, `verdicts[].index` and
    * `decided_by` count and index that list (§7.7.8). Throws
    * {@link EmitterSealed} on a declaration-built emitter. */
-  register(interceptor: Interceptor<S>, name?: string, at?: Iterable<InterceptionPoint>): this {
+  register(interceptor: Interceptor, name?: string, at?: Iterable<InterceptionPoint>): this {
     this.unsealed("register");
     // `register` always means on_error: deny (§6.3.1); only the options
     // form can open the default, and it needs the notifier first.
@@ -664,7 +656,7 @@ export class InterceptionEmitter<S extends string = string> {
    * {@link setControlFailureNotifier} ran first: a continuation the
    * principal cannot be told about is not conformant. Throws
    * {@link EmitterSealed} on a declaration-built emitter. */
-  registerWithOptions(interceptor: Interceptor<S>, options: RegistrationOptions = {}): this {
+  registerWithOptions(interceptor: Interceptor, options: RegistrationOptions = {}): this {
     this.unsealed("registerWithOptions");
     this.pushBound({ managed: false, interceptor }, options);
     return this;
@@ -678,7 +670,7 @@ export class InterceptionEmitter<S extends string = string> {
    * `onError`), `failed` (follows `onError`) or `cancelled` (always
    * `deny host_error:interceptor_failed`). Same refusals as
    * {@link registerWithOptions}. */
-  registerManaged(interceptor: ManagedInterceptor<S>, options: RegistrationOptions = {}): this {
+  registerManaged(interceptor: ManagedInterceptor, options: RegistrationOptions = {}): this {
     this.unsealed("registerManaged");
     this.pushBound({ managed: true, interceptor }, options);
     return this;
@@ -792,8 +784,8 @@ export class InterceptionEmitter<S extends string = string> {
    * exception is swallowed (audit delivery is the host's liveness
    * concern, not the control plane's). Allowed on a sealed emitter: it
    * changes where records go, not what they say (§7.7.7). */
-  setRecordSink(sink: (record: RecordForSpec<S>) => void): this {
-    this.recordSink = (record) => sink(record as RecordForSpec<S>);
+  setRecordSink(sink: (record: InterceptionRecord) => void): this {
+    this.recordSink = sink;
     return this;
   }
 
@@ -813,10 +805,10 @@ export class InterceptionEmitter<S extends string = string> {
 
   /** Drain the in-memory record buffer (retention stays bounded on
    * long-running sessions). */
-  takeRecords(): RecordForSpec<S>[] {
+  takeRecords(): InterceptionRecord[] {
     const out = this._records;
     this._records = [];
-    return out as RecordForSpec<S>[];
+    return out;
   }
 
   /** Run the emission and **throw** {@link InterceptionBlocked} if the
@@ -825,20 +817,15 @@ export class InterceptionEmitter<S extends string = string> {
    * Returns the record plus the **effective** (post-composition)
    * target the guarded action MUST consume (§4.3) — a reference
    * captured before `emit` may predate a transform. */
-  emit(ctx: ContextForSpec<S>): Promise<EmitOutcome<RecordForSpec<S>>>;
   async emit(ctx: AgentContext): Promise<EmitOutcome> {
-    const record = await this.emitUnchecked(ctx as ContextForSpec<S>);
+    const record = await this.emitUnchecked(ctx);
     if (!proceeds(record)) throw new InterceptionBlocked(record);
-    return {
-      record,
-      target: ctx.spec === SPEC_VERSION_DRAFT ? draftContextWithTarget(ctx).target : ctx.target,
-    };
+    return { record, target: (ctx as Record<string, unknown>)["target"] };
   }
 
   /** Run the emission and return the record without throwing. The
    * caller MUST inspect `proceeds` and halt the guarded action itself;
    * prefer {@link emit}. */
-  emitUnchecked(ctx: ContextForSpec<S>): Promise<RecordForSpec<S>>;
   async emitUnchecked(ctx: AgentContext): Promise<InterceptionRecord> {
     // §4.4/P-004 marshalling guard: JSON.stringify silently corrupts
     // NaN/±Infinity to null, so scan BEFORE any serialization and fail
@@ -854,7 +841,6 @@ export class InterceptionEmitter<S extends string = string> {
       // the context BEFORE dispatch.
       try {
         native.validateEnvelope(JSON.stringify(ctx));
-        if (ctx.spec === SPEC_VERSION_DRAFT) validateDraftContext(ctx);
         // §4: one specification version per emission. The context names
         // a supported version, but not the one this emitter runs under.
         if (ctx.spec !== this.spec) {
@@ -915,7 +901,6 @@ export class InterceptionEmitter<S extends string = string> {
         ),
       );
       record.identity_provider = providerName;
-      if (ctx.spec === SPEC_VERSION_DRAFT && "transform" in record.verdict) delete record.verdict.transform;
     } else {
       record = finalize(ctx, outcome.combined, this.mode, meta);
     }
@@ -941,7 +926,6 @@ export class InterceptionEmitter<S extends string = string> {
    * emission. In `enforce` mode the host MUST still fail the action
    * closed; in `evaluate_only` the record documents the host fault
    * without implying enforcement (§8). */
-  recordHostFailure(point: InterceptionPoint, failure?: HostFailure): RecordForSpec<S>;
   recordHostFailure(point: InterceptionPoint, failure: HostFailure = {}): InterceptionRecord {
     // Deliberately partial basis: only the envelope facts the host
     // still knows. It never passes §4 validation (`spec` is absent),
@@ -1049,7 +1033,7 @@ export class InterceptionEmitter<S extends string = string> {
   /** The raw call: a gated verdict, or the failure it produced. */
   private async call(bound: Bound, ctx: AgentContext): Promise<Verdict | CallFailure> {
     if (bound.interceptor.managed) return this.callManaged(bound.interceptor.interceptor, ctx, bound);
-    let v: Verdict | HookResponse;
+    let v: Verdict;
     try {
       // §7: each interceptor gets its own copy — in-place mutation of
       // the copy cannot alter enforcement.
@@ -1059,7 +1043,7 @@ export class InterceptionEmitter<S extends string = string> {
       if (e instanceof InterceptTimeout) return covered(HostError.InterceptorTimeout);
       return covered(HostError.InterceptorFailed, (e as Error)?.constructor?.name ?? "Error");
     }
-    return this.gated(v, ctx.interception_point);
+    return this.gated(v);
   }
 
   /** A managed interceptor (§6.3) owns its deadline: it receives the
@@ -1085,7 +1069,7 @@ export class InterceptionEmitter<S extends string = string> {
         "managed outcome is not one of verdict | timeout | cancelled | failed (see spec §6.3)",
       );
     }
-    if (outcome.outcome === "verdict") return this.gated(outcome.verdict, ctx.interception_point);
+    if (outcome.outcome === "verdict") return this.gated(outcome.verdict);
     let mapped: {
       verdict: Verdict;
       failure: { reason: HostError; detail: string | null; continuable: boolean } | null;
@@ -1105,7 +1089,7 @@ export class InterceptionEmitter<S extends string = string> {
       const [code, detail] = codeAndDetail(e, HostError.InterceptorFailed);
       return { reason: code, detail, continuable: false };
     }
-    if (mapped.failure === null) return this.gated(mapped.verdict, ctx.interception_point);
+    if (mapped.failure === null) return this.gated(mapped.verdict);
     return {
       reason: mapped.failure.reason,
       detail: mapped.failure.detail ?? undefined,
@@ -1115,8 +1099,8 @@ export class InterceptionEmitter<S extends string = string> {
 
   /** §5 gate as a call result: the normalized verdict, or the
    * `verdict_invalid` failure. */
-  private gated(v: Verdict | HookResponse, point: InterceptionPoint): Verdict | CallFailure {
-    const g = this.gate(v, point);
+  private gated(v: Verdict): Verdict | CallFailure {
+    const g = this.gate(v);
     if (isHostSynthesized(g)) return covered(HostError.VerdictInvalid, g.message ?? undefined);
     return g;
   }
@@ -1167,15 +1151,10 @@ export class InterceptionEmitter<S extends string = string> {
   /** §5 gate: normalize a wire verdict or synthesize the §6.3 deny. The
    * non-finite pre-scan runs first — JSON.stringify would silently
    * corrupt NaN/±Infinity to null before the core could reject them. */
-  private gate(v: Verdict | HookResponse, point?: InterceptionPoint): Verdict {
+  private gate(v: Verdict): Verdict {
     const hit = findNonFinite(v);
     if (hit !== null) return hostErrorVerdict(HostError.VerdictInvalid, nonFiniteDetail(hit));
     try {
-      if (this.spec === SPEC_VERSION_DRAFT && point) {
-        return JSON.parse(native.normalizeInterceptorResponse(
-          this.spec, JSON.stringify(draftResponse(v, point)),
-        )).verdict;
-      }
       return JSON.parse(native.validateVerdict(this.spec, JSON.stringify(v)));
     } catch (e) {
       const [code, detail] = codeAndDetail(e, HostError.VerdictInvalid);
@@ -1290,7 +1269,7 @@ export class InterceptionEmitter<S extends string = string> {
 
     // No standing deny: combined is the last transform, else allow.
     const [combined, decidedBy]: [Verdict, number | null] =
-      lastTransform !== null ? [lastTransform[1], lastTransform[0]] : [VerdictConstructors.allow(), null];
+      lastTransform !== null ? [lastTransform[1], lastTransform[0]] : [Verdict.allow(), null];
     return {
       combined: withUnions(combined, pool),
       decidedBy,
@@ -1439,24 +1418,12 @@ export class InterceptionEmitter<S extends string = string> {
     try {
       if (this.mode === EnforcementMode.Enforce) {
         const newCtx: AgentContext = JSON.parse(
-          native.applyTransformCtx(
-            JSON.stringify(ctx.spec === SPEC_VERSION_DRAFT ? draftContextWithTarget(ctx) : ctx),
-            t.path, JSON.stringify(t.value ?? null),
-          ),
+          native.applyTransformCtx(JSON.stringify(ctx), t.path, JSON.stringify(t.value)),
         );
-        if (ctx.spec === SPEC_VERSION_DRAFT) {
-          const draft = withoutTarget(newCtx);
-          validateDraftContext(draft);
-          Object.assign(ctx, draft);
-          return v;
-        }
         for (const k of Object.keys(ctx)) delete (ctx as Record<string, unknown>)[k];
         Object.assign(ctx, newCtx);
       } else {
-        native.validateTransformCtx(
-          JSON.stringify(ctx.spec === SPEC_VERSION_DRAFT ? draftContextWithTarget(ctx) : ctx),
-          t.path, JSON.stringify(t.value ?? null),
-        );
+        native.validateTransformCtx(JSON.stringify(ctx), t.path, JSON.stringify(t.value));
       }
     } catch (e) {
       const [code, detail] = codeAndDetail(e, HostError.TransformInvalid);
@@ -1512,7 +1479,7 @@ export class InterceptionEmitter<S extends string = string> {
 
     // §9/§14: the host's approval redactor minimizes the context
     // egressing through the seam; a throwing redactor fails closed.
-    let presented: AgentContext = ctx;
+    let presented = ctx;
     if (this.approvalRedactor) {
       try {
         presented = this.approvalRedactor(ctx);
@@ -1558,14 +1525,7 @@ export class InterceptionEmitter<S extends string = string> {
     if ((res.context_identity ?? null) !== identity) {
       return fail(HostError.ApprovalIdentityMismatch);
     }
-    if (this.spec === SPEC_VERSION_DRAFT) {
-      try {
-        validateDraftResolution(res);
-      } catch (e) {
-        return fail(...codeAndDetail(e, HostError.VerdictInvalid));
-      }
-    }
-    if (res.outcome === ApprovalOutcome.Unresolved || !res.verdict) {
+    if (!res.verdict || res.outcome === ApprovalOutcome.Unresolved) {
       return fail(HostError.ApprovalUnresolved);
     }
     // §9: the resolver's verdict crosses the same §5 gate as an

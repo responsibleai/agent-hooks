@@ -1,26 +1,35 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-import {
-  AgentContextBuilder, InterceptionEmitter, SPEC_VERSION_0_1, SPEC_VERSION_DRAFT,
-  type AgentContext, type AgentStartupHookResponse, type ApprovalRequest,
-  type ApprovalResolution, type InputHookResponse, type JsonValue, type RunAllSupport,
-  type InterceptionRecord, EnforcementMode, ALLOW,
-} from "../../src/index";
+import type {
+  AgentContext, AgentStartupHookResponse, ApprovalRequest, ApprovalResolution,
+  InputHookResponse, JsonValue, PreToolCallRequest, PreToolHookResponse, RunAllSupport,
+} from "../../src/generated/types";
 
-const builder = new AgentContextBuilder({
-  spec: SPEC_VERSION_DRAFT, agentId: "a", framework: "test", sessionId: "s",
-});
-const ctx = builder.preToolCall("call", "tool", {});
-ctx.tool_call.args;
-// @ts-expect-error Draft requests have no legacy target alias.
-ctx.target;
+const request: PreToolCallRequest = {
+  spec: "agent-hooks/draft",
+  interception_point: "pre_tool_call",
+  timestamp: "2026-01-01T00:00:00Z",
+  sequence: 0,
+  agent: { id: "agent", framework: "example" },
+  session: { id: "session" },
+  tool_call: { id: "call", name: "tool", args: {} },
+};
+// @ts-expect-error Draft requests have no target alias.
+request.target;
 // @ts-expect-error A concrete pre-tool request has no output payload.
-ctx.output;
+request.output;
 
 function narrow(context: AgentContext): void {
   if (context.interception_point === "input") context.input.role;
   // @ts-expect-error Conditional fields require narrowing.
   context.input;
+}
+narrow(request);
+
+function reviewTool(context: PreToolCallRequest): PreToolHookResponse {
+  return {
+    verdict: { decision: "transform", transform: { args: { ...context.tool_call.args, reviewed: true } } },
+  };
 }
 
 const response: InputHookResponse = {
@@ -32,56 +41,14 @@ const wrongHook: InputHookResponse = { verdict: { decision: "transform", transfo
 const missingPayload: InputHookResponse = { verdict: { decision: "transform" } };
 // @ts-expect-error Startup forbids transforms.
 const startup: AgentStartupHookResponse = { verdict: { decision: "transform", transform: { args: {} } } };
-// @ts-expect-error Approvals cannot approve a transform in the draft.
-const resolution: ApprovalResolution = { outcome: "approve", context_identity: null, verdict: { decision: "transform", transform: { args: {} } } };
-// @ts-expect-error Open records must retain their explicitly declared decision.
-const request: ApprovalRequest = { context_identity: null, interception_point: "input", verdict: { decision: "allow" } };
+const resolution: ApprovalResolution = {
+  outcome: "approve", context_identity: null, verdict: { decision: "allow" },
+};
+// @ts-expect-error Approval resolutions cannot approve a transform.
+const invalidResolution: ApprovalResolution = { outcome: "approve", context_identity: null, verdict: { decision: "transform", transform: { args: {} } } };
+// @ts-expect-error An approval request requires a liftable deny, even though its verdict is open.
+const invalidRequest: ApprovalRequest = { context_identity: null, interception_point: "input", verdict: { decision: "allow" } };
 // @ts-expect-error Closed empty objects reject additional members.
 const support: RunAllSupport = { extra: true };
 // @ts-expect-error JSON values cannot contain functions.
 const json: JsonValue = { callback() {} };
-
-new InterceptionEmitter(SPEC_VERSION_DRAFT).register({
-  intercept(context) {
-    narrow(context);
-    return response;
-  },
-});
-new InterceptionEmitter(SPEC_VERSION_DRAFT).register({
-  // @ts-expect-error Draft interceptors must return a response envelope.
-  intercept: () => ({ decision: "allow" }),
-});
-new InterceptionEmitter(SPEC_VERSION_0_1).register({
-  intercept(context) {
-    context.target;
-    return { decision: "transform", transform: { path: "$target", value: {} } };
-  },
-});
-new InterceptionEmitter(SPEC_VERSION_0_1).register({ intercept: () => ALLOW });
-
-const emitter = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, {
-  resolve(request) {
-    const decision: "deny" = request.verdict.decision;
-    return { outcome: "approve", context_identity: request.context_identity, verdict: { decision: "allow" } };
-  },
-});
-emitter.setRecordSink((record: InterceptionRecord) => {});
-new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, {
-  // @ts-expect-error Draft approval resolvers cannot approve a transform.
-  resolve: (request) => ({
-    outcome: "approve", context_identity: request.context_identity,
-    verdict: { decision: "transform", transform: { args: {} } },
-  }),
-});
-async function typedRecords(): Promise<void> {
-  const record: InterceptionRecord = await emitter.emitUnchecked(ctx);
-  const outcome = await emitter.emit(ctx);
-  const emitted: InterceptionRecord = outcome.record;
-  const retained: readonly InterceptionRecord[] = emitter.records;
-  const drained: InterceptionRecord[] = emitter.takeRecords();
-  const legacy = new AgentContextBuilder({
-    spec: SPEC_VERSION_0_1, agentId: "a", framework: "test", sessionId: "s",
-  }).preToolCall("call", "tool", {});
-  // @ts-expect-error A draft emitter does not accept a legacy context.
-  await emitter.emitUnchecked(legacy);
-}

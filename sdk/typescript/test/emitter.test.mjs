@@ -23,17 +23,16 @@ import {
   validateVerdict,
 } from "../dist/index.js";
 
-// Legacy path transforms stay pinned to 0.1; failure-posture tests use the draft.
-const ctx = () => ctxUnder(SPEC_VERSION_0_1);
-const draftCtx = () => ctxUnder(SPEC_VERSION_DRAFT);
+// The emitter tests run under the draft; `ctxUnder` picks a version.
+const ctx = () => ctxUnder(SPEC_VERSION_DRAFT);
 const ctxUnder = (spec) => ({
   spec,
   interception_point: "pre_tool_call",
-  timestamp: "2026-01-01T00:00:00Z",
+  timestamp: "t",
   sequence: 0,
   agent: { id: "a", framework: "x" },
   session: { id: "s" },
-  ...(spec === SPEC_VERSION_0_1 ? { target: { url: "evil" } } : {}),
+  target: { url: "evil" },
   tool_call: { id: "tc", name: "t", args: { url: "evil" } },
 });
 
@@ -41,10 +40,9 @@ const ctxUnder = (spec) => ({
 function scripted(v) {
   const i = {
     calls: 0,
-    intercept(context) {
+    intercept() {
       i.calls++;
-      const verdict = structuredClone(v);
-      return context.spec === SPEC_VERSION_DRAFT ? { verdict } : verdict;
+      return structuredClone(v);
     },
   };
   return i;
@@ -86,7 +84,7 @@ test("sugar: deny is a plain, final deny", () => {
   assert.equal(d.message, "blocked");
   assert.equal(d.approval, undefined);
   assert.ok(!isLiftable(d));
-  validateVerdict(d, SPEC_VERSION_0_1);
+  validateVerdict(d, SPEC_VERSION_DRAFT);
 });
 
 test("wire: warn/escalate decisions and misplaced approval fail the §5 gate", () => {
@@ -97,20 +95,20 @@ test("wire: warn/escalate decisions and misplaced approval fail the §5 gate", (
     { decision: "allow", warnings: ["x"] },
   ]) {
     assert.throws(
-      () => validateVerdict(bad, SPEC_VERSION_0_1),
+      () => validateVerdict(bad, SPEC_VERSION_DRAFT),
       (e) => e instanceof AgentHooksCoreError && e.code === HostError.VerdictInvalid,
     );
   }
   // The three-verdict shapes pass.
-  validateVerdict(Verdict.warn("w"), SPEC_VERSION_0_1);
-  validateVerdict(Verdict.escalate("e"), SPEC_VERSION_0_1);
-  validateVerdict(transform("$target.url", "x"), SPEC_VERSION_0_1);
+  validateVerdict(Verdict.warn("w"), SPEC_VERSION_DRAFT);
+  validateVerdict(Verdict.escalate("e"), SPEC_VERSION_DRAFT);
+  validateVerdict(transform("$target.url", "x"), SPEC_VERSION_DRAFT);
 });
 
 // ---- sequential/run_all (§7.4) ----------------------------------------------
 
 test("run_all runs everything and strictest wins", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.setComposition(Composition.runAll());
   const late = scripted(Verdict.warn("late"));
   e.register(scripted(deny())).register(late);
@@ -126,7 +124,7 @@ test("run_all runs everything and strictest wins", async () => {
 
 test("run_all consults at most once when every deny is liftable", async () => {
   const a = approver(ApprovalOutcome.Approve, Verdict.allow());
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, a);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, a);
   e.setComposition(Composition.runAll());
   e.register(scripted(Verdict.escalate("first"))).register(scripted(Verdict.escalate("second")));
   const r = await e.emitUnchecked(ctx());
@@ -138,7 +136,7 @@ test("run_all consults at most once when every deny is liftable", async () => {
 
 test("run_all does not consult when a plain deny exists", async () => {
   const a = approver(ApprovalOutcome.Approve, Verdict.allow());
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, a);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, a);
   e.setComposition(Composition.runAll());
   e.register(scripted(Verdict.escalate("liftable"))).register(scripted(deny()));
   const r = await e.emitUnchecked(ctx());
@@ -151,7 +149,7 @@ test("run_all does not consult when a plain deny exists", async () => {
 // ---- parallel/strictest (§7.5) ----------------------------------------------
 
 test("parallel strictest transform conflict fails closed", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.setComposition(Composition.strictest("deny"));
   e.register(scripted(transform("$target.url", "a")));
   e.register(scripted(transform("$target.url", "b")));
@@ -164,7 +162,7 @@ test("parallel strictest transform conflict fails closed", async () => {
 
 test("parallel strictest transform conflict with approval knob consults the seam", async () => {
   const a = approver(ApprovalOutcome.Approve, transform("$target.url", "resolved"));
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, a);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, a);
   e.setComposition(Composition.strictest("approval"));
   e.register(scripted(transform("$target.url", "a")));
   e.register(scripted(transform("$target.url", "b")));
@@ -178,7 +176,7 @@ test("parallel strictest transform conflict with approval knob consults the seam
 });
 
 test("parallel strictest single transform applies", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.setComposition(Composition.strictest("deny"));
   e.register(scripted(Verdict.allow()));
   e.register(scripted(transform("$target.url", "safe")));
@@ -193,7 +191,7 @@ test("parallel strictest single transform applies", async () => {
 
 test("parallel isolation: no interceptor observes another's transform", async () => {
   const seen = [];
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.setComposition(Composition.strictest("deny"));
   e.register(scripted(transform("$target.url", "rewritten")));
   e.register({
@@ -209,7 +207,7 @@ test("parallel isolation: no interceptor observes another's transform", async ()
 // ---- parallel/unanimous (§7.5) ----------------------------------------------
 
 test("unanimous disagreement synthesizes", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.setComposition(Composition.unanimous("deny", "deny"));
   e.register(scripted(Verdict.allow()));
   e.register(scripted(transform("$target.url", "x")));
@@ -222,7 +220,7 @@ test("unanimous disagreement synthesizes", async () => {
 });
 
 test("unanimous allow proceeds with unioned metadata", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.setComposition(Composition.unanimous("deny", "deny"));
   e.register(scripted(Verdict.allow()));
   e.register(scripted({ decision: "allow", result_labels: ["l"] }));
@@ -233,7 +231,7 @@ test("unanimous allow proceeds with unioned metadata", async () => {
 
 test("unanimous disagreement with approval knob consults the seam", async () => {
   const a = approver(ApprovalOutcome.Approve, Verdict.allow());
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, a);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, a);
   e.setComposition(Composition.unanimous("approval", "deny"));
   e.register(scripted(Verdict.allow()));
   e.register(scripted(deny()));
@@ -247,7 +245,7 @@ test("unanimous disagreement with approval knob consults the seam", async () => 
 // ---- sequential/first_deny (§7.4) --------------------------------------------
 
 test("first_deny: no resolver, liftable deny stands without error", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.register(scripted(Verdict.escalate("check")));
   const r = await e.emitUnchecked(ctx());
   // §9: no resolver → the liftable deny stands, NOT an error.
@@ -258,8 +256,7 @@ test("first_deny: no resolver, liftable deny stands without error", async () => 
 });
 
 test("first_deny stop truncates and records the substitution", async () => {
-  const e = new InterceptionEmitter(
-    SPEC_VERSION_0_1,
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, 
     EnforcementMode.Enforce,
     approver(ApprovalOutcome.Approve, Verdict.allow()),
   );
@@ -275,8 +272,7 @@ test("first_deny stop truncates and records the substitution", async () => {
 });
 
 test("first_deny resume continues the fold", async () => {
-  const e = new InterceptionEmitter(
-    SPEC_VERSION_0_1,
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, 
     EnforcementMode.Enforce,
     approver(ApprovalOutcome.Approve, Verdict.allow()),
   );
@@ -290,7 +286,7 @@ test("first_deny resume continues the fold", async () => {
 });
 
 test("first_deny: zero interceptors fails closed", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.reason, HostError.NoInterceptor);
 });
@@ -305,15 +301,14 @@ test("echo rule violation fails closed", async () => {
       verdict: Verdict.allow(),
     }),
   };
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, badEcho);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, badEcho);
   e.register(scripted(Verdict.escalate()));
   const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.reason, HostError.ApprovalIdentityMismatch);
 });
 
 test("approve with a block verdict is verdict_invalid", async () => {
-  const e = new InterceptionEmitter(
-    SPEC_VERSION_0_1,
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, 
     EnforcementMode.Enforce,
     approver(ApprovalOutcome.Approve, deny()),
   );
@@ -323,8 +318,7 @@ test("approve with a block verdict is verdict_invalid", async () => {
 });
 
 test("reject with a permit verdict is verdict_invalid", async () => {
-  const e = new InterceptionEmitter(
-    SPEC_VERSION_0_1,
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, 
     EnforcementMode.Enforce,
     approver(ApprovalOutcome.Reject, Verdict.allow()),
   );
@@ -335,7 +329,7 @@ test("reject with a permit verdict is verdict_invalid", async () => {
 
 test("shutdown never consults", async () => {
   const a = approver(ApprovalOutcome.Approve, Verdict.allow());
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, a);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, a);
   e.register(scripted(Verdict.escalate()));
   const c = ctx();
   c.interception_point = "agent_shutdown";
@@ -351,7 +345,7 @@ test("shutdown never consults", async () => {
 
 test("evaluate_only never consults and proceeds", async () => {
   const a = approver(ApprovalOutcome.Approve, Verdict.allow());
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.EvaluateOnly, a);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.EvaluateOnly, a);
   e.register(scripted(Verdict.escalate("check")));
   const r = await e.emitUnchecked(ctx());
   assert.equal(a.calls, 0);
@@ -362,7 +356,7 @@ test("evaluate_only never consults and proceeds", async () => {
 // ---- identity provider seam (§10.1) -------------------------------------------
 
 test("null provider yields an unbound record", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.setIdentityProvider(null);
   e.register(scripted(Verdict.allow()));
   const r = await e.emitUnchecked(ctx());
@@ -383,7 +377,7 @@ test("null provider: null identity echoes as null through the seam", async () =>
       };
     },
   };
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, a);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, a);
   e.setIdentityProvider(null);
   e.register(scripted(Verdict.escalate()));
   const r = await e.emitUnchecked(ctx());
@@ -392,7 +386,7 @@ test("null provider: null identity echoes as null through the seam", async () =>
 });
 
 test("custom provider: name and identities recorded, echo enforced against it", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.setIdentityProvider({ name: "host-hash", fn: (c) => `host:${c.session.id}` });
   e.register(scripted(Verdict.allow()));
   const r = await e.emitUnchecked(ctx());
@@ -402,7 +396,7 @@ test("custom provider: name and identities recorded, echo enforced against it", 
 });
 
 test("default provider rejects out-of-range integrals before dispatch", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   const i = scripted(Verdict.allow());
   e.register(i);
   const c = ctx();
@@ -421,7 +415,7 @@ test("default provider rejects out-of-range integrals before dispatch", async ()
 // ---- P-004 marshalling guard (§4.4) --------------------------------------------
 
 test("NaN in the context fails closed before dispatch", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   const i = scripted(Verdict.allow());
   e.register(i);
   const c = ctx();
@@ -434,7 +428,7 @@ test("NaN in the context fails closed before dispatch", async () => {
 });
 
 test("Infinity in an interceptor's verdict fails the §5 gate", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.register(scripted(transform("$target.url", Infinity)));
   const c = ctx();
   const r = await e.emitUnchecked(c);
@@ -444,7 +438,7 @@ test("Infinity in an interceptor's verdict fails the §5 gate", async () => {
 });
 
 test("first_deny: failure deny attributed to failing interceptor (§10.3 D3)", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.register(scripted(Verdict.allow()));
   e.register({ intercept: () => { throw new Error("boom"); } });
   e.register(scripted(Verdict.allow()));
@@ -455,7 +449,7 @@ test("first_deny: failure deny attributed to failing interceptor (§10.3 D3)", a
 });
 
 test("record verdict is the payload-free projection (§10.3 D2)", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.register(scripted(transform("$target.url", "safe")));
   const c = ctx();
   const r = await e.emitUnchecked(c);
@@ -466,7 +460,7 @@ test("record verdict is the payload-free projection (§10.3 D2)", async () => {
 });
 
 test("evidence beyond 10240 canonical bytes fails the §5 gate (D5)", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.register(scripted({ decision: "allow", evidence: { artefact: "x".repeat(10300) } }));
   const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.decision, Decision.Deny);
@@ -476,7 +470,7 @@ test("evidence beyond 10240 canonical bytes fails the §5 gate (D5)", async () =
 // ---- record semantics (§4, §10.1, §10.3) ----------------------------------
 
 test("envelope: missing conditional field fails closed pre-dispatch", async () => {
-  const em = new InterceptionEmitter(SPEC_VERSION_0_1);
+  const em = new InterceptionEmitter(SPEC_VERSION_DRAFT);
   let ran = false;
   em.register({ intercept: () => { ran = true; return { decision: "allow" }; } });
   const c = ctx();
@@ -489,14 +483,14 @@ test("envelope: missing conditional field fails closed pre-dispatch", async () =
 });
 
 test("provider name rules enforced (§10.1)", () => {
-  const em = new InterceptionEmitter(SPEC_VERSION_0_1);
+  const em = new InterceptionEmitter(SPEC_VERSION_DRAFT);
   assert.throws(() => em.setIdentityProvider({ name: "jcs-fake", fn: () => "x" }));
   assert.throws(() => em.setIdentityProvider({ name: "Bad", fn: () => "x" }));
   em.setIdentityProvider({ name: "myco-hash", fn: () => "x" });
 });
 
 test("custom provider failure fails closed, type-name-only detail", async () => {
-  const em = new InterceptionEmitter(SPEC_VERSION_0_1);
+  const em = new InterceptionEmitter(SPEC_VERSION_DRAFT);
   em.setIdentityProvider({
     name: "myco-hash",
     fn: () => { throw new Error("SECRET-PAYLOAD"); },
@@ -509,7 +503,7 @@ test("custom provider failure fails closed, type-name-only detail", async () => 
 });
 
 test("rejected consultation records resolved_by rejection (§10.3)", async () => {
-  const em = new InterceptionEmitter(SPEC_VERSION_0_1, "enforce", {
+  const em = new InterceptionEmitter(SPEC_VERSION_DRAFT, "enforce", {
     resolve: (req) => ({
       outcome: "reject",
       context_identity: req.context_identity,
@@ -523,7 +517,7 @@ test("rejected consultation records resolved_by rejection (§10.3)", async () =>
 });
 
 test("verdicts[].name carries registration names (§10.3)", async () => {
-  const em = new InterceptionEmitter(SPEC_VERSION_0_1);
+  const em = new InterceptionEmitter(SPEC_VERSION_DRAFT);
   em.setComposition(Composition.runAll());
   em.register({ intercept: () => ({ decision: "allow" }) }, "pii-scan");
   em.register({ intercept: () => ({ decision: "allow" }) });
@@ -549,7 +543,7 @@ test("approval redactor binds identity to the presented context", async () => {
       };
     },
   };
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, resolver);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, resolver);
   e.register({ intercept: () => Verdict.escalate("check") });
   e.setApprovalRedactor((c) => {
     const out = structuredClone(c);
@@ -569,7 +563,7 @@ test("throwing redactor fails the consultation closed", async () => {
       throw new Error("resolver must not be reached");
     },
   };
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, resolver);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, resolver);
   e.register({ intercept: () => Verdict.escalate("check") });
   e.setApprovalRedactor(() => {
     throw new Error("SECRET must not leak");
@@ -582,7 +576,7 @@ test("throwing redactor fails the consultation closed", async () => {
 
 test("record sink and ring buffer", async () => {
   const seen = [];
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.register(scripted(Verdict.allow()));
   e.setRecordSink((r) => seen.push(r.sequence));
   e.setMaxRecords(2);
@@ -595,7 +589,7 @@ test("record sink and ring buffer", async () => {
 });
 
 test("sink exception is swallowed", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.register(scripted(Verdict.allow()));
   e.setRecordSink(() => {
     throw new Error("sink down");
@@ -605,7 +599,7 @@ test("sink exception is swallowed", async () => {
 });
 
 test("emit returns the effective (post-transform) target", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce, null);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null);
   e.register({
     intercept: () => ({
       decision: Decision.Transform,
@@ -620,7 +614,7 @@ test("emit returns the effective (post-transform) target", async () => {
 // ---- closed §7.2 profile set enforced at configuration time --------------
 
 test("setComposition rejects an unknown profile at call time", () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce);
   assert.throws(
     () => e.setComposition({ profile: "sequential/frist_deny" }),
     RangeError,
@@ -629,7 +623,7 @@ test("setComposition rejects an unknown profile at call time", () => {
 });
 
 test("setComposition rejects knob values outside the closed set", () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce);
   assert.throws(
     () => e.setComposition({ profile: "sequential/first_deny", on_approval: "pause" }),
     RangeError,
@@ -645,7 +639,7 @@ test("setComposition rejects knob values outside the closed set", () => {
 });
 
 test("setComposition accepts every declared §7.2 profile", async () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce);
   for (const c of [
     Composition.default(),
     Composition.firstDeny("resume"),
@@ -664,7 +658,7 @@ test("setComposition accepts every declared §7.2 profile", async () => {
 // ---- §10.3 host projection failure ------------------------------------------
 
 test("recordHostFailure synthesizes the rejection-shape record", () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce);
   e.register(scripted({ decision: "allow" }));
   const r = e.recordHostFailure("pre_tool_call", {
     detail: "TypeError",
@@ -693,7 +687,7 @@ test("recordHostFailure synthesizes the rejection-shape record", () => {
 });
 
 test("recordHostFailure defaults are the §10.3 unknown values", () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce);
   const r = e.recordHostFailure("output");
   assert.equal(r.session_id, "");
   assert.equal(r.sequence, -1);
@@ -706,7 +700,7 @@ test("recordHostFailure records in evaluate_only and hits the sink", () => {
   // §8: synthesis still records in evaluate_only — records are the
   // point — and the mode member keeps the record from implying a
   // block happened.
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.EvaluateOnly);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.EvaluateOnly);
   const seen = [];
   e.setRecordSink((r) => seen.push(r));
   const r = e.recordHostFailure("pre_tool_call", { detail: "TypeError" });
@@ -716,7 +710,7 @@ test("recordHostFailure records in evaluate_only and hits the sink", () => {
 });
 
 test("recordHostFailure detail is truncated by the §10.3 projection", () => {
-  const e = new InterceptionEmitter(SPEC_VERSION_0_1, EnforcementMode.Enforce);
+  const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce);
   const r = e.recordHostFailure("pre_tool_call", { detail: "x".repeat(300) });
   assert.ok(r.verdict.message.endsWith("…"));
   assert.ok(Buffer.byteLength(r.verdict.message, "utf8") <= 256 + Buffer.byteLength("…"));
@@ -793,7 +787,7 @@ test("on_error continue substitutes an allow for a raise", async () => {
   const { e, notices } = withNotifier();
   e.registerWithOptions(panics, bestEffort("defender"));
   e.register(scripted(Verdict.allow()), "audit");
-  const c = draftCtx();
+  const c = ctx();
   const r = await e.emitUnchecked(c);
   assert.equal(r.verdict.decision, Decision.Allow);
   assert.equal("reason" in r.verdict, false);
@@ -803,7 +797,7 @@ test("on_error continue substitutes an allow for a raise", async () => {
   assert.equal("substituted_for" in r.verdicts[1], false);
   assert.equal(r.decided_by, null, "a substituted allow decides nothing");
   assert.equal(r.fold_truncated, false);
-  assert.equal(c.tool_call.args.url, "evil", "target unchanged");
+  assert.equal(c.target.url, "evil", "target unchanged");
   assert.equal(notices.length, 1);
   assert.deepEqual(notices[0], {
     interception_point: "pre_tool_call",
@@ -821,24 +815,24 @@ test("on_error continue substitutes an allow for a raise", async () => {
 test("on_error continue substitutes an allow for an invalid verdict", async () => {
   const { e, notices } = withNotifier();
   e.registerWithOptions(malformed, bestEffort("defender"));
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.decision, Decision.Allow);
   assertSubstituted(r, 0, "defender", HostError.VerdictInvalid);
   assert.equal(notices[0].reason, HostError.VerdictInvalid);
   // A non-finite number in the verdict is the same failure.
   const { e: e2 } = withNotifier();
   e2.registerWithOptions(scripted(transform("$target.url", Infinity)), bestEffort("nan"));
-  const c = draftCtx();
+  const c = ctx();
   const r2 = await e2.emitUnchecked(c);
   assertSubstituted(r2, 0, "nan", HostError.VerdictInvalid);
-  assert.equal(c.tool_call.args.url, "evil", "corrupted transform never applied");
+  assert.equal(c.target.url, "evil", "corrupted transform never applied");
 });
 
 test("on_error continue substitutes an allow for a timeout", async () => {
   const { e, notices } = withNotifier(EnforcementMode.Enforce, null, 20);
   e.registerWithOptions(hangs, bestEffort("defender"));
   e.register(scripted(Verdict.allow()));
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.decision, Decision.Allow);
   assert.equal(r.verdicts.length, 2);
   assertSubstituted(r, 0, "defender", HostError.InterceptorTimeout);
@@ -848,7 +842,7 @@ test("on_error continue substitutes an allow for a timeout", async () => {
 test("on_error: deny stays the default for every registration call", async () => {
   const { e, notices } = withNotifier();
   e.register(panics);
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.decision, Decision.Deny);
   assert.equal(r.verdict.reason, HostError.InterceptorFailed);
   assert.equal("substituted_for" in r.verdicts[0], false);
@@ -858,13 +852,13 @@ test("on_error: deny stays the default for every registration call", async () =>
   const e2 = new InterceptionEmitter(SPEC_VERSION_DRAFT);
   e2.registerWithOptions(malformed, {});
   e2.registerWithOptions(malformed);
-  const r2 = await e2.emitUnchecked(draftCtx());
+  const r2 = await e2.emitUnchecked(ctx());
   assert.equal(r2.verdict.reason, HostError.VerdictInvalid);
   assert.equal("substituted_for" in r2.verdicts[0], false);
 
   const e3 = new InterceptionEmitter(SPEC_VERSION_DRAFT);
   e3.registerWithOptions(panics, { name: "x", onError: OnError.Deny });
-  const r3 = await e3.emitUnchecked(draftCtx());
+  const r3 = await e3.emitUnchecked(ctx());
   assert.equal(r3.verdict.reason, HostError.InterceptorFailed);
   assert.equal(r3.verdicts[0].name, "x");
 });
@@ -878,7 +872,7 @@ test("on_error continue without a notifier is refused at registration", async ()
   const managed = { interceptManaged: () => ({ outcome: "timeout" }) };
   assert.throws(() => e.registerManaged(managed, bestEffort("m")), RegistrationError);
   // Nothing was registered.
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.reason, HostError.NoInterceptor);
   assert.equal(r.interceptors_registered, 0);
   // Deny needs no channel; after the channel exists, continue is accepted.
@@ -886,7 +880,7 @@ test("on_error continue without a notifier is refused at registration", async ()
   e.setControlFailureNotifier(() => {});
   e.registerWithOptions(scripted(Verdict.allow()), bestEffort("x"));
   e.registerManaged(managed, bestEffort("m"));
-  const r2 = await e.emitUnchecked(draftCtx());
+  const r2 = await e.emitUnchecked(ctx());
   assert.equal(r2.interceptors_registered, 3);
 });
 
@@ -907,7 +901,7 @@ test("a notifier that throws withdraws the continuation", async () => {
     throw new Error("channel down");
   });
   e.registerWithOptions(panics, bestEffort("defender"));
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.decision, Decision.Deny);
   assert.equal(r.verdict.reason, HostError.InterceptorFailed);
   assert.match(r.verdict.message, /notifier/);
@@ -919,7 +913,7 @@ test("a notifier that throws withdraws the continuation", async () => {
 test("on_error continue never covers cancellation", async () => {
   const { e, notices } = withNotifier();
   e.registerManaged({ interceptManaged: () => ({ outcome: "cancelled" }) }, bestEffort("defender"));
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.decision, Decision.Deny);
   assert.equal(r.verdict.reason, HostError.InterceptorFailed);
   assert.match(r.verdict.message, /cancelled/);
@@ -936,7 +930,7 @@ test("on_error continue never covers approval failures", async () => {
   };
   const { e, notices } = withNotifier(EnforcementMode.Enforce, raises);
   e.registerWithOptions(scripted(Verdict.escalate("check")), bestEffort("gate"));
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.decision, Decision.Deny);
   assert.equal(r.verdict.reason, HostError.ApprovalResolverFailed);
   assert.equal(r.resolved_by, "rejection");
@@ -948,13 +942,13 @@ test("on_error continue never covers approval failures", async () => {
   };
   const { e: e2 } = withNotifier(EnforcementMode.Enforce, badEcho);
   e2.registerWithOptions(scripted(Verdict.escalate()), bestEffort("gate"));
-  const r2 = await e2.emitUnchecked(draftCtx());
+  const r2 = await e2.emitUnchecked(ctx());
   assert.equal(r2.verdict.reason, HostError.ApprovalIdentityMismatch);
   // Resolver timeout: the same.
   const slow = { resolve: () => new Promise(() => {}) };
   const { e: e3 } = withNotifier(EnforcementMode.Enforce, slow, 20);
   e3.registerWithOptions(scripted(Verdict.escalate()), bestEffort("gate"));
-  const r3 = await e3.emitUnchecked(draftCtx());
+  const r3 = await e3.emitUnchecked(ctx());
   assert.equal(r3.verdict.reason, HostError.ApprovalResolverFailed);
   assert.equal(r3.verdict.message, "timeout");
 });
@@ -964,45 +958,49 @@ test("on_error continue never covers context failure, an explicit deny or no_int
   e.registerWithOptions(panics, bestEffort("defender"));
   // Context failure: the provider rejects the value domain before any
   // interceptor runs.
-  const big = draftCtx();
-  big.tool_call.args = { id: 9007199254740992 };
+  const big = ctx();
+  big.target = { id: 9007199254740992 };
   const r = await e.emitUnchecked(big);
   assert.equal(r.verdict.reason, HostError.ContextInvalid);
   assert.equal(r.verdicts, undefined);
   // Invalid envelope: the same.
-  const bare = draftCtx();
+  const bare = ctx();
   delete bare.spec;
   const r2 = await e.emitUnchecked(bare);
   assert.equal(r2.verdict.reason, HostError.ContextInvalid);
   // An explicit deny is a decision, not a failure.
   const { e: e2 } = withNotifier();
   e2.registerWithOptions(scripted(Verdict.deny("policy")), bestEffort("policy"));
-  const r3 = await e2.emitUnchecked(draftCtx());
+  const r3 = await e2.emitUnchecked(ctx());
   assert.equal(r3.verdict.decision, Decision.Deny);
   assert.equal(r3.verdict.reason, "policy");
   assert.equal("substituted_for" in r3.verdicts[0], false);
   // No interceptor at the point: the §7 deny, continue or not.
   const { e: e3 } = withNotifier();
   e3.registerWithOptions(scripted(Verdict.allow()), { ...bestEffort("output-only"), at: ["output"] });
-  const r4 = await e3.emitUnchecked(draftCtx());
+  const r4 = await e3.emitUnchecked(ctx());
   assert.equal(r4.verdict.reason, HostError.NoInterceptor);
   assert.equal(notices.length, 0);
 });
 
-test("a legacy path transform is an invalid draft verdict", async () => {
+test("on_error continue never covers transform failure", async () => {
   const { e, notices } = withNotifier();
-  // Draft transforms replace a hook payload, not a path inside target.
+  // A well-formed transform whose path does not resolve fails to
+  // apply (§5.2, §7.4), not §6.3: the deny stands.
   e.registerWithOptions(scripted(transform("$target.missing.deep.path", "x")), bestEffort("rewrite"));
-  const c = draftCtx();
+  const c = ctx();
   const r = await e.emitUnchecked(c);
-  assertSubstituted(r, 0, "rewrite", HostError.VerdictInvalid);
-  assert.equal(c.tool_call.args.url, "evil");
-  assert.equal(notices.length, 1);
+  assert.equal(r.verdict.decision, Decision.Deny);
+  assert.match(r.verdict.reason, /^host_error:transform_/);
+  assert.equal(r.decided_by, null);
+  assert.equal("substituted_for" in r.verdicts[0], false);
+  assert.equal(c.target.url, "evil");
+  assert.equal(notices.length, 0);
   // A transform rooted outside $target never passes the §5 gate, so it
   // is the invalid-verdict failure, which continue does cover.
   const { e: e2 } = withNotifier();
   e2.registerWithOptions(scripted(transform("$other.url", "x")), bestEffort("rewrite"));
-  const r2 = await e2.emitUnchecked(draftCtx());
+  const r2 = await e2.emitUnchecked(ctx());
   assertSubstituted(r2, 0, "rewrite", HostError.VerdictInvalid);
 });
 
@@ -1012,7 +1010,7 @@ test("the substituted allow takes the slot in every profile", async () => {
     e.setComposition(composition);
     e.register(scripted(Verdict.warn("pii")));
     e.registerWithOptions(panics, bestEffort("defender"));
-    const r = await e.emitUnchecked(draftCtx());
+    const r = await e.emitUnchecked(ctx());
     assert.equal(r.verdict.decision, Decision.Allow, JSON.stringify([composition, r.verdict]));
     // §7.3: both warnings, first seen first.
     assert.equal(r.verdict.warnings.length, 2, composition.profile);
@@ -1029,7 +1027,7 @@ test("the substituted allow takes the slot in every profile", async () => {
   e.setComposition(Composition.runAll());
   e.registerWithOptions(panics, bestEffort("defender"));
   e.register(scripted(deny()));
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.decision, Decision.Deny);
   assert.equal(r.decided_by, 1);
   assert.equal(r.verdicts[0].substituted_for, HostError.InterceptorFailed);
@@ -1042,7 +1040,7 @@ test("first_deny: the substituted slot does not short-circuit", async () => {
   e.registerWithOptions(panics, bestEffort("defender"));
   e.register(scripted(deny()), "guard");
   e.register(scripted(Verdict.allow()), "never");
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.decision, Decision.Deny);
   assert.equal(r.decided_by, 1);
   assert.equal(r.fold_truncated, true);
@@ -1055,7 +1053,7 @@ test("an unnamed continue registration is labelled by its index", async () => {
   const { e, notices } = withNotifier();
   e.register(scripted(Verdict.allow()));
   e.registerWithOptions(panics, { onError: OnError.Continue });
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdicts[1].substituted_for, HostError.InterceptorFailed);
   assert.equal("name" in r.verdicts[1], false);
   assert.equal(notices[0].binding, "interceptor-1");
@@ -1064,10 +1062,10 @@ test("an unnamed continue registration is labelled by its index", async () => {
 
 test("an interceptor cannot emit the reserved warning", async () => {
   const spoof = { decision: "allow", warnings: [{ reason: HostWarning.ControlFailed, message: "looks substituted" }] };
-  assert.throws(() => validateVerdict(spoof, SPEC_VERSION_DRAFT, "pre_tool_call"), (e) => e instanceof AgentHooksCoreError && e.code === HostError.VerdictInvalid);
+  assert.throws(() => validateVerdict(spoof, SPEC_VERSION_DRAFT), (e) => e instanceof AgentHooksCoreError && e.code === HostError.VerdictInvalid);
   const e = new InterceptionEmitter(SPEC_VERSION_DRAFT);
   e.register(scripted(spoof));
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.decision, Decision.Deny);
   assert.equal(r.verdict.reason, HostError.VerdictInvalid);
   assert.equal(r.verdict.warnings, undefined, "the spoofed warning is dropped");
@@ -1075,7 +1073,7 @@ test("an interceptor cannot emit the reserved warning", async () => {
   // record shows is the host's own substitution, with the real reason.
   const { e: e2 } = withNotifier();
   e2.registerWithOptions(scripted(spoof), bestEffort("spoofer"));
-  const r2 = await e2.emitUnchecked(draftCtx());
+  const r2 = await e2.emitUnchecked(ctx());
   assert.equal(r2.verdict.decision, Decision.Allow);
   assertSubstituted(r2, 0, "spoofer", HostError.VerdictInvalid);
   assert.equal(r2.verdict.warnings[0].message, "spoofer: host_error:verdict_invalid; host continued");
@@ -1087,7 +1085,7 @@ test("managed interceptor receives the bound and reports typed outcomes", async 
   const managed = {
     interceptManaged(c, boundMs) {
       bounds.push(boundMs);
-      assert.equal(c.tool_call.args.url, "evil");
+      assert.equal(c.target.url, "evil");
       return outcomes.shift();
     },
   };
@@ -1095,43 +1093,43 @@ test("managed interceptor receives the bound and reports typed outcomes", async 
   // race the call against a second timer.
   const e = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null, 1234);
   e.registerManaged(managed, { name: "proc" });
-  outcomes.push({ outcome: "verdict", verdict: { verdict: Verdict.warn("scanned") } });
-  let r = await e.emitUnchecked(draftCtx());
+  outcomes.push({ outcome: "verdict", verdict: Verdict.warn("scanned") });
+  let r = await e.emitUnchecked(ctx());
   assert.deepEqual(bounds, [1234]);
   assert.equal(r.verdict.decision, Decision.Allow);
   assert.equal(r.verdict.warnings[0].reason, "scanned");
   assert.equal(r.verdicts[0].name, "proc");
   // The managed verdict crosses the §5 gate like any other.
-  outcomes.push({ outcome: "verdict", verdict: { verdict: { decision: "allow", reason: "host_error:forged" } } });
-  r = await e.emitUnchecked(draftCtx());
+  outcomes.push({ outcome: "verdict", verdict: { decision: "allow", reason: "host_error:forged" } });
+  r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.reason, HostError.VerdictInvalid);
   // Typed failures under the default posture: all deny, attributed.
   outcomes.push({ outcome: "timeout" });
-  r = await e.emitUnchecked(draftCtx());
+  r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.reason, HostError.InterceptorTimeout);
   assert.equal(r.decided_by, 0);
   outcomes.push({ outcome: "failed", detail: "ECONNRESET" });
-  r = await e.emitUnchecked(draftCtx());
+  r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.reason, HostError.InterceptorFailed);
   assert.equal(r.verdict.message, "ECONNRESET");
   outcomes.push({ outcome: "cancelled" });
-  r = await e.emitUnchecked(draftCtx());
+  r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.reason, HostError.InterceptorFailed);
   // A value that is not a typed outcome fails validation.
   outcomes.push({ decision: "allow" });
-  r = await e.emitUnchecked(draftCtx());
+  r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.reason, HostError.VerdictInvalid);
   // A managed interceptor that throws is a raise.
   const thrower = new InterceptionEmitter(SPEC_VERSION_DRAFT);
   thrower.registerManaged({ interceptManaged: () => Promise.reject(new TypeError("x")) });
-  r = await thrower.emitUnchecked(draftCtx());
+  r = await thrower.emitUnchecked(ctx());
   assert.equal(r.verdict.reason, HostError.InterceptorFailed);
   assert.equal(r.verdict.message, "TypeError");
   // `null` timeout: unbounded, handed through as null.
   const unbounded = new InterceptionEmitter(SPEC_VERSION_DRAFT, EnforcementMode.Enforce, null, null);
   unbounded.registerManaged(managed);
-  outcomes.push({ outcome: "verdict", verdict: { verdict: Verdict.allow() } });
-  await unbounded.emitUnchecked(draftCtx());
+  outcomes.push({ outcome: "verdict", verdict: Verdict.allow() });
+  await unbounded.emitUnchecked(ctx());
   assert.equal(bounds.at(-1), null);
 });
 
@@ -1144,10 +1142,10 @@ test("managed interceptor is not wrapped in a second timer", async () => {
     interceptManaged: (c, boundMs) =>
       new Promise((resolve) => {
         seen = boundMs;
-        setTimeout(() => resolve({ outcome: "verdict", verdict: { verdict: Verdict.allow() } }), 60);
+        setTimeout(() => resolve({ outcome: "verdict", verdict: Verdict.allow() }), 60);
       }),
   });
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(seen, 20);
   assert.equal(r.verdict.decision, Decision.Allow);
 });
@@ -1158,20 +1156,20 @@ test("managed timeout and failed follow on_error; cancelled does not", async () 
   e.registerManaged({ interceptManaged: () => outcomes.shift() }, bestEffort("proc"));
   e.register(scripted(Verdict.allow()), "audit");
   outcomes.push({ outcome: "timeout" });
-  let r = await e.emitUnchecked(draftCtx());
+  let r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.decision, Decision.Allow);
   assertSubstituted(r, 0, "proc", HostError.InterceptorTimeout);
   assert.equal(r.verdicts.length, 2);
   outcomes.push({ outcome: "failed", detail: "ECONNRESET" });
-  r = await e.emitUnchecked(draftCtx());
+  r = await e.emitUnchecked(ctx());
   assertSubstituted(r, 0, "proc", HostError.InterceptorFailed);
   assert.ok(!JSON.stringify(r).includes("ECONNRESET"), "the detail stays out of the substituted shape");
   outcomes.push({ outcome: "verdict", verdict: { decision: "transform" } });
-  r = await e.emitUnchecked(draftCtx());
+  r = await e.emitUnchecked(ctx());
   assertSubstituted(r, 0, "proc", HostError.VerdictInvalid);
   assert.equal(notices.length, 3);
   outcomes.push({ outcome: "cancelled" });
-  r = await e.emitUnchecked(draftCtx());
+  r = await e.emitUnchecked(ctx());
   assert.equal(r.verdict.decision, Decision.Deny);
   assert.equal(r.verdict.reason, HostError.InterceptorFailed);
   assert.equal(r.verdicts.length, 1, "a deny short-circuits first_deny");
@@ -1181,7 +1179,7 @@ test("managed timeout and failed follow on_error; cancelled does not", async () 
 test("evaluate_only: a continuation is recorded the same way", async () => {
   const { e, notices } = withNotifier(EnforcementMode.EvaluateOnly);
   e.registerWithOptions(panics, bestEffort("defender"));
-  const r = await e.emitUnchecked(draftCtx());
+  const r = await e.emitUnchecked(ctx());
   assert.equal(r.mode, "evaluate_only");
   assertSubstituted(r, 0, "defender", HostError.InterceptorFailed);
   assert.equal(notices.length, 1);
@@ -1195,7 +1193,7 @@ test("each emitter runs one version and its §5 gate follows", async () => {
   // under a 0.1 emitter and host_error:verdict_invalid under a draft one.
   const warning = { decision: "allow", warnings: [{ reason: "host_warning:x" }] };
   validateVerdict(warning, SPEC_VERSION_0_1);
-  assert.throws(() => validateVerdict(warning, SPEC_VERSION_DRAFT, "pre_tool_call"), (e) => e.code === HostError.VerdictInvalid);
+  assert.throws(() => validateVerdict(warning, SPEC_VERSION_DRAFT), (e) => e.code === HostError.VerdictInvalid);
   const under01 = new InterceptionEmitter(SPEC_VERSION_0_1);
   assert.equal(under01.spec, SPEC_VERSION_0_1);
   under01.register(scripted(warning));
@@ -1215,7 +1213,7 @@ test("a context of another version than the emitter's is refused", async () => {
   assert.equal(r.verdict.reason, HostError.ContextInvalid);
   assert.match(r.verdict.message, /agent-hooks\/draft/);
   assert.equal((await e.emitUnchecked(ctxUnder(SPEC_VERSION_DRAFT))).verdict.decision, Decision.Allow);
-  const unsupported = { ...draftCtx(), spec: "agent-hooks/0.2" };
+  const unsupported = { ...ctx(), spec: "agent-hooks/0.2" };
   assert.equal((await e.emitUnchecked(unsupported)).verdict.reason, HostError.ContextInvalid);
   for (const spec of [SPEC_VERSION_0_1, SPEC_VERSION_DRAFT]) {
     const em = new InterceptionEmitter(spec);

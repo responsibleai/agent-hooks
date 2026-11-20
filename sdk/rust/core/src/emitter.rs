@@ -2121,7 +2121,7 @@ mod tests {
         let mut e = InterceptionEmitter::new(SpecVersion::Draft, EnforcementMode::Enforce, None);
         e.register(Box::new(Scripted(Verdict::allow())));
         let mut c = ctx();
-        c["tool_call"]["args"] = json!({"id": 9_007_199_254_740_993_i64});
+        c.insert("target".into(), json!({"id": 9_007_199_254_740_993_i64}));
         let r = e.emit_unchecked(&mut c).await;
         assert_eq!(
             r.verdict.reason.as_deref(),
@@ -2740,7 +2740,7 @@ mod tests {
         e.register_with_options(Box::new(Panics), best_effort("defender"))
             .unwrap();
         let mut c = ctx();
-        c["tool_call"]["args"] = json!({"id": 9_007_199_254_740_993_i64});
+        c.insert("target".into(), json!({"id": 9_007_199_254_740_993_i64}));
         let r = e.emit_unchecked(&mut c).await;
         assert_eq!(
             r.verdict.reason.as_deref(),

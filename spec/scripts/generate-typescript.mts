@@ -11,7 +11,6 @@ import {
   isTemplateInstance,
   NodeHost,
   type Enum,
-  type EnumMember,
   type Model,
   type ModelProperty,
   type Program,
@@ -93,34 +92,10 @@ function RecordType({ type }: { type: Model }) {
   ];
 }
 
-function EnumDeclaration({ type }: { type: Enum }) {
-  return [
-    c(ts.VarDeclaration, {
-      name: type.name,
-      export: true,
-      const: true,
-      doc: getDoc(program, type),
-      children: [
-        "Object.freeze(",
-        c(ts.ObjectExpression, {
-          children: c(For<EnumMember[], Children>, {
-            each: [...type.members.values()],
-            comma: true,
-            line: true,
-            children: (member) => c(ts.ObjectProperty, {
-              name: member.name,
-              jsValue: member.value ?? member.name,
-            }),
-          }),
-        }),
-        " as const)",
-      ],
-    }),
-    ";\n\n",
-    c(UnionDeclaration, { type, export: true }),
-  ];
-}
-
+const declarationNames = new Map([
+  ["request", "ApprovalRequest"],
+  ["resolution", "ApprovalResolution"],
+]);
 const declarations = [
   ...namespace.enums.values(),
   ...namespace.scalars.values(),
@@ -152,7 +127,7 @@ await writeOutput(
             each: declarations,
             doubleHardline: true,
             children: (type) => {
-              if (type.kind === "Enum") return c(EnumDeclaration, { type });
+              if (type.kind === "Enum") return c(UnionDeclaration, { type, export: true });
               if (type.kind === "Model" && (type.name === "JsonObject" || type.indexer || isClosedEmptyModel(type))) {
                 return c(ts.TypeDeclaration, {
                   name: type.name,
@@ -161,7 +136,11 @@ await writeOutput(
                   children: c(TypeExpression, { type, noReference: true }),
                 });
               }
-              return c(TypeDeclaration, { type, export: true });
+              return c(TypeDeclaration, {
+                type,
+                name: type.name ? declarationNames.get(type.name) : undefined,
+                export: true,
+              });
             },
           }),
         }),
@@ -173,16 +152,6 @@ await writeOutput(
 );
 assertDiagnostics(program);
 if (output.size !== 1) throw new Error(`Expected one generated TypeScript file, got ${output.size}`);
-for (const name of [
-  "agent-context", "agent-startup-hook-response", "input-hook-response",
-  "pre-model-hook-response", "post-model-hook-response", "pre-tool-hook-response",
-  "post-tool-hook-response", "output-hook-response", "agent-shutdown-hook-response", "approval",
-]) {
-  output.set(
-    resolve(dirname(outputPath), "schemas", `${name}.schema.json`),
-    await readFile(resolve(root, "spec/draft/schema/generated", `${name}.schema.json`), "utf8"),
-  );
-}
 for (const [path, text] of output) {
   if (check) {
     let actual: string | undefined;

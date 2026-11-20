@@ -62,56 +62,37 @@ interceptor runs at. At a point, `interceptors_registered`,
 `verdicts[].index` and `decided_by` count and index the interceptors
 bound there, in registration order.
 
-## Generated draft types
+## Generated draft contract (POC)
 
-The SDK exports draft wire types generated directly from TypeSpec with
-Alloy and the emitter framework, including `AgentContext`, the eight
-request/response pairs, discriminated verdicts and `ApprovalResolution`.
-For 0.1 annotations, use the explicit `LegacyAgentContext`, `LegacyVerdict`,
-`LegacyTransform`, `LegacyInterceptorResponse` and `LegacyInterceptionRecord`
-types. Builders and interceptor registrations infer their contract from
-the version passed to their constructor.
-
-**Draft API migration:** contexts no longer carry `target`. Interceptors
-must return `{ verdict, extensions? }`, including for allow/deny; transforms
-replace a complete hook payload rather than applying a path:
+The independent `@responsibleai/agent-hooks/contract` entry point contains
+types generated directly from the draft TypeSpec source with Alloy and the
+TypeSpec emitter framework. This is a fresh contract, not an adaptation of
+the existing 0.1 API: models are interfaces, decisions and other enums are
+string-literal unions, and hook requests, responses and approval resolutions
+are discriminated unions.
 
 ```ts
-const emitter = new InterceptionEmitter(SPEC_VERSION_DRAFT);
-emitter.register({
-  intercept(ctx) {
-    if (ctx.interception_point === "pre_tool_call") {
-      return {
-        verdict: {
-          decision: "transform",
-          transform: { args: { ...ctx.tool_call.args, reviewed: true } },
-        },
-      };
-    }
-    return { verdict: Verdict.allow() };
-  },
-});
+import type {
+  PreToolCallRequest,
+  PreToolHookResponse,
+} from "@responsibleai/agent-hooks/contract";
+
+function reviewTool(ctx: PreToolCallRequest): PreToolHookResponse {
+  return {
+    verdict: {
+      decision: "transform",
+      transform: { args: { ...ctx.tool_call.args, reviewed: true } },
+    },
+  };
+}
 ```
 
-Narrow `ctx.interception_point` before accessing its payload. The other
-transform members are `input`, `messages`, `response`, `value` and `output`;
-startup/shutdown forbid transforms. `applyTransformCtx(ctx, transform)` takes
-the hook replacement for draft requests; its legacy overload still takes
-`(ctx, path, value)`. Draft parsing, serialization, verdict validation and
-standalone composition also require the interception point, for example
-`parseInterceptorResponse(json, SPEC_VERSION_DRAFT, "pre_tool_call")`.
-Draft records omit transform content entirely. Existing 0.1 wire behavior
-is unchanged.
+The contract needs no native module, runtime validators, copied JSON Schemas,
+or compatibility aliases. Runtime integration is outside this POC; the
+existing SDK implementation is unchanged and does not consume these types.
 
-The runtime validates draft requests and responses with the packaged normative
-schemas, and adapts hook replacements to the Rust core's internal transform
-representation. Generate with `pnpm run generate:typescript` and check drift
-with `pnpm run check:typescript` from the repository root.
-
-The generated draft declaration document is exported as
-`HostDeclarationDocument`. The `HostDeclaration` loader below retains its
-existing declaration/1.0 and /1.1 formats; the P-193 declaration loader
-migration and the draft CTK fixture migration are not included here.
+Regenerate with `pnpm run generate:typescript` and check drift with
+`pnpm run check:typescript` from the repository root.
 
 ## Failure handling
 

@@ -2,46 +2,11 @@
 
 /**
  * agent-hooks: framework-neutral agent lifecycle hook contract.
- * Generated draft wire types with explicit legacy 0.1 runtime compatibility.
+ * Implements AGENT-HOOKS-0.1. Lifted and adapted from
+ * `policy-engine/sdk/node/src/index.ts`.
  */
 
 import { native, AgentHooksCoreError } from "./native";
-import {
-  Decision,
-  InterceptionPoint,
-  Mode as EnforcementMode,
-  CompositionProfile,
-  OnError,
-  Outcome as ApprovalOutcome,
-  type AgentContext,
-  type Evidence,
-  type Warning,
-  type AllowVerdict,
-  type DenyVerdict,
-  type JsonValue,
-  type OnApproval,
-  type ConflictResolution,
-  type CompositionConfig as WireCompositionConfig,
-  type InputHookResponse,
-  type PreModelHookResponse,
-  type PostModelHookResponse,
-  type PreToolHookResponse,
-  type PostToolHookResponse,
-  type OutputHookResponse,
-  type AgentStartupHookResponse,
-  type AgentShutdownHookResponse,
-  type InterceptionRecord,
-  type request as ApprovalRequest,
-  type resolution as ApprovalResolution,
-} from "./generated/types";
-import {
-  draftResponse, draftTransform, draftContextWithTarget, withoutTarget,
-  validateDraftContext, restoreDraftResponse,
-} from "./draft";
-export * from "./generated/types";
-export { EnforcementMode, ApprovalOutcome };
-export type { ApprovalRequest, ApprovalResolution };
-export type { HostDeclaration as HostDeclarationDocument } from "./generated/types";
 export { AgentHooksCoreError };
 
 /** The wire string of specification 0.1 (§4.1 `spec`). */
@@ -83,15 +48,52 @@ export function requireSpecVersion(wire: unknown, what = "spec"): string {
 /** Name of the default identity provider (§10.1, §10.2). */
 export const JCS_SHA256 = "jcs-sha256";
 
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+/** The closed set of agent lifecycle interception points (§3). */
+export const InterceptionPoint = Object.freeze({
+  AgentStartup: "agent_startup",
+  Input: "input",
+  PreModelCall: "pre_model_call",
+  PostModelCall: "post_model_call",
+  PreToolCall: "pre_tool_call",
+  PostToolCall: "post_tool_call",
+  Output: "output",
+  AgentShutdown: "agent_shutdown",
+} as const);
+export type InterceptionPoint = (typeof InterceptionPoint)[keyof typeof InterceptionPoint];
+
 /** Whether a `transform` verdict is permitted at `hp` (§3, §4.3). */
 export function transformPermitted(hp: InterceptionPoint): boolean {
   return hp !== InterceptionPoint.AgentStartup && hp !== InterceptionPoint.AgentShutdown;
 }
 
+/** Verdict decision values (§5.1). Three, closed: `warn` is `allow` +
+ * `warnings[]`; `escalate` is `deny` + an `approval` block. */
+export const Decision = Object.freeze({
+  Allow: "allow",
+  Deny: "deny",
+  Transform: "transform",
+} as const);
+export type Decision = (typeof Decision)[keyof typeof Decision];
+
 /** Whether the action proceeds under `d` (§2 permit class). */
 export function permits(d: Decision): boolean {
   return d === Decision.Allow || d === Decision.Transform;
 }
+
+/** Whether the host acts on verdicts (§8). */
+export const EnforcementMode = Object.freeze({
+  Enforce: "enforce",
+  EvaluateOnly: "evaluate_only",
+} as const);
+export type EnforcementMode = (typeof EnforcementMode)[keyof typeof EnforcementMode];
 
 /** Reserved `host_error:*` reasons a host synthesizes (§11). */
 export const HostError = Object.freeze({
@@ -122,6 +124,19 @@ export const HostWarning = Object.freeze({
   ControlFailed: "host_warning:control_failed",
 } as const);
 export type HostWarning = (typeof HostWarning)[keyof typeof HostWarning];
+
+/** What a registration does when its interceptor fails (§6.3.1): the
+ * interceptor raised, exceeded its timeout, or returned a value that
+ * fails §5 validation. `deny` is the default and the fail-closed
+ * posture. `continue` substitutes an allow carrying
+ * `host_warning:control_failed` in the failing registration's slot,
+ * records the underlying reason as `verdicts[].substituted_for` and
+ * tells the principal. Nothing else is affected by this setting. */
+export const OnError = Object.freeze({
+  Deny: "deny",
+  Continue: "continue",
+} as const);
+export type OnError = (typeof OnError)[keyof typeof OnError];
 
 /** The three failures `on_error` covers (§6.3.1). */
 export function isControlFailure(reason: string): boolean {
@@ -183,96 +198,119 @@ export class RegistrationError extends Error {
 }
 
 /** A single `$target`-rooted replacement (§5.2). */
-export interface LegacyTransform {
+export interface Transform {
   /** Path rooted at `$target` (or the deprecated `$policy_target` alias). */
   path: string;
   value: JsonValue;
 }
 
-/** Released 0.1 interceptor verdict; draft interceptors return a HookResponse. */
-export interface LegacyVerdict {
+/** Opaque pointer to an offline-verifiable artefact (§5.3). */
+export interface Evidence {
+  artefact?: string | null;
+  verification_pointers?: Record<string, string>;
+}
+
+/** A recorded concern that does not affect control flow (§5.1). */
+export interface Warning {
+  reason?: string | null;
+  message?: string | null;
+}
+
+/** Interceptor return value (§5). */
+export interface Verdict {
   decision: Decision;
   reason?: string | null;
   message?: string | null;
   /** Recorded concerns; permitted on any decision (§5.1). */
-  warnings?: Warning[] | null;
+  warnings?: Warning[];
   /** Present only on `deny`: marks the deny as liftable by the approval
    * seam (§9). MAY be empty; reserved for approver-facing parameters. */
   approval?: Record<string, JsonValue>;
-  transform?: LegacyTransform;
+  transform?: Transform;
   evidence?: Evidence;
-  result_labels?: string[] | null;
+  result_labels?: string[];
 }
 
-export type Verdict = (
-  | AgentStartupHookResponse | InputHookResponse | PreModelHookResponse | PostModelHookResponse
-  | PreToolHookResponse | PostToolHookResponse | OutputHookResponse | AgentShutdownHookResponse
-)["verdict"];
-export type HookResponse = Omit<AgentStartupHookResponse, "verdict"> & { verdict: Verdict };
-export type Transform = Extract<Verdict, { decision: "transform" }>["transform"];
-export type RuntimeAgentContext = AgentContext | LegacyAgentContext;
-export type RuntimeInterceptionRecord = InterceptionRecord | LegacyInterceptionRecord;
-
-/** Released 0.1 response envelope. Draft responses are always hook-specific envelopes. */
-export interface LegacyInterceptorResponse {
-  verdict: LegacyVerdict;
+/** Optional hosted/cross-process response envelope (§5.5). */
+export interface InterceptorResponse {
+  verdict: Verdict;
   extensions?: Record<string, JsonValue>;
 }
-export type InterceptorResponse = HookResponse;
-export type { VerdictSlot as VerdictSummary } from "./generated/types";
 
-/** Constructor sugar for the three-verdict vocabulary (§5.1). Draft responses wrap these in `verdict`. */
+/** Constructor sugar for the three-verdict vocabulary (§5.1). Merges
+ * with the `Verdict` interface: `Verdict.warn(...)`, `Verdict.escalate(...)`. */
 export const Verdict = Object.freeze({
   /** The trivial permit verdict. */
-  allow(): AllowVerdict {
+  allow(): Verdict {
     return { decision: Decision.Allow };
   },
   /** What earlier drafts called `warn`: an `allow` carrying one
    * warning (§5.1). */
-  warn(reason?: string, message?: string): AllowVerdict {
+  warn(reason?: string, message?: string): Verdict {
     return { decision: Decision.Allow, warnings: [{ reason, message }] };
   },
   /** A plain, final deny: no `approval` block, so the approval seam
    * cannot lift it (§5.1). */
-  deny(reason?: string, message?: string): DenyVerdict {
+  deny(reason?: string, message?: string): Verdict {
     return { decision: Decision.Deny, reason, message };
   },
   /** What earlier drafts called `escalate`: a liftable deny — denied
    * as-is unless the approval seam lifts it (§5.1, §9). */
-  escalate(reason?: string, message?: string): DenyVerdict {
+  escalate(reason?: string, message?: string): Verdict {
     return { decision: Decision.Deny, reason, message, approval: {} };
   },
 });
 
 /** The trivial permit verdict. */
-export const ALLOW: Readonly<AllowVerdict> = Object.freeze({ decision: Decision.Allow });
+export const ALLOW: Readonly<Verdict> = Object.freeze({ decision: Decision.Allow });
 
 /** Host-synthesized deny verdict for a §11 failure. */
-export function hostErrorVerdict(err: HostError, message?: string): Extract<Verdict, { decision: "deny" }> {
+export function hostErrorVerdict(err: HostError, message?: string): Verdict {
   return { decision: Decision.Deny, reason: err, message };
 }
 
 /** Host-synthesized **liftable** deny (§7.5 `"approval"` knob value):
  * the failure is consultable rather than final. */
-export function hostErrorLiftable(err: HostError, message?: string): Extract<Verdict, { decision: "deny" }> {
+export function hostErrorLiftable(err: HostError, message?: string): Verdict {
   return { ...hostErrorVerdict(err, message), approval: {} };
 }
 
 /** A deny carrying an `approval` block (§5.1). */
-export function isLiftable(v: Verdict | LegacyVerdict): boolean {
+export function isLiftable(v: Verdict): boolean {
   return v.decision === Decision.Deny && v.approval != null;
 }
 
 // ---- Composition (§7) -------------------------------------------------------
 
+/** The closed profile set (§7.2). */
+export const CompositionProfile = Object.freeze({
+  SequentialFirstDeny: "sequential/first_deny",
+  SequentialRunAll: "sequential/run_all",
+  ParallelStrictest: "parallel/strictest",
+  ParallelUnanimous: "parallel/unanimous",
+} as const);
+export type CompositionProfile = (typeof CompositionProfile)[keyof typeof CompositionProfile];
+
+/** `sequential/first_deny` knob (§7.4): what a permit resolution does
+ * to the rest of the fold. */
+export type OnApproval = "stop" | "resume";
+
 /** `"deny" | "approval"` knob value (§7.5): synthesize a plain deny, or
  * a liftable one and consult the seam. */
-export type SynthesisPolicy = ConflictResolution;
+export type SynthesisPolicy = "deny" | "approval";
 
 /** The composition profile and knobs in effect for one emission
  * (§7.1, §10.3). Serialized verbatim into the record's `composition`
  * block. */
-export type CompositionConfig = WireCompositionConfig & { profile: CompositionProfile };
+export interface CompositionConfig {
+  profile: CompositionProfile;
+  /** `sequential/first_deny` only. */
+  on_approval?: OnApproval;
+  /** `parallel/unanimous` only. */
+  on_disagreement?: SynthesisPolicy;
+  /** `parallel/strictest` only. */
+  on_transform_conflict?: SynthesisPolicy;
+}
 
 /** Constructors for the closed profile set (§7.2). */
 export const Composition = Object.freeze({
@@ -317,13 +355,13 @@ export const Composition = Object.freeze({
  *   records carry `null` identities and self-describe as unbound. */
 export type IdentityProvider =
   | typeof JCS_SHA256
-  | { name: string; fn: (ctx: RuntimeAgentContext) => string }
+  | { name: string; fn: (ctx: AgentContext) => string }
   | null;
 
 /** Wire-shaped agent context (§4). Required core typed; conditional and
  * optional fields indexed. */
-export interface LegacyAgentContext {
-  spec: "agent-hooks/0.1";
+export interface AgentContext {
+  spec: string;
   interception_point: InterceptionPoint;
   timestamp: string;
   sequence: number;
@@ -335,7 +373,7 @@ export interface LegacyAgentContext {
 }
 
 /** Payload-free per-interceptor summary on the record (§10.3). */
-export interface LegacyVerdictSummary {
+export interface VerdictSummary {
   index: number;
   decision: Decision;
   reason?: string | null;
@@ -355,12 +393,12 @@ export interface LegacyVerdictSummary {
  * duplicating the (possibly sensitive) payload into audit storage.
  * `composition` makes the record interpretable without out-of-band
  * knowledge of host configuration. */
-export interface LegacyInterceptionRecord {
+export interface InterceptionRecord {
   interception_point: InterceptionPoint;
   mode: EnforcementMode;
   /** The combined verdict (§7.3), possibly host-synthesized or
    * approval-substituted. */
-  verdict: LegacyVerdict;
+  verdict: Verdict;
   /** Provider output before dispatch; `null` iff `identity_provider` is
    * `null` (or the provider itself rejected the context). */
   input_identity: string | null;
@@ -392,7 +430,7 @@ export interface LegacyInterceptionRecord {
   /** Per-interceptor summary; populated in multi-verdict profiles
    * (`sequential/run_all`, `parallel/*`) and whenever a slot was
    * substituted under `on_error: continue` (§6.3.1). */
-  verdicts?: LegacyVerdictSummary[];
+  verdicts?: VerdictSummary[];
   /** `true` iff one or more registered interceptors were never invoked
    * in this emission (short-circuit, approval-stop, or a failed
    * fold-transform). Defined for the sequential profiles (§7.4). */
@@ -406,31 +444,22 @@ export interface LegacyInterceptionRecord {
 }
 
 /** Whether the guarded action executes (§6, §8). */
-export function proceeds(r: RuntimeInterceptionRecord): boolean {
+export function proceeds(r: InterceptionRecord): boolean {
   return r.mode === EnforcementMode.EvaluateOnly || permits(r.verdict.decision);
 }
 
 /** Interceptor protocol (§7). */
-export type ContextForSpec<S extends string> =
-  S extends typeof SPEC_VERSION_DRAFT ? AgentContext :
-  S extends typeof SPEC_VERSION_0_1 ? LegacyAgentContext : RuntimeAgentContext;
-export type RecordForSpec<S extends string> =
-  S extends typeof SPEC_VERSION_DRAFT ? InterceptionRecord :
-  S extends typeof SPEC_VERSION_0_1 ? LegacyInterceptionRecord : RuntimeInterceptionRecord;
-export type ResponseForSpec<S extends string> =
-  S extends typeof SPEC_VERSION_DRAFT ? HookResponse :
-  S extends typeof SPEC_VERSION_0_1 ? LegacyVerdict : HookResponse | LegacyVerdict;
-export interface Interceptor<S extends string = string> {
-  intercept(context: ContextForSpec<S>): ResponseForSpec<S> | Promise<ResponseForSpec<S>>;
+export interface Interceptor {
+  intercept(context: AgentContext): Verdict | Promise<Verdict>;
 }
 
 /** Typed completion of a {@link ManagedInterceptor} (§6.3, timeout
  * ownership). `timeout` is reported only after the interceptor has
  * cancelled and cleaned up its external work; `cancelled` is never a
  * timeout and never continues. */
-export type ManagedInterceptorOutcome<R = HookResponse | LegacyVerdict> =
+export type ManagedInterceptorOutcome =
   /** A verdict; it crosses the same §5 gate as any interceptor's. */
-  | { outcome: "verdict"; verdict: R }
+  | { outcome: "verdict"; verdict: Verdict }
   /** The work exceeded the resolved bound and has been cleaned up.
    * Recorded as `host_error:interceptor_timeout`; eligible for
    * `on_error: continue`. */
@@ -450,38 +479,40 @@ export type ManagedInterceptorOutcome<R = HookResponse | LegacyVerdict> =
  * interceptor MUST cancel and clean up the work before it reports
  * `timeout`. Register through {@link InterceptionEmitter.registerManaged}
  * or a {@link ManagedKindResolver}. */
-export interface ManagedInterceptor<S extends string = string> {
+export interface ManagedInterceptor {
   interceptManaged(
-    context: ContextForSpec<S>,
+    context: AgentContext,
     boundMs: number | null,
-  ): ManagedInterceptorOutcome<ResponseForSpec<S>> | Promise<ManagedInterceptorOutcome<ResponseForSpec<S>>>;
+  ): ManagedInterceptorOutcome | Promise<ManagedInterceptorOutcome>;
 }
+
+/** Approval seam (§9). */
+export const ApprovalOutcome = Object.freeze({
+  Approve: "approve",
+  Reject: "reject",
+  Unresolved: "unresolved",
+} as const);
+export type ApprovalOutcome = (typeof ApprovalOutcome)[keyof typeof ApprovalOutcome];
 
 /** `context_identity` is `null` when the identity provider is `null`
  * (§10.1) — the approval is then identity-unbound. */
-export interface LegacyApprovalRequest {
+export interface ApprovalRequest {
   context_identity: string | null;
   interception_point: InterceptionPoint;
-  verdict: LegacyVerdict;
-  context: RuntimeAgentContext;
+  verdict: Verdict;
+  context: AgentContext;
 }
 
 /** The resolution's `context_identity` MUST echo the request's byte for
  * byte (`null` echoes as `null`, §9 echo rule). */
-export interface LegacyApprovalResolution {
+export interface ApprovalResolution {
   outcome: ApprovalOutcome;
   context_identity: string | null;
-  verdict?: LegacyVerdict;
+  verdict?: Verdict;
 }
 
-export type ApprovalRequestForSpec<S extends string> =
-  S extends typeof SPEC_VERSION_DRAFT ? ApprovalRequest :
-  S extends typeof SPEC_VERSION_0_1 ? LegacyApprovalRequest : ApprovalRequest | LegacyApprovalRequest;
-export type ApprovalResolutionForSpec<S extends string> =
-  S extends typeof SPEC_VERSION_DRAFT ? ApprovalResolution :
-  S extends typeof SPEC_VERSION_0_1 ? LegacyApprovalResolution : ApprovalResolution | LegacyApprovalResolution;
-export interface ApprovalResolver<S extends string = string> {
-  resolve(request: ApprovalRequestForSpec<S>): ApprovalResolutionForSpec<S> | Promise<ApprovalResolutionForSpec<S>>;
+export interface ApprovalResolver {
+  resolve(request: ApprovalRequest): ApprovalResolution | Promise<ApprovalResolution>;
 }
 
 // ---- Non-finite guard (§4.4, §10.2) -----------------------------------------
@@ -543,68 +574,31 @@ export function canonicalJson(v: JsonValue): string {
  * closed (`host_error:context_invalid` with remediation detail) on a
  * non-I-JSON projection — integrals beyond ±(2^53−1), non-finite
  * numbers. Rust core. */
-export function contextIdentity(ctx: RuntimeAgentContext): string {
-  if (ctx.spec === SPEC_VERSION_DRAFT) validateDraftContext(ctx);
+export function contextIdentity(ctx: AgentContext): string {
   return native.contextIdentity(marshal(ctx));
 }
 
-/** Validate a verdict. Draft validation requires its interception point. */
-export function validateVerdict(v: Verdict | LegacyVerdict, spec: string, point?: InterceptionPoint): void {
-  requireSpecVersion(spec);
-  if (spec === SPEC_VERSION_DRAFT) {
-    if (!point) throw new TypeError("Draft verdict validation requires an interception point");
-    const response = draftResponse({ verdict: v }, point);
-    native.validateVerdict(spec, marshal(response.verdict));
-  } else {
-    native.validateVerdict(spec, marshal(v));
-  }
+/** §5: validate an interceptor's wire return value under the
+ * specification version `spec` names (the context's wire string). Rust
+ * core. */
+export function validateVerdict(v: Verdict, spec: string): void {
+  native.validateVerdict(requireSpecVersion(spec), marshal(v));
 }
 
-/** Parse a draft hook response, or a released 0.1 verdict/envelope. Draft calls require a point. */
+/** Parse a bare Verdict or §5.5 response envelope under the
+ * specification version `spec` names. */
 export function parseInterceptorResponse(
-  value: unknown,
-  spec: typeof SPEC_VERSION_DRAFT,
-  point: InterceptionPoint,
-): InterceptorResponse;
-export function parseInterceptorResponse(value: unknown, spec: typeof SPEC_VERSION_0_1): LegacyInterceptorResponse;
-export function parseInterceptorResponse(
-  value: unknown,
+  value: JsonValue | string,
   spec: string,
-  point?: InterceptionPoint,
-): InterceptorResponse | LegacyInterceptorResponse;
-export function parseInterceptorResponse(
-  value: unknown,
-  spec: string,
-  point?: InterceptionPoint,
-): InterceptorResponse | LegacyInterceptorResponse {
-  requireSpecVersion(spec);
-  if (spec === SPEC_VERSION_DRAFT) {
-    if (!point) throw new TypeError("Draft response parsing requires an interception point");
-    // Let the native parser reject duplicate members and oversized metadata
-    // before JSON.parse loses those distinctions.
-    const raw = typeof value === "string" ? value : marshal(value);
-    const response = draftResponse(JSON.parse(native.parseResponseJson(raw)), point);
-    const normalized = JSON.parse(native.normalizeInterceptorResponse(spec, marshal(response)));
-    return restoreDraftResponse(normalized, point);
-  }
+): InterceptorResponse {
   const wire = typeof value === "string" ? value : marshal(value);
   return JSON.parse(
     native.normalizeInterceptorResponse(requireSpecVersion(spec), wire),
-  ) as LegacyInterceptorResponse;
+  ) as InterceptorResponse;
 }
 
-/** Draft responses stay enveloped; legacy 0.1 responses without metadata serialize as bare verdicts. */
-export function serializeInterceptorResponse(
-  response: InterceptorResponse | LegacyInterceptorResponse,
-  spec: string = SPEC_VERSION_0_1,
-  point?: InterceptionPoint,
-): JsonValue {
-  requireSpecVersion(spec);
-  if (spec === SPEC_VERSION_DRAFT) {
-    if (!point) throw new TypeError("Draft response serialization requires an interception point");
-    parseInterceptorResponse(response, SPEC_VERSION_DRAFT, point);
-    return JSON.parse(marshal(response));
-  }
+/** Emit a bare Verdict when the response carries no transport metadata. */
+export function serializeInterceptorResponse(response: InterceptorResponse): JsonValue {
   if (response.extensions == null || Object.keys(response.extensions).length === 0) {
     return response.verdict as unknown as JsonValue;
   }
@@ -619,43 +613,21 @@ export function applyTransform(target: JsonValue, path: string, value: JsonValue
   return JSON.parse(native.applyTransform(marshal(target), path, marshal(value)));
 }
 
-/** Apply a draft hook replacement, or a legacy 0.1 path/value transform, returning the updated context. */
+/** §7.4 fold-through: apply one transform to the context's `target` (and
+ * its conditional alias) so the next interceptor sees the effect. Returns
+ * the updated context. Rust core. */
 export function applyTransformCtx(
   ctx: AgentContext,
-  transform: Transform,
-): AgentContext;
-export function applyTransformCtx(ctx: LegacyAgentContext, path: string, value: JsonValue): LegacyAgentContext;
-export function applyTransformCtx(
-  ctx: RuntimeAgentContext,
-  transform: Transform | string,
-  value?: JsonValue,
-): RuntimeAgentContext {
-  if (ctx.spec === SPEC_VERSION_DRAFT) {
-    if (typeof transform === "string") throw new TypeError("Draft transforms use hook-specific payloads, not paths");
-    validateDraftContext(ctx);
-    const response = draftResponse({ verdict: { decision: "transform", transform } }, ctx.interception_point);
-    const t = response.verdict.transform!;
-    const result = withoutTarget(JSON.parse(native.applyTransformCtx(
-      marshal(draftContextWithTarget(ctx)), t.path, marshal(t.value),
-    )));
-    validateDraftContext(result);
-    return result;
-  }
-  if (typeof transform !== "string") throw new TypeError("0.1 transforms require a path and value");
-  return JSON.parse(native.applyTransformCtx(marshal(ctx), transform, marshal(value)));
+  path: string,
+  value: JsonValue,
+): AgentContext {
+  return JSON.parse(native.applyTransformCtx(marshal(ctx), path, marshal(value)));
 }
 
-/** Validate a transform against the context without mutating it (§8). */
-export function validateTransformCtx(ctx: AgentContext, transform: Transform): void;
-export function validateTransformCtx(ctx: LegacyAgentContext, path: string, value: JsonValue): void;
-export function validateTransformCtx(ctx: RuntimeAgentContext, transform: Transform | string, value?: JsonValue): void {
-  if (ctx.spec === SPEC_VERSION_DRAFT) {
-    if (typeof transform === "string") throw new TypeError("Draft transforms use hook-specific payloads, not paths");
-    applyTransformCtx(ctx, transform);
-  } else {
-    if (typeof transform !== "string") throw new TypeError("0.1 transforms require a path and value");
-    native.validateTransformCtx(marshal(ctx), transform, marshal(value));
-  }
+/** §8 `evaluate_only`: validate a transform against the context's current
+ * target without applying it. Rust core. */
+export function validateTransformCtx(ctx: AgentContext, path: string, value: JsonValue): void {
+  native.validateTransformCtx(marshal(ctx), path, marshal(value));
 }
 
 /** Everything {@link finalize} needs beyond the context and combined
@@ -679,7 +651,7 @@ export interface FinalizeMeta {
    * core never defaults it. */
   declaration?: string | null;
   /** Per-interceptor summaries (multi-verdict profiles, §10.3). */
-  verdicts?: LegacyVerdictSummary[] | null;
+  verdicts?: VerdictSummary[] | null;
   /** Sequential profiles (§7.4). */
   fold_truncated?: boolean | null;
   /** Consultation outcome: `"approval"` / `"rejection"` / none (§7.6). */
@@ -692,20 +664,16 @@ export interface FinalizeMeta {
  * `meta.input_identity` MUST have been computed before interceptor
  * dispatch; transforms were already applied during the §7.4 fold. Rust
  * core. */
-export function finalize(ctx: AgentContext, verdict: Verdict, mode: EnforcementMode, meta: FinalizeMeta): InterceptionRecord;
-export function finalize(ctx: LegacyAgentContext, verdict: LegacyVerdict, mode: EnforcementMode, meta: FinalizeMeta): LegacyInterceptionRecord;
-export function finalize(ctx: RuntimeAgentContext, verdict: Verdict | LegacyVerdict, mode: EnforcementMode, meta: FinalizeMeta): RuntimeInterceptionRecord;
 export function finalize(
-  ctx: RuntimeAgentContext,
-  verdict: Verdict | LegacyVerdict,
+  ctx: AgentContext,
+  verdict: Verdict,
   mode: EnforcementMode,
   meta: FinalizeMeta,
-): RuntimeInterceptionRecord {
-  const record = JSON.parse(
+): InterceptionRecord {
+  return JSON.parse(
     native.finalize(
       marshal(ctx),
-      marshal("transform" in verdict && verdict.transform && !("path" in verdict.transform)
-        ? { ...verdict, transform: draftTransform(verdict.transform) } : verdict),
+      marshal(verdict),
       mode,
       JSON.stringify({
         input_identity: meta.input_identity ?? null,
@@ -721,61 +689,25 @@ export function finalize(
       }),
     ),
   );
-  if (ctx.spec === SPEC_VERSION_DRAFT) delete record.verdict.transform;
-  return record;
 }
 
 /** §7.3/§7.5 aggregation for the multi-verdict profiles: severity-max
  * winner (or synthesized conflict/disagreement verdict) with the §7.3
  * metadata unions. Rust core. */
-type AggregateResult<V> = {
-  combined: V;
-  decided_by: number | null;
-  consult: boolean;
-  apply_transform: boolean;
-  verdicts: LegacyVerdictSummary[];
-};
-
 export function composeAggregate(
   composition: CompositionConfig,
   verdicts: Verdict[],
-  spec: typeof SPEC_VERSION_DRAFT,
-  point: InterceptionPoint,
-): AggregateResult<Verdict>;
-export function composeAggregate(
-  composition: CompositionConfig,
-  verdicts: LegacyVerdict[],
-  spec: typeof SPEC_VERSION_0_1,
-): AggregateResult<LegacyVerdict>;
-export function composeAggregate(
-  composition: CompositionConfig,
-  verdicts: (Verdict | LegacyVerdict)[],
   spec: string,
-  point?: InterceptionPoint,
-): AggregateResult<Verdict | LegacyVerdict>;
-export function composeAggregate(
-  composition: CompositionConfig,
-  verdicts: (Verdict | LegacyVerdict)[],
-  spec: string,
-  point?: InterceptionPoint,
-): AggregateResult<Verdict | LegacyVerdict> {
-  requireSpecVersion(spec);
-  if (spec === SPEC_VERSION_DRAFT && !point) {
-    throw new TypeError("Draft composition requires an interception point");
-  }
-  const adapted = verdicts.map((verdict) => {
-    if (spec !== SPEC_VERSION_DRAFT || !point || !("transform" in verdict)) return verdict;
-    const response = draftResponse({
-      verdict: { decision: verdict.decision, transform: verdict.transform },
-    }, point);
-    return { ...verdict, ...response.verdict };
-  });
-  const result: AggregateResult<LegacyVerdict> = JSON.parse(
-    native.composeAggregate(spec, JSON.stringify(composition), marshal(adapted)),
+): {
+  combined: Verdict;
+  decided_by: number | null;
+  consult: boolean;
+  apply_transform: boolean;
+  verdicts: VerdictSummary[];
+} {
+  return JSON.parse(
+    native.composeAggregate(requireSpecVersion(spec), JSON.stringify(composition), marshal(verdicts)),
   );
-  return spec === SPEC_VERSION_DRAFT && point
-    ? { ...result, combined: restoreDraftResponse({ verdict: result.combined }, point).verdict }
-    : result;
 }
 
 export { AgentContextBuilder } from "./builder";
@@ -825,17 +757,17 @@ export type {
   ToolSeamPosture,
 } from "./declaration";
 
+/** Raised by a host when a verdict blocks the guarded action (§6). */
 /** Returned by `InterceptionEmitter.emit` on a proceeding emission:
  * the record plus the **effective** (post-composition) target the
  * guarded action MUST consume (§4.3). */
-export interface EmitOutcome<R extends RuntimeInterceptionRecord = RuntimeInterceptionRecord> {
-  record: R;
+export interface EmitOutcome {
+  record: InterceptionRecord;
   target: unknown;
 }
 
-/** Raised by a host when a verdict blocks the guarded action (§6). */
 export class InterceptionBlocked extends Error {
-  constructor(public readonly result: RuntimeInterceptionRecord) {
+  constructor(public readonly result: InterceptionRecord) {
     super(
       `${result.interception_point} blocked: ${result.verdict.decision} (${result.verdict.reason ?? "no reason"})`,
     );
