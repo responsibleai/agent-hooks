@@ -1,0 +1,113 @@
+// Copyright (c) Microsoft. All rights reserved.
+
+import "@typespec/json-schema";
+import "@agent-hooks/reference-docs";
+import "../draft/schema/src/main.tsp";
+
+using AgentHooks.Docs;
+
+@@category(AgentHooks.AgentInit, Categories.Requests);
+@@category(AgentHooks.InputRole, Categories.Requests);
+@@category(AgentHooks.Input, Categories.Requests);
+@@category(AgentHooks.Model, Categories.Requests);
+@@category(AgentHooks.Message, Categories.Requests);
+@@category(AgentHooks.ToolCallRequest, Categories.Requests);
+@@category(AgentHooks.Response, Categories.Requests);
+@@category(AgentHooks.Usage, Categories.Requests);
+@@category(AgentHooks.ToolCall, Categories.Requests);
+@@category(AgentHooks.ToolResult, Categories.Requests);
+@@category(AgentHooks.ToolDecl, Categories.Requests);
+@@category(AgentHooks.Output, Categories.Requests);
+@@category(AgentHooks.SummaryReason, Categories.Requests);
+@@category(AgentHooks.Summary, Categories.Requests);
+@@category(AgentHooks.ActorKind, Categories.Requests);
+@@category(AgentHooks.ContextMetadata, Categories.Requests);
+@@category(AgentHooks.HooksRequest, Categories.Requests);
+@@category(AgentHooks.AgentStartupRequest, Categories.Requests);
+@@category(AgentHooks.InputRequest, Categories.Requests);
+@@category(AgentHooks.PreModelCallRequest, Categories.Requests);
+@@category(AgentHooks.PostModelCallRequest, Categories.Requests);
+@@category(AgentHooks.PreToolCallRequest, Categories.Requests);
+@@category(AgentHooks.PostToolCallRequest, Categories.Requests);
+@@category(AgentHooks.OutputRequest, Categories.Requests);
+@@category(AgentHooks.AgentShutdownRequest, Categories.Requests);
+@@category(AgentHooks.AgentContext, Categories.Requests);
+
+@@category(AgentHooks.LiftableDeny, Categories.Approval);
+@@category(AgentHooks.request, Categories.Approval);
+@@category(AgentHooks.Outcome, Categories.Approval);
+@@category(AgentHooks.ResolutionBase, Categories.Approval);
+@@category(AgentHooks.ApproveResolution, Categories.Approval);
+@@category(AgentHooks.RejectResolution, Categories.Approval);
+@@category(AgentHooks.UnresolvedResolution, Categories.Approval);
+@@category(AgentHooks.resolution, Categories.Approval);
+
+@@category(AgentHooks.Mode, Categories.Common);
+@@category(AgentHooks.CompositionProfile, Categories.Common);
+@@category(AgentHooks.OnApproval, Categories.Common);
+@@category(AgentHooks.ConflictResolution, Categories.Common);
+@@category(AgentHooks.Extensions, Categories.Common);
+@@category(AgentHooks.JsonObject, Categories.Common);
+
+@@category(AgentHooks.InputHookTransform, Categories.Responses);
+@@category(AgentHooks.PreModelHookTransform, Categories.Responses);
+@@category(AgentHooks.PostModelHookTransform, Categories.Responses);
+@@category(AgentHooks.PreToolHookTransform, Categories.Responses);
+@@category(AgentHooks.PostToolHookTransform, Categories.Responses);
+@@category(AgentHooks.OutputHookTransform, Categories.Responses);
+@@category(AgentHooks.HookResponse, Categories.Responses);
+@@category(AgentHooks.AgentStartupHookResponse, Categories.Responses);
+@@category(AgentHooks.InputHookResponse, Categories.Responses);
+@@category(AgentHooks.PreModelHookResponse, Categories.Responses);
+@@category(AgentHooks.PostModelHookResponse, Categories.Responses);
+@@category(AgentHooks.PreToolHookResponse, Categories.Responses);
+@@category(AgentHooks.PostToolHookResponse, Categories.Responses);
+@@category(AgentHooks.OutputHookResponse, Categories.Responses);
+@@category(AgentHooks.AgentShutdownHookResponse, Categories.Responses);
+
+@@category(AgentHooks.Reference, Categories.Declaration);
+@@category(AgentHooks.BoundedTimeoutMs, Categories.Declaration);
+@@category(AgentHooks.TimeoutMs, Categories.Declaration);
+@@category(AgentHooks.Capability, Categories.Declaration);
+@@category(AgentHooks.ToolSeamHostError, Categories.Declaration);
+@@category(AgentHooks.OnError, Categories.Declaration);
+@@category(AgentHooks.Host, Categories.Declaration);
+@@category(AgentHooks.CompositionConfig, Categories.Declaration);
+@@category(AgentHooks.ApprovalConfig, Categories.Declaration);
+@@category(AgentHooks.PostureConfig, Categories.Declaration);
+@@category(AgentHooks.TimeoutsConfig, Categories.Declaration);
+@@category(AgentHooks.RecordsConfig, Categories.Declaration);
+@@category(AgentHooks.FailureConfig, Categories.Declaration);
+@@category(AgentHooks.Configuration, Categories.Declaration);
+@@category(AgentHooks.FirstDenySupport, Categories.Declaration);
+@@category(AgentHooks.RunAllSupport, Categories.Declaration);
+@@category(AgentHooks.StrictestSupport, Categories.Declaration);
+@@category(AgentHooks.UnanimousSupport, Categories.Declaration);
+@@category(AgentHooks.ProfileSupport, Categories.Declaration);
+@@category(AgentHooks.SurfaceBase, Categories.Declaration);
+@@category(AgentHooks.BufferedSurface, Categories.Declaration);
+@@category(AgentHooks.UnbufferedSurface, Categories.Declaration);
+@@category(AgentHooks.Surface, Categories.Declaration);
+@@category(AgentHooks.Binding, Categories.Declaration);
+@@category(AgentHooks.HostDeclaration, Categories.Declaration);
+
+@@category(AgentHooks.InterceptionPoint, Categories.Common);
+
+@@category(AgentHooks.ApprovalPresence, Categories.Records);
+@@category(AgentHooks.WarningProjection, Categories.Records);
+@@category(AgentHooks.VerdictProjection, Categories.Records);
+@@category(AgentHooks.Trace, Categories.Records);
+@@category(AgentHooks.SubstitutedFor, Categories.Records);
+@@category(AgentHooks.VerdictSlot, Categories.Records);
+@@category(AgentHooks.ResolvedBy, Categories.Records);
+@@category(AgentHooks.InterceptionRecord, Categories.Records);
+
+@@category(AgentHooks.Decision, Categories.Verdicts);
+@@category(AgentHooks.Warning, Categories.Verdicts);
+@@category(AgentHooks.VerificationPointers, Categories.Verdicts);
+@@category(AgentHooks.Evidence, Categories.Verdicts);
+@@category(AgentHooks.VerdictBase, Categories.Verdicts);
+@@category(AgentHooks.AllowVerdict, Categories.Verdicts);
+@@category(AgentHooks.DenyVerdict, Categories.Verdicts);
+@@category(AgentHooks.TransformVerdict, Categories.Verdicts);
+@@category(AgentHooks.NonTransformVerdict, Categories.Verdicts);

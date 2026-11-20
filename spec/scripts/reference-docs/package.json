@@ -1,0 +1,32 @@
+{
+  "name": "@agent-hooks/reference-docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "typespec": "./lib/main.tsp",
+  "exports": {
+    ".": {
+      "typespec": "./lib/main.tsp",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "alloy build"
+  },
+  "dependencies": {
+    "@alloy-js/core": "0.26.0",
+    "@alloy-js/markdown": "0.26.0"
+  },
+  "devDependencies": {
+    "@astrojs/markdown-remark": "7.3.9",
+    "@alloy-js/cli": "0.26.0",
+    "@types/node": "22.20.5",
+    "typescript": "7.0.2"
+  },
+  "peerDependencies": {
+    "@typespec/compiler": "~1.18.0",
+    "@typespec/json-schema": "~1.18.0"
+  }
+}
