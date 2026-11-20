@@ -97,6 +97,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with: { toolchain: stable }
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: ./.github/actions/setup
       - name: Install locked dependencies, then the package itself
         # requirements-dev.lock pins every transitive dep including the
         # maturin build backend (uv pip compile); --no-build-isolation
@@ -106,6 +107,10 @@ jobs:
         run: |
           uv pip install --system -r sdk/python/requirements-dev.lock
           uv pip install --system --no-deps --no-build-isolation -e ./sdk/python
+      - name: Check generated Python contract
+        run: |
+          pnpm run check:python
+          mypy --strict sdk/python/python/agent_hooks_contract sdk/python/tests/typing_contract.py
       - run: ruff format --check sdk/python scripts && ruff check sdk/python scripts
       # The required set: the tests marked draft run in draft-tests.
       - run: pytest sdk/python/tests -p no:agent_hooks_ctk -m "not draft" -v
