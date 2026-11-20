@@ -8,3 +8,4 @@ import "./hook-responses.tsp";
 import "./approval.tsp";
 import "./interception-record.tsp";
 import "./host-declaration.tsp";
+import "./operations.tsp";

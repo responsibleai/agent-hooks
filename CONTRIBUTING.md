@@ -91,9 +91,11 @@ what validators, the conformance kit and the SDK mirrors consume. Do not
 edit it by hand; the `lint` and `drift` checks fail on any byte that
 differs from the generated text.
 
-- Draft sources are TypeSpec models, enums, scalars and unions:
+- Draft payload sources are TypeSpec models, enums, scalars and unions:
   `agent-context.tsp`, `verdict.tsp`, `hook-responses.tsp`, `approval.tsp`,
   `interception-record.tsp`, `host-declaration.tsp`, plus shared types.
+  `operations.tsp` pairs the existing requests and responses in transport-neutral
+  interceptor and approval-resolver interfaces; it does not define HTTP routes.
   `main.tsp` imports the bundle's sources. The generator selects one public
   root per compilation with `@@jsonSchema`, so the native emitter embeds
   dependencies in each standalone document. The generator loads
