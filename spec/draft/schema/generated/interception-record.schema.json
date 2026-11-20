@@ -110,15 +110,8 @@
       "description": "true iff one or more registered interceptors were never invoked in this\nemission (short-circuit, approval-stop, or a failed fold-transform). Defined\nfor the sequential profiles (§7.4)."
     },
     "resolved_by": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/ResolvedBy"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "description": "Consultation outcome (§7.6, §10.3): \"approval\" iff a permit resolution\nsubstituted for a verdict; \"rejection\" iff the seam was consulted and did not\nlift the deny; absent/null iff never consulted."
+      "$ref": "#/$defs/ResolvedBy",
+      "description": "Consultation outcome (§7.6, §10.3): \"approval\" iff a permit resolution\nsubstituted for a verdict; \"rejection\" iff the seam was consulted and did not\nlift the deny; absent iff never consulted."
     },
     "interceptors_registered": {
       "type": "integer",
@@ -215,53 +208,25 @@
           "$ref": "#/$defs/Decision"
         },
         "reason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "string"
         },
         "message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "string"
         },
         "warnings": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/WarningProjection"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WarningProjection"
+          }
         },
         "evidence": {
           "$ref": "#/$defs/Evidence"
         },
         "result_labels": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "approval": {
           "$ref": "#/$defs/ApprovalPresence"
@@ -323,14 +288,7 @@
           "$ref": "#/$defs/Decision"
         },
         "reason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "string"
         },
         "name": {
           "type": "string",
@@ -369,24 +327,10 @@
       "type": "object",
       "properties": {
         "reason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "string"
         },
         "message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "string"
         }
       },
       "description": "Warning metadata retained in a payload-free record projection.",
@@ -396,14 +340,7 @@
       "type": "object",
       "properties": {
         "artefact": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "string",
           "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof."
         },
         "verification_pointers": {
