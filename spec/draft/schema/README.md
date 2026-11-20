@@ -16,10 +16,14 @@ them with `@typespec/json-schema` to JSON Schema Draft 2020-12.
 
 The same declarations generate the [draft reference](../REFERENCE.md) and
 [reference tables](../REFERENCE-TABLES.md) via `pnpm run generate:reference`
-at the repository root. Add `@category(Categories.<member>)` to include a type;
-the shared categories live in `spec/scripts/reference-docs/lib/main.tsp`.
-`pnpm run check:reference` detects stale documentation. Category annotations
-only select documentation and do not alter the normative JSON Schemas.
+at the repository root. Add `@@category(AgentHooks.MyType, Categories.<member>)`
+to `spec/scripts/reference.tsp`, not to schema sources. The shared categories
+live in `spec/scripts/reference-docs/lib/main.tsp`. Every named project model,
+enum, union, and scalar must have a category, including reusable and generic
+declarations. Anonymous shapes, concrete template instances, and imported
+library types are excluded. `pnpm run check:reference` validates completeness
+and detects stale documentation. Only reference generation loads the docs
+entrypoint/library; schema compilation and normative JSON Schemas are unaffected.
 `generated/` contains the committed draft JSON Schemas. Do not edit generated JSON by hand.
 
 - Root schemas are written to `generated/*.schema.json`.

@@ -20,11 +20,13 @@ const emitter = tester.emit("@agent-hooks/reference-docs");
 test("groups declarations by enum order and links same-named types by namespace", async () => {
   const { outputs } = await emitter.compile(`
     namespace Hooks {
-      @category(Categories.Responses) model Result { request: Requests.Result; }
+      model Result { request: Requests.Result; }
     }
     namespace Requests {
-      @category(Categories.Requests) model Result { id: string; }
+      model Result { id: string; }
     }
+    @@category(Hooks.Result, Categories.Responses);
+    @@category(Requests.Result, Categories.Requests);
   `);
   assert.deepEqual(Object.keys(outputs).sort(), [
     "REFERENCE-TABLES.md",
@@ -47,7 +49,6 @@ test("groups declarations by enum order and links same-named types by namespace"
 test("documents generic declarations, concrete envelopes, and inherited and nested constraints", async () => {
   const { outputs } = await emitter.compile(`
     namespace Test;
-    @category(Categories.Common)
     enum Kind { Allow: "allow", Deny: "deny" }
     model Base {
       /** A machine-readable reason. */
@@ -55,17 +56,19 @@ test("documents generic declarations, concrete envelopes, and inherited and nest
       reason?: string | null;
     }
     /** Generic response wrapper. */
-    @category(Categories.Responses)
     model Envelope<T> {
       value: T;
     }
-    @category(Categories.Responses)
     model Response extends Base {
       kind: Kind;
       wrapped: Envelope<Kind>;
       agent: { @minLength(1) id: string; };
       next?: Response;
     }
+    @@category(Kind, Categories.Common);
+    @@category(Base, Categories.Common);
+    @@category(Envelope, Categories.Responses);
+    @@category(Response, Categories.Responses);
   `);
   const page = outputs["REFERENCE-TABLES.md"];
   assert.match(page, /### `Envelope<T>`/);
@@ -100,7 +103,7 @@ test("documents generic declarations, concrete envelopes, and inherited and nest
   assert.doesNotMatch(declarations, /^\| Property \|/m);
 });
 
-test("ignores another namespace's category decorator on a generic declaration", async () => {
+test("reads augmented template categories without confusing another namespace's decorator", async () => {
   const collisionTester = createTester(
     resolve(dirname(fileURLToPath(import.meta.url)), "../.."),
     {
@@ -115,17 +118,13 @@ test("ignores another namespace's category decorator on a generic declaration", 
     namespace Other {
       auto dec category(target: TypeSpec.Reflection.Model, value: AgentHooks.Docs.Categories);
     }
-    @Other.category(Categories.Responses) @AgentHooks.Docs.category(
-      Categories.Requests
-    ) model Listed<T> { value: T; }
-    @Other.category(Categories.Responses)
-    model Unrelated<T> { value: T; }
+    @Other.category(Categories.Responses) model Listed<T> { value: T; }
+    @@AgentHooks.Docs.category(Listed, Categories.Requests);
   `);
   for (const page of Object.values(outputs)) {
     assert.match(page, /## Hook requests/);
     assert.doesNotMatch(page, /## Hook responses/);
     assert.match(page, /### `Listed<T>`/);
-    assert.doesNotMatch(page, /### `Unrelated<T>`/);
     assert.match(
       page,
       /@Other\.category\(Categories.Responses\) model Listed<T>/,
@@ -136,16 +135,12 @@ test("ignores another namespace's category decorator on a generic declaration", 
 
 test("renders JSON examples, union variants, enums, and Markdown table metacharacters", async () => {
   const { outputs } = await emitter.compile(`
-    @category(Categories.Common)
     enum Choice { First: "a|b", Second: "second" }
-    @category(Categories.Common)
     union Selection { Choice, null }
-    @category(Categories.Common)
     scalar Identifier extends string;
     /** Complete request payload. */
     @summary("A concise request.")
     @example(#{ text: "hello" }, #{ title: "Minimal" })
-    @category(Categories.Requests)
     model Request {
       /** Text with a | separator and \`left | right\`. */
       @pattern("^(hello|world)$")
@@ -153,6 +148,10 @@ test("renders JSON examples, union variants, enums, and Markdown table metachara
       selection?: Selection;
       choices?: (Choice | null)[];
     }
+    @@category(Choice, Categories.Common);
+    @@category(Selection, Categories.Common);
+    @@category(Identifier, Categories.Common);
+    @@category(Request, Categories.Requests);
   `);
   const page = outputs["REFERENCE-TABLES.md"];
   assert.ok(page.includes('`"a\\|b"`'));
@@ -200,27 +199,62 @@ test("renders JSON examples, union variants, enums, and Markdown table metachara
   assert.doesNotMatch(declarations, /^\| (?:Property|Member) \|/m);
 });
 
-test("reports an empty selection rather than emitting a success-shaped empty page", async () => {
+test("reports each missing declaration at its source and emits no partial reference", async () => {
   const [result, diagnostics] =
-    await emitter.compileAndDiagnose("model Unlisted {}");
+    await emitter.compileAndDiagnose(`
+      model Listed { nested: { value: string }; list: string[]; }
+      @@category(Listed, Categories.Common);
+      namespace Unreferenced {
+        model Missing {}
+        model Generic<T> { value: T; }
+        enum MissingEnum { A }
+        union MissingUnion { string, null }
+        scalar MissingScalar extends string;
+      }
+    `);
   assert.deepEqual(Object.keys(result.outputs), []);
-  assert.ok(
-    diagnostics.some(
-      (diagnostic) =>
-        diagnostic.code === "@agent-hooks/reference-docs/no-categories",
-    ),
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => diagnostic.code),
+    Array(5).fill("@agent-hooks/reference-docs/missing-category"),
   );
+  assert.deepEqual(
+    diagnostics.map((diagnostic) => diagnostic.target.name).sort(),
+    ["Generic", "Missing", "MissingEnum", "MissingScalar", "MissingUnion"],
+  );
+  assert.match(diagnostics[0].message, /@@category\(Unreferenced\./);
+});
+
+test("excludes imported libraries and concrete template instances from completeness validation", async () => {
+  const { outputs } = await emitter.compile(`
+    model Envelope<T> { value: T; }
+    model Request { value: Envelope<string>; open: Record<unknown>; }
+    @@category(Envelope, Categories.Responses);
+    @@category(Request, Categories.Requests);
+  `);
+  for (const page of Object.values(outputs)) {
+    assert.match(page, /### \`Envelope<T>\`/);
+    assert.match(page, /### \`Request\`/);
+    assert.doesNotMatch(page, /### \`(?:Categories|Record|Array|JsonSchema)/);
+    assert.equal((page.match(/^### /gm) ?? []).length, 2);
+  }
+});
+
+test("validates category completeness even when no emitter is selected", async () => {
+  const [, diagnostics] = await tester.compileAndDiagnose("model Missing {}");
+  assert.equal(diagnostics.length, 1);
+  assert.equal(diagnostics[0].code, "@agent-hooks/reference-docs/missing-category");
+  assert.equal(diagnostics[0].target.name, "Missing");
 });
 
 test("keeps literal backticks and HTML metacharacters intact in source, examples, and tables", async () => {
   const { outputs } = await emitter.compile(`
-    @category(Categories.Common)
     @example(#{ text: "\`\`\`" })
     model Literal {
       @pattern("^\`<a|b>&\`$")
       pattern?: string;
       text: "\`\`\`";
     }
+    @@category(Literal, Categories.Common);
   `);
   const source = outputs["REFERENCE.md"];
   assert.match(source, /````typespec\n[\s\S]*?text: "```";[\s\S]*?\n````/);
@@ -242,10 +276,10 @@ test("preserves literal regexes, Markdown punctuation, and padded backtick spans
     " left|right ",
   ];
   const { outputs } = await emitter.compile(`
-    @category(Categories.Common)
     model Patterns {
       ${patterns.map((pattern, i) => `@pattern(${JSON.stringify(pattern)}) value${i}: string;`).join("\n")}
     }
+    @@category(Patterns, Categories.Common);
   `);
   const processor = await createMarkdownProcessor({ syntaxHighlight: false });
   const { code } = await processor.render(outputs["REFERENCE-TABLES.md"]);

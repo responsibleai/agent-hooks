@@ -84,8 +84,14 @@ documentation, run `pnpm run generate:reference` and commit both Markdown files.
 `pnpm run check:reference` rejects stale output; `pnpm run test:reference`
 exercises the emitter. The Pages workflow runs both before building the site.
 The loader publishes these files directly, without a separate staging copy.
-Use `@category(Categories.<member>)` from `AgentHooks.Docs` to include a
-declaration, including a generic template, in the ordered reference sections.
+Assign each schema declaration to an ordered section in the docs-only entrypoint
+`spec/scripts/reference.tsp` with
+`@@category(AgentHooks.MyType, Categories.<member>)`, including generic templates
+(use `MyType`, not `MyType<T>`). Reference compilation validates every named
+project model, enum, union, and scalar, even unreferenced declarations, and reports
+missing categories at their declarations. Anonymous shapes, concrete template
+instances, and imported library types are excluded. Keep documentation metadata
+out of the schema sources; schema compilation does not import the docs library.
 JSON Schemas remain normative; the reference does not change validation.
 
 ## Schema source

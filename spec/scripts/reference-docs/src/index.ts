@@ -5,10 +5,12 @@ import {
   createTypeSpecLibrary,
   emitFile,
   getAutoDecoratorValue,
+  getLocationContext,
   getTypeName,
   isTemplateInstance,
   isType,
   navigateProgram,
+  paramMessage,
   resolvePath,
   type EmitContext,
   type Enum,
@@ -26,11 +28,17 @@ export type Declaration = Model | Enum | Union | Scalar;
 export const $lib = createTypeSpecLibrary({
   name: "@agent-hooks/reference-docs",
   diagnostics: {
+    "missing-category": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Declaration '${"name"}' needs a reference category. Add @@category(${"name"}, Categories.<member>) to the docs entrypoint.`,
+      },
+    },
     "no-categories": {
       severity: "error",
       messages: {
         default:
-          "No categorized declarations found. Add @category(Categories.<member>).",
+          "No schema declarations found in the reference project.",
       },
     },
   },
@@ -63,7 +71,7 @@ function getCategory(
     return stored.value;
   }
 
-  // Template declarations retain their decorators without executing them.
+  // Templates retain augment applications without executing their auto decorators.
   const application = type.decorators.find(isCategoryDecorator);
   const argument = application?.args[0]?.value;
   return argument && isType(argument) && argument.kind === "EnumMember"
@@ -71,19 +79,45 @@ function getCategory(
     : undefined;
 }
 
-export async function $onEmit(context: EmitContext): Promise<void> {
-  const { program } = context;
-  const declarations = new Map<Declaration, EnumMember>();
+function schemaDeclarations(program: Program): Declaration[] {
+  const declarations = new Set<Declaration>();
   function collect(type: Declaration): void {
-    if (!type.name || isTemplateInstance(type)) return;
-    const category = getCategory(program, type);
-    if (category) declarations.set(type, category);
+    if (
+      type.name &&
+      !isTemplateInstance(type) &&
+      getLocationContext(program, type).type === "project"
+    ) {
+      declarations.add(type);
+    }
   }
   navigateProgram(
     program,
     { model: collect, enum: collect, union: collect, scalar: collect },
     { includeTemplateDeclaration: true },
   );
+  return [...declarations];
+}
+
+export function $onValidate(program: Program): void {
+  for (const type of schemaDeclarations(program)) {
+    if (!getCategory(program, type)) {
+      $lib.reportDiagnostic(program, {
+        code: "missing-category",
+        target: type,
+        format: { name: getTypeName(type) },
+      });
+    }
+  }
+}
+
+export async function $onEmit(context: EmitContext): Promise<void> {
+  const { program } = context;
+  if (program.hasError()) return;
+  const declarations = new Map<Declaration, EnumMember>();
+  for (const type of schemaDeclarations(program)) {
+    const category = getCategory(program, type);
+    if (category) declarations.set(type, category);
+  }
   const firstCategory = declarations.values().next().value;
   if (!firstCategory) {
     $lib.reportDiagnostic(program, {

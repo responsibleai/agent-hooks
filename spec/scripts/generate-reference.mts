@@ -16,9 +16,8 @@ const program = await compile(
       output.set(basename(path), content);
     },
   },
-  join(directory, "schema-emitter.tsp"),
+  join(directory, "reference.tsp"),
   {
-    additionalImports: [join(directory, "../draft/schema/src/main.tsp")],
     emit: ["@agent-hooks/reference-docs"],
     outputDir: join(directory, "tsp-output"),
   },
