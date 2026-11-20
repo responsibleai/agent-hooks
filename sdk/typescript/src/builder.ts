@@ -8,7 +8,7 @@
  * point that fills L1 and sets `target`.
  */
 
-import { AgentContext, InterceptionPoint, JsonValue, requireSpecVersion } from "./index";
+import { AgentContext, InterceptionPoint, JsonValue, requireSpecVersion } from "./index.js";
 
 function now(): string {
   return new Date().toISOString();

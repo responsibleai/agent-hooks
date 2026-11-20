@@ -86,8 +86,16 @@ The old TypeScript generator and its dependencies remain only for frozen
 released bundles such as 0.1. Cutting a new bundle rewrites `.tsp` wire
 strings and schema identities along with the JSON.
 
-This changes schema authoring, not the Rust runtime or the handwritten
-language SDKs. JSON Schema remains the normative artifact. The Python
+The TypeScript SDK owns a generator using Alloy and the TypeSpec emitter
+framework in `sdk/typescript/scripts/generate-types.tsx`. It reads this draft
+source directly to generate `sdk/typescript/src/generated/types.ts`, independently
+of JSON Schema generation. Run `pnpm --dir sdk/typescript run generate:types`
+to regenerate or `pnpm --dir sdk/typescript run check:generated` to check drift.
+The SDK exposes these types through
+`@responsibleai/agent-hooks/contract`, without runtime code, compatibility
+aliases or copied schemas. Runtime design and integration remain separate.
+
+JSON Schema remains the normative artifact. The Python
 mirror remains versioned under `schema/0.1/` and `schema/draft/`; update
 draft copies only alongside corresponding SDK changes, as described in
 [Contributing](../../../CONTRIBUTING.md#schema-source).

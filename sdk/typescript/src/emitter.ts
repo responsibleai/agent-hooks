@@ -86,7 +86,7 @@ import {
   permits,
   proceeds,
   requireSpecVersion,
-} from "./index";
+} from "./index.js";
 import {
   BindingContext,
   DeclarationError,
@@ -95,8 +95,8 @@ import {
   HostRegistry,
   ResolvedDeclaration,
   resolveDeclaration,
-} from "./declaration";
-import { AgentHooksCoreError, native } from "./native";
+} from "./declaration.js";
+import { AgentHooksCoreError, native } from "./native.js";
 
 /** §7 RECOMMENDED interceptor/resolver timeout (milliseconds). */
 export const DEFAULT_TIMEOUT_MS = 5000;

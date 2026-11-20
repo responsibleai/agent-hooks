@@ -1,13 +1,15 @@
 {
   "name": "@responsibleai/agent-hooks",
   "version": "0.1.0-beta.4",
+  "type": "module",
   "description": "Framework-neutral agent control contract (AGENT-HOOKS-0.1). TypeScript wrapper over the canonical Rust core. Cooperative contract, not a security boundary: the host is fully trusted (see SECURITY.md).",
   "license": "MIT",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": "./dist/index.js",
-    "./ctk": "./dist/ctk/index.js"
+    "./ctk": "./dist/ctk/index.js",
+    "./contract": "./dist/generated/types.js"
   },
   "files": [
     "dist",
@@ -30,21 +32,28 @@
     ]
   },
   "scripts": {
-    "build:native": "napi build --release --platform --js binding.js --dts binding.d.ts",
-    "build:native:debug": "napi build --platform --js binding.js --dts binding.d.ts",
+    "generate:types": "tsx --tsconfig scripts/tsconfig.json scripts/generate-types.tsx",
+    "check:generated": "tsx --tsconfig scripts/tsconfig.json scripts/generate-types.tsx --check && tsc --project scripts/tsconfig.json",
+    "build:native": "napi build --release --platform --esm --js binding.js --dts binding.d.ts",
+    "build:native:debug": "napi build --platform --esm --js binding.js --dts binding.d.ts",
     "build": "pnpm run build:native && tsc",
     "test": "pnpm run build && node --test test/*.mjs",
     "test:draft": "node --test test/draft/*.mjs"
   },
   "devDependencies": {
+    "@alloy-js/core": "0.25.0",
+    "@alloy-js/typescript": "0.25.0",
     "@napi-rs/cli": "^3.7.2",
     "@types/node": "^26.1.1",
+    "@typespec/compiler": "1.18.0",
+    "@typespec/emitter-framework": "0.22.0",
+    "@typespec/json-schema": "1.18.0",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "tsx": "4.23.15",
     "typescript": "^7.0.2"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.10"
   }
 }

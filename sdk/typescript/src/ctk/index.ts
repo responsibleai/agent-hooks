@@ -16,7 +16,7 @@ import type {
   HostSurface,
   Interceptor,
   JsonValue,
-} from "../index";
+} from "../index.js";
 
 export {
   assessHarness,
@@ -29,9 +29,9 @@ export {
   VectorResult,
   builderFromValue,
   provePaths,
-} from "./runner";
-export type { AssessedSurface, ConformanceReport, PartReport } from "./runner";
-export { ReferenceHarness, REFERENCE_DECLARATION } from "./reference";
+} from "./runner.js";
+export type { AssessedSurface, ConformanceReport, PartReport } from "./runner.js";
+export { ReferenceHarness, REFERENCE_DECLARATION } from "./reference.js";
 
 /** Host-declared capability subset (§3.2, §13.1): the closed list of
  * versioned conformance vector schema with `host_declaration` (§7.7.9).

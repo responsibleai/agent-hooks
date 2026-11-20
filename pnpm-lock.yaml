@@ -209,12 +209,27 @@ importers:
 
   sdk/typescript:
     devDependencies:
+      '@alloy-js/core':
+        specifier: 0.25.0
+        version: 0.25.0
+      '@alloy-js/typescript':
+        specifier: 0.25.0
+        version: 0.25.0
       '@napi-rs/cli':
         specifier: ^3.7.2
         version: 3.10.12(@emnapi/core@2.0.0-beta.3)(@emnapi/runtime@2.0.0-beta.3)(@types/node@26.6.6)
       '@types/node':
         specifier: ^26.1.1
         version: 26.6.6
+      '@typespec/compiler':
+        specifier: 1.18.0
+        version: 1.18.0(@types/node@26.6.6)
+      '@typespec/emitter-framework':
+        specifier: 0.22.0
+        version: 0.22.0(@alloy-js/core@0.25.0)(@alloy-js/csharp@0.25.0)(@alloy-js/python@0.6.0)(@alloy-js/typescript@0.25.0)(@typespec/compiler@1.18.0(@types/node@26.6.6))
+      '@typespec/json-schema':
+        specifier: 1.18.0
+        version: 1.18.0(@typespec/compiler@1.18.0(@types/node@26.6.6))
       ajv:
         specifier: 8.20.0
         version: 8.20.0
@@ -253,6 +268,21 @@ importers:
         version: 0.68.0
 
 packages:
+
+  '@alloy-js/core@0.25.0':
+    resolution: {integrity: sha512-VVC5/uuPKrIZ9BkHZ+UJCwA/l2lMsTVJ7ZQC5UdfU8F+db0fwINAdPkyMcpnxv5ibHQU9eVSVdirFfoW8byLsg==}
+
+  '@alloy-js/csharp@0.25.0':
+    resolution: {integrity: sha512-AqCe6HXlZPWC5I1nQPU6rbSqM57HFVoxc9eO9LUvpnPA42kRQ9ZfWvdPCF4T3WAQ+tIUFEOE47MrlOuj7q4pBA==}
+
+  '@alloy-js/msbuild@0.25.0':
+    resolution: {integrity: sha512-D97pJ9vMdIosJ9J4SAgRg/R7ZV6zbAMwp5YECq2sQCKdkpeOHl3NGFw+vsI2Xjoo9S1+Xn9D4G3u5QxPjN01Pg==}
+
+  '@alloy-js/python@0.6.0':
+    resolution: {integrity: sha512-Q+1bIJeafNcqeD/6Y1CfFoUJD2a9bG8RS0HCuhnU/dcYqHA1KZqyR6yvXBSCbTCF591VKUOapk5ea64QEGJbbA==}
+
+  '@alloy-js/typescript@0.25.0':
+    resolution: {integrity: sha512-ilsMG/BNjNCV6YvWrN9fZwKv+auZbJJ4VGVG5tAWvEUUdIs0EZux6BYWNhYSmkNRKFhTRTeQYQjYGXiuGmO85w==}
 
   '@antfu/install-pkg@2.1.0':
     resolution: {integrity: sha512-sdg9NxU3zR4Mnawfbc/x6GB5Wf17WYud5qOuEuxXjaKpYpMkISSJEjItGebXJ2bQ4DIcly4NYH23mtkGJjvKUw==}
@@ -538,6 +568,10 @@ packages:
   '@clack/prompts@1.9.0':
     resolution: {integrity: sha512-tEj8X2No2A1c9NDnZECxiiJ8TP3vmFlN9tLlLeSaMqVW4tUmVG2R4qpv/eP4zymWxnymYLkLcIYVV0VcWj3RCQ==}
     engines: {node: '>= 20.12.0'}
+
+  '@colors/colors@1.5.0':
+    resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
+    engines: {node: '>=0.1.90'}
 
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
@@ -1834,6 +1868,9 @@ packages:
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
 
+  '@types/ws@8.18.2':
+    resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
+
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
     engines: {node: '>=16.20.0'}
@@ -1965,6 +2002,15 @@ packages:
     engines: {node: '>=22.0.0'}
     hasBin: true
 
+  '@typespec/emitter-framework@0.22.0':
+    resolution: {integrity: sha512-2B+CFiYAhD5LbVyQDhRASMdj1zlmZVmvw/jkoxKZntUopyBaXUhgH7rIED+eEKg54c8p7SVqJ2zVdJfF0nO/Zg==}
+    peerDependencies:
+      '@alloy-js/core': ^0.25.0
+      '@alloy-js/csharp': ^0.25.0
+      '@alloy-js/python': ^0.6.0
+      '@alloy-js/typescript': ^0.25.0
+      '@typespec/compiler': ^1.18.0
+
   '@typespec/json-schema@1.18.0':
     resolution: {integrity: sha512-prY6RniKylTQfdxkF5cv+iQ2rB3Q6regX0QTQjdS/4sfVrJiCpnFEqQFFVLsOQmqwhRBkHTEnbkZ+kL9tU7K4g==}
     engines: {node: '>=22.0.0'}
@@ -1976,6 +2022,12 @@ packages:
 
   '@upsetjs/venn.js@2.0.0':
     resolution: {integrity: sha512-WbBhLrooyePuQ1VZxrJjtLvTc4NVfpOyKx0sKqioq9bX1C1m7Jgykkn8gLrtwumBioXIqam8DLxp88Adbue6Hw==}
+
+  '@vue/reactivity@3.5.45':
+    resolution: {integrity: sha512-WqkyubNWpI4OYBOipSrjIssMdJO8K1i9Zts/Wm8Er10/0msOEwCyWWWvZnAI7WW3kQsTong6DJp8Cbb+vd4cPA==}
+
+  '@vue/shared@3.5.45':
+    resolution: {integrity: sha512-ue9fgHmVNPlP7iW3+cxoBX/Cnlw53dHlVSw0JKGY6z1lObg8pHoj928M2nzG4/yVsMZ3NaRZ2s2z61uC16NDwQ==}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -2014,6 +2066,10 @@ packages:
   am-i-vibing@0.5.0:
     resolution: {integrity: sha512-KLcsDhqf1XRrJmJr+9I/C0EX2K+sGrAGZFgkmd84c8TJO9zJBu+/kFInjazu1KfJWFhWDKdRWkpBzEs7s35DVA==}
     hasBin: true
+
+  ansi-regex@5.0.1:
+    resolution: {integrity: sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ==}
+    engines: {node: '>=8'}
 
   ansi-regex@6.4.0:
     resolution: {integrity: sha512-KzTVk2tCWAHtYrvvvaP8bJKJq2pVinhLcGEQdtLIYPbmNGNyYe8QwNaTUYQp2J7/vIsUKt5QCqAfUkYyG9DkOw==}
@@ -2143,6 +2199,10 @@ packages:
   ci-info@4.5.0:
     resolution: {integrity: sha512-d1uM8k5UZEyPza1n/MG3ko8nKupKN0KJpFsipgPcgaCCvV+IqIfJ+NzTjetlLM+UcXZx3+cLrNr76+eAO7G1Mw==}
     engines: {node: '>=8'}
+
+  cli-table3@0.6.5:
+    resolution: {integrity: sha512-+W/5efTR7y5HRD7gACw9yQjqMVvEMLBHmboM/kPWam+H+Hmyrgjh6YncVKK122YZkXrLudzTuAukUw9FnMf7IQ==}
+    engines: {node: 10.* || >= 12.*}
 
   cli-width@4.1.0:
     resolution: {integrity: sha512-ouuZd4/dm2Sw5Gmqy6bGyNNNe1qt9RpmxveLSO7KcgsTnU7RXfsw+/bukWGo1abgBiMAic068rclZsO4IWmmxQ==}
@@ -2419,6 +2479,9 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
+  devalue@5.9.4:
+    resolution: {integrity: sha512-sPAT4pztbu6586/hrhOnMKS17IJrvg12mXiSPSS3W5qDeN2RGgvZ0diZCm31dBbnevfVmujNO3IM2wrS4Y2Rhg==}
+
   devalue@6.0.3:
     resolution: {integrity: sha512-3woMEITftG1wKeO/4d/QXH1DVKctTSZg3jNGPpjp9hNr5Hos8MCFF5McTML5ZtgKDObm2R591B0spRp2IVernA==}
     engines: {node: '>=18'}
@@ -2463,6 +2526,9 @@ packages:
 
   emoji-regex@10.6.0:
     resolution: {integrity: sha512-toUI84YS5YmxW219erniWD0CIVOo46xGKColeNQRgOzDorgBi1v4D71/OFzgD9GO2UGKIv1C3Sp8DAn0+j5w7A==}
+
+  emoji-regex@8.0.0:
+    resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
 
   entities@4.5.0:
     resolution: {integrity: sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw==}
@@ -2746,6 +2812,10 @@ packages:
     resolution: {integrity: sha512-5BMULNob1vgFX6EjQw5izWDxrecWK9AM72rugNr0TFldMOi0fj6Jk+zeKIt0xGj4cEfQIJth4w3OKWOJ4f+AFw==}
     engines: {node: '>=0.10.0'}
 
+  is-fullwidth-code-point@3.0.0:
+    resolution: {integrity: sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg==}
+    engines: {node: '>=8'}
+
   is-hexadecimal@2.0.1:
     resolution: {integrity: sha512-DgZQp241c8oO6cA1SbTEWiXeoxV42vlcJxgH+B3hi1AiqqKruZR3ZGF8In3fj4+/y/7rHvlOZLZtgJ/4ttYGZg==}
 
@@ -2912,6 +2982,11 @@ packages:
 
   marked@16.4.2:
     resolution: {integrity: sha512-TI3V8YYWvkVf3KJe1dRkpnjs68JUPyEa5vjKrp1XEEJUAOaQc+Qj+L1qWbPd0SJuAdQkFU0h73sXXqwDYxsiDA==}
+    engines: {node: '>= 20'}
+    hasBin: true
+
+  marked@18.2.1:
+    resolution: {integrity: sha512-ii4bxCTCqqwpT86XZWgJNs+ZnAIZksmLGYMViWA7PDIXYIeNo1x6cDdX3JOip9NM/cI6p8z57FxliACboTruMA==}
     engines: {node: '>= 20'}
     hasBin: true
 
@@ -3196,6 +3271,9 @@ packages:
     resolution: {integrity: sha512-1pTbQqH1wIwMi/eleQ5leFTTCkzFsPcgXNjwOA8YGGW/W4/kHT3dssE7Z6NH+zuqNLOzOB0uaD61yl7cAcVhgg==}
     engines: {node: 18 || 20 || >=22}
 
+  pathe@2.0.3:
+    resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
+
   piccolore@0.1.3:
     resolution: {integrity: sha512-o8bTeDWjE086iwKrROaDf31K0qC/BENdm15/uH9usSC/uZjJOKb2YGiVHfLY4GhwsERiPI1jmwI2XrA7ACOxVw==}
 
@@ -3420,6 +3498,10 @@ packages:
   std-env@4.3.0:
     resolution: {integrity: sha512-OtU/EgQ1kIm5KwqQpBC6ZEMXrZRui11w8zgfTWp8cdO9B8OaPsbA8bTHO2P+HNo1VlUTGMVBwPhydu6poeXiag==}
 
+  string-width@4.2.3:
+    resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==}
+    engines: {node: '>=8'}
+
   string-width@7.2.0:
     resolution: {integrity: sha512-tsaTIkKW9b4N+AEj+SVA+WhJzV7/zMhcSu78mLKWSk7cXMOSHsBKFWUs0fWwq8QyK3MgJBQRX6Gbi4kYbdvGkQ==}
     engines: {node: '>=18'}
@@ -3430,6 +3512,10 @@ packages:
 
   stringify-entities@4.0.4:
     resolution: {integrity: sha512-IwfBptatlO+QCJUo19AqvrPNqlVMpW9YEL2LIVY+Rpv2qsjCGxaDLNRgeGsQWJhfItebuJhsGSLjaBbNSQ+ieg==}
+
+  strip-ansi@6.0.1:
+    resolution: {integrity: sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==}
+    engines: {node: '>=8'}
 
   strip-ansi@7.2.0:
     resolution: {integrity: sha512-yDPMNjp4WyfYBkHnjIRLfca1i6KMyGCtsVgoKe/z1+6vukgaENdgGBZt+ZmKPc4gavvEZ5OgHfHdrazhgNyG7w==}
@@ -3756,6 +3842,18 @@ packages:
     resolution: {integrity: sha512-42AtmgqjV+X1VpdOfyTGOYRi0/zsoLqtXQckTmqTeybT+BDIbM/Guxo7x3pE2vtpr1ok6xRqM9OpBe+Jyoqyww==}
     engines: {node: '>=18'}
 
+  ws@8.23.0:
+    resolution: {integrity: sha512-wCkmX8QMOrKjgO8HW2WyDbTSGeqkocxgDzS9iR79rEAexty6/2qzilx3Ag8Tqf9ykop3irLKle0MtVn5qjVnoQ==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xxhash-wasm@1.1.0:
     resolution: {integrity: sha512-147y/6YNh+tlp6nd/2pWq38i9h6mz/EuQ6njIrmW8D1BS5nCqs0P6DG+m6zTGnNz5I+uhZ0SHxBs9BsPrwcKDA==}
 
@@ -3798,6 +3896,58 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
+
+  '@alloy-js/core@0.25.0':
+    dependencies:
+      '@types/ws': 8.18.2
+      '@vue/reactivity': 3.5.45
+      cli-table3: 0.6.5
+      devalue: 5.9.4
+      pathe: 2.0.3
+      picocolors: 1.1.1
+      ws: 8.23.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@alloy-js/csharp@0.25.0':
+    dependencies:
+      '@alloy-js/core': 0.25.0
+      '@alloy-js/msbuild': 0.25.0
+      change-case: 5.4.4
+      marked: 18.2.1
+      pathe: 2.0.3
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@alloy-js/msbuild@0.25.0':
+    dependencies:
+      '@alloy-js/core': 0.25.0
+      change-case: 5.4.4
+      marked: 18.2.1
+      pathe: 2.0.3
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@alloy-js/python@0.6.0':
+    dependencies:
+      '@alloy-js/core': 0.25.0
+      change-case: 5.4.4
+      pathe: 2.0.3
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@alloy-js/typescript@0.25.0':
+    dependencies:
+      '@alloy-js/core': 0.25.0
+      change-case: 5.4.4
+      pathe: 2.0.3
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@antfu/install-pkg@2.1.0':
     dependencies:
@@ -4100,6 +4250,9 @@ snapshots:
       fast-string-width: 3.0.2
       fast-wrap-ansi: 0.2.2
       sisteransi: 2.0.0
+
+  '@colors/colors@1.5.0':
+    optional: true
 
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
@@ -5241,6 +5394,10 @@ snapshots:
 
   '@types/unist@3.0.3': {}
 
+  '@types/ws@8.18.2':
+    dependencies:
+      '@types/node': 26.6.6
+
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
 
@@ -5305,6 +5462,10 @@ snapshots:
     dependencies:
       '@typespec/compiler': 1.18.0(@types/node@24.19.2)
 
+  '@typespec/asset-emitter@0.79.3(@typespec/compiler@1.18.0(@types/node@26.6.6))':
+    dependencies:
+      '@typespec/compiler': 1.18.0(@types/node@26.6.6)
+
   '@typespec/compiler@1.18.0(@types/node@24.19.2)':
     dependencies:
       '@babel/code-frame': 8.0.6
@@ -5329,10 +5490,48 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
+  '@typespec/compiler@1.18.0(@types/node@26.6.6)':
+    dependencies:
+      '@babel/code-frame': 8.0.6
+      '@inquirer/checkbox': 5.3.0(@types/node@26.6.6)
+      '@inquirer/confirm': 6.4.0(@types/node@26.6.6)
+      '@inquirer/input': 5.2.0(@types/node@26.6.6)
+      '@inquirer/select': 5.3.0(@types/node@26.6.6)
+      ajv: 8.20.0
+      change-case: 5.4.4
+      env-paths: 4.0.0
+      is-unicode-supported: 2.1.0
+      mustache: 4.2.0
+      picocolors: 1.1.1
+      prettier: 3.10.1
+      semver: 7.8.6
+      tar: 7.5.23
+      temporal-polyfill: 1.0.8
+      vscode-languageserver: 11.0.0
+      vscode-languageserver-textdocument: 1.0.16
+      yaml: 2.9.1
+      yargs: 18.2.0
+    transitivePeerDependencies:
+      - '@types/node'
+
+  '@typespec/emitter-framework@0.22.0(@alloy-js/core@0.25.0)(@alloy-js/csharp@0.25.0)(@alloy-js/python@0.6.0)(@alloy-js/typescript@0.25.0)(@typespec/compiler@1.18.0(@types/node@26.6.6))':
+    dependencies:
+      '@alloy-js/core': 0.25.0
+      '@alloy-js/csharp': 0.25.0
+      '@alloy-js/python': 0.6.0
+      '@alloy-js/typescript': 0.25.0
+      '@typespec/compiler': 1.18.0(@types/node@26.6.6)
+
   '@typespec/json-schema@1.18.0(@typespec/compiler@1.18.0(@types/node@24.19.2))':
     dependencies:
       '@typespec/asset-emitter': 0.79.3(@typespec/compiler@1.18.0(@types/node@24.19.2))
       '@typespec/compiler': 1.18.0(@types/node@24.19.2)
+      yaml: 2.9.1
+
+  '@typespec/json-schema@1.18.0(@typespec/compiler@1.18.0(@types/node@26.6.6))':
+    dependencies:
+      '@typespec/asset-emitter': 0.79.3(@typespec/compiler@1.18.0(@types/node@26.6.6))
+      '@typespec/compiler': 1.18.0(@types/node@26.6.6)
       yaml: 2.9.1
 
   '@ungap/structured-clone@1.4.0': {}
@@ -5341,6 +5540,12 @@ snapshots:
     optionalDependencies:
       d3-selection: 3.0.1
       d3-transition: 3.0.2(d3-selection@3.0.1)
+
+  '@vue/reactivity@3.5.45':
+    dependencies:
+      '@vue/shared': 3.5.45
+
+  '@vue/shared@3.5.45': {}
 
   acorn-jsx@5.3.2(acorn@8.19.0):
     dependencies:
@@ -5378,6 +5583,8 @@ snapshots:
   am-i-vibing@0.5.0:
     dependencies:
       process-ancestry: 0.1.0
+
+  ansi-regex@5.0.1: {}
 
   ansi-regex@6.4.0: {}
 
@@ -5573,6 +5780,12 @@ snapshots:
   chownr@3.0.0: {}
 
   ci-info@4.5.0: {}
+
+  cli-table3@0.6.5:
+    dependencies:
+      string-width: 4.2.3
+    optionalDependencies:
+      '@colors/colors': 1.5.0
 
   cli-width@4.1.0: {}
 
@@ -5855,6 +6068,8 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
+  devalue@5.9.4: {}
+
   devalue@6.0.3: {}
 
   devlop@1.1.0:
@@ -5894,6 +6109,8 @@ snapshots:
   elkjs@0.12.1: {}
 
   emoji-regex@10.6.0: {}
+
+  emoji-regex@8.0.0: {}
 
   entities@4.5.0: {}
 
@@ -6311,6 +6528,8 @@ snapshots:
 
   is-extendable@0.1.1: {}
 
+  is-fullwidth-code-point@3.0.0: {}
+
   is-hexadecimal@2.0.1: {}
 
   is-plain-obj@4.1.0: {}
@@ -6428,6 +6647,8 @@ snapshots:
   markdown-table@3.1.0: {}
 
   marked@16.4.2: {}
+
+  marked@18.2.1: {}
 
   mdast-util-definitions@6.0.0:
     dependencies:
@@ -7032,6 +7253,8 @@ snapshots:
       lru-cache: 11.5.3
       minipass: 7.1.3
 
+  pathe@2.0.3: {}
+
   piccolore@0.1.3: {}
 
   picocolors@1.1.1: {}
@@ -7374,6 +7597,12 @@ snapshots:
 
   std-env@4.3.0: {}
 
+  string-width@4.2.3:
+    dependencies:
+      emoji-regex: 8.0.0
+      is-fullwidth-code-point: 3.0.0
+      strip-ansi: 6.0.1
+
   string-width@7.2.0:
     dependencies:
       emoji-regex: 10.6.0
@@ -7389,6 +7618,10 @@ snapshots:
     dependencies:
       character-entities-html4: 2.1.0
       character-entities-legacy: 3.0.0
+
+  strip-ansi@6.0.1:
+    dependencies:
+      ansi-regex: 5.0.1
 
   strip-ansi@7.2.0:
     dependencies:
@@ -7691,6 +7924,8 @@ snapshots:
       ansi-styles: 6.2.3
       string-width: 7.2.0
       strip-ansi: 7.2.0
+
+  ws@8.23.0: {}
 
   xxhash-wasm@1.1.0: {}
 

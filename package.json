@@ -1,6 +1,7 @@
 {
   "name": "agent-hooks",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@12.21.0",
   "engines": {
     "node": ">=22"
@@ -10,6 +11,8 @@
     "ajv-formats": "3.0.1"
   },
   "scripts": {
+    "generate:typescript": "pnpm --dir sdk/typescript run generate:types",
+    "check:typescript": "pnpm --dir sdk/typescript run check:generated",
     "generate:schema": "pnpm --dir spec/scripts run generate:schema",
     "check:schema": "pnpm --dir spec/scripts run check:schema",
     "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"

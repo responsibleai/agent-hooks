@@ -481,6 +481,9 @@ jobs:
         # with the committed files (spec/scripts/generate-schemas.mts).
         run: pnpm run check:schema
         working-directory: spec/scripts
+      - name: Generated TypeScript contract matches its TypeSpec source
+        run: pnpm run check:generated
+        working-directory: sdk/typescript
       - name: Released schema bundles match their source
         # The same check for every spec/<MAJOR.MINOR>/ bundle: the frozen
         # source must still generate the frozen output.
