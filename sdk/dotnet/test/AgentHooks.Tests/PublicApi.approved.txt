@@ -241,6 +241,12 @@ sealed record class Evidence : IEquatable<Evidence>
     static bool operator ==(Evidence? left, Evidence? right)
     string? Artefact { get; init; }
     void Deconstruct(out string? Artefact, out IReadOnlyDictionary<string, string>? VerificationPointers)
+static class HookRegistration
+    static InterceptionEmitter OnPostToolCall(this InterceptionEmitter emitter, string name, Func<PostToolCallRequest, CancellationToken, ValueTask<Verdict>> hook, OnError onError = OnError.Deny)
+    static InterceptionEmitter OnPreToolCall(this InterceptionEmitter emitter, string name, Func<PreToolCallRequest, CancellationToken, ValueTask<Verdict>> hook, OnError onError = OnError.Deny)
+    static InterceptionEmitter RegisterHook(this InterceptionEmitter emitter, IPostToolCallHook hook, string? name = null, OnError onError = OnError.Deny)
+    static InterceptionEmitter RegisterHook(this InterceptionEmitter emitter, IPreToolCallHook hook, string? name = null, OnError onError = OnError.Deny)
+    static InterceptionEmitter RegisterHook<THook>(this InterceptionEmitter emitter, THook hook, string? name = null, OnError onError = OnError.Deny)
 sealed class HostDeclaration
     ResolvedDeclaration Resolve(HostRegistry registry)
     static DeclarationBuilder Builder(string spec)
@@ -320,6 +326,10 @@ interface IInterceptor
     ValueTask<Verdict> InterceptAsync(AgentContext context, CancellationToken ct = default)
 interface IManagedInterceptor
     ValueTask<ManagedInterceptorOutcome> InterceptManagedAsync(AgentContext context, TimeSpan? bound, CancellationToken ct = default)
+interface IPostToolCallHook
+    ValueTask<Verdict> OnPostToolCallAsync(PostToolCallRequest request, CancellationToken ct)
+interface IPreToolCallHook
+    ValueTask<Verdict> OnPreToolCallAsync(PreToolCallRequest request, CancellationToken ct)
 sealed class IdentityProvider
     static IdentityProvider Custom(string name, Func<JsonObject, string> f)
     static readonly IdentityProvider JcsSha256
@@ -452,6 +462,29 @@ enum OnError : int
 static class OnErrorExtensions
     static OnError FromWireName(string s)
     static string ToWireName(this OnError e)
+sealed class PostToolCallRequest
+    JsonObject Json { get; }
+    JsonObject? Tenant { get; }
+    PostToolCallRequest(AgentContext context)
+    ToolCall ToolCall { get; }
+    ToolResult ToolResult { get; }
+    long Sequence { get; }
+    static PostToolCallRequest ForTest(string name, JsonObject args, JsonNode? value, bool isError = false, double? durationMs = null, string spec = "agent-hooks/0.1", string callId = "call-1", string agentId = "test-agent", string sessionId = "test-session", JsonObject? tenant = null)
+    static Verdict TransformValue(JsonNode? value)
+    string AgentId { get; }
+    string SessionId { get; }
+    string Spec { get; }
+sealed class PreToolCallRequest
+    JsonObject Json { get; }
+    JsonObject? Tenant { get; }
+    PreToolCallRequest(AgentContext context)
+    ToolCall ToolCall { get; }
+    long Sequence { get; }
+    static PreToolCallRequest ForTest(string name, JsonObject args, string spec = "agent-hooks/0.1", string callId = "call-1", string agentId = "test-agent", string sessionId = "test-session", JsonObject? tenant = null)
+    static Verdict TransformArgs(JsonObject args)
+    string AgentId { get; }
+    string SessionId { get; }
+    string Spec { get; }
 sealed class RegistrationException : InvalidOperationException
     RegistrationException(string detail)
     string Detail { get; }
@@ -518,6 +551,17 @@ static class Spec
 enum SynthesisPolicy : int
     Deny = 0
     Approval = 1
+sealed class ToolCall
+    JsonObject Args { get; }
+    JsonObject Json { get; }
+    string Id { get; }
+    string Name { get; }
+    string? ContentHash { get; }
+sealed class ToolResult
+    JsonNode? Value { get; }
+    JsonObject Json { get; }
+    bool IsError { get; }
+    double? DurationMs { get; }
 enum ToolSeamPosture : int
     Continue = 0
     Terminate = 1
