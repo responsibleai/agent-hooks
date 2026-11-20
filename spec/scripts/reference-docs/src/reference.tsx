@@ -64,22 +64,8 @@ function inline(value: string): string {
 }
 
 function cell(value: string): string {
-  // HTML code preserves pipes inside GFM table cells without ending the cell.
-  return value
-    .replace(/(`+)([\s\S]*?)\1(?!`)/g, (span, _fence, content: string) => {
-      if (!content.includes("|")) return span;
-      let text = content.replace(/\r?\n/g, " ");
-      if (text.startsWith(" ") && text.endsWith(" ") && text.trim()) {
-        text = text.slice(1, -1);
-      }
-      return `<code>${text
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll("|", "&#124;")}</code>`;
-    })
-    .replaceAll("|", "&#124;")
-    .replace(/\r?\n/g, "<br>");
+  // GFM removes the pipe escape even inside code spans, preserving their literal text.
+  return value.replaceAll("|", "\\|").replace(/\r?\n/g, "<br>");
 }
 
 function isTypeReference(value: unknown): value is Type {

@@ -273,6 +273,9 @@ importers:
       '@alloy-js/cli':
         specifier: 0.26.0
         version: 0.26.0
+      '@astrojs/markdown-remark':
+        specifier: 7.3.9
+        version: 7.3.9
       '@types/node':
         specifier: 22.20.5
         version: 22.20.5

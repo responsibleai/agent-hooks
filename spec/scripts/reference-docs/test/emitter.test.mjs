@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { createTester } from "@typespec/compiler/testing";
+import { createMarkdownProcessor } from "@astrojs/markdown-remark";
 
 const tester = createTester(
   resolve(dirname(fileURLToPath(import.meta.url)), "../.."),
@@ -76,7 +77,7 @@ test("documents generic declarations, concrete envelopes, and inherited and nest
   );
   assert.match(
     page,
-    /\| `reason\?` \| `string` &#124; `null` \| A machine-readable reason\./,
+    /\| `reason\?` \| `string` \\\| `null` \| A machine-readable reason\./,
   );
   assert.match(page, /pattern: `\^\(\?!host_error:\)\.\*`/);
   assert.match(page, /\| `agent.id` \| `string` \|  \| minLength: `1` \|/);
@@ -154,16 +155,16 @@ test("renders JSON examples, union variants, enums, and Markdown table metachara
     }
   `);
   const page = outputs["REFERENCE-TABLES.md"];
-  assert.match(page, /<code>"a&#124;b"<\/code>/);
+  assert.ok(page.includes('`"a\\|b"`'));
   assert.match(
     page,
-    /Text with a &#124; separator and <code>left &#124; right<\/code>\./,
+    /Text with a \\\| separator and `left \\\| right`\./,
   );
-  assert.match(page, /pattern: <code>\^\(hello&#124;world\)\$<\/code>/);
+  assert.ok(page.includes('pattern: `^(hello\\|world)$`'));
   assert.match(page, /- \[\`Choice\`\]\(#choice\)\n- `null`/);
   assert.match(
     page,
-    /\| `choices\?` \| \(\[\`Choice\`\]\(#choice\) &#124; `null`\)\[\] \|/,
+    /\| `choices\?` \| \(\[\`Choice\`\]\(#choice\) \\\| `null`\)\[\] \|/,
   );
   assert.match(page, /#### Minimal\n\n```json\n{\n  "text": "hello"\n}\n```/);
   const declarations = outputs["REFERENCE.md"];
@@ -226,5 +227,35 @@ test("keeps literal backticks and HTML metacharacters intact in source, examples
   assert.match(source, /````json\n\{\n  "text": "```"\n\}\n````/);
   const table = outputs["REFERENCE-TABLES.md"];
   assert.match(table, /````"```"````/);
-  assert.match(table, /<code>\^`&lt;a&#124;b&gt;&amp;`\$<\/code>/);
+  const processor = await createMarkdownProcessor({ syntaxHighlight: false });
+  const { code } = await processor.render(table);
+  assert.ok(code.includes('<code>^`&#x3C;a|b>&#x26;`$</code>'));
+  assert.ok(code.includes('<code>"```"</code>'));
+});
+
+test("preserves literal regexes, Markdown punctuation, and padded backtick spans in Astro tables", async () => {
+  const patterns = [
+    String.raw`^(a|b)\.json$`,
+    "a*b|c*d",
+    "`left|right`",
+    "``left|right``",
+    " left|right ",
+  ];
+  const { outputs } = await emitter.compile(`
+    @category(Categories.Common)
+    model Patterns {
+      ${patterns.map((pattern, i) => `@pattern(${JSON.stringify(pattern)}) value${i}: string;`).join("\n")}
+    }
+  `);
+  const processor = await createMarkdownProcessor({ syntaxHighlight: false });
+  const { code } = await processor.render(outputs["REFERENCE-TABLES.md"]);
+  const rows = [...code.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].slice(1);
+  assert.equal(rows.length, patterns.length);
+  for (const [i, row] of rows.entries()) {
+    assert.equal([...row[1].matchAll(/<td>/g)].length, 4);
+    assert.ok(
+      row[1].includes(`<td>pattern: <code>${patterns[i]}</code></td>`),
+      row[1],
+    );
+  }
 });

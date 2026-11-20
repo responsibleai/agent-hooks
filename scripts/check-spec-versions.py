@@ -108,7 +108,10 @@ def walk(root: Path) -> list[Path]:
     """Every entry below root, without following symbolic links."""
     entries: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
-        if Path(dirpath).is_relative_to(root / "scripts") and "node_modules" in dirnames:
+        if (
+            Path(dirpath).is_relative_to(root / "scripts")
+            and "node_modules" in dirnames
+        ):
             dirnames.remove("node_modules")
         for name in sorted(dirnames) + sorted(filenames):
             entries.append(Path(dirpath) / name)

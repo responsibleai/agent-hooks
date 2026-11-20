@@ -793,7 +793,7 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`InputHookTransform`](#agenthooks-inputhooktransform)&gt; |  |  |
+| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) \| [`DenyVerdict`](#agenthooks-denyverdict) \| [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`InputHookTransform`](#agenthooks-inputhooktransform)&gt; |  |  |
 | `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
 
 ### `InputHookTransform`
@@ -818,7 +818,7 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`OutputHookTransform`](#agenthooks-outputhooktransform)&gt; |  |  |
+| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) \| [`DenyVerdict`](#agenthooks-denyverdict) \| [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`OutputHookTransform`](#agenthooks-outputhooktransform)&gt; |  |  |
 | `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
 
 ### `OutputHookTransform`
@@ -843,7 +843,7 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostModelHookTransform`](#agenthooks-postmodelhooktransform)&gt; |  |  |
+| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) \| [`DenyVerdict`](#agenthooks-denyverdict) \| [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostModelHookTransform`](#agenthooks-postmodelhooktransform)&gt; |  |  |
 | `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
 
 ### `PostModelHookTransform`
@@ -868,7 +868,7 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostToolHookTransform`](#agenthooks-posttoolhooktransform)&gt; |  |  |
+| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) \| [`DenyVerdict`](#agenthooks-denyverdict) \| [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostToolHookTransform`](#agenthooks-posttoolhooktransform)&gt; |  |  |
 | `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
 
 ### `PostToolHookTransform`
@@ -893,7 +893,7 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreModelHookTransform`](#agenthooks-premodelhooktransform)&gt; |  |  |
+| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) \| [`DenyVerdict`](#agenthooks-denyverdict) \| [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreModelHookTransform`](#agenthooks-premodelhooktransform)&gt; |  |  |
 | `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
 
 ### `PreModelHookTransform`
@@ -918,7 +918,7 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreToolHookTransform`](#agenthooks-pretoolhooktransform)&gt; |  |  |
+| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) \| [`DenyVerdict`](#agenthooks-denyverdict) \| [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreToolHookTransform`](#agenthooks-pretoolhooktransform)&gt; |  |  |
 | `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
 
 ### `PreToolHookTransform`
@@ -955,11 +955,11 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `reason?` | `string` &#124; `null` | Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). | pattern: `^(?!host_error:).*` |
-| `message?` | `string` &#124; `null` | Human-readable text for the caller. |  |
-| `warnings?` | [`Warning`](#agenthooks-warning)[] &#124; `null` | Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). |  |
+| `reason?` | `string` \| `null` | Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). | pattern: `^(?!host_error:).*` |
+| `message?` | `string` \| `null` | Human-readable text for the caller. |  |
+| `warnings?` | [`Warning`](#agenthooks-warning)[] \| `null` | Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). |  |
 | `evidence?` | [`Evidence`](#agenthooks-evidence) |  |  |
-| `result_labels?` | `string`[] &#124; `null` | Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). |  |
+| `result_labels?` | `string`[] \| `null` | Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). |  |
 | `decision` | [`Decision.Allow`](#agenthooks-decision) |  |  |
 
 ### `Decision`
@@ -984,11 +984,11 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `reason?` | `string` &#124; `null` | Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). | pattern: `^(?!host_error:).*` |
-| `message?` | `string` &#124; `null` | Human-readable text for the caller. |  |
-| `warnings?` | [`Warning`](#agenthooks-warning)[] &#124; `null` | Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). |  |
+| `reason?` | `string` \| `null` | Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). | pattern: `^(?!host_error:).*` |
+| `message?` | `string` \| `null` | Human-readable text for the caller. |  |
+| `warnings?` | [`Warning`](#agenthooks-warning)[] \| `null` | Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). |  |
 | `evidence?` | [`Evidence`](#agenthooks-evidence) |  |  |
-| `result_labels?` | `string`[] &#124; `null` | Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). |  |
+| `result_labels?` | `string`[] \| `null` | Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). |  |
 | `decision` | [`Decision.Deny`](#agenthooks-decision) |  |  |
 | `approval?` | [`JsonObject`](#agenthooks-jsonobject) | Present only on deny: marks the deny as liftable by the approval seam (§9).<br>MAY be empty; reserved for approver-facing parameters. |  |
 
@@ -1002,7 +1002,7 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `artefact?` | `string` &#124; `null` | Content address (sha256:<hex>) or URI of an offline-verifiable proof. |  |
+| `artefact?` | `string` \| `null` | Content address (sha256:<hex>) or URI of an offline-verifiable proof. |  |
 | `verification_pointers?` | [`VerificationPointers`](#agenthooks-verificationpointers) |  |  |
 
 ### `NonTransformVerdict`
@@ -1031,11 +1031,11 @@ model TransformVerdict<TTransform> {
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `reason?` | `string` &#124; `null` | Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). | pattern: `^(?!host_error:).*` |
-| `message?` | `string` &#124; `null` | Human-readable text for the caller. |  |
-| `warnings?` | [`Warning`](#agenthooks-warning)[] &#124; `null` | Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). |  |
+| `reason?` | `string` \| `null` | Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). | pattern: `^(?!host_error:).*` |
+| `message?` | `string` \| `null` | Human-readable text for the caller. |  |
+| `warnings?` | [`Warning`](#agenthooks-warning)[] \| `null` | Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). |  |
 | `evidence?` | [`Evidence`](#agenthooks-evidence) |  |  |
-| `result_labels?` | `string`[] &#124; `null` | Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). |  |
+| `result_labels?` | `string`[] \| `null` | Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). |  |
 | `decision` | [`Decision.Transform`](#agenthooks-decision) |  |  |
 | `transform` | `TTransform` |  |  |
 
@@ -1047,11 +1047,11 @@ Members every decision may carry.
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `reason?` | `string` &#124; `null` | Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). | pattern: `^(?!host_error:).*` |
-| `message?` | `string` &#124; `null` | Human-readable text for the caller. |  |
-| `warnings?` | [`Warning`](#agenthooks-warning)[] &#124; `null` | Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). |  |
+| `reason?` | `string` \| `null` | Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). | pattern: `^(?!host_error:).*` |
+| `message?` | `string` \| `null` | Human-readable text for the caller. |  |
+| `warnings?` | [`Warning`](#agenthooks-warning)[] \| `null` | Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). |  |
 | `evidence?` | [`Evidence`](#agenthooks-evidence) |  |  |
-| `result_labels?` | `string`[] &#124; `null` | Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). |  |
+| `result_labels?` | `string`[] \| `null` | Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). |  |
 
 ### `VerificationPointers`
 
@@ -1071,8 +1071,8 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `reason?` | `string` &#124; `null` | Interceptor-supplied warning identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11) and host_warning: for host-synthesized<br>warnings (§11.1); an interceptor warning with either prefix fails §5<br>validation. | pattern: <code>^(?!host_error:&#124;host_warning:).*</code> |
-| `message?` | `string` &#124; `null` |  |  |
+| `reason?` | `string` \| `null` | Interceptor-supplied warning identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11) and host_warning: for host-synthesized<br>warnings (§11.1); an interceptor warning with either prefix fails §5<br>validation. | pattern: `^(?!host_error:\|host_warning:).*` |
+| `message?` | `string` \| `null` |  |  |
 
 ## Approval seam
 
@@ -1095,7 +1095,7 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `context_identity` | `string` &#124; `null` | MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. |  |
+| `context_identity` | `string` \| `null` | MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. |  |
 | `outcome` | [`Outcome.Approve`](#agenthooks-outcome) |  |  |
 | `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) |  |  |
 
@@ -1137,7 +1137,7 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `context_identity` | `string` &#124; `null` | MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. |  |
+| `context_identity` | `string` \| `null` | MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. |  |
 | `outcome` | [`Outcome.Reject`](#agenthooks-outcome) |  |  |
 | `verdict` | [`DenyVerdict`](#agenthooks-denyverdict) |  |  |
 
@@ -1151,7 +1151,7 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `context_identity` | `string` &#124; `null` |  |  |
+| `context_identity` | `string` \| `null` |  |  |
 | `interception_point` | [`InterceptionPoint`](#agenthooks-interceptionpoint) |  |  |
 | `verdict` | [`LiftableDeny`](#agenthooks-liftabledeny) |  |  |
 | `context?` | [`AgentContext`](#agenthooks-agentcontext) | The AgentContext as presented to the resolver. MAY be redacted per host policy. |  |
@@ -1172,7 +1172,7 @@ What the resolver returns (§9).
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `context_identity` | `string` &#124; `null` | MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. |  |
+| `context_identity` | `string` \| `null` | MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. |  |
 
 ### `UnresolvedResolution`
 
@@ -1184,7 +1184,7 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `context_identity` | `string` &#124; `null` | MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. |  |
+| `context_identity` | `string` \| `null` | MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. |  |
 | `outcome` | [`Outcome.Unresolved`](#agenthooks-outcome) |  |  |
 
 ## Interception records
@@ -1232,14 +1232,14 @@ allOf: `[{"if":{"properties":{"composition":{"type":"object","properties":{"prof
 | `interception_point` | [`InterceptionPoint`](#agenthooks-interceptionpoint) |  |  |
 | `mode` | [`Mode`](#agenthooks-mode) |  |  |
 | `verdict` | [`VerdictProjection`](#agenthooks-verdictprojection) |  |  |
-| `input_identity` | `string` &#124; `null` | Identity provider output on the context before dispatch; null iff identity_provider is null. |  |
-| `enforced_identity` | `string` &#124; `null` | Identity provider output after composition completes; null iff identity_provider is null. |  |
-| `identity_provider` | `string` &#124; `null` | The declared identity provider (§10.1): "jcs-sha256", a host-defined id<br>(name rules enforced: ^[a-z][a-z0-9_-]*$ and never a jcs prefix), or null<br>(identity-unbound). | pattern: <code>^(jcs-sha256&#124;(?!jcs)[a-z][a-z0-9_-]*)$</code> |
+| `input_identity` | `string` \| `null` | Identity provider output on the context before dispatch; null iff identity_provider is null. |  |
+| `enforced_identity` | `string` \| `null` | Identity provider output after composition completes; null iff identity_provider is null. |  |
+| `identity_provider` | `string` \| `null` | The declared identity provider (§10.1): "jcs-sha256", a host-defined id<br>(name rules enforced: ^[a-z][a-z0-9_-]*$ and never a jcs prefix), or null<br>(identity-unbound). | pattern: `^(jcs-sha256\|(?!jcs)[a-z][a-z0-9_-]*)$` |
 | `session_id` | `string` | ctx.session.id — correlates records across a session. |  |
 | `sequence` | `integer` | ctx.sequence — total order of records within the session (§12.2.3). |  |
 | `timestamp?` | `string` | OPTIONAL. The context's RFC 3339 timestamp, copied verbatim (§10.3); absent<br>when the context lacked the field. |  |
 | `trace?` | [`Trace`](#agenthooks-trace) | OPTIONAL. W3C Trace Context identifiers echoed from the context's optional<br>trace block (§4.5, §10.3); absent when the context carried neither member. |  |
-| `decided_by?` | `integer` &#124; `null` | Registration index of the interceptor whose verdict won aggregation or whose<br>liftable deny was consulted (§7.6); null for a pure-allow combination or a<br>host-synthesized verdict. | minimum: `0` |
+| `decided_by?` | `integer` \| `null` | Registration index of the interceptor whose verdict won aggregation or whose<br>liftable deny was consulted (§7.6); null for a pure-allow combination or a<br>host-synthesized verdict. | minimum: `0` |
 | `composition` | { `profile`: [`CompositionProfile`](#agenthooks-compositionprofile); `on_approval?`: [`OnApproval`](#agenthooks-onapproval); `on_disagreement?`: [`ConflictResolution`](#agenthooks-conflictresolution); `on_transform_conflict?`: [`ConflictResolution`](#agenthooks-conflictresolution) } | The composition profile and knobs in effect for this emission (§7.1). | additionalProperties: `false` |
 | `composition.profile` | [`CompositionProfile`](#agenthooks-compositionprofile) |  |  |
 | `composition.on_approval?` | [`OnApproval`](#agenthooks-onapproval) |  |  |
@@ -1247,7 +1247,7 @@ allOf: `[{"if":{"properties":{"composition":{"type":"object","properties":{"prof
 | `composition.on_transform_conflict?` | [`ConflictResolution`](#agenthooks-conflictresolution) |  |  |
 | `verdicts?` | [`VerdictSlot`](#agenthooks-verdictslot)[] | Payload-free per-interceptor summary. REQUIRED in multi-verdict profiles<br>(sequential/run_all, parallel/*) and whenever any slot carries<br>substituted_for (§6.3.1); otherwise OPTIONAL in sequential/first_deny. |  |
 | `fold_truncated?` | `boolean` | true iff one or more registered interceptors were never invoked in this<br>emission (short-circuit, approval-stop, or a failed fold-transform). Defined<br>for the sequential profiles (§7.4). |  |
-| `resolved_by?` | [`ResolvedBy`](#agenthooks-resolvedby) &#124; `null` | Consultation outcome (§7.6, §10.3): "approval" iff a permit resolution<br>substituted for a verdict; "rejection" iff the seam was consulted and did not<br>lift the deny; absent/null iff never consulted. |  |
+| `resolved_by?` | [`ResolvedBy`](#agenthooks-resolvedby) \| `null` | Consultation outcome (§7.6, §10.3): "approval" iff a permit resolution<br>substituted for a verdict; "rejection" iff the seam was consulted and did not<br>lift the deny; absent/null iff never consulted. |  |
 | `interceptors_registered` | `integer` | Number of interceptors registered at emission time (§10.3). | minimum: `0` |
 
 ### `ResolvedBy`
@@ -1301,11 +1301,11 @@ additionalProperties: `false`
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
 | `decision` | [`Decision`](#agenthooks-decision) |  |  |
-| `reason?` | `string` &#124; `null` |  |  |
-| `message?` | `string` &#124; `null` |  |  |
-| `warnings?` | [`WarningProjection`](#agenthooks-warningprojection)[] &#124; `null` |  |  |
+| `reason?` | `string` \| `null` |  |  |
+| `message?` | `string` \| `null` |  |  |
+| `warnings?` | [`WarningProjection`](#agenthooks-warningprojection)[] \| `null` |  |  |
 | `evidence?` | [`Evidence`](#agenthooks-evidence) |  |  |
-| `result_labels?` | `string`[] &#124; `null` |  |  |
+| `result_labels?` | `string`[] \| `null` |  |  |
 | `approval?` | [`ApprovalPresence`](#agenthooks-approvalpresence) |  |  |
 
 ### `VerdictSlot`
@@ -1320,7 +1320,7 @@ additionalProperties: `false`
 | --- | --- | --- | --- |
 | `index` | `integer` |  | minimum: `0` |
 | `decision` | [`Decision`](#agenthooks-decision) |  |  |
-| `reason?` | `string` &#124; `null` |  |  |
+| `reason?` | `string` \| `null` |  |  |
 | `name?` | `string` | Host-chosen payload-free registration identifier for the interceptor at index (§10.3). |  |
 | `substituted_for?` | [`SubstitutedFor`](#agenthooks-substitutedfor) | Present iff this slot's verdict is the allow the host substituted under<br>on_error: continue (§6.3.1): the host_error reason the §6.3 deny would have<br>carried. The entry's decision is allow and reason is absent. |  |
 
@@ -1334,8 +1334,8 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `reason?` | `string` &#124; `null` |  |  |
-| `message?` | `string` &#124; `null` |  |  |
+| `reason?` | `string` \| `null` |  |  |
+| `message?` | `string` \| `null` |  |  |
 
 ## Host declaration
 
@@ -1373,8 +1373,8 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `resolver?` | `string` &#124; `null` | §9. A registered approval resolver by reference, or null: liftable denies<br>stay denies. | pattern: `^[a-z][a-z0-9_-]{0,63}$` |
-| `redactor?` | `string` &#124; `null` | §9 redaction seam. A registered approval redactor by reference, or null. | pattern: `^[a-z][a-z0-9_-]{0,63}$` |
+| `resolver?` | `string` \| `null` | §9. A registered approval resolver by reference, or null: liftable denies<br>stay denies. | pattern: `^[a-z][a-z0-9_-]{0,63}$` |
+| `redactor?` | `string` \| `null` | §9 redaction seam. A registered approval redactor by reference, or null. | pattern: `^[a-z][a-z0-9_-]{0,63}$` |
 
 ### `Binding`
 
@@ -1466,7 +1466,7 @@ additionalProperties: `false`
 | --- | --- | --- | --- |
 | `mode?` | [`Mode`](#agenthooks-mode) | §8. | default: `"enforce"` |
 | `composition?` | [`CompositionConfig`](#agenthooks-compositionconfig) |  |  |
-| `identity_provider?` | `string` &#124; `null` | §10.1: "jcs-sha256" (the default), a registered custom provider name<br>(^[a-z][a-z0-9_-]{0,63}$, never a jcs prefix), or null (identity-unbound). | pattern: <code>^(jcs-sha256&#124;(?!jcs)[a-z][a-z0-9_-]{0,63})$</code> |
+| `identity_provider?` | `string` \| `null` | §10.1: "jcs-sha256" (the default), a registered custom provider name<br>(^[a-z][a-z0-9_-]{0,63}$, never a jcs prefix), or null (identity-unbound). | pattern: `^(jcs-sha256\|(?!jcs)[a-z][a-z0-9_-]{0,63})$` |
 | `approval?` | [`ApprovalConfig`](#agenthooks-approvalconfig) |  |  |
 | `posture?` | [`PostureConfig`](#agenthooks-postureconfig) |  |  |
 | `timeouts?` | [`TimeoutsConfig`](#agenthooks-timeoutsconfig) |  |  |
@@ -1580,7 +1580,7 @@ additionalProperties: `false`
 
 | Property | Type | Description | Constraints |
 | --- | --- | --- | --- |
-| `max_buffered?` | `integer` &#124; `null` | In-memory record buffer bound; null (the default) is unbounded. The maximum<br>is 2^53 - 1 so the resolved document always canonicalises (§4.4). | minimum: `1`; maximum: `9007199254740991` |
+| `max_buffered?` | `integer` \| `null` | In-memory record buffer bound; null (the default) is unbounded. The maximum<br>is 2^53 - 1 so the resolved document always canonicalises (§4.4). | minimum: `1`; maximum: `9007199254740991` |
 
 ### `Reference`
 
