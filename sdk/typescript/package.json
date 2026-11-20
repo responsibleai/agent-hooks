@@ -31,8 +31,8 @@
     ]
   },
   "scripts": {
-    "generate:types": "tsx scripts/generate-types.mts",
-    "check:generated": "tsx scripts/generate-types.mts --check && tsc --ignoreConfig --noEmit --module nodenext --target es2022 --strict --skipLibCheck --types node scripts/generate-types.mts",
+    "generate:types": "tsx --tsconfig scripts/tsconfig.json scripts/generate-types.tsx",
+    "check:generated": "tsx --tsconfig scripts/tsconfig.json scripts/generate-types.tsx --check && tsc --project scripts/tsconfig.json",
     "build:native": "napi build --release --platform --js binding.js --dts binding.d.ts",
     "build:native:debug": "napi build --platform --js binding.js --dts binding.d.ts",
     "build": "pnpm run build:native && tsc",

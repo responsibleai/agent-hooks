@@ -1,7 +1,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-import { For, type Children } from "@alloy-js/core";
-import { createComponent as c } from "@alloy-js/core/jsx-runtime";
+import { For } from "@alloy-js/core";
 import * as ts from "@alloy-js/typescript";
 import {
   compile,
@@ -10,12 +9,8 @@ import {
   isTemplateDeclaration,
   isTemplateInstance,
   NodeHost,
-  type Enum,
   type Model,
-  type ModelProperty,
   type Program,
-  type Scalar,
-  type Union,
 } from "@typespec/compiler";
 import {
   Experimental_ComponentOverrides,
@@ -39,7 +34,7 @@ const sdkRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = resolve(sdkRoot, "src/generated/types.ts");
 const check = process.argv.includes("--check");
 if (process.argv.slice(2).some((arg) => arg !== "--check")) {
-  throw new Error("Usage: generate-types.mts [--check]");
+  throw new Error("Usage: generate-types.tsx [--check]");
 }
 
 const program = await compile(NodeHost, resolve(sdkRoot, "scripts/contract.tsp"), {
@@ -59,17 +54,17 @@ const overrides = new Experimental_ComponentOverridesConfig()
     reference: ({ type, default: fallback }) => type.name === "unknown" ? "JsonValue" : fallback,
   })
   .forTypeKind("EnumMember", {
-    reference: ({ type }) => c(ts.ValueExpression, { jsValue: type.value ?? type.name }),
+    reference: ({ type }) => <ts.ValueExpression jsValue={type.value ?? type.name} />,
   })
   .forTypeKind("Model", {
     reference: ({ type, default: fallback }) => {
       if (type.name === "JsonObject") return "Record<string, JsonValue>";
       if (isClosedEmptyModel(type)) return "Record<string, never>";
       if (type.indexer?.key.name === "string") {
-        return c(RecordType, { type });
+        return <RecordType type={type} />;
       }
       if (isTemplateInstance(type) && type.indexer?.key.name !== "integer") {
-        return c(InterfaceExpression, { type });
+        return <InterfaceExpression type={type} />;
       }
       return fallback;
     },
@@ -78,16 +73,15 @@ const overrides = new Experimental_ComponentOverridesConfig()
 function RecordType({ type }: { type: Model }) {
   if (!type.indexer) throw new Error(`Missing indexer on ${type.name}`);
   return [
-    "Record<string, ", c(TypeExpression, { type: type.indexer.value }), ">",
-    type.properties.size > 0 ? [" & ", c(ts.InterfaceExpression, {
-      children: c(For<ModelProperty[], Children>, {
-        each: [...type.properties.values()],
-        semicolon: true,
-        line: true,
-        ender: ";",
-        children: (property) => c(InterfaceMember, { type: property }),
-      }),
-    })] : "",
+    "Record<string, ", <TypeExpression type={type.indexer.value} />, ">",
+    type.properties.size > 0 ? [
+      " & ",
+      <ts.InterfaceExpression>
+        <For each={[...type.properties.values()]} semicolon line ender=";">
+          {(property) => <InterfaceMember type={property} />}
+        </For>
+      </ts.InterfaceExpression>,
+    ] : "",
   ];
 }
 
@@ -106,47 +100,39 @@ await writeOutput(
   { ...program, host: { ...program.host, mkdirp: async () => {}, writeFile: async (path, text) => {
     output.set(path, text);
   } } },
-  c(Output, {
-    program,
-    children: c(ts.SourceFile, {
-      path: "types.ts",
-      children: [
-        "// Copyright (c) Microsoft. All rights reserved.\n\n",
-        "// Generated from spec/draft/schema/src/main.tsp. Do not edit.\n",
-        "// Regenerate with pnpm run generate:types in sdk/typescript.\n\n",
-        c(ts.TypeDeclaration, {
-          name: "JsonValue",
-          export: true,
-          children: "null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }",
-        }),
-        "\n\n",
-        c(Experimental_ComponentOverrides, {
-          overrides,
-          children: c(For<(Enum | Scalar | Model | Union)[], Children>, {
-            each: declarations,
-            doubleHardline: true,
-            children: (type) => {
-              if (type.kind === "Enum") return c(UnionDeclaration, { type, export: true });
-              if (type.kind === "Model" && (type.name === "JsonObject" || type.indexer || isClosedEmptyModel(type))) {
-                return c(ts.TypeDeclaration, {
-                  name: type.name,
-                  export: true,
-                  doc: getDoc(program, type),
-                  children: c(TypeExpression, { type, noReference: true }),
-                });
-              }
-              return c(TypeDeclaration, {
-                type,
-                name: type.name ? declarationNames.get(type.name) : undefined,
-                export: true,
-              });
-            },
-          }),
-        }),
-        "\n",
-      ],
-    }),
-  }),
+  <Output program={program}>
+    <ts.SourceFile path="types.ts">
+      {"// Copyright (c) Microsoft. All rights reserved.\n\n"}
+      {"// Generated from spec/draft/schema/src/main.tsp. Do not edit.\n"}
+      {"// Regenerate with pnpm run generate:types in sdk/typescript.\n\n"}
+      <ts.TypeDeclaration name="JsonValue" export>
+        {"null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }"}
+      </ts.TypeDeclaration>
+      {"\n\n"}
+      <Experimental_ComponentOverrides overrides={overrides}>
+        <For each={declarations} doubleHardline>
+          {(type) => {
+            if (type.kind === "Enum") return <UnionDeclaration type={type} export />;
+            if (type.kind === "Model" && (type.name === "JsonObject" || type.indexer || isClosedEmptyModel(type))) {
+              return (
+                <ts.TypeDeclaration name={type.name} export doc={getDoc(program, type)}>
+                  <TypeExpression type={type} noReference />
+                </ts.TypeDeclaration>
+              );
+            }
+            return (
+              <TypeDeclaration
+                type={type}
+                name={type.name ? declarationNames.get(type.name) : undefined}
+                export
+              />
+            );
+          }}
+        </For>
+      </Experimental_ComponentOverrides>
+      {"\n"}
+    </ts.SourceFile>
+  </Output>,
   dirname(outputPath),
 );
 assertDiagnostics(program);

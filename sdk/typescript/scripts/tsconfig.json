@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@alloy-js/core",
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["*.tsx"]
+}

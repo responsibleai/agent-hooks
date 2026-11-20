@@ -87,7 +87,7 @@ released bundles such as 0.1. Cutting a new bundle rewrites `.tsp` wire
 strings and schema identities along with the JSON.
 
 The TypeScript SDK owns a generator using Alloy and the TypeSpec emitter
-framework in `sdk/typescript/scripts/generate-types.mts`. It reads this draft
+framework in `sdk/typescript/scripts/generate-types.tsx`. It reads this draft
 source directly to generate `sdk/typescript/src/generated/types.ts`, independently
 of JSON Schema generation. Run `pnpm --dir sdk/typescript run generate:types`
 to regenerate or `pnpm --dir sdk/typescript run check:generated` to check drift.

@@ -152,7 +152,7 @@ the mapping to unchanged published URLs.
 
 ## TypeScript contract types
 
-`sdk/typescript/scripts/generate-types.mts` uses Alloy and the TypeSpec emitter
+`sdk/typescript/scripts/generate-types.tsx` uses Alloy JSX and the TypeSpec emitter
 framework to generate `sdk/typescript/src/generated/types.ts` directly from
 the draft source. The independent `@responsibleai/agent-hooks/contract` entry
 point exposes interfaces, discriminated unions and string-literal unions;
