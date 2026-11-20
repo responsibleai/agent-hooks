@@ -34,13 +34,16 @@
     "build:native:debug": "napi build --platform --js binding.js --dts binding.d.ts",
     "build": "pnpm run build:native && tsc",
     "test": "pnpm run build && node --test test/*.mjs",
-    "test:draft": "node --test test/draft/*.mjs"
+    "test:draft": "node --test test/draft/*.mjs",
+    "check:types": "tsc --noEmit && tsc -p test/tsconfig.json"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.7.2",
     "@types/node": "^26.1.1",
-    "ajv": "8.20.0",
-    "ajv-formats": "3.0.1",
     "tsx": "4.23.15",
     "typescript": "^7.0.2"
   },

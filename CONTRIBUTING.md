@@ -150,6 +150,27 @@ against `origin/main` to see which instances change verdict.
 See [`spec/draft/schema/README.md`](spec/draft/schema/README.md) for the layout and
 the mapping to unchanged published URLs.
 
+## TypeScript contract types
+
+The TypeScript SDK's draft wire types come from the same TypeSpec source.
+`spec/scripts/generate-typescript.mts` uses Alloy and the TypeSpec emitter
+framework to generate `sdk/typescript/src/generated/types.ts`, including
+source documentation, literal enums, discriminated requests and hook responses.
+It also copies the matching normative schemas into `src/generated/schemas/`
+for draft runtime validation. Do not edit either generated output by hand.
+
+```bash
+pnpm run generate:typescript  # regenerate schemas and TypeScript SDK artifacts
+pnpm run check:typescript     # check schema/type drift and type-check the emitter
+pnpm --dir sdk/typescript run check:types
+```
+
+Commit TypeSpec edits and generated output together. The lint job checks
+generation drift; compile-time draft API assertions and draft runtime cases
+live in `sdk/typescript/test/draft/` and run in the advisory draft job.
+The SDK retains explicitly named `Legacy*` types and version-selected runtime
+behavior for 0.1; do not generate its contract from the mutable draft.
+
 ## Local toolchain setup
 
 With [mise](https://mise.jdx.dev/) installed, run from the repository root:

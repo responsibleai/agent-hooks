@@ -100,6 +100,23 @@ pub fn normalize_interceptor_response(spec: &str, response_json: &str) -> Result
         .expect("interceptor response serialize"))
 }
 
+/// Parse transport JSON before a language binding adapts hook-specific payloads.
+/// Preserve duplicate-member, depth and metadata integer-domain checks.
+pub fn parse_response_json(response_json: &str) -> Result<String, FfiError> {
+    let raw = crate::response::parse_checked(response_json).map_err(|(e, d)| err(e, d))?;
+    verdict::check_json_domain(&raw).map_err(|(e, d)| err(e, d))?;
+    if raw.get("extensions").is_some() {
+        let members: std::collections::BTreeMap<String, &serde_json::value::RawValue> =
+            serde_json::from_str(response_json)
+                .map_err(|_| err(HostError::VerdictInvalid, "response must be an object"))?;
+        if let Some(metadata) = members.get("extensions") {
+            canonical::scan_raw_integer_domain(metadata.get())
+                .map_err(|(_, detail)| err(HostError::VerdictInvalid, detail))?;
+        }
+    }
+    Ok(raw.to_string())
+}
+
 /// §5.2: apply a transform path to a target. Returns the new target JSON.
 pub fn apply_transform(
     target_json: &str,

@@ -52,6 +52,11 @@ pub fn normalize_interceptor_response(spec: String, response_json: String) -> Re
     core::normalize_interceptor_response(&spec, &response_json).map_err(map_err)
 }
 
+#[napi]
+pub fn parse_response_json(response_json: String) -> Result<String> {
+    core::parse_response_json(&response_json).map_err(map_err)
+}
+
 /// §4/§6.3: envelope validation (fail closed, value-free detail).
 #[napi]
 pub fn validate_envelope(ctx_json: String) -> Result<String> {

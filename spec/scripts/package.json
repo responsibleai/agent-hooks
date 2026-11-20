@@ -2,12 +2,18 @@
   "name": "agent-hooks-spec-scripts",
   "private": true,
   "scripts": {
+    "generate:typescript": "pnpm run generate:schema && tsx generate-typescript.mts",
+    "check:typescript": "pnpm run check:schema && tsx generate-typescript.mts --check && tsc --noEmit --module nodenext --target es2022 --strict --skipLibCheck --types node generate-typescript.mts",
     "generate:schema": "tsx generate-schemas.mts",
     "check:schema": "tsx generate-schemas.mts --check",
     "check:schema:equivalence": "tsx schema-equivalence.mts"
   },
   "devDependencies": {
+    "@alloy-js/core": "0.25.0",
+    "@alloy-js/typescript": "0.25.0",
+    "@types/node": "26.1.1",
     "@typespec/compiler": "1.18.0",
+    "@typespec/emitter-framework": "0.22.0",
     "@typespec/json-schema": "1.18.0",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",

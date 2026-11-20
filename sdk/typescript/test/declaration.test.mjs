@@ -47,27 +47,25 @@ const DRAFT = SPEC_VERSION_DRAFT;
 const ctx = (point = "pre_tool_call", seq = 0) => ({
   spec: DRAFT,
   interception_point: point,
-  timestamp: "t",
+  timestamp: "2026-01-01T00:00:00Z",
   sequence: seq,
   agent: { id: "a", framework: "x" },
   session: { id: "s" },
-  target: { url: "evil" },
   tool_call: { id: "tc", name: "t", args: { url: "evil" } },
 });
 
 const startup = (seq = 0) => ({
   spec: DRAFT,
   interception_point: "agent_startup",
-  timestamp: "t",
+  timestamp: "2026-01-01T00:00:00Z",
   sequence: seq,
   agent: { id: "a", framework: "x" },
   session: { id: "s" },
-  target: { tools_registered: [] },
   agent_init: { tools_registered: [] },
 });
 
-const allow = { intercept: () => ({ decision: "allow" }) };
-const denyAll = { intercept: () => ({ decision: "deny", reason: "x:no" }) };
+const allow = { intercept: (c) => c.spec === DRAFT ? { verdict: { decision: "allow" } } : { decision: "allow" } };
+const denyAll = { intercept: (c) => c.spec === DRAFT ? { verdict: { decision: "deny", reason: "x:no" } } : { decision: "deny", reason: "x:no" } };
 
 /** A full-surface registry with one allow kind and one deny kind. */
 function registry(extra = (r) => r) {
@@ -926,10 +924,10 @@ test("custom provider, resolver and redactor are taken from the registry", async
       })
       .approvalRedactor("strip", (c) => {
         redacted = true;
-        return { ...c, target: "[redacted]" };
+        return { ...c, tool_call: { ...c.tool_call, args: { redacted: true } } };
       })
       .kind("com.example.escalate", () => ({
-        intercept: () => ({ decision: "deny", reason: "x:approve-me", approval: {} }),
+        intercept: () => ({ verdict: { decision: "deny", reason: "x:approve-me", approval: {} } }),
       })),
   );
   const em = InterceptionEmitter.fromDeclarationValue(
@@ -949,7 +947,7 @@ test("custom provider, resolver and redactor are taken from the registry", async
   assert.equal(r.verdict.decision, "allow");
   assert.equal(r.resolved_by, "approval");
   assert.equal(redacted, true);
-  assert.equal(seen.target, "[redacted]");
+  assert.deepEqual(seen.tool_call.args, { redacted: true });
 });
 
 test("approval_resolver_ms bounds the resolver", async () => {
@@ -959,7 +957,7 @@ test("approval_resolver_ms bounds the resolver", async () => {
         resolve: () => new Promise(() => {}),
       })
       .kind("com.example.escalate", () => ({
-        intercept: () => ({ decision: "deny", reason: "x:approve-me", approval: {} }),
+        intercept: () => ({ verdict: { decision: "deny", reason: "x:approve-me", approval: {} } }),
       })),
   );
   const em = InterceptionEmitter.fromDeclarationValue(
@@ -1265,7 +1263,7 @@ test("managed kinds: resolver output, name collision, the resolved bound", async
   assert.equal(contexts[0].onError, "continue");
   assert.equal(contexts[1].timeoutMs, null);
   assert.equal(contexts[1].onError, "deny");
-  outcomes.push({ outcome: "timeout" }, { outcome: "verdict", verdict: { decision: "allow" } });
+  outcomes.push({ outcome: "timeout" }, { outcome: "verdict", verdict: { verdict: { decision: "allow" } } });
   const r = await em.emitUnchecked(ctx());
   assert.deepEqual(bounds, [250, null]);
   assert.equal(r.verdict.decision, "allow");
@@ -1275,7 +1273,7 @@ test("managed kinds: resolver output, name collision, the resolved bound", async
   assert.equal(notices.length, 1);
   assert.equal(notices[0].binding, "bounded");
   // Cancelled never continues, whatever the binding says.
-  outcomes.push({ outcome: "cancelled" }, { outcome: "verdict", verdict: { decision: "allow" } });
+  outcomes.push({ outcome: "cancelled" }, { outcome: "verdict", verdict: { verdict: { decision: "allow" } } });
   const r2 = await em.emitUnchecked(ctx("pre_tool_call", 1));
   assert.equal(r2.verdict.decision, "deny");
   assert.equal(r2.verdict.reason, "host_error:interceptor_failed");
