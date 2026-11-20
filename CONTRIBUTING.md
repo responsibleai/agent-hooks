@@ -150,6 +150,13 @@ against `origin/main` to see which instances change verdict.
 See [`spec/draft/schema/README.md`](spec/draft/schema/README.md) for the layout and
 the mapping to unchanged published URLs.
 
+## JavaScript and TypeScript modules
+
+Use ES modules throughout the repository. Set `"type": "module"` in package
+manifests, use `import`/`export`, and include `.js` extensions in SDK-relative
+TypeScript imports so the compiled output runs directly in Node.js. Native
+binding builds must use napi-rs's `--esm` option.
+
 ## TypeScript contract types
 
 `sdk/typescript/scripts/generate-types.tsx` uses Alloy JSX and the TypeSpec emitter
@@ -169,7 +176,7 @@ normative JSON Schemas are generated separately with `pnpm run generate:schema`.
 
 Commit TypeSpec edits and generated contract types together; do not edit the
 generated TypeScript by hand. No JSON Schema copies are needed in the SDK.
-This POC does not integrate with or migrate the existing SDK runtime.
+This POC does not integrate the contract types with the existing SDK runtime.
 The new contract has no 0.1 compatibility requirement or compatibility aliases.
 
 ## Local toolchain setup

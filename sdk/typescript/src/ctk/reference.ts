@@ -29,12 +29,12 @@ import {
   SPEC_VERSION_DRAFT,
   acceptedDeclarationVersions,
   requireSpecVersion,
-} from "../index";
-import { AgentContextBuilder } from "../builder";
-import { InterceptionEmitter } from "../emitter";
-import type { Capability, Harness, RunOutcome, RunRecord, Scenario } from "./index";
-import { redactPaths } from "./runner";
-import referenceDeclaration from "./reference.declaration.json";
+} from "../index.js";
+import { AgentContextBuilder } from "../builder.js";
+import { InterceptionEmitter } from "../emitter.js";
+import type { Capability, Harness, RunOutcome, RunRecord, Scenario } from "./index.js";
+import { redactPaths } from "./runner.js";
+import referenceDeclaration from "./reference.declaration.json" with { type: "json" };
 
 type ToolArgs = Record<string, JsonValue>;
 

@@ -6,7 +6,7 @@
  * `policy-engine/sdk/node/src/index.ts`.
  */
 
-import { native, AgentHooksCoreError } from "./native";
+import { native, AgentHooksCoreError } from "./native.js";
 export { AgentHooksCoreError };
 
 /** The wire string of specification 0.1 (§4.1 `spec`). */
@@ -710,9 +710,9 @@ export function composeAggregate(
   );
 }
 
-export { AgentContextBuilder } from "./builder";
-export { InterceptionEmitter, EmitterSealed } from "./emitter";
-export type { HostFailure } from "./emitter";
+export { AgentContextBuilder } from "./builder.js";
+export { InterceptionEmitter, EmitterSealed } from "./emitter.js";
+export type { HostFailure } from "./emitter.js";
 export {
   CAPABILITIES,
   DECLARATION_VERSION,
@@ -738,7 +738,7 @@ export {
   fullKnobSupport,
   validKind,
   validReference,
-} from "./declaration";
+} from "./declaration.js";
 export type {
   BindingContext,
   BindingOptions,
@@ -755,7 +755,7 @@ export type {
   ResolvedSurface,
   TimeoutSupport,
   ToolSeamPosture,
-} from "./declaration";
+} from "./declaration.js";
 
 /** Raised by a host when a verdict blocks the guarded action (§6). */
 /** Returned by `InterceptionEmitter.emit` on a proceeding emission:

@@ -27,6 +27,9 @@ version. Check what the tags resolve to with
 
 ## Usage
 
+The SDK is an ES module package for Node.js 20.10 or newer. Use
+`import`/`export` in an ES module project; no CommonJS build is published.
+
 ```ts
 import {
   AgentContextBuilder,
@@ -89,7 +92,7 @@ function reviewTool(ctx: PreToolCallRequest): PreToolHookResponse {
 
 The contract needs no native module, runtime validators, copied JSON Schemas,
 or compatibility aliases. Runtime integration is outside this POC; the
-existing SDK implementation is unchanged and does not consume these types.
+existing SDK runtime does not consume these types.
 
 The generator and its dependencies live in this SDK. From this directory,
 run `pnpm run generate:types` to regenerate the contract and
@@ -193,5 +196,5 @@ layout): `linux-x64-gnu`, `linux-arm64-gnu`, `darwin-x64`,
 `darwin-arm64` and `win32-x64-msvc`. On other platforms, install from
 source (needs a Rust toolchain): run `pnpm install` at the repository root,
 then `pnpm --dir sdk/typescript build` to produce the module
-for your host platform. A platform mismatch fails at `require` time
+for your host platform. A platform mismatch fails at import time
 with a module-load error naming the missing `.node` binary.

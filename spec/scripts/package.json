@@ -1,6 +1,7 @@
 {
   "name": "agent-hooks-spec-scripts",
   "private": true,
+  "type": "module",
   "scripts": {
     "generate:schema": "tsx generate-schemas.mts",
     "check:schema": "tsx generate-schemas.mts --check",

@@ -4,35 +4,11 @@
  * Loader for the napi-rs native module + typed re-export.
  *
  * `@napi-rs/cli build` emits `agent-hooks.<platform>.node` alongside a
- * generated `index.js` loader; this module re-exports it with types and
+ * generated ESM `binding.js` loader; this module re-exports it with types and
  * the `AgentHooksCoreError` unwrapping so callers get `.code`.
  */
 
-// napi-rs emits a platform-detecting loader at ../binding.js (see
-// package.json scripts.build:native --js binding.js).
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const binding = require("../binding.js") as {
-  canonicalJson(valueJson: string): string;
-  contextIdentity(ctxJson: string): string;
-  validateVerdict(spec: string, verdictJson: string): string;
-  normalizeInterceptorResponse(spec: string, responseJson: string): string;
-  validateEnvelope(ctxJson: string): string;
-  applyTransform(targetJson: string, path: string, valueJson: string): string;
-  applyTransformCtx(ctxJson: string, path: string, valueJson: string): string;
-  validateTransformCtx(ctxJson: string, path: string, valueJson: string): string;
-  finalize(ctxJson: string, verdictJson: string, mode: string, optionsJson: string): string;
-  composeAggregate(spec: string, compositionJson: string, verdictsJson: string): string;
-  controlFailureSubstitute(requestJson: string): string;
-  managedOutcome(spec: string, outcomeJson: string): string;
-  ctkScriptedIntercept(rulesJson: string, ctxJson: string): string;
-  ctkScriptedResolve(rulesJson: string, ctxJson: string, identity: string): string;
-  ctkShouldSkip(vectorJson: string, capsJson: string): string;
-  ctkAssert(vectorJson: string, recordedJson: string, runRecordJson: string): string;
-  declarationVersions(): string;
-  declarationValidate(documentJson: string): string;
-  declarationResolve(documentJson: string, hostJson: string): string;
-  declarationResolveSurface(documentJson: string, surfaceJson: string): string;
-};
+import * as binding from "../binding.js";
 
 /** Thrown by every native function on failure. `.code` is the §11
  *  `host_error:*` wire string, or a §7.7.6 `declaration_error:*`

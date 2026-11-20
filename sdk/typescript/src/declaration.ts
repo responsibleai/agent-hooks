@@ -38,8 +38,8 @@ import {
   isSupportedSpecVersion,
   nonFiniteDetail,
   requireSpecVersion,
-} from "./index";
-import { AgentHooksCoreError, native } from "./native";
+} from "./index.js";
+import { AgentHooksCoreError, native } from "./native.js";
 
 /** The declaration contract version this SDK writes and the newest it
  * accepts (§7.7.2). 1.1 adds the OPTIONAL `on_error` members (§6.3.1,
