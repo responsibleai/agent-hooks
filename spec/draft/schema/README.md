@@ -92,6 +92,17 @@ mirror remains versioned under `schema/0.1/` and `schema/draft/`; update
 draft copies only alongside corresponding SDK changes, as described in
 [Contributing](../../../CONTRIBUTING.md#schema-source).
 
+## Python contract generation
+
+The Python SDK separately consumes `src/main.tsp` through Alloy Python and
+the TypeSpec emitter framework to emit draft wire `TypedDict`s and literal
+unions into `sdk/python/python/agent_hooks_contract/`. Its generator and
+development dependencies live in `sdk/python`. From the repository root,
+run `pnpm run generate:python` to regenerate or `pnpm run check:python` to
+check drift (requires the Python development dependencies and Ruff on `PATH`).
+These types do not change JSON Schema output, the released 0.1 API, or the
+SDK's runtime and packaged schemas.
+
 ## Filesystem paths are not public schema identities
 
 This layout does not change validation semantics. The draft's schemas

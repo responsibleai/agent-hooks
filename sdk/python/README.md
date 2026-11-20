@@ -20,6 +20,10 @@ pip install --pre "agent-hooks-sdk[ctk]"
 
 ## Host (framework adapter) usage
 
+For the independently generated draft wire types, see
+[Draft contract types](#draft-contract-types). The existing `agent_hooks`
+runtime API below is unchanged.
+
 ```python
 from agent_hooks import (
     SPEC_VERSION_0_1,
@@ -43,6 +47,54 @@ except InterceptionBlocked as e:
     return tool_error(e.result.verdict.reason)
 result = invoke_tool(ctx["tool_call"]["args"])  # post-transform args
 ```
+
+## Draft contract types
+
+`agent_hooks_contract` contains draft-only `TypedDict` models and literal
+unions generated directly from `spec/draft/schema/src/main.tsp` with Alloy
+Python and the TypeSpec emitter framework. It ships in the SDK distribution
+but importing it does not load `agent_hooks` or its Rust extension.
+
+```python
+import json
+
+from agent_hooks_contract import PreToolHookResponse
+
+response: PreToolHookResponse = {
+    "verdict": {"decision": "transform", "transform": {"args": {"reviewed": True}}}
+}
+wire = json.dumps(response)
+```
+
+These are plain dictionaries: no constructors, runtime enums, serializer,
+or validation dependency. Required members remain required; `NotRequired`
+means a key may be absent, not that its value is nullable. Enum values and
+discriminators are `Literal` types, arbitrary JSON uses the recursive
+`JsonValue` alias, and integers use Python's arbitrary-precision `int`.
+`typing_extensions` supplies Python 3.10-compatible key qualifiers.
+TypeSpec templates and anonymous objects become concrete named TypedDicts.
+
+The types describe the latest draft, not the released 0.1 API or the current
+SDK runtime's draft support. Static typing does not enforce JSON Schema
+constraints such as numeric bounds, patterns, or conditional rules. TypedDicts
+expose declared members; type checkers may reject additional keys on objects
+the wire contract leaves open. Use the normative schemas for validation. Adopting
+these contracts in the runtime is separate work.
+
+With the Python development dependencies installed and `ruff` on `PATH`,
+run from the repository root:
+
+```bash
+pnpm install
+pnpm run generate:python
+pnpm run check:python
+mypy --strict sdk/python/python/agent_hooks_contract sdk/python/tests/typing_contract.py
+```
+
+The SDK-local equivalents are `pnpm run generate:types` and
+`pnpm run check:generated` in `sdk/python`. Ruff sorts imports and formats
+the emitted Python; CI checks drift and the static examples. JSON Schema
+generation and the existing SDK's packaged schema mirrors are independent.
 
 ## Failure handling
 

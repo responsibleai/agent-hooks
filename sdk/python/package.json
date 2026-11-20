@@ -1,0 +1,19 @@
+{
+  "name": "agent-hooks-python-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate:types": "tsx --tsconfig scripts/tsconfig.json scripts/generate-types.tsx",
+    "check:generated": "tsc --project scripts/tsconfig.json && pnpm run generate:types --check"
+  },
+  "devDependencies": {
+    "@alloy-js/core": "0.25.0",
+    "@alloy-js/python": "0.6.0",
+    "@types/node": "^26.1.1",
+    "@typespec/compiler": "1.18.0",
+    "@typespec/emitter-framework": "0.22.0",
+    "@typespec/json-schema": "1.18.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  }
+}

@@ -150,6 +150,20 @@ against `origin/main` to see which instances change verdict.
 See [`spec/draft/schema/README.md`](spec/draft/schema/README.md) for the layout and
 the mapping to unchanged published URLs.
 
+## Generated Python contracts
+
+The draft also generates the independent `agent_hooks_contract` package under
+`sdk/python/python/`. Edit the TypeSpec source, not its generated Python.
+After installing the Python development dependencies (with `ruff` on `PATH`)
+and workspace Node dependencies, run `pnpm run generate:python` to regenerate
+and `pnpm run check:python` to check drift and type-check the generator.
+These are root aliases for `generate:types` and `check:generated` in
+`sdk/python`; that SDK owns its Alloy Python and emitter-framework tooling.
+The Python CI job also runs
+`mypy --strict sdk/python/python/agent_hooks_contract sdk/python/tests/typing_contract.py`.
+The generated draft contract does not change the existing runtime API or
+refresh its schema mirrors.
+
 ## Local toolchain setup
 
 With [mise](https://mise.jdx.dev/) installed, run from the repository root:
