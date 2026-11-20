@@ -404,7 +404,6 @@ jobs:
           cargo fetch --locked
           pnpm run build:native:debug
           pnpm exec tsc
-          pnpm run check:types
           node --test test/draft/*.mjs
         working-directory: sdk/typescript
       - name: .NET draft suite tests
@@ -477,11 +476,14 @@ jobs:
         run: python3 scripts/check-spec-versions.py
       - name: Repository script regression tests
         run: python3 -m unittest discover -s scripts -p "test_*.py" -v
-      - name: Committed schemas and TypeScript contract match their TypeSpec source
+      - name: Committed JSON Schemas match their TypeSpec source
         # Compiles spec/draft/schema/src, regenerates to memory and compares
-        # the normative schemas and TypeScript contract with committed output.
-        run: pnpm run check:typescript
+        # with the committed files (spec/scripts/generate-schemas.mts).
+        run: pnpm run check:schema
         working-directory: spec/scripts
+      - name: Generated TypeScript contract matches its TypeSpec source
+        run: pnpm run check:generated
+        working-directory: sdk/typescript
       - name: Released schema bundles match their source
         # The same check for every spec/<MAJOR.MINOR>/ bundle: the frozen
         # source must still generate the frozen output.

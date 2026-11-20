@@ -91,8 +91,12 @@ The contract needs no native module, runtime validators, copied JSON Schemas,
 or compatibility aliases. Runtime integration is outside this POC; the
 existing SDK implementation is unchanged and does not consume these types.
 
-Regenerate with `pnpm run generate:typescript` and check drift with
-`pnpm run check:typescript` from the repository root.
+The generator and its dependencies live in this SDK. From this directory,
+run `pnpm run generate:types` to regenerate the contract and
+`pnpm run check:generated` to check drift and type-check the generator.
+The repository-root `generate:typescript` and `check:typescript` commands
+are convenience aliases. Generation reads the draft TypeSpec source directly
+and does not regenerate the normative JSON Schemas.
 
 ## Failure handling
 

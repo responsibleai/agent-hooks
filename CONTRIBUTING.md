@@ -152,21 +152,23 @@ the mapping to unchanged published URLs.
 
 ## TypeScript contract types
 
-`spec/scripts/generate-typescript.mts` uses Alloy and the TypeSpec emitter
+`sdk/typescript/scripts/generate-types.mts` uses Alloy and the TypeSpec emitter
 framework to generate `sdk/typescript/src/generated/types.ts` directly from
 the draft source. The independent `@responsibleai/agent-hooks/contract` entry
 point exposes interfaces, discriminated unions and string-literal unions;
 it has no runtime or native dependency.
 
 ```bash
-pnpm run generate:typescript  # regenerate normative schemas and TypeScript contract types
-pnpm run check:typescript     # check schema/type drift and type-check the emitter
-pnpm --dir sdk/typescript run check:types
+pnpm --dir sdk/typescript run generate:types
+pnpm --dir sdk/typescript run check:generated  # check drift and type-check the emitter
 ```
+
+The SDK owns the generator and its development dependencies. Root-level
+`generate:typescript` and `check:typescript` commands delegate to the SDK;
+normative JSON Schemas are generated separately with `pnpm run generate:schema`.
 
 Commit TypeSpec edits and generated contract types together; do not edit the
 generated TypeScript by hand. No JSON Schema copies are needed in the SDK.
-Compile-time contract assertions live in `sdk/typescript/test/draft/`.
 This POC does not integrate with or migrate the existing SDK runtime.
 The new contract has no 0.1 compatibility requirement or compatibility aliases.
 

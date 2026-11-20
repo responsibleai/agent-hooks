@@ -35,15 +35,14 @@ import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const outputPath = resolve(root, "sdk/typescript/src/generated/types.ts");
+const sdkRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const outputPath = resolve(sdkRoot, "src/generated/types.ts");
 const check = process.argv.includes("--check");
 if (process.argv.slice(2).some((arg) => arg !== "--check")) {
-  throw new Error("Usage: generate-typescript.mts [--check]");
+  throw new Error("Usage: generate-types.mts [--check]");
 }
 
-const program = await compile(NodeHost, resolve(root, "spec/scripts/schema-emitter.tsp"), {
-  additionalImports: [resolve(root, "spec/draft/schema/src/main.tsp")],
+const program = await compile(NodeHost, resolve(sdkRoot, "scripts/contract.tsp"), {
   noEmit: true,
 });
 assertDiagnostics(program);
@@ -114,7 +113,7 @@ await writeOutput(
       children: [
         "// Copyright (c) Microsoft. All rights reserved.\n\n",
         "// Generated from spec/draft/schema/src/main.tsp. Do not edit.\n",
-        "// Regenerate with pnpm run generate:typescript.\n\n",
+        "// Regenerate with pnpm run generate:types in sdk/typescript.\n\n",
         c(ts.TypeDeclaration, {
           name: "JsonValue",
           export: true,
@@ -160,7 +159,7 @@ for (const [path, text] of output) {
     } catch (error) {
       if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     }
-    if (actual !== text) throw new Error(`Generated TypeScript artifact ${path} is stale. Run pnpm run generate:typescript.`);
+    if (actual !== text) throw new Error(`Generated TypeScript artifact ${path} is stale. Run pnpm run generate:types in sdk/typescript.`);
   } else {
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, text);

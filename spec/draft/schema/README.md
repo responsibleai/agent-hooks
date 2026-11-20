@@ -86,10 +86,12 @@ The old TypeScript generator and its dependencies remain only for frozen
 released bundles such as 0.1. Cutting a new bundle rewrites `.tsp` wire
 strings and schema identities along with the JSON.
 
-The draft also generates an independent TypeScript contract using Alloy and
-the TypeSpec emitter framework. `pnpm run generate:typescript` regenerates
-the normative schemas and `sdk/typescript/src/generated/types.ts`;
-`pnpm run check:typescript` checks drift. The SDK exposes these types through
+The TypeScript SDK owns a generator using Alloy and the TypeSpec emitter
+framework in `sdk/typescript/scripts/generate-types.mts`. It reads this draft
+source directly to generate `sdk/typescript/src/generated/types.ts`, independently
+of JSON Schema generation. Run `pnpm --dir sdk/typescript run generate:types`
+to regenerate or `pnpm --dir sdk/typescript run check:generated` to check drift.
+The SDK exposes these types through
 `@responsibleai/agent-hooks/contract`, without runtime code, compatibility
 aliases or copied schemas. Runtime design and integration remain separate.
 
