@@ -79,7 +79,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    done
    cd spec/scripts
    node check-schema-examples.mjs
-   pnpm exec tsx generate-schemas.mts --check --spec X.Y
+   pnpm exec tsx generate-schemas.ts --check --spec X.Y
    ```
 
    Each suite validates only against its matching schema bundle. SDK

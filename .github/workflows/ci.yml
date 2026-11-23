@@ -478,7 +478,7 @@ jobs:
         run: python3 -m unittest discover -s scripts -p "test_*.py" -v
       - name: Committed JSON Schemas match their TypeSpec source
         # Compiles spec/draft/schema/src into a temporary directory and compares
-        # with the committed files (spec/scripts/generate-schemas.mts).
+        # with the committed files (spec/scripts/generate-schemas.ts).
         run: pnpm run check:schema
         working-directory: spec/scripts
       - name: Released TypeSpec schema bundles match their source
@@ -496,7 +496,7 @@ jobs:
               continue
             fi
             echo "Checking spec/$version/schema"
-            pnpm exec tsx generate-schemas.mts --check --spec "$version"
+            pnpm exec tsx generate-schemas.ts --check --spec "$version"
             checked=$((checked + 1))
           done
           echo "checked $checked released TypeSpec bundle(s)"

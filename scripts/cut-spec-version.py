@@ -91,7 +91,7 @@ def cut(root: Path, version: str, date: str) -> list[str]:
                 path.write_text(updated, encoding="utf-8")
     return [
         f"confirm the copy's schemas still match their source under schema/v{version}/: "
-        f"pnpm --dir spec/scripts exec tsx generate-schemas.mts --check --spec {version}",
+        f"pnpm --dir spec/scripts exec tsx generate-schemas.ts --check --spec {version}",
         f"point the draft banner in spec/draft/AGENT-HOOKS-DRAFT.md at {version}",
         f"add the spec/README.md row for {version} and set the previous version to Superseded",
         f"move the CHANGELOG.md bullets under 'Unreleased specification' to 'Specification {version} — {date}'",
