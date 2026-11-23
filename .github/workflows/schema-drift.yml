@@ -1,7 +1,7 @@
 name: schema-drift
 
 # Checks:
-# - spec-draft-generated-schema-check: ensure generated draft schemas match their TypeSpec source.
+# - spec-draft-generated-schema-check: regenerate every draft output (spec/draft/tspconfig.yaml), then fail on drift.
 # - python-released-schema-mirror: refresh released Python schema mirrors, then fail on drift.
 # - python-ctk-vector-mirror: refresh the Python CTK vector mirror, then fail on drift.
 # - python-draft-schema-mirror: report experimental draft mirror drift as a warning.
@@ -23,9 +23,20 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
-      - name: Check generated draft schemas
-        run: pnpm run check:schema
-        working-directory: spec/scripts
+      - name: Regenerate draft outputs
+        # Deleting every linguist-generated file (.gitattributes) first makes
+        # output that is no longer produced show up as a deletion.
+        run: |
+          git ls-files -z ':(attr:linguist-generated)' | xargs -0 rm -f
+          pnpm generate
+      - name: Fail on generated drift
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status
+            git --no-pager diff
+            echo "::error::generated output differs from its TypeSpec source; run pnpm generate, delete stale generated files, and commit the result"
+            exit 1
+          fi
 
   python-released-schema-mirror:
     runs-on: ubuntu-latest
@@ -46,9 +57,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
-      - name: Regenerate draft schemas for comparison
-        run: pnpm run generate:schema
-        working-directory: spec/scripts
+      - name: Regenerate draft outputs for comparison
+        run: pnpm generate
       - name: Report experimental draft mirror drift
         run: python3 sdk/python/scripts/check-draft-schema-mirror.py
 

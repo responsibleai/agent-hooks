@@ -84,9 +84,9 @@ are generated from TypeSpec in `spec/<version>/schema/src/`, except for
 the frozen 0.1 bundle, whose committed artifacts and historical TypeScript
 source are retained without regeneration. Edit
 only `spec/draft/schema/src/`; the generator targets `draft` unless
-`--spec <version>` names another folder. The `lint` job runs the drift
-check for the draft and, with `--spec`, for every released bundle that
-has `schema/src/main.tsp`, so a frozen TypeSpec source keeps generating its frozen
+`--spec <version>` names another folder. The `drift` job checks the draft;
+the `lint` job checks, with `--spec`, every released bundle that has a
+`main.tsp`, so a frozen TypeSpec source keeps generating its frozen
 output. The JSON stays the normative artifact: it is
 what validators, the conformance kit and the SDK mirrors consume. Do not
 edit it by hand; the `lint` and `drift` checks fail on any byte that
@@ -97,12 +97,11 @@ differs from the generated text.
   `interception-record.tsp`, `host-declaration.tsp`, plus shared types.
   `operations.tsp` pairs the existing requests and responses in transport-neutral
   interceptor and approval-resolver interfaces; it does not define HTTP routes.
-  `main.tsp` imports the bundle's sources; public roots use `@jsonSchema`.
+  `schema/src/main.tsp` imports the bundle's sources; public roots use `@jsonSchema`.
   One native compilation emits the whole schema graph:
   public roots reference sibling documents and private dependencies use `$defs`.
-  The generator loads
-  `@typespec/json-schema` from `spec/scripts` and emits Draft 2020-12
-  directly. Use Node.js 22 or later for this tooling.
+  `@typespec/json-schema`, installed at the repository root, emits Draft
+  2020-12 directly. Use Node.js 22 or later for this tooling.
 - Use `integer` for integer fields and `float64` for fractional values,
   `@minValue`/`@maxValue` for numeric bounds, and `@pattern`, `@format`,
   `@minLength`, `@maxLength`, `@minItems`, `@maxItems` and `@uniqueItems`
@@ -118,7 +117,12 @@ differs from the generated text.
   `@extension("propertyNames", #{...})`. Defaults remain schema annotations
   through native property defaults (`property?: Type = value`), not runtime
   default insertion.
-- `spec/draft/schema/tspconfig.yaml` configures the native JSON Schema emitter.
+- `spec/draft/main.tsp` and `spec/draft/tspconfig.yaml` are the single
+  compilation entry point for every draft output: the native JSON Schema
+  emitter and any language emitter under `emitters/`
+  ([emitters/README.md](emitters/README.md)). `pnpm generate` builds the
+  emitters, then runs `tsp compile spec/draft` once. Generated folders are
+  marked `linguist-generated` in `.gitattributes`.
   Public roots, titles and the schema base URI live in TypeSpec source.
   Output is unmodified native `generated/<Type>.json`, including
   `ApprovalRequest.json` and `ApprovalResolution.json`, not approval fragments.
@@ -130,10 +134,14 @@ differs from the generated text.
 
 ```bash
 pnpm install
-pnpm run generate:schema      # write spec/draft/schema/generated/*.json
-pnpm run check:schema         # compile the source, then fail on any drift
+pnpm generate                 # build emitters/*, then regenerate every draft output
 pnpm run check:schema:equivalence --old origin/main   # differential validation against another revision
 ```
+
+`tsp compile` overwrites output but never deletes it. The `drift` check
+deletes every `linguist-generated` file before regenerating, so output for a
+removed type fails it; reproduce that locally with
+`git ls-files -z ':(attr:linguist-generated)' | xargs -0 rm -f && pnpm generate`.
 
 After a change, regenerate. The Python mirror holds one folder per
 supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`
