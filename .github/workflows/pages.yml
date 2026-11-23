@@ -22,6 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
+      - name: Check generated reference and test emitter
+        run: pnpm run check:reference && pnpm run test:reference
       - name: Test spec publishing
         run: pnpm --filter @agent-hooks/docs test
       - name: Build site

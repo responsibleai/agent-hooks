@@ -35,7 +35,8 @@ export interface SpecPage {
 
 /**
  * One page per released version, the newest again at the stable `spec` URL,
- * and the draft. The H1 becomes the page title so Starlight renders it once.
+ * and the draft with its generated reference. The H1 becomes the page
+ * title so Starlight renders it once.
  */
 export function specPages(root: string): SpecPage[] {
   const read = (bundle: string) =>
@@ -53,11 +54,16 @@ export function specPages(root: string): SpecPage[] {
   // The draft links to source files beside it; point them at the published pages.
   const draft = read("draft")
     .replace(/\]\(\.\.\/(\d+\.\d+)\/AGENT-HOOKS-\1\.md\)/g, "](../$1/)")
+    .replaceAll("](REFERENCE.md)", "](reference/)")
     .replaceAll("](schema/path-grammar.abnf)", "](../../schema/draft/path-grammar.abnf)");
   return [
     page("spec", read(versions[0])),
     ...versions.map((version) => page(`spec/${version}`, read(version))),
     page("spec/draft", draft),
+    page(
+      "spec/draft/reference",
+      readFileSync(join(root, "spec/draft/REFERENCE.md"), "utf8"),
+    ),
   ];
 }
 

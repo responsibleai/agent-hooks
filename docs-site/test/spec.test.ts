@@ -47,6 +47,7 @@ describe("specification bundles", () => {
     // 0.10 sorts after 0.2 numerically, not lexically.
     bundle("0.10", "v0.10");
     bundle("draft", "draft");
+    write("spec/draft/REFERENCE.md", "# Schema reference\n\nTypeSpec declarations.\n");
   });
   afterEach(() => rmSync(root, { recursive: true, force: true }));
 
@@ -60,7 +61,7 @@ describe("specification bundles", () => {
     const latestText = ["AGENT-HOOKS", "0.10.md"].join("-");
     write(
       "spec/draft/AGENT-HOOKS-DRAFT.md",
-      `# Draft\n\nSee [0.10](../0.10/${latestText}) and [grammar](schema/path-grammar.abnf).\n`,
+      `# Draft\n\nSee [0.10](../0.10/${latestText}) and [grammar](schema/path-grammar.abnf). [Reference](REFERENCE.md).\n`,
     );
     assert.deepEqual(specPages(root), [
       { id: "spec", title: "Spec 0.10", body: "\nBody 0.10.\n" },
@@ -70,7 +71,12 @@ describe("specification bundles", () => {
       {
         id: "spec/draft",
         title: "Draft",
-        body: "\nSee [0.10](../0.10/) and [grammar](../../schema/draft/path-grammar.abnf).\n",
+        body: "\nSee [0.10](../0.10/) and [grammar](../../schema/draft/path-grammar.abnf). [Reference](reference/).\n",
+      },
+      {
+        id: "spec/draft/reference",
+        title: "Schema reference",
+        body: "\nTypeSpec declarations.\n",
       },
     ]);
   });

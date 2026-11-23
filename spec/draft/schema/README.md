@@ -30,6 +30,17 @@ before resolving roots, rather than expecting self-contained documents.
 There is no per-root compilation, synthetic approval model, JSON reordering,
 reference rewriting or strict-schema derivation.
 
+The same declarations generate the [draft reference](../REFERENCE.md)
+via `pnpm run generate:reference`
+at the repository root. Add `@@category(AgentHooks.MyType, Categories.<member>)`
+to `spec/scripts/reference.tsp`, not to schema sources. The shared categories
+live in `spec/scripts/reference-docs/lib/main.tsp`. Every named project model,
+enum, union, and scalar must have a category, including reusable and generic
+declarations. Anonymous shapes, concrete template instances, and imported
+library types are excluded. `pnpm run check:reference` validates completeness
+and detects stale documentation. Only reference generation loads the docs
+entrypoint/library; schema compilation and normative JSON Schemas are unaffected.
+
 ## Generate and check
 
 Use Node.js 22 or later. From the repository root:

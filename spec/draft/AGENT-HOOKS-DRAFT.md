@@ -19,6 +19,9 @@
 
 ---
 
+The generated [schema reference](REFERENCE.md) documents the TypeSpec
+declarations and their properties. The JSON Schemas remain the normative validation artifacts.
+
 ## Table of contents
 
 1. [Introduction](#1-introduction)
