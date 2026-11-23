@@ -43,6 +43,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
+import { legacySchemaMapping, schemaMapping, requestSchemas } from "./check-schema-examples.mjs";
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Obj = { [key: string]: Json };
@@ -161,7 +162,7 @@ function loadSet(source: string): SchemaSet {
   if (existsSync(source)) {
     const dir = existsSync(join(source, "generated")) ? join(source, "generated") : source;
     const files = readdirSync(dir, { recursive: true }).map(String)
-      .filter((f) => f.endsWith(".schema.json"));
+      .filter((f) => f.endsWith(".json") && !f.split(/[\\/]/).slice(0, -1).some((part) => part === "examples" || part === "src"));
     for (const f of files) addDocument(set, readFileSync(join(dir, f), "utf8"));
     return set;
   }
@@ -169,7 +170,7 @@ function loadSet(source: string): SchemaSet {
     cwd: ROOT,
     encoding: "utf8",
   });
-  const all = listing.split("\n").filter((p) => p.endsWith(".schema.json"));
+  const all = listing.split("\n").filter((p) => p.endsWith(".json") && !p.includes("/examples/"));
   const draft = all.filter((p) => p.startsWith("spec/draft/schema/"));
   const paths = draft.length ? draft : all;
   const generated = paths.filter((p) => /^spec\/(draft\/)?schema\/generated\//.test(p));
@@ -242,6 +243,22 @@ function seed(shape: Shape, ...values: Json[]): void {
 }
 
 function collectFromRepository(): void {
+  const exampleShapes: Record<string, Shape> = {
+    AgentContext: "context",
+    ApprovalRequest: "request",
+    ApprovalResolution: "resolution",
+    HostDeclaration: "declaration",
+    InterceptionRecord: "record",
+    Verdict: "verdict",
+  };
+  const examples = join(ROOT, "spec/draft/schema/examples");
+  for (const folder of readdirSync(examples)) {
+    const shape = exampleShapes[folder] ?? (folder.endsWith("HookResponse") ? "response" : undefined);
+    if (!shape) continue;
+    for (const file of readdirSync(join(examples, folder))) {
+      if (file.endsWith(".json")) seed(shape, JSON.parse(readFileSync(join(examples, folder, file), "utf8")));
+    }
+  }
   const conformance = join(ROOT, "conformance");
   const vectorDirs = readdirSync(conformance, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && existsSync(join(conformance, entry.name, "vectors")))
@@ -721,10 +738,15 @@ const TARGETS: Target[] = [
   { name: "interception-record", file: "interception-record.schema.json", shape: "record", pointer: "" },
   { name: "host-declaration-1.0", file: "host-declaration-1.0.schema.json", shape: "declaration", pointer: "" },
   { name: "host-declaration-1.1", file: "host-declaration-1.1.schema.json", shape: "declaration", pointer: "" },
+  { name: "host-declaration", file: "host-declaration.schema.json", shape: "declaration", pointer: "" },
 ];
 
 function targetsFor(oldSet: SchemaSet, newSet: SchemaSet): Target[] {
   const known = new Set(TARGETS.map((target) => target.file));
+  for (const target of TARGETS) {
+    known.add(targetLocation(oldSet, target).file);
+    known.add(targetLocation(newSet, target).file);
+  }
   const extraFiles = new Set([...oldSet.keys(), ...newSet.keys()]);
   const additional = [...extraFiles]
     .filter((file) => !known.has(file))
@@ -736,12 +758,23 @@ function targetsFor(oldSet: SchemaSet, newSet: SchemaSet): Target[] {
 /** "old" or "new" when the target's file exists in only that set, "neither"
  *  when both lack it (a version that predates the file), else undefined. */
 function onlyOneSide(oldSet: SchemaSet, newSet: SchemaSet, t: Target): "old" | "new" | "neither" | undefined {
-  const inOld = oldSet.has(t.file);
-  const inNew = newSet.has(t.file);
+  const inOld = oldSet.has(targetLocation(oldSet, t).file);
+  const inNew = newSet.has(targetLocation(newSet, t).file);
   if (inOld && !inNew) return "old";
   if (!inOld && inNew) return "new";
   if (!inOld && !inNew) return "neither";
   return undefined;
+}
+
+function targetLocation(set: SchemaSet, target: Target): { file: string; pointer: string } {
+  if (!set.has("AgentContext.json")) return target;
+  const legacy = target.file + target.pointer;
+  const type = Object.keys(legacySchemaMapping).find((name) => legacySchemaMapping[name] === legacy);
+  if (type) return { file: schemaMapping[type], pointer: "" };
+  const point = POINTS.find((point) => target.file === `agent-context/${point}.schema.json`);
+  if (point) return { file: requestSchemas[point], pointer: "" };
+  if (target.file === "interception-point.schema.json") return { file: "InterceptionPoint.json", pointer: "" };
+  return target;
 }
 
 function pointerSchema(set: SchemaSet, file: string, pointer: string): Obj {
@@ -864,8 +897,10 @@ function main(): number {
         console.log(`== ${t.name}: 1 differing path(s): the file exists only in the ${side} set`);
         continue;
       }
-      const a = normalize(oldSet, t.file, pointerSchema(oldSet, t.file, t.pointer), WIRE_OLD);
-      const b = normalize(newSet, t.file, pointerSchema(newSet, t.file, t.pointer), WIRE_NEW);
+      const old = targetLocation(oldSet, t);
+      const next = targetLocation(newSet, t);
+      const a = normalize(oldSet, old.file, pointerSchema(oldSet, old.file, old.pointer), WIRE_OLD);
+      const b = normalize(newSet, next.file, pointerSchema(newSet, next.file, next.pointer), WIRE_NEW);
       const lines: string[] = [];
       diff(a, b, "", lines);
       total += lines.length;
@@ -910,8 +945,10 @@ function main(): number {
       console.log(`${t.name.padEnd(29)} ${"-".padStart(9)}  ${"-".padStart(10)}  ${"-".padStart(10)}  ${"1".padStart(8)}  (file exists only in the ${side} set)`);
       continue;
     }
-    const validateOld = oldAjv.getSchema(baseOf(oldSet) + t.file + t.pointer);
-    const validateNew = newAjv.getSchema(baseOf(newSet) + t.file + t.pointer);
+    const old = targetLocation(oldSet, t);
+    const next = targetLocation(newSet, t);
+    const validateOld = oldAjv.getSchema(baseOf(oldSet) + old.file + old.pointer);
+    const validateNew = newAjv.getSchema(baseOf(newSet) + next.file + next.pointer);
     if (!validateOld || !validateNew) throw new Error(`${t.name}: validator missing at ${t.pointer || "the root"}`);
     const own = t.shape === undefined ? [] : seeds.get(t.shape) ?? [];
     const corpus = new Map<string, Json>();
@@ -922,8 +959,9 @@ function main(): number {
     for (const s of everySeed) add(s);
     for (const s of own) {
       for (const set of [oldSet, newSet]) {
-        const schema = pointerSchema(set, t.file, t.pointer);
-        for (const m of mutate(set, t.file, schema, s)) add(m);
+        const location = targetLocation(set, t);
+        const schema = pointerSchema(set, location.file, location.pointer);
+        for (const m of mutate(set, location.file, schema, s)) add(m);
       }
       for (let i = 0; i < RANDOM; i++) add(randomMutant(random, s));
     }

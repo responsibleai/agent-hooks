@@ -9,7 +9,7 @@ MUST carry the same version at all times:
   sdk/rust/Cargo.toml            [workspace.package] version  (SemVer)
   sdk/python/pyproject.toml      [project] version            (PEP 440)
   sdk/typescript/package.json    version                      (SemVer)
-  sdk/dotnet/Directory.Build.props <Version>                  (SemVer)
+  sdk/csharp/Directory.Build.props <Version>                  (SemVer)
 
 Go carries no manifest version: the module version is the git tag.
 PEP 440 spells SemVer pre-releases differently (0.1.0-alpha.2 ->
@@ -62,7 +62,7 @@ SUPPORTED_CONSTANTS = {
     "sdk/python/python/agent_hooks/_types.py": (
         r"SUPPORTED_SPEC_VERSIONS: Final\[tuple\[str, \.\.\.\]\] = \(([^)]*)\)"
     ),
-    "sdk/dotnet/src/AgentHooks/Types.cs": (
+    "sdk/csharp/src/AgentHooks/Types.cs": (
         r"public static readonly IReadOnlyList<string> SupportedVersions = \[([^\]]*)\];"
     ),
     "sdk/go/agenthooks/types.go": (
@@ -110,10 +110,10 @@ def read_versions(root: Path = ROOT) -> dict[str, str]:
     pkg = json.loads((root / "sdk/typescript/package.json").read_text(encoding="utf-8"))
     versions["sdk/typescript/package.json"] = pkg["version"]
 
-    props = (root / "sdk/dotnet/Directory.Build.props").read_text(encoding="utf-8")
+    props = (root / "sdk/csharp/Directory.Build.props").read_text(encoding="utf-8")
     m = re.search(r"<Version>([^<]+)</Version>", props)
-    assert m, "no <Version> in sdk/dotnet/Directory.Build.props"
-    versions["sdk/dotnet/Directory.Build.props"] = m.group(1)
+    assert m, "no <Version> in sdk/csharp/Directory.Build.props"
+    versions["sdk/csharp/Directory.Build.props"] = m.group(1)
     return versions
 
 

@@ -4,44 +4,44 @@ using TypeSpec.JsonSchema;
 namespace AgentHooks;
 
 /** Replaces the complete input payload. */
-@extension("additionalProperties", false)
 model InputHookTransform {
-  input: InputRequest.input;
+  ...Record<never>;
+  input: Input;
 }
 
 /** Replaces the complete model-message array. */
-@extension("additionalProperties", false)
 model PreModelHookTransform {
+  ...Record<never>;
   messages: PreModelCallRequest.messages;
 }
 
 /** Replaces the complete model response payload. */
-@extension("additionalProperties", false)
 model PostModelHookTransform {
-  response: PostModelCallRequest.response;
+  ...Record<never>;
+  response: Response;
 }
 
 /** Replaces the complete tool args for the pre-tool hook. */
-@extension("additionalProperties", false)
 model PreToolHookTransform {
+  ...Record<never>;
   args: ToolCall.args;
 }
 
 /** Replaces only the value of the tool result. */
-@extension("additionalProperties", false)
 model PostToolHookTransform {
+  ...Record<never>;
   value: ToolResult.value;
 }
 
 /** Replaces the complete output payload. */
-@extension("additionalProperties", false)
 model OutputHookTransform {
-  output: OutputRequest.output;
+  ...Record<never>;
+  output: Output;
 }
 
 /** Hook response envelope with a hook-specific verdict. */
-@extension("additionalProperties", false)
 model HookResponse<TVerdict> {
+  ...Record<never>;
   verdict: TVerdict;
   extensions?: Extensions;
 }
@@ -50,6 +50,8 @@ model HookResponse<TVerdict> {
 // Example: [deny](../examples/AgentStartupHookResponse/deny.json)
 // Example: [extensions](../examples/AgentStartupHookResponse/allow-with-extensions.json)
 /** agent_startup response: transforms are forbidden. */
+@jsonSchema
+@summary("Agent Hooks agent_startup response")
 model AgentStartupHookResponse is HookResponse<NonTransformVerdict>;
 
 // Example: [allow](../examples/InputHookResponse/allow.json)
@@ -57,39 +59,53 @@ model AgentStartupHookResponse is HookResponse<NonTransformVerdict>;
 // Example: [transform](../examples/InputHookResponse/transform.json)
 // Example: [extensions](../examples/InputHookResponse/deny-with-extensions.json)
 /** input response. */
+@jsonSchema
+@summary("Agent Hooks input response")
 model InputHookResponse is HookResponse<Verdict<InputHookTransform>>;
 
 // Example: [allow](../examples/PreModelHookResponse/allow.json)
 // Example: [deny](../examples/PreModelHookResponse/deny.json)
 // Example: [transform](../examples/PreModelHookResponse/transform.json)
 /** pre_model_call response. */
+@jsonSchema
+@summary("Agent Hooks pre_model_call response")
 model PreModelHookResponse is HookResponse<Verdict<PreModelHookTransform>>;
 
 // Example: [allow](../examples/PostModelHookResponse/allow.json)
 // Example: [deny](../examples/PostModelHookResponse/deny.json)
 // Example: [transform](../examples/PostModelHookResponse/transform.json)
 /** post_model_call response. */
+@jsonSchema
+@summary("Agent Hooks post_model_call response")
 model PostModelHookResponse is HookResponse<Verdict<PostModelHookTransform>>;
 
 // Example: [allow](../examples/PreToolHookResponse/allow.json)
 // Example: [deny](../examples/PreToolHookResponse/deny.json)
 // Example: [transform](../examples/PreToolHookResponse/transform.json)
 /** pre_tool_call response. */
+@jsonSchema
+@summary("Agent Hooks pre_tool_call response")
 model PreToolHookResponse is HookResponse<Verdict<PreToolHookTransform>>;
 
 // Example: [allow](../examples/PostToolHookResponse/allow.json)
 // Example: [deny](../examples/PostToolHookResponse/deny.json)
 // Example: [transform](../examples/PostToolHookResponse/transform.json)
 /** post_tool_call response. */
+@jsonSchema
+@summary("Agent Hooks post_tool_call response")
 model PostToolHookResponse is HookResponse<Verdict<PostToolHookTransform>>;
 
 // Example: [allow](../examples/OutputHookResponse/allow.json)
 // Example: [deny](../examples/OutputHookResponse/deny.json)
 // Example: [transform](../examples/OutputHookResponse/transform.json)
 /** output response. */
+@jsonSchema
+@summary("Agent Hooks output response")
 model OutputHookResponse is HookResponse<Verdict<OutputHookTransform>>;
 
 // Example: [allow](../examples/AgentShutdownHookResponse/allow.json)
 // Example: [deny](../examples/AgentShutdownHookResponse/deny.json)
 /** agent_shutdown response: transforms are forbidden. */
+@jsonSchema
+@summary("Agent Hooks agent_shutdown response")
 model AgentShutdownHookResponse is HookResponse<NonTransformVerdict>;

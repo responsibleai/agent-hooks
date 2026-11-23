@@ -1,0 +1,176 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://responsibleai.github.io/agent-hooks/schema/draft/InputRequest.json",
+    "type": "object",
+    "properties": {
+        "spec": {
+            "type": "string",
+            "const": "agent-hooks/draft",
+            "description": "This version's wire string (§4.1). A released version's contexts\ncarry that version's own string, agent-hooks/<major>.<minor>."
+        },
+        "timestamp": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "sequence": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "agent": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "framework": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9_-]+$"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "id",
+                "framework"
+            ]
+        },
+        "session": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "turn": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            },
+            "required": [
+                "id"
+            ]
+        },
+        "trace": {
+            "type": "object",
+            "properties": {
+                "trace_id": {
+                    "type": "string"
+                },
+                "span_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "tenant": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "actor": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/$defs/ActorKind"
+                }
+            }
+        },
+        "budgets": {
+            "type": "object",
+            "properties": {
+                "tool_call_count": {
+                    "type": "number"
+                },
+                "token_count": {
+                    "type": "number"
+                },
+                "elapsed_seconds": {
+                    "type": "number"
+                },
+                "cost_usd": {
+                    "type": "number"
+                }
+            }
+        },
+        "interception_point": {
+            "type": "string",
+            "const": "input"
+        },
+        "extensions": {
+            "$ref": "#/$defs/Extensions"
+        },
+        "input": {
+            "type": "object",
+            "properties": {
+                "content": {},
+                "role": {
+                    "$ref": "#/$defs/InputRole"
+                }
+            },
+            "required": [
+                "content",
+                "role"
+            ],
+            "unevaluatedProperties": {
+                "not": {}
+            }
+        }
+    },
+    "required": [
+        "spec",
+        "timestamp",
+        "sequence",
+        "agent",
+        "session",
+        "interception_point",
+        "input"
+    ],
+    "description": "Candidate request at input, with a closed required payload.",
+    "title": "Agent Hooks input request",
+    "$defs": {
+        "ActorKind": {
+            "type": "string",
+            "enum": [
+                "human",
+                "service",
+                "agent"
+            ],
+            "description": "Who acts (§4.5)."
+        },
+        "Extensions": {
+            "type": "object",
+            "properties": {},
+            "unevaluatedProperties": {},
+            "description": "Namespaced extensions (§4.6): any value under a key that follows the\nnamespace rule.",
+            "propertyNames": {
+                "pattern": "^[a-z][a-z0-9_]*$"
+            }
+        },
+        "InputRole": {
+            "type": "string",
+            "enum": [
+                "user",
+                "system",
+                "external"
+            ],
+            "description": "Who produced an input (§4.2)."
+        }
+    }
+}

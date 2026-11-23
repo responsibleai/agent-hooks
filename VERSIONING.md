@@ -84,7 +84,7 @@ in its own spelling:
 | Rust `agent-hooks-sdk` | `sdk/rust/Cargo.toml` | SemVer, `0.1.0-alpha.5` |
 | Python `agent-hooks-sdk` | `sdk/python/pyproject.toml` | PEP 440, `0.1.0a5` |
 | TypeScript `@responsibleai/agent-hooks` | `sdk/typescript/package.json` | SemVer |
-| .NET `ResponsibleAI.AgentHooks` | `sdk/dotnet/Directory.Build.props` | SemVer |
+| .NET `ResponsibleAI.AgentHooks` | `sdk/csharp/Directory.Build.props` | SemVer |
 
 `scripts/check-version-consistency.py` (CI `lint` job) fails when
 they disagree. In the release workflow, `--release-tag TAG` also requires

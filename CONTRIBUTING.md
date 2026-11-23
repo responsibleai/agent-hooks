@@ -98,23 +98,27 @@ and heading references.
 ## Schema source
 
 Each specification folder's JSON Schemas under `spec/<version>/schema/generated/`
-are generated from the source in `spec/<version>/schema/src/`: TypeSpec
-in the draft, and the original TypeScript in the frozen 0.1 bundle. Edit
+are generated from TypeSpec in `spec/<version>/schema/src/`, except for
+the frozen 0.1 bundle, whose committed artifacts and historical TypeScript
+source are retained without regeneration. Edit
 only `spec/draft/schema/src/`; the generator targets `draft` unless
 `--spec <version>` names another folder. The `lint` job runs the drift
 check for the draft and, with `--spec`, for every released bundle that
-has `schema/src/`, so a frozen source keeps generating its frozen
+has `schema/src/main.tsp`, so a frozen TypeSpec source keeps generating its frozen
 output. The JSON stays the normative artifact: it is
 what validators, the conformance kit and the SDK mirrors consume. Do not
 edit it by hand; the `lint` and `drift` checks fail on any byte that
 differs from the generated text.
 
-- Draft sources are TypeSpec models, enums, scalars and unions:
+- Draft payload sources are TypeSpec models, enums, scalars and unions:
   `agent-context.tsp`, `verdict.tsp`, `hook-responses.tsp`, `approval.tsp`,
   `interception-record.tsp`, `host-declaration.tsp`, plus shared types.
-  `main.tsp` imports the bundle's sources. The generator selects one public
-  root per compilation with `@@jsonSchema`, so the native emitter embeds
-  dependencies in each standalone document. The generator loads
+  `operations.tsp` pairs the existing requests and responses in transport-neutral
+  interceptor and approval-resolver interfaces; it does not define HTTP routes.
+  `main.tsp` imports the bundle's sources; public roots use `@jsonSchema`.
+  One native compilation emits the whole schema graph:
+  public roots reference sibling documents and private dependencies use `$defs`.
+  The generator loads
   `@typespec/json-schema` from `spec/scripts` and emits Draft 2020-12
   directly. Use Node.js 22 or later for this tooling.
 - Use `integer` for integer fields and `float64` for fractional values,
@@ -122,32 +126,37 @@ differs from the generated text.
   `@minLength`, `@maxLength`, `@minItems`, `@maxItems` and `@uniqueItems`
   for other constraints. Optional properties use `?`; nullable values
   explicitly include `| null`. Close individual models with
-  `@extension("additionalProperties", false)`, not global object sealing.
+  `...Record<never>`, not global object sealing. Use `Record<unknown>` for
+  explicitly open objects.
 - A rule one member decides is a discriminated union: verdicts by
   `decision`, agent contexts by `interception_point`, approval
   resolutions by `outcome`, the declared surface by `buffered_output`.
   A rule the type system cannot state is JSON Schema in
   `@extension("allOf", #[...])`; extension namespace keys use
   `@extension("propertyNames", #{...})`. Defaults remain schema annotations
-  through `@extension("default", value)`, not runtime default insertion.
-- `spec/scripts/typespec-schemas.mts` invokes the native emitter in memory,
-  preserving published identities. Approval's definitions-only document
-  uses a temporary model to collect its public fragments, then discards
-  that model's instance shape. `generate-schemas.mts` derives the per-point
-  `generated/strict-contexts/*.schema.json` files from the master union.
-  It retains the legacy TypeScript generator for released bundles.
+  through native property defaults (`property?: Type = value`), not runtime
+  default insertion.
+- `spec/draft/schema/tspconfig.yaml` configures the native JSON Schema emitter.
+  Public roots, titles and the schema base URI live in TypeSpec source.
+  Output is unmodified native `generated/<Type>.json`, including
+  `ApprovalRequest.json` and `ApprovalResolution.json`, not approval fragments.
+  Per-hook `*Request.json` models explicitly close required object payloads;
+  the `AgentContext` union, request metadata, array elements and response
+  replacements retain their open shapes. Identity hashing still uses its
+  separate required-field projection, not schema-driven object sealing.
+  There is no legacy TypeScript generator; 0.1 schemas remain committed and immutable.
 
 ```bash
 pnpm install
-pnpm run generate:schema      # write spec/draft/schema/generated/**/*.schema.json
+pnpm run generate:schema      # write spec/draft/schema/generated/*.json
 pnpm run check:schema         # compile the source, then fail on any drift
 pnpm run check:schema:equivalence --old origin/main   # differential validation against another revision
 ```
 
 After a change, regenerate. The Python mirror holds one folder per
 supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`
-and `schema/draft/`), each with that bundle's generated schemas and the
-per-point context schemas under `agent-context/`. The `schema-drift`
+and `schema/draft/`). Legacy mirrors keep per-point schemas under
+`agent-context/`; native mirrors retain the emitter's filenames. The `schema-drift`
 workflow runs `spec-draft-generated-schema-check`,
 `python-released-schema-mirror`, and `python-ctk-vector-mirror` as
 separate hard checks. `python-draft-schema-mirror` regenerates the draft
@@ -196,13 +205,13 @@ cd sdk/python && maturin develop --release && python -m pytest tests/ && ruff ch
 pnpm install && pnpm --dir sdk/typescript test
 # .NET (needs the FFI cdylib on the library path)
 cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
-cd sdk/dotnet && LD_LIBRARY_PATH=../rust/target/release dotnet test
+cd sdk/csharp && LD_LIBRARY_PATH=../rust/target/release dotnet test
 # Go
 cd sdk/go && CGO_ENABLED=1 go test ./...
 ```
 
 For the protected Windows x64 FFI used by .NET/NuGet, follow the
-[Windows source-build instructions](sdk/dotnet/README.md#windows-x64-source-builds-and-release-checks).
+[Windows source-build instructions](sdk/csharp/README.md#windows-x64-source-builds-and-release-checks).
 That artifact needs a pinned nightly compiler and a rebuilt, stack-protected
 standard library; a plain stable FFI build is not equivalent.
 

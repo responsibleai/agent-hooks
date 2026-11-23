@@ -29,7 +29,8 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
 
 2. Regenerate the copy's schemas under their own id path,
    `https://responsibleai.github.io/agent-hooks/schema/vX.Y/`. The
-   generator sets the base from `--spec`; a published path is
+   version cut sets the TypeSpec `@baseUri`; `--spec` selects the copied bundle.
+   A published path is
    immutable, so the staging of the site fails when two bundles bring
    different bytes to one path.
 
@@ -71,14 +72,13 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    pnpm --filter @agent-hooks/docs build
    for version in 0.1 draft; do
      root="spec/$version/schema/generated"
-     mapfile -t refs < <(find "$root" -name '*.schema.json' | sed 's/^/-r=/')
+     mapfile -t refs < <(find "$root" -name '*.json' | sed 's/^/-r=/')
      pnpm exec ajv validate --spec=draft2020 -c ajv-formats \
        -s "conformance/$version/vectors.schema.json" "${refs[@]}" \
        -d "conformance/$version/vectors/*.json"
    done
    cd spec/scripts
    node check-schema-examples.mjs
-   pnpm exec tsc -p ../X.Y/schema/src/tsconfig.json
    pnpm exec tsx generate-schemas.mts --check --spec X.Y
    ```
 
@@ -109,8 +109,10 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    git diff --stat v0.1.0-beta.3:spec/AGENT-HOOKS-0.1.md HEAD:spec/0.1/AGENT-HOOKS-0.1.md
    ```
 
-   The schemas are generated from `spec/0.1/schema/src/`, the draft
-   source with everything after 0.1 removed, and are instance-equivalent
+   The schemas were generated from `spec/0.1/schema/src/`, the draft
+   source with everything after 0.1 removed. The committed artifacts are
+   frozen and no longer regenerated; their bytes and URLs must remain unchanged.
+   They are instance-equivalent
    to the tag's hand-written schemas: the equivalence tool reports 0
    disagreements for every schema both sides have, and
    host-declaration-1.1 on neither side.
@@ -151,8 +153,8 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    - `sdk/typescript/Cargo.toml`, `sdk/typescript/Cargo.lock`,
      `sdk/typescript/package.json`,
      `sdk/typescript/npm/*/package.json`
-   - `sdk/dotnet/Directory.Build.props` and
-     `sdk/dotnet/test/AgentHooks.Tests/packages.lock.json`
+   - `sdk/csharp/Directory.Build.props` and
+     `sdk/csharp/test/AgentHooks.Tests/packages.lock.json`
    - install pins in `README.md` and the per-SDK READMEs
 
    Run `pnpm install` from the repository root to refresh `pnpm-lock.yaml`
@@ -222,7 +224,7 @@ Windows DLL and the bundled payload. These checks do not establish a
 downstream consumer's security-policy acceptance.
 
 For local builds and checks, see the
-[Windows source-build instructions](sdk/dotnet/README.md#windows-x64-source-builds-and-release-checks).
+[Windows source-build instructions](sdk/csharp/README.md#windows-x64-source-builds-and-release-checks).
 Changing the nightly pin requires rerunning the native scan, gate regressions,
 Rust tests, .NET tests, package-consumer smoke and latency comparison.
 

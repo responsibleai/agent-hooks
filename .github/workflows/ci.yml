@@ -30,9 +30,9 @@ jobs:
             [ -d "${spec_dir}schema" ] || continue
             root="${spec_dir}schema/generated"
             [ -d "$root" ] || root="${spec_dir}schema"
-            mapfile -t schemas < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort)
+            mapfile -t schemas < <(find "$root" -name '*.json' -not -path '*/src/*' -not -path '*/examples/*' | sort)
             if [ "${#schemas[@]}" -eq 0 ]; then
-              echo "::error::$root holds no *.schema.json files"
+              echo "::error::$root holds no JSON Schema files"
               exit 1
             fi
             version=$(basename "$spec_dir")
@@ -75,7 +75,7 @@ jobs:
               echo "::error::$suite/vectors contains no vectors"
               exit 1
             fi
-            mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+            mapfile -t refs < <(find "$root" -name '*.json' -not -path '*/src/*' -not -path '*/examples/*' | sort | sed 's/^/-r=/')
             echo "Validating $suite/vectors against $root"
             pnpm exec ajv validate --spec=draft2020 -c ajv-formats \
               -s "$suite/vectors.schema.json" "${refs[@]}" \
@@ -253,15 +253,15 @@ jobs:
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore --locked-mode
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
       - run: dotnet format --no-restore --verify-no-changes
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
       - run: dotnet build --no-restore -warnaserror
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
       - name: Test (golden identity)
         # The required set: the Category=draft tests run in draft-tests.
         run: dotnet test test/AgentHooks.Tests/ --nologo --filter "Category!=draft"
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
 
@@ -274,7 +274,7 @@ jobs:
       - name: Build ffi cdylib
         run: cargo build --locked -p agent-hooks-ffi --release
         working-directory: sdk/rust
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with: { go-version: "1.22" }
       - name: Build and test
         run: |
@@ -334,7 +334,7 @@ jobs:
         if: runner.os != 'Windows'
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore --locked-mode
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
       - name: Expose native library to the per-OS loader
         # GITHUB_PATH covers the Windows DLL search path; the *_LIBRARY_PATH
         # vars cover the ELF/Mach-O loaders. Native.cs has no custom
@@ -343,7 +343,7 @@ jobs:
         run: echo "${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}" >> "$GITHUB_PATH"
       - name: Test
         run: dotnet test test/AgentHooks.Tests/ --nologo --filter "Category!=draft"
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
@@ -367,7 +367,7 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with: { dotnet-version: "8.0.x" }
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with: { go-version: "1.22" }
       - name: Draft suite vectors validate against the draft schemas
         id: vectors
@@ -375,7 +375,7 @@ jobs:
         run: |
           set -eu
           mapfile -t vectors < <(python3 scripts/vectors-for-bundle.py list draft)
-          mapfile -t refs < <(find spec/draft/schema/generated -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+          mapfile -t refs < <(find spec/draft/schema/generated -name '*.json' | sort | sed 's/^/-r=/')
           data=()
           for v in "${vectors[@]}"; do data+=(-d "$v"); done
           pnpm exec ajv validate --spec=draft2020 -c ajv-formats -s conformance/draft/vectors.schema.json "${refs[@]}" "${data[@]}"
@@ -412,7 +412,7 @@ jobs:
         run: |
           dotnet restore --locked-mode
           dotnet test test/AgentHooks.Tests/ --nologo --filter "Category=draft"
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
       - name: Go draft suite tests
@@ -477,13 +477,13 @@ jobs:
       - name: Repository script regression tests
         run: python3 -m unittest discover -s scripts -p "test_*.py" -v
       - name: Committed JSON Schemas match their TypeSpec source
-        # Compiles spec/draft/schema/src, regenerates to memory and compares
+        # Compiles spec/draft/schema/src into a temporary directory and compares
         # with the committed files (spec/scripts/generate-schemas.mts).
         run: pnpm run check:schema
         working-directory: spec/scripts
-      - name: Released schema bundles match their source
-        # The same check for every spec/<MAJOR.MINOR>/ bundle: the frozen
-        # source must still generate the frozen output.
+      - name: Released TypeSpec schema bundles match their source
+        # Legacy 0.1 schemas stay committed and are never regenerated.
+        # Future TypeSpec releases must reproduce their frozen output.
         run: |
           set -eu
           version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
@@ -491,18 +491,15 @@ jobs:
           for dir in ../*/; do
             version=$(basename "$dir")
             [[ $version =~ $version_pattern ]] || continue
-            echo "Checking spec/$version/schema"
-            if [ -f "${dir}schema/src/tsconfig.json" ]; then
-              pnpm exec tsc -p "${dir}schema/src/tsconfig.json"
+            if [ ! -f "${dir}schema/src/main.tsp" ]; then
+              echo "Keeping frozen spec/$version/schema artifacts; no TypeSpec source"
+              continue
             fi
+            echo "Checking spec/$version/schema"
             pnpm exec tsx generate-schemas.mts --check --spec "$version"
             checked=$((checked + 1))
           done
-          if [ "$checked" -eq 0 ]; then
-            echo "::error::no released spec/<MAJOR.MINOR>/ folder found"
-            exit 1
-          fi
-          echo "checked $checked released bundle(s)"
+          echo "checked $checked released TypeSpec bundle(s)"
         working-directory: spec/scripts
       - name: Source files carry the standard file header
         run: python3 scripts/check-file-headers.py
@@ -605,7 +602,7 @@ jobs:
         shell: bash
         run: cargo build --locked -p agent-hooks-ffi --release --target ${{ matrix.target }}
         working-directory: sdk/rust
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with: { go-version: "1.22" }
       - name: Expose native library to the per-OS loader
         # GITHUB_PATH covers the Windows DLL search path (mirrors

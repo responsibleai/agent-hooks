@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 using TypeSpec.JsonSchema;
+@baseUri("https://responsibleai.github.io/agent-hooks/schema/draft/")
 namespace AgentHooks;
 
 /** Enforcement modes (§8). */
@@ -37,4 +38,4 @@ enum ConflictResolution {
 model Extensions is Record<unknown>;
 
 /** An open JSON object, not an arbitrary JSON value. */
-model JsonObject {}
+model JsonObject is Record<unknown>;

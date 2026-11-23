@@ -1277,7 +1277,7 @@ recorded by `substituted_for` on the slot's `verdicts` entry;
 A host MAY load its configuration (§7.1, §8, §10.1, §13.1), its
 declared surface (§13.1) and its interceptor bindings from one JSON
 document, the **host declaration**. The document is validated by
-`spec/draft/schema/generated/host-declaration.schema.json` and by the rules of this
+`spec/draft/schema/generated/HostDeclaration.json` and by the rules of this
 section, which the schema cannot express. It selects behaviour the
 host already implements. It MUST NOT add behaviour, load code, or
 widen the surface beyond what the host's code reports. A declaration
@@ -1762,7 +1762,7 @@ where:
   vectors in `conformance/golden/identity.json` pin the exact bytes.
 - `ctx_rc` is the **closed** required+conditional projection of `ctx`
   for its interception point: exactly the fields marked required in
-  the per-point schemas under `spec/draft/schema/generated/strict-contexts/`, including
+  the per-point `*Request.json` schemas under `spec/draft/schema/generated/`, including
   the nested subfield whitelists (`agent.{id,framework}`,
   `session.{id}`, `model.{id}`, `tool_call.{id,name,args}`,
   `tool_result.{value,is_error}`,
@@ -1850,7 +1850,7 @@ of the record.
   "verdicts": [ { "index": 0, "decision": "allow", "reason": "string", "name": "string",
                   "substituted_for": "host_error:interceptor_timeout" }, ... ], // substituted_for present iff a §6.3.1 continuation filled this slot
   "fold_truncated": false,
-  "resolved_by": "approval" | "rejection" | null,
+  "resolved_by": "approval" | "rejection",            // absent iff approval was never consulted
   "interceptors_registered": 0
 }
 ```

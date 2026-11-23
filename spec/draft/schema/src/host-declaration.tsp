@@ -47,8 +47,9 @@ enum OnError {
 }
 
 /** OPTIONAL and informative; never checked against code. */
-@extension("additionalProperties", false)
 model Host {
+  ...Record<never>;
+
   /** Same grammar as agent.framework (§4.1). */
   @pattern("^[a-z0-9_-]{1,64}$")
   name: string;
@@ -62,10 +63,10 @@ model Host {
  * §7.2. A knob the declared profile does not consult is refused, never cleared;
  * a consulted knob left unset takes the §7.2 default.
  */
-@extension("additionalProperties", false)
 model CompositionConfig {
-  @extension("default", "sequential/first_deny")
-  profile?: CompositionProfile;
+  ...Record<never>;
+
+  profile?: CompositionProfile = CompositionProfile.SequentialFirstDeny;
 
   /** Consulted by sequential/first_deny only; refused under any other profile (§7.7.3). */
   on_approval?: OnApproval;
@@ -77,8 +78,9 @@ model CompositionConfig {
   on_transform_conflict?: ConflictResolution;
 }
 
-@extension("additionalProperties", false)
 model ApprovalConfig {
+  ...Record<never>;
+
   /**
    * §9. A registered approval resolver by reference, or null: liftable denies
    * stay denies.
@@ -91,15 +93,16 @@ model ApprovalConfig {
   redactor?: string | null;
 }
 
-@extension("additionalProperties", false)
 model PostureConfig {
+  ...Record<never>;
+
   /** §13.1. Must equal the posture the host's code implements. */
-  @extension("default", "continue")
-  tool_seam_host_error?: ToolSeamHostError;
+  tool_seam_host_error?: ToolSeamHostError = ToolSeamHostError.Continue;
 }
 
-@extension("additionalProperties", false)
 model TimeoutsConfig {
+  ...Record<never>;
+
   /** §7 interceptor bound; default 5000. null means unbounded and must be written out. */
   interceptor_ms?: TimeoutMs;
 
@@ -107,8 +110,9 @@ model TimeoutsConfig {
   approval_resolver_ms?: TimeoutMs;
 }
 
-@extension("additionalProperties", false)
 model RecordsConfig {
+  ...Record<never>;
+
   /**
    * In-memory record buffer bound; null (the default) is unbounded. The maximum
    * is 2^53 - 1 so the resolved document always canonicalises (§4.4).
@@ -118,26 +122,26 @@ model RecordsConfig {
   max_buffered?: integer | null;
 }
 
-@extension("additionalProperties", false)
 model FailureConfig {
+  ...Record<never>;
+
   /**
    * §6.3.1. The document default every binding's on_error inherits. deny keeps
    * the §6.3 substituted deny; continue substitutes an allow carrying
    * host_warning:control_failed and records the cause in substituted_for.
    */
-  @extension("default", "deny")
-  on_error?: OnError;
+  on_error?: OnError = OnError.Deny;
 }
 
 /**
  * Host configuration (§7.1). Every member is OPTIONAL; defaults are the values
  * the specification already names and fail closed.
  */
-@extension("additionalProperties", false)
 model Configuration {
+  ...Record<never>;
+
   /** §8. */
-  @extension("default", "enforce")
-  mode?: Mode;
+  mode?: Mode = Mode.Enforce;
 
   composition?: CompositionConfig;
 
@@ -155,25 +159,29 @@ model Configuration {
   failure?: FailureConfig;
 }
 
-@extension("additionalProperties", false)
 model FirstDenySupport {
+  ...Record<never>;
+
   @uniqueItems
   @minItems(1)
   on_approval?: OnApproval[];
 }
 
-@extension("additionalProperties", false)
-model RunAllSupport {}
+model RunAllSupport {
+  ...Record<never>;
+}
 
-@extension("additionalProperties", false)
 model StrictestSupport {
+  ...Record<never>;
+
   @uniqueItems
   @minItems(1)
   on_transform_conflict?: ConflictResolution[];
 }
 
-@extension("additionalProperties", false)
 model UnanimousSupport {
+  ...Record<never>;
+
   @uniqueItems
   @minItems(1)
   on_disagreement?: ConflictResolution[];
@@ -184,8 +192,9 @@ model UnanimousSupport {
  * profile consults may appear; an absent knob member means the §7.2 default
  * value only.
  */
-@extension("additionalProperties", false)
 model ProfileSupport {
+  ...Record<never>;
+
   `sequential/first_deny`?: FirstDenySupport;
   `sequential/run_all`?: RunAllSupport;
   `parallel/strictest`?: StrictestSupport;
@@ -212,21 +221,20 @@ model SurfaceBase {
  * The surface of a host that buffers output (§12.1a), the default:
  * exposure_bound is absent.
  */
-@extension("additionalProperties", false)
 model BufferedSurface {
+  ...Record<never>;
   ...SurfaceBase;
 
   /** §12.1a. false must be declared explicitly and requires exposure_bound. */
-  @extension("default", true)
-  buffered_output?: true;
+  buffered_output?: true = true;
 }
 
 /**
  * The surface of a host that streams output (§12.1a): buffered_output is
  * written as false and exposure_bound is present.
  */
-@extension("additionalProperties", false)
 model UnbufferedSurface {
+  ...Record<never>;
   ...SurfaceBase;
 
   /** §12.1a. false must be declared explicitly and requires exposure_bound. */
@@ -245,8 +253,9 @@ union Surface {
 }
 
 /** One interceptor binding (§7.7.4). */
-@extension("additionalProperties", false)
 model Binding {
+  ...Record<never>;
+
   /** Unique in the array; stamped on verdicts[].name (§10.3). */
   id: Reference;
 
@@ -302,8 +311,10 @@ model Binding {
  * registered names) live in the loader (§7.7.6).
  */
 @summary("Agent Hooks — host declaration document (agent-hooks/draft)")
-@extension("additionalProperties", false)
+@jsonSchema
 model HostDeclaration {
+  ...Record<never>;
+
   configuration?: Configuration;
 
   /**

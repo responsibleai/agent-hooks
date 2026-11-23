@@ -106,7 +106,7 @@ describe("specification bundles", () => {
     bundle("0.3", "v0.2", "changed");
     assert.throws(
       () => schemaFiles(root),
-      /spec\/0\.3\/reserved-reasons\.json and spec\/0\.2\/reserved-reasons\.json both publish schema\/v0\.2\/reserved-reasons\.json.*ID_BASE/,
+      /spec\/0\.3\/reserved-reasons\.json and spec\/0\.2\/reserved-reasons\.json both publish schema\/v0\.2\/reserved-reasons\.json.*@baseUri/,
     );
   });
 

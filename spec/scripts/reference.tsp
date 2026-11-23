@@ -32,15 +32,23 @@ using AgentHooks.Docs;
 @@category(AgentHooks.OutputRequest, Categories.Requests);
 @@category(AgentHooks.AgentShutdownRequest, Categories.Requests);
 @@category(AgentHooks.AgentContext, Categories.Requests);
+@@category(AgentHooks.AgentStartupContext, Categories.Requests);
+@@category(AgentHooks.InputContext, Categories.Requests);
+@@category(AgentHooks.PreModelCallContext, Categories.Requests);
+@@category(AgentHooks.PostModelCallContext, Categories.Requests);
+@@category(AgentHooks.PreToolCallContext, Categories.Requests);
+@@category(AgentHooks.PostToolCallContext, Categories.Requests);
+@@category(AgentHooks.OutputContext, Categories.Requests);
+@@category(AgentHooks.AgentShutdownContext, Categories.Requests);
 
 @@category(AgentHooks.LiftableDeny, Categories.Approval);
-@@category(AgentHooks.request, Categories.Approval);
+@@category(AgentHooks.ApprovalRequest, Categories.Approval);
 @@category(AgentHooks.Outcome, Categories.Approval);
 @@category(AgentHooks.ResolutionBase, Categories.Approval);
 @@category(AgentHooks.ApproveResolution, Categories.Approval);
 @@category(AgentHooks.RejectResolution, Categories.Approval);
 @@category(AgentHooks.UnresolvedResolution, Categories.Approval);
-@@category(AgentHooks.resolution, Categories.Approval);
+@@category(AgentHooks.ApprovalResolution, Categories.Approval);
 
 @@category(AgentHooks.Mode, Categories.Common);
 @@category(AgentHooks.CompositionProfile, Categories.Common);

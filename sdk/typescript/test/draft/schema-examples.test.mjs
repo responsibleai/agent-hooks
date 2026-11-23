@@ -8,6 +8,8 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "n
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import Ajv2020 from "ajv/dist/2020.js";
+import addFormats from "ajv-formats";
 import {
   bundleSchemaRoot,
   bundles,
@@ -44,7 +46,6 @@ async function flatFixture(t) {
   for (const entry of await readdir(path.join(schemaRoot, "generated"), { withFileTypes: true })) {
     if (entry.isFile()) await cp(path.join(schemaRoot, "generated", entry.name), path.join(root, entry.name));
   }
-  await cp(path.join(schemaRoot, "generated/strict-contexts"), path.join(root, "agent-context"), { recursive: true });
   await cp(path.join(schemaRoot, "examples"), path.join(root, "examples"), { recursive: true });
   return root;
 }
@@ -124,7 +125,67 @@ test("edits to one bundle's examples do not affect another bundle", async (t) =>
 test("invalid draft-only examples still fail validation", async (t) => {
   const root = await fixture(t);
   await write(root, "examples/Verdict/draft-only.json", { decision: "invalid" });
-  await assert.rejects(validateExamples(root), /draft-only.json.*verdict.schema.json/);
+  await assert.rejects(validateExamples(root), /draft-only.json.*HookResponse.json/);
+});
+
+test("draft verdict metadata may be omitted or typed, but not null", async (t) => {
+  const root = await fixture(t);
+  const filename = "examples/Verdict/optional-metadata.json";
+  await write(root, filename, { decision: "allow" });
+  assert.ok(await validateExamples(root) > 0);
+
+  const verdict = {
+    decision: "allow",
+    reason: "policy:checked",
+    message: "Policy checked",
+    warnings: [{ reason: "policy:notice", message: "Review suggested" }],
+    evidence: { artefact: "sha256:abc" },
+    result_labels: ["reviewed"],
+  };
+  await write(root, filename, verdict);
+  assert.ok(await validateExamples(root) > 0);
+  await write(root, filename, { decision: "allow", warnings: [{}], evidence: {}, result_labels: [] });
+  assert.ok(await validateExamples(root) > 0);
+
+  const invalid = [
+    ...["reason", "message", "warnings", "result_labels"].map((field) => ({ ...verdict, [field]: null })),
+    ...["reason", "message"].map((field) => ({
+      ...verdict, warnings: [{ ...verdict.warnings[0], [field]: null }],
+    })),
+    { ...verdict, evidence: { artefact: null } },
+  ];
+  for (const instance of invalid) {
+    await write(root, filename, instance);
+    await assert.rejects(validateExamples(root), /optional-metadata.json.*HookResponse.json/);
+  }
+});
+
+test("draft records omit absent metadata while retaining meaningful nulls", async (t) => {
+  const root = await fixture(t);
+  const filename = "examples/InterceptionRecord/optional-metadata.json";
+  const record = JSON.parse(await readFile(path.join(root, "examples/InterceptionRecord/allow.json"), "utf8"));
+  assert.equal(record.identity_provider, null);
+  assert.equal(record.input_identity, null);
+  assert.equal(record.enforced_identity, null);
+  assert.equal(record.decided_by, null);
+  await write(root, filename, record);
+  assert.ok(await validateExamples(root) > 0);
+
+  const invalid = [
+    ...["reason", "message", "warnings", "result_labels"].map((field) => ({
+      ...record, verdict: { ...record.verdict, [field]: null },
+    })),
+    ...["reason", "message"].map((field) => ({
+      ...record, verdict: { ...record.verdict, warnings: [{ [field]: null }] },
+    })),
+    { ...record, verdict: { ...record.verdict, evidence: { artefact: null } } },
+    { ...record, verdicts: [{ index: 0, decision: "allow", reason: null }] },
+    { ...record, resolved_by: null },
+  ];
+  for (const instance of invalid) {
+    await write(root, filename, instance);
+    await assert.rejects(validateExamples(root), /optional-metadata.json.*InterceptionRecord.json/);
+  }
 });
 
 test("context targets equal their hook payloads, including optional-feature variants", async () => {
@@ -250,7 +311,7 @@ test("draft declarations use spec alone and reject legacy version fields", async
     { configuration: { failure: { on_error: "invalid" } } },
   ]) {
     await write(root, filename, { ...baseline, ...change });
-    await assert.rejects(validateExamples(root), /spec-only.json.*host-declaration.schema.json/);
+    await assert.rejects(validateExamples(root), /spec-only.json.*HostDeclaration.json/);
   }
   for (const on_error of ["deny", "continue"]) {
     await write(root, filename, {
@@ -260,7 +321,7 @@ test("draft declarations use spec alone and reject legacy version fields", async
     });
     assert.ok(await validateExamples(root) > 0);
   }
-  const schema = JSON.parse(await readFile(path.join(root, "generated/host-declaration.schema.json"), "utf8"));
+  const schema = JSON.parse(await readFile(path.join(root, "generated/HostDeclaration.json"), "utf8"));
   assert.equal(schema.$defs.FailureConfig.properties.on_error.default, "deny");
 });
 
@@ -270,7 +331,7 @@ test("draft interception records reject the removed declaration field", async (t
   const record = JSON.parse(await readFile(path.join(root, filename), "utf8"));
   assert.equal(record.declaration, undefined);
   await write(root, filename, { ...record, declaration: "agent-hooks-declaration/1.1" });
-  await assert.rejects(validateExamples(root), /allow.json.*interception-record.schema.json/);
+  await assert.rejects(validateExamples(root), /allow.json.*InterceptionRecord.json/);
 });
 
 test("every draft example is referenced by the draft TypeSpec schema source", async () => {
@@ -310,7 +371,7 @@ test("new mapped examples are included, including invalid ones", async (t) => {
   await write(root, "examples/Verdict/new.json", { decision: "allow" });
   assert.equal(await validateExamples(root), count + 1);
   await write(root, "examples/Verdict/new.json", { decision: "invalid" });
-  await assert.rejects(validateExamples(root), /new.json.*verdict.schema.json/);
+  await assert.rejects(validateExamples(root), /new.json.*HookResponse.json/);
 });
 
 test("new types, root-level files and nested files cannot be silently skipped", async (t) => {
@@ -344,7 +405,7 @@ test("invalid JSON fails with the file path", async (t) => {
   await assert.rejects(validateExamples(root), /new.json/);
 });
 
-test("each mapped type rejects invalid instances, including approval fragments", async (t) => {
+test("each mapped type rejects invalid instances, including approval roots", async (t) => {
   const root = await fixture(t);
   for (const name of Object.keys(schemaMapping)) {
     const filename = `examples/${name}/invalid.json`;
@@ -356,11 +417,11 @@ test("each mapped type rejects invalid instances, including approval fragments",
 
 test("contexts are also checked against the hook-specific schema", async (t) => {
   const root = await fixture(t);
-  const filename = "generated/strict-contexts/pre_tool_call.schema.json";
+  const filename = "generated/PreToolCallRequest.json";
   const schema = JSON.parse(await readFile(path.join(root, filename), "utf8"));
   schema.properties.sequence.const = 99;
   await write(root, filename, schema);
-  await assert.rejects(validateExamples(root), /strict-contexts\/pre_tool_call/);
+  await assert.rejects(validateExamples(root), /PreToolCallRequest.json/);
 });
 
 test("context date-time format is checked", async (t) => {
@@ -387,7 +448,7 @@ test("bare verdict and envelope example directories are not interchangeable", as
 
 test("unresolved references fail offline", async (t) => {
   const root = await fixture(t);
-  const filename = "generated/verdict.schema.json";
+  const filename = "generated/InputHookResponse.json";
   const schema = JSON.parse(await readFile(path.join(root, filename), "utf8"));
   schema.$ref = "https://unavailable.invalid/missing.schema.json";
   await write(root, filename, schema);
@@ -396,7 +457,7 @@ test("unresolved references fail offline", async (t) => {
 
 test("invalid schemas fail", async (t) => {
   const root = await fixture(t);
-  const filename = "generated/verdict.schema.json";
+  const filename = "generated/InputHookResponse.json";
   const schema = JSON.parse(await readFile(path.join(root, filename), "utf8"));
   schema.type = "not-a-json-type";
   await write(root, filename, schema);
@@ -405,7 +466,7 @@ test("invalid schemas fail", async (t) => {
 
 test("duplicate schema identities fail", async (t) => {
   const root = await fixture(t);
-  await cp(path.join(root, "generated/verdict.schema.json"), path.join(root, "generated/duplicate.schema.json"));
+  await cp(path.join(root, "generated/InputHookResponse.json"), path.join(root, "generated/duplicate.json"));
   await assert.rejects(validateExamples(root), /already exists/);
 });
 
@@ -417,4 +478,50 @@ test("empty example trees fail", async (t) => {
     }
   }
   await assert.rejects(validateExamples(root), /no JSON examples/);
+});
+
+test("native request schemas close required object payloads without closing context metadata or response replacements", async () => {
+  const ajv = new Ajv2020({ strict: false });
+  addFormats(ajv);
+  for (const filename of await readdir(path.join(schemaRoot, "generated"))) {
+    if (filename.endsWith(".json")) {
+      ajv.addSchema(JSON.parse(await readFile(path.join(schemaRoot, "generated", filename), "utf8")));
+    }
+  }
+  const base = "https://responsibleai.github.io/agent-hooks/schema/draft/";
+  const validate = (name, value) => {
+    const validator = ajv.getSchema(base + name + ".json");
+    assert.ok(validator, name);
+    return validator(value);
+  };
+  const payloads = {
+    "agent-startup.json": ["AgentStartupRequest", ["agent_init"]],
+    "input.json": ["InputRequest", ["input"]],
+    "pre-model-call.json": ["PreModelCallRequest", ["model"]],
+    "post-model-call.json": ["PostModelCallRequest", ["model", "response"]],
+    "pre-tool-call.json": ["PreToolCallRequest", ["tool_call"]],
+    "post-tool-call.json": ["PostToolCallRequest", ["tool_call", "tool_result"]],
+    "output.json": ["OutputRequest", ["output"]],
+    "agent-shutdown.json": ["AgentShutdownRequest", ["summary"]],
+  };
+  for (const [filename, [request, members]] of Object.entries(payloads)) {
+    const context = JSON.parse(await readFile(path.join(schemaRoot, "examples/AgentContext", filename), "utf8"));
+    assert.equal(validate(request, context), true, request);
+    assert.equal(validate(request, { ...context, extra: true, agent: { ...context.agent, extra: true } }), true, request);
+    for (const member of members) {
+      const mutant = { ...context, [member]: { ...context[member], extra: true } };
+      assert.equal(validate("AgentContext", mutant), true, `${request}.${member} context`);
+      assert.equal(validate(request, mutant), false, `${request}.${member} candidate`);
+    }
+  }
+  const context = JSON.parse(await readFile(path.join(schemaRoot, "examples/AgentContext/post-model-call.json"), "utf8"));
+  context.response.tool_calls.push({ name: "tool", args: {}, extra: true });
+  assert.equal(validate("PostModelCallRequest", context), true, "array elements remain open");
+  for (const [name, member, payload] of [
+    ["InputHookResponse", "input", { content: "x", role: "user", extra: true }],
+    ["PostModelHookResponse", "response", { ...context.response, extra: true }],
+    ["OutputHookResponse", "output", { content: "x", extra: true }],
+  ]) {
+    assert.equal(validate(name, { verdict: { decision: "transform", transform: { [member]: payload } } }), true, name);
+  }
 });

@@ -4,14 +4,15 @@ using TypeSpec.JsonSchema;
 namespace AgentHooks;
 
 /** Presence only; members are stripped by the projection. */
-@extension("additionalProperties", false)
-model ApprovalPresence {}
+model ApprovalPresence {
+  ...Record<never>;
+}
 
 /** Warning metadata retained in a payload-free record projection. */
-@extension("additionalProperties", false)
 model WarningProjection {
-  reason?: string | null;
-  message?: string | null;
+  ...Record<never>;
+  reason?: string;
+  message?: string;
 }
 
 /**
@@ -20,14 +21,14 @@ model WarningProjection {
  * 256 UTF-8 bytes.
  * warnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1).
  */
-@extension("additionalProperties", false)
 model VerdictProjection {
+  ...Record<never>;
   decision: Decision;
-  reason?: string | null;
-  message?: string | null;
-  warnings?: WarningProjection[] | null;
+  reason?: string;
+  message?: string;
+  warnings?: WarningProjection[];
   evidence?: Evidence;
-  result_labels?: string[] | null;
+  result_labels?: string[];
   approval?: ApprovalPresence;
 }
 
@@ -35,8 +36,8 @@ model VerdictProjection {
  * W3C Trace Context identifiers echoed from the context's optional trace block
  * (§4.5, §10.3).
  */
-@extension("additionalProperties", false)
 model Trace {
+  ...Record<never>;
   trace_id?: string;
   span_id?: string;
 }
@@ -49,13 +50,14 @@ enum SubstitutedFor {
 }
 
 /** Payload-free summary of one interceptor's verdict (§10.3). */
-@extension("additionalProperties", false)
 model VerdictSlot {
+  ...Record<never>;
+
   @minValue(0)
   index: integer;
 
   decision: Decision;
-  reason?: string | null;
+  reason?: string;
 
   /** Host-chosen payload-free registration identifier for the interceptor at index (§10.3). */
   name?: string;
@@ -90,7 +92,6 @@ enum ResolvedBy {
  * null when identity_provider is null (§10.3).
  */
 @summary("Agent Hooks — interception record")
-@extension("additionalProperties", false)
 @extension(
   "allOf",
   #[
@@ -125,7 +126,9 @@ enum ResolvedBy {
     }
   ]
 )
+@jsonSchema
 model InterceptionRecord {
+  ...Record<never>;
   interception_point: InterceptionPoint;
   mode: Mode;
   verdict: VerdictProjection;
@@ -171,8 +174,8 @@ model InterceptionRecord {
   decided_by?: integer | null;
 
   /** The composition profile and knobs in effect for this emission (§7.1). */
-  @extension("additionalProperties", false)
   composition: {
+    ...Record<never>;
     profile: CompositionProfile;
     on_approval?: OnApproval;
     on_disagreement?: ConflictResolution;
@@ -196,9 +199,9 @@ model InterceptionRecord {
   /**
    * Consultation outcome (§7.6, §10.3): "approval" iff a permit resolution
    * substituted for a verdict; "rejection" iff the seam was consulted and did not
-   * lift the deny; absent/null iff never consulted.
+   * lift the deny; absent iff never consulted.
    */
-  resolved_by?: ResolvedBy | null;
+  resolved_by?: ResolvedBy;
 
   /** Number of interceptors registered at emission time (§10.3). */
   @minValue(0)

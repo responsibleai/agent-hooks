@@ -2,24 +2,24 @@
 # Changes to any of these paths alter the wire contract or the
 # conformance definition and MUST NOT merge without review.
 
-/spec/                          @MohammadHaroonAbuomar @CaitieM20
-/conformance/                   @MohammadHaroonAbuomar @CaitieM20
-/SECURITY.md                    @MohammadHaroonAbuomar @CaitieM20
-/ARCHITECTURE.md                @MohammadHaroonAbuomar @CaitieM20
-/VERSIONING.md                  @MohammadHaroonAbuomar @CaitieM20
+/spec/                          @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/conformance/                   @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/SECURITY.md                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/ARCHITECTURE.md                @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/VERSIONING.md                  @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
 
 # The Rust core is the single implementation every SDK binds to.
-/sdk/rust/core/                 @MohammadHaroonAbuomar @CaitieM20
-/sdk/rust/ffi/                  @MohammadHaroonAbuomar @CaitieM20
+/sdk/rust/core/                 @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/sdk/rust/ffi/                  @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
 
 # Per-language SDK owners (bindings, packaging, CI for that language).
-/sdk/python/                    @MohammadHaroonAbuomar @CaitieM20
-/sdk/typescript/                @MohammadHaroonAbuomar @CaitieM20
-/sdk/dotnet/                    @MohammadHaroonAbuomar @CaitieM20
-/sdk/go/                        @MohammadHaroonAbuomar @CaitieM20
+/sdk/python/                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/sdk/typescript/                @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/sdk/csharp/                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/sdk/go/                        @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
 
-/.github/                       @MohammadHaroonAbuomar @CaitieM20
+/.github/                       @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
 
 # Catch-all: everything not matched above.
-*                               @MohammadHaroonAbuomar @CaitieM20
-/scripts/                       @MohammadHaroonAbuomar @CaitieM20
+*                               @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/scripts/                       @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin

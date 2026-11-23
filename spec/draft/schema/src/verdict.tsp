@@ -1,6 +1,5 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-using TypeSpec.JsonSchema;
 namespace AgentHooks;
 
 /** The three decisions (§5). */
@@ -11,8 +10,9 @@ enum Decision {
 }
 
 /** A recorded concern that does not affect control flow (§5.1). */
-@extension("additionalProperties", false)
 model Warning {
+  ...Record<never>;
+
   /**
    * Interceptor-supplied warning identifier. The host_error: prefix is reserved
    * for host-synthesized failures (§11) and host_warning: for host-synthesized
@@ -20,19 +20,20 @@ model Warning {
    * validation.
    */
   @pattern("^(?!host_error:|host_warning:).*")
-  reason?: string | null;
+  reason?: string;
 
-  message?: string | null;
+  message?: string;
 }
 
 /** Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14). */
 model VerificationPointers is Record<string>;
 
 /** Offline-verifiable evidence attached to a verdict (§14). */
-@extension("additionalProperties", false)
 model Evidence {
+  ...Record<never>;
+
   /** Content address (sha256:<hex>) or URI of an offline-verifiable proof. */
-  artefact?: string | null;
+  artefact?: string;
 
   verification_pointers?: VerificationPointers;
 }
@@ -44,17 +45,17 @@ model VerdictBase {
    * for host-synthesized failures (§11).
    */
   @pattern("^(?!host_error:).*")
-  reason?: string | null;
+  reason?: string;
 
   /** Human-readable text for the caller. */
-  message?: string | null;
+  message?: string;
 
   /**
    * Recorded concerns that do not affect control flow (§5.1). Permitted on any
    * decision; unioned across an emission's verdicts (§7.3). Reasons starting with
    * host_warning: are reserved for the host (§11.1).
    */
-  warnings?: Warning[] | null;
+  warnings?: Warning[];
 
   evidence?: Evidence;
 
@@ -62,15 +63,15 @@ model VerdictBase {
    * Interceptor-supplied labels the host MUST persist with the produced data and
    * resurface on later interception points (§5.4).
    */
-  result_labels?: string[] | null;
+  result_labels?: string[];
 }
 
 // Example: [allow](../examples/Verdict/allow.json)
 // Example: [with warning](../examples/Verdict/allow-with-warning.json)
 // Example: [with evidence](../examples/Verdict/allow-with-evidence.json)
 /** allow: proceed. Absorbs warn through warnings[] (§5.1). */
-@extension("additionalProperties", false)
 model AllowVerdict {
+  ...Record<never>;
   ...VerdictBase;
   decision: Decision.Allow;
 }
@@ -78,8 +79,8 @@ model AllowVerdict {
 // Example: [deny](../examples/Verdict/deny.json)
 // Example: [with approval](../examples/Verdict/deny-with-approval.json)
 /** deny: stop the action. Absorbs escalate through the approval block (§5.1). */
-@extension("additionalProperties", false)
 model DenyVerdict {
+  ...Record<never>;
   ...VerdictBase;
   decision: Decision.Deny;
 
@@ -97,8 +98,8 @@ model DenyVerdict {
 // Example: [args](../examples/Verdict/transform-tool-args.json)
 // Example: [value](../examples/Verdict/transform-tool-result.json)
 /** transform: proceed with the hook-specific replacement payload. */
-@extension("additionalProperties", false)
 model TransformVerdict<TTransform> {
+  ...Record<never>;
   ...VerdictBase;
   decision: Decision.Transform;
   transform: TTransform;

@@ -18,7 +18,7 @@ public sealed class GoldenIdentityTests
 
     private static JsonArray LoadFixtures()
     {
-        // sdk/dotnet/test/AgentHooks.Tests/ -> repo root
+        // sdk/csharp/test/AgentHooks.Tests/ -> repo root
         var here = Path.GetDirectoryName(typeof(GoldenIdentityTests).Assembly.Location)!;
         var root = Path.GetFullPath(Path.Combine(here, "..", "..", "..", "..", "..", "..", ".."));
         var doc = JsonNode.Parse(
