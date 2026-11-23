@@ -13,12 +13,15 @@ internal static class Schemas
     private static readonly EvaluationOptions Flag = new() { RequireFormatValidation = true };
     private static readonly EvaluationOptions List = new() { RequireFormatValidation = true, OutputFormat = OutputFormat.List };
 
-    // Built together so cross-document $refs resolve; building registers each $id globally, so it happens once.
+    // Built together against a private registry so cross-document $refs resolve without mutating SchemaRegistry.Global.
     private static readonly Lazy<IReadOnlyDictionary<string, JsonSchema>> All = new(() =>
-        typeof(Schemas).Assembly.GetManifestResourceNames()
+    {
+        var options = new BuildOptions { SchemaRegistry = new SchemaRegistry() };
+        return typeof(Schemas).Assembly.GetManifestResourceNames()
             .Where(n => n.StartsWith(Prefix, StringComparison.Ordinal))
             .Select(n => n[Prefix.Length..^".json".Length])
-            .ToDictionary(n => n, n => JsonSchema.FromText(Document(n).ToJsonString()), StringComparer.Ordinal));
+            .ToDictionary(n => n, n => JsonSchema.FromText(ReadText(n), options), StringComparer.Ordinal);
+    });
 
     /// <summary>True when <paramref name="value"/> satisfies the schema generated for the TypeSpec model <paramref name="schema"/>.</summary>
     internal static bool IsValid(JsonNode? value, string schema) => IsValid(Contract.Element(value), schema);
@@ -44,11 +47,14 @@ internal static class Schemas
     }
 
     /// <summary>The raw schema document, for structural walks.</summary>
-    internal static JsonObject Document(string name)
+    internal static JsonObject Document(string name) => JsonNode.Parse(ReadText(name))!.AsObject();
+
+    private static string ReadText(string name)
     {
         using var stream = typeof(Schemas).Assembly.GetManifestResourceStream($"{Prefix}{name}.json")
             ?? throw new InvalidOperationException($"Missing generated schema: {name}.");
-        return JsonNode.Parse(stream)!.AsObject();
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 
     private static JsonSchema Load(string schema) =>

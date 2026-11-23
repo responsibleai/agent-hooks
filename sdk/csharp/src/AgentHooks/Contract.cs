@@ -19,8 +19,9 @@ internal static class Contract
     public static JsonObject ToJson<T>(T value) where T : notnull
     {
         ValidateUnicode(value);
-        return JsonSerializer.SerializeToNode(value, value.GetType(), Options)?.AsObject()
-            ?? throw new JsonException("Contract values serialize to JSON objects.");
+        return JsonSerializer.SerializeToNode(value, value.GetType(), Options) is JsonObject obj
+            ? obj
+            : throw new JsonException("Contract values serialize to JSON objects.");
     }
 
     /// <summary>Reads a generated contract value from its wire JSON.</summary>
@@ -54,17 +55,8 @@ internal static class Contract
             case string text:
                 Jcs.CheckUnicode(text);
                 return;
-            case char ch:
-                if (char.IsSurrogate(ch)) throw new JsonException("lone surrogate");
-                return;
-            case Uri uri:
-                Jcs.CheckUnicode(uri.OriginalString);
-                return;
             case JsonElement element:
                 ValidateElementUnicode(element);
-                return;
-            case JsonDocument document:
-                ValidateElementUnicode(document.RootElement);
                 return;
             case JsonObject obj:
                 if (!visited.Add(obj)) return;
@@ -80,18 +72,13 @@ internal static class Contract
                 return;
             case JsonValue jsonValue:
                 if (jsonValue.TryGetValue(out string? str)) Jcs.CheckUnicode(str);
-                else if (jsonValue.TryGetValue(out char c))
-                {
-                    if (char.IsSurrogate(c)) throw new JsonException("lone surrogate");
-                }
                 else if (jsonValue.TryGetValue(out JsonElement el)) ValidateElementUnicode(el);
                 else if (jsonValue.TryGetValue(out object? raw) && raw is not JsonValue) ValidateUnicode(raw, visited);
                 return;
         }
 
         var type = value.GetType();
-        if (type.IsPrimitive || type.IsEnum ||
-            value is decimal or BigInteger or DateTime or DateTimeOffset or TimeSpan or Guid)
+        if (type.IsPrimitive || type.IsEnum || value is decimal or BigInteger)
             return;
 
         if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Optional<>))
