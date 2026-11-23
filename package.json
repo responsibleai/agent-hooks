@@ -10,11 +10,12 @@
     "@typespec/compiler": "1.18.0",
     "@typespec/json-schema": "1.18.0",
     "ajv-cli": "5.0.0",
-    "ajv-formats": "3.0.1"
+    "ajv-formats": "3.0.1",
+    "rimraf": "6.1.4"
   },
   "scripts": {
     "build:emitters": "pnpm --filter \"./emitters/*\" run build",
-    "clean:schema": "node -e \"fs.rmSync('spec/draft/schema/generated', { recursive: true, force: true })\"",
+    "clean:schema": "rimraf spec/draft/schema/generated",
     "generate": "pnpm run build:emitters && pnpm run clean:schema && tsp compile spec/draft",
     "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"
   }
