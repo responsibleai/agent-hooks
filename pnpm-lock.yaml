@@ -191,9 +191,6 @@ importers:
       ajv-formats:
         specifier: 3.0.1
         version: 3.0.1
-      rimraf:
-        specifier: 6.1.4
-        version: 6.1.4
 
   docs-site:
     dependencies:
@@ -236,6 +233,18 @@ importers:
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
+
+  spec/draft:
+    devDependencies:
+      '@typespec/compiler':
+        specifier: 1.18.0
+        version: 1.18.0(@types/node@26.6.6)
+      '@typespec/json-schema':
+        specifier: 1.18.0
+        version: 1.18.0(@typespec/compiler@1.18.0(@types/node@26.6.6))
+      rimraf:
+        specifier: 6.1.4
+        version: 6.1.4
 
   spec/scripts:
     devDependencies:

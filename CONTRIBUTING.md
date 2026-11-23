@@ -99,8 +99,9 @@ differs from the generated text.
   `schema/src/main.tsp` imports the bundle's sources; public roots use `@jsonSchema`.
   One native compilation emits the whole schema graph:
   public roots reference sibling documents and private dependencies use `$defs`.
-  `@typespec/json-schema`, installed at the repository root, emits Draft
-  2020-12 directly. Use Node.js 22 or later for this tooling.
+  `@typespec/json-schema` emits Draft 2020-12 directly. It is a dependency
+  of `spec/draft/package.json` and, for the released bundles, of the
+  repository root. Use Node.js 22 or later for this tooling.
 - Use `integer` for integer fields and `float64` for fractional values,
   `@minValue`/`@maxValue` for numeric bounds, and `@pattern`, `@format`,
   `@minLength`, `@maxLength`, `@minItems`, `@maxItems` and `@uniqueItems`
@@ -119,8 +120,9 @@ differs from the generated text.
 - `spec/draft/main.tsp` and `spec/draft/tspconfig.yaml` are the single
   compilation entry point for every draft output: the native JSON Schema
   emitter and any language emitter under `emitters/`
-  ([emitters/README.md](emitters/README.md)). `pnpm generate` builds the
-  emitters, then runs `tsp compile spec/draft` once.
+  ([emitters/README.md](emitters/README.md)). `spec/draft` is a private
+  workspace package, `@agent-hooks/spec-draft`, that depends on every
+  emitter; `pnpm generate` runs its `build` script after the emitters'.
   Public roots, titles and the schema base URI live in TypeSpec source.
   Output is unmodified native `generated/<Type>.json`, including
   `ApprovalRequest.json` and `ApprovalResolution.json`, not approval fragments.
@@ -133,14 +135,15 @@ differs from the generated text.
 ```bash
 pnpm install
 pnpm generate                 # build emitters/*, then regenerate every draft output
+pnpm check:changes            # on a clean tree: fail on any changed, new or deleted file, as CI does
 pnpm run check:schema:equivalence --old origin/main   # differential validation against another revision
 ```
 
 Every generated folder is rebuilt from scratch, so output for a removed type
-disappears: each language emitter empties its own output folder, and
-`pnpm generate` clears `spec/draft/schema/generated/` (the JSON Schema emitter
-never deletes) before compiling. The `drift` job checks the JSON Schemas; each
-SDK's CI checks its own emitter's output.
+disappears: each language emitter empties its own output folder, and the
+`spec/draft` build clears `spec/draft/schema/generated/` (the JSON Schema
+emitter never deletes) before compiling. The `drift` job runs
+`pnpm generate && pnpm check:changes`, which checks every draft output.
 
 After a change, regenerate. The Python mirror holds one folder per
 supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`

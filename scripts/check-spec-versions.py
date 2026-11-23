@@ -108,7 +108,14 @@ def walk(root: Path) -> list[Path]:
     """Every entry below root, without following symbolic links."""
     entries: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
-        if Path(dirpath) == root / "scripts" and "node_modules" in dirnames:
+        # spec/scripts and spec/draft are workspace packages; pnpm installs
+        # their dependencies in place.
+        folder = Path(dirpath)
+        if (
+            folder.parent.name == "spec"
+            and folder.name in ("scripts", "draft")
+            and "node_modules" in dirnames
+        ):
             dirnames.remove("node_modules")
         for name in sorted(dirnames) + sorted(filenames):
             entries.append(Path(dirpath) / name)

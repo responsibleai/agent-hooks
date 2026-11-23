@@ -44,12 +44,14 @@ pnpm run check:schema:equivalence --old <git-ref>
 pnpm run check:schema:equivalence --old <git-ref> --structural-diff
 ```
 
-`pnpm generate` builds every package under `emitters/`, clears `generated/`
-(the JSON Schema emitter never deletes stale files), then runs the native CLI,
-`tsp compile spec/draft`; nothing parses or transforms emitted JSON.
+`pnpm generate` builds every package under `emitters/`, then the `build`
+script of `spec/draft/package.json`: it clears `generated/` (the JSON Schema
+emitter never deletes stale files), then runs the native CLI, `tsp compile .`;
+nothing parses or transforms emitted JSON.
 `tsp compile spec/X.Y --emit @typespec/json-schema` regenerates a released
-TypeSpec bundle. The `drift` check regenerates the schemas the same way, then
-fails on any changed, new or deleted file and prints the diff. Legacy 0.1 artifacts stay committed and are
+TypeSpec bundle. The `drift` check runs `pnpm generate`, then
+`pnpm check:changes`, which fails on any changed, new or deleted file and
+prints the diff. Legacy 0.1 artifacts stay committed and are
 not regenerated; that bundle has no `main.tsp` to compile.
 Equivalence checks map old and native public roots for comparison and include
 the draft's actual examples among their mutation seeds.

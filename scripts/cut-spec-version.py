@@ -3,7 +3,8 @@
 
 """Cut a specification version from the draft.
 
-Copies spec/draft/ to spec/<MAJOR.MINOR>/, renames the text to
+Copies spec/draft/ to spec/<MAJOR.MINOR>/, without the draft's
+workspace package (package.json, node_modules/), renames the text to
 AGENT-HOOKS-<MAJOR.MINOR>.md, sets its title and header to Released,
 the version and the date, and drops the draft banner. In every text
 file of the copy it rewrites the spec/draft/ self-references to the new
@@ -40,6 +41,10 @@ HEADER = re.compile(
 DRAFT_WIRE = "agent-hooks/draft"
 ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"
 TEXT_SUFFIXES = {".md", ".json", ".ts", ".tsp", ".abnf", ".txt"}
+# spec/draft is the workspace package that runs every emitter. A released
+# copy is not a package: a second package of the same name would break the
+# workspace, and only the JSON Schema emitter regenerates a release (#225).
+DRAFT_PACKAGE = {"package.json", "node_modules"}
 
 
 def released_text(draft_text: str, version: str, date: str) -> str:
@@ -76,7 +81,14 @@ def cut(root: Path, version: str, date: str) -> list[str]:
     if not draft_file.is_file():
         raise SystemExit(f"{draft_file} is missing")
 
-    shutil.copytree(draft, target, symlinks=False)
+    shutil.copytree(
+        draft,
+        target,
+        symlinks=False,
+        ignore=lambda directory, names: (
+            DRAFT_PACKAGE.intersection(names) if Path(directory) == draft else set()
+        ),
+    )
     (target / "AGENT-HOOKS-DRAFT.md").unlink()
     released = released_text(draft_file.read_text(encoding="utf-8"), version, date)
     (target / f"AGENT-HOOKS-{version}.md").write_text(released, encoding="utf-8")

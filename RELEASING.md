@@ -40,7 +40,9 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
 
    Only the JSON Schema emitter runs for a released bundle. Whether language
    emitters also generate contracts for released versions is still open
-   (#225); the copy's `tspconfig.yaml` is the draft's, unchanged.
+   (#225); the copy's `tspconfig.yaml` is the draft's, unchanged. The cut
+   leaves out the draft's `package.json`: a released bundle is not a
+   workspace package and compiles with the repository root's TypeSpec.
 
 3. In `spec/draft/AGENT-HOOKS-DRAFT.md`, point the banner at the new
    version: `The latest released version is [X.Y](../X.Y/AGENT-HOOKS-X.Y.md).`
