@@ -1,7 +1,7 @@
 packages:
   - docs-site
   - spec/scripts
-  - sdk/python
+  - emitters/*
   - sdk/typescript
 
 overrides:

@@ -2,7 +2,7 @@
 
 """Static contract checks; run mypy with warn_unused_ignores enabled."""
 
-from agent_hooks_contract import (
+from agent_hooks_contract.generated.draft import (
     AgentContext,
     AgentStartupHookResponse,
     ApprovalResolution,

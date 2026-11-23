@@ -431,6 +431,8 @@ FodyWeavers.xsd
 # ---- agent-hooks polyglot additions ---------------------------------------
 
 # Python
+# Python distributions are source packages, not NuGet restore output.
+!sdk/python/packages/*/
 .venv/
 *.egg-info/
 .pytest_cache/

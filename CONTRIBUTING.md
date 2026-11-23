@@ -152,17 +152,20 @@ the mapping to unchanged published URLs.
 
 ## Generated Python contracts
 
-The draft also generates the independent `agent_hooks_contract` package under
-`sdk/python/python/`. Edit the TypeSpec source, not its generated Python.
-After installing the Python development dependencies (with `ruff` on `PATH`)
-and workspace Node dependencies, run `pnpm run generate:python` to regenerate
-and `pnpm run check:python` to check drift and type-check the generator.
-These are root aliases for `generate:types` and `check:generated` in
-`sdk/python`; that SDK owns its Alloy Python and emitter-framework tooling.
-The Python CI job also runs
-`mypy --strict sdk/python/python/agent_hooks_contract sdk/python/tests/typing_contract.py`.
-The generated draft contract does not change the existing runtime API or
-refresh its schema mirrors.
+The standalone pure-Python contracts distribution lives under
+`sdk/python/packages/agent-hooks-contracts/`, separate from the native SDK.
+Its TypeSpec emitter is the pnpm package under `emitters/python/`. Edit the
+TypeSpec source, not the committed `src/agent_hooks_contract/generated/draft/`
+output. Follow the [package development instructions](sdk/python/packages/agent-hooks-contracts/README.md)
+to install Python tooling (Ruff must be on `PATH`) and workspace dependencies.
+
+`pnpm generate` builds the emitter and runs the shared `tsp compile spec/draft`
+entry point; `spec/draft/tspconfig.yaml` selects emitters and versioned output
+locations. `pnpm check:generated` regenerates and runs `git diff --exit-code`.
+Once built, `pnpm exec tsp compile spec/draft` also regenerates directly.
+CI checks drift in the schema workflow and builds and tests the pure-Python
+wheel without Rust in `python-contracts`. JSON Schema generation and SDK
+schema mirrors remain independent during this Python-only layout migration.
 
 ## Local toolchain setup
 

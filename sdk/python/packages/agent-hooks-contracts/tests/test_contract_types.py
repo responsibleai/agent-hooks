@@ -7,7 +7,7 @@ import subprocess
 import sys
 from typing import get_type_hints
 
-import agent_hooks_contract as contract
+from agent_hooks_contract.generated import draft as contract
 from typing_extensions import is_typeddict
 
 
@@ -16,7 +16,7 @@ def test_contract_import_does_not_load_native_sdk() -> None:
         [
             sys.executable,
             "-c",
-            "import sys; import agent_hooks_contract; "
+            "import sys; import agent_hooks_contract.generated.draft; "
             "assert not any(n == 'agent_hooks' or n.startswith('agent_hooks.') "
             "for n in sys.modules)",
         ],

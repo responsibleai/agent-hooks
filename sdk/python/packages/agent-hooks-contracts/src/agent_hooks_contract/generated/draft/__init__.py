@@ -4,9 +4,9 @@
 
 
 """
-Generated draft wire contracts. Do not edit.
+Generated wire contracts. Do not edit.
 
-Regenerate with pnpm run generate:types in sdk/python.
+Regenerate with pnpm generate at the repository root.
 """
 
 from typing import Literal, Union

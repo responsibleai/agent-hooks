@@ -94,14 +94,16 @@ draft copies only alongside corresponding SDK changes, as described in
 
 ## Python contract generation
 
-The Python SDK separately consumes `src/main.tsp` through Alloy Python and
-the TypeSpec emitter framework to emit draft wire `TypedDict`s and literal
-unions into `sdk/python/python/agent_hooks_contract/`. Its generator and
-development dependencies live in `sdk/python`. From the repository root,
-run `pnpm run generate:python` to regenerate or `pnpm run check:python` to
-check drift (requires the Python development dependencies and Ruff on `PATH`).
-These types do not change JSON Schema output, the released 0.1 API, or the
-SDK's runtime and packaged schemas.
+`spec/draft/main.tsp` imports this source as the shared compiler entry point.
+`spec/draft/tspconfig.yaml` selects the emitter package in `emitters/python/`
+and writes versioned output into the standalone pure-Python contracts package,
+`sdk/python/packages/agent-hooks-contracts/src/agent_hooks_contract/generated/draft/`.
+From the repository root, run `pnpm generate` to build the emitter and compile
+the draft, or `pnpm check:generated` to regenerate and check Git drift (requires
+the contracts package's Python tooling and Ruff on `PATH`). These types do not
+change JSON Schema output, the released 0.1 API, or the SDK's runtime and
+packaged schemas. Other generators remain separate until the broader
+repository reorganization.
 
 ## Filesystem paths are not public schema identities
 

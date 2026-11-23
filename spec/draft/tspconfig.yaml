@@ -1,0 +1,7 @@
+# Copyright (c) Microsoft. All rights reserved.
+
+emit:
+  - "@agent-hooks/python-emitter"
+options:
+  "@agent-hooks/python-emitter":
+    emitter-output-dir: "{project-root}/../../sdk/python/packages/agent-hooks-contracts/src/agent_hooks_contract/generated/draft"

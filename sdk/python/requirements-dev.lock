@@ -42,5 +42,5 @@ ruff==0.15.21
     # via agent-hooks-sdk (pyproject.toml)
 typing-extensions==4.16.0
     # via
-    #   agent-hooks-sdk (pyproject.toml)
     #   mypy
+    #   referencing

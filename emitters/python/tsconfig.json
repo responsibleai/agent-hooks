@@ -7,7 +7,9 @@
     "strict": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "noEmit": true
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true
   },
-  "include": ["*.tsx"]
+  "include": ["src/**/*.tsx"]
 }

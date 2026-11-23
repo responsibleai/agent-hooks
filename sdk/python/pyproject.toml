@@ -25,7 +25,7 @@ classifiers = [
   "Programming Language :: Rust",
   "Topic :: Software Development :: Libraries",
 ]
-dependencies = ["typing-extensions>=4.16.0"]
+dependencies = []
 
 [project.optional-dependencies]
 ctk = ["jsonschema>=4.26.0", "pytest>=9.1.1"]
@@ -42,7 +42,6 @@ agent_hooks_ctk = "agent_hooks.ctk.plugin"
 # Supply chain: refuse to build if Cargo.lock is out of date.
 locked = true
 python-source = "python"
-python-packages = ["agent_hooks", "agent_hooks_contract"]
 module-name = "agent_hooks._core"
 features = ["pyo3/extension-module"]
 
