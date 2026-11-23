@@ -170,12 +170,14 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    of its last change; no SDK tag edits it.
 
    An SDK release does not cut a specification version.
-   `SUPPORTED_SPEC_VERSIONS` in the five cores names the `spec/<entry>/`
+   `SUPPORTED_SPEC_VERSIONS` in the Rust, TypeScript, Python and Go
+   cores names the `spec/<entry>/`
    folders whose contexts the SDK accepts, released versions and the
    draft (`["0.1", "draft"]` today). The draft entry is how an SDK
    carries text no released version holds; a host that wants it names
-   `agent-hooks/draft`. Add or drop an entry in all five cores together,
-   with its rules in the Rust core's `SpecVersion`.
+   `agent-hooks/draft`. Add or drop an entry in all four cores together,
+   with its rules in the Rust core's `SpecVersion`. The C# SDK compiles
+   against the generated draft contracts and has no such list.
 
    Regenerate `sdk/typescript/binding.js` after the bump (`pnpm run
    build:native` in `sdk/typescript`); the napi version strings it
