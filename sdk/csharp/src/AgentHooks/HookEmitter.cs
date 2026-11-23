@@ -66,7 +66,7 @@ public sealed partial class HookEmitter
         ArgumentNullException.ThrowIfNull(request);
         var wire = ContractSerializer.Serialize(request);
         var result = await EmitAsync(wire, cancellationToken);
-        var effective = Jcs.Canonicalize(result.Request) == Jcs.Canonicalize(wire) ? request : ContractSerializer.Deserialize<TRequest>(result.Request);
+        var effective = JsonNode.DeepEquals(result.Request, wire) ? request : ContractSerializer.Deserialize<TRequest>(result.Request);
         return new(result.Proceeds, effective, result.Verdict, result.Record);
     }
 
@@ -124,18 +124,17 @@ public sealed partial class HookEmitter
         var decidedBy = outcome.DecidedBy;
         string? enforcedIdentity = null;
         if (!valid) inputIdentity = null;
-        else if (_identity == IdentityProvider.JcsSha256)
+        else if (_identity is not null && inputIdentity is not null)
         {
-            try { enforcedIdentity = Jcs.ContextIdentity(request); }
-            catch (HookException e) when (Verdicts.Permits(verdict))
-            {
-                (verdict, decidedBy) = (Verdicts.HostError(e.Reason, e.Detail), null);
-            }
-            catch (HookException) { }
-        }
-        else if (_identity is not null)
-        {
+            // §10.1: a permitting verdict never goes out unbound; any provider failure fails it closed.
             try { enforcedIdentity = _identity.Compute(request); }
+            catch (Exception e) when (Verdicts.Permits(verdict))
+            {
+                var (reason, detail) = e is HookException h
+                    ? (h.Reason, h.Detail)
+                    : (HostErrors.ContextInvalid, $"identity provider failed: {e.GetType().Name} (see spec §10.1)");
+                (verdict, decidedBy) = (Verdicts.HostError(reason, detail), null);
+            }
             catch (Exception) { }
         }
 

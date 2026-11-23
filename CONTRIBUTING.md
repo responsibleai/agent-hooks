@@ -198,7 +198,6 @@ cd sdk/python && maturin develop --release && python -m pytest tests/ && ruff ch
 # TypeScript (rebuild native when core changed)
 pnpm install && pnpm --dir sdk/typescript test
 # .NET (managed-only; no Rust build required)
-cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
 cd sdk/csharp && dotnet test
 # Go
 cd sdk/go && CGO_ENABLED=1 go test ./...

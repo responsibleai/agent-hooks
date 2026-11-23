@@ -2,13 +2,12 @@
 
 using System.Text;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using Draft = AgentHooks.Contracts.Draft;
 
 namespace AgentHooks;
 
 /// <summary>Wire-level verdict rules: validation, synthesis, severity, unions and record projection (§5–§7, §10.3).</summary>
-internal static partial class Verdicts
+internal static class Verdicts
 {
     internal static JsonObject Allow() => new() { ["decision"] = "allow" };
 
@@ -55,21 +54,12 @@ internal static partial class Verdicts
         if (!Schemas.IsValid(response, schema))
             return $"the response does not satisfy the {schema} schema (see spec §5)";
         var verdict = (JsonObject)response["verdict"]!;
-        foreach (var warning in verdict["warnings"] as JsonArray ?? [])
-            if (warning?["reason"] is JsonValue r && r.TryGetValue(out string? reason) &&
-                (reason.StartsWith("host_error:", StringComparison.Ordinal) || reason.StartsWith("host_warning:", StringComparison.Ordinal)))
-                return "reserved warning reasons are host-only (see spec §11)";
         try
         {
             if (verdict["evidence"] is { } evidence && Jcs.CanonicalSize(evidence) > 10240)
                 return "evidence canonical size exceeds 10240 bytes (see spec §5.3)";
-            if (response["extensions"] is JsonObject extensions)
-            {
-                if (extensions.Any(member => !Namespace().IsMatch(member.Key)))
-                    return "invalid response extension namespace (see spec §5)";
-                if (Jcs.CanonicalSize(extensions) > 65536)
-                    return "response extensions exceed 65536 bytes (see spec §5)";
-            }
+            if (response["extensions"] is JsonObject extensions && Jcs.CanonicalSize(extensions) > 65536)
+                return "response extensions exceed 65536 bytes (see spec §5)";
         }
         catch (HookException)
         {
@@ -130,7 +120,4 @@ internal static partial class Verdicts
         var seen = new HashSet<string>(StringComparer.Ordinal);
         return new JsonArray(items.Where(item => seen.Add(Jcs.Canonicalize(item))).Select(item => item?.DeepClone()).ToArray());
     }
-
-    [GeneratedRegex("^[a-z][a-z0-9_]*$")]
-    private static partial Regex Namespace();
 }

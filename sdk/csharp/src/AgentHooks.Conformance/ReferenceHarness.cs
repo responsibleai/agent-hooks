@@ -32,9 +32,9 @@ public sealed class ReferenceHarness : IHarness
             var registered = new JsonArray(scenario.Tools.Keys.Order(StringComparer.Ordinal).Select(k => (JsonNode)k).ToArray());
             if (!(await Emit(Draft.InterceptionPoint.AgentStartup, new() { ["agent_init"] = new JsonObject { ["tools_registered"] = registered } })).Proceeds)
                 throw Blocked();
-            var input = scenario.Input;
-            if (!(await Emit(Draft.InterceptionPoint.Input, new() { ["input"] = input.DeepClone() })).Proceeds)
-                throw Blocked();
+            var inputResult = await Emit(Draft.InterceptionPoint.Input, new() { ["input"] = scenario.Input.DeepClone() });
+            if (!inputResult.Proceeds) throw Blocked();
+            var input = inputResult.Request["input"]!.AsObject();
 
             var messages = new JsonArray(new JsonObject { ["role"] = input["role"]?.DeepClone(), ["content"] = input["content"]?.DeepClone() });
             foreach (var response in scenario.ModelScript)
@@ -55,17 +55,19 @@ public sealed class ReferenceHarness : IHarness
                     },
                 });
                 if (!post.Proceeds) throw Blocked();
-                if (response.ToolCalls.Count == 0)
+                var effective = post.Request["response"]!.AsObject();
+                var toolCalls = effective["tool_calls"] as JsonArray ?? [];
+                if (toolCalls.Count == 0)
                 {
-                    final = response.Content?.DeepClone();
+                    final = effective["content"]?.DeepClone();
                     break;
                 }
-                foreach (var call in response.ToolCalls.Select(c => c!.AsObject()))
+                foreach (var call in toolCalls.Select(c => c!.AsObject()))
                 {
                     var result = await CallToolAsync(call);
                     messages.Add(new JsonObject { ["role"] = "tool", ["content"] = result });
                 }
-                messages.Add(new JsonObject { ["role"] = "assistant", ["content"] = response.Content?.DeepClone() ?? "" });
+                messages.Add(new JsonObject { ["role"] = "assistant", ["content"] = effective["content"]?.DeepClone() ?? "" });
             }
 
             if (final is not null)

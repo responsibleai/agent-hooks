@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 
+using System.Text;
 using System.Text.Json.Nodes;
 using Draft = AgentHooks.Contracts.Draft;
 
@@ -88,7 +89,8 @@ public sealed partial class HookEmitter
     public static HookEmitter FromDeclaration(string json, HostRegistry registry) => Declarations.Load(json, registry).Build();
 
     /// <inheritdoc cref="FromDeclaration(string, HostRegistry)"/>
-    public static HookEmitter FromDeclarationFile(string path, HostRegistry registry) => FromDeclaration(File.ReadAllText(path), registry);
+    public static HookEmitter FromDeclarationFile(string path, HostRegistry registry) =>
+        FromDeclaration(Declarations.ReadDocument(path), registry);
 
     /// <inheritdoc cref="FromDeclaration(string, HostRegistry)"/>
     public static HookEmitter FromDeclaration(Draft.HostDeclaration declaration, HostRegistry registry) =>
@@ -107,6 +109,35 @@ internal static class Declarations
         [Draft.InterceptionPoint.AgentStartup, Draft.InterceptionPoint.Input, Draft.InterceptionPoint.Output, Draft.InterceptionPoint.AgentShutdown];
     private static readonly string[] Knobs = ["on_approval", "on_transform_conflict", "on_disagreement"];
     private static readonly JsonObject Schema = Schemas.Document(nameof(Draft.HostDeclaration));
+    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    /// <summary>Reads a declaration file as BOM-less UTF-8 of at most <see cref="MaxDocumentBytes"/> bytes (§7.7.6).</summary>
+    internal static string ReadDocument(string path)
+    {
+        byte[] bytes;
+        try
+        {
+            if (!new FileInfo(path).Exists)
+                throw Unreadable("the declaration is not a regular file");
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            bytes = new byte[MaxDocumentBytes + 1];
+            var read = 0;
+            for (int n; read < bytes.Length && (n = stream.Read(bytes, read, bytes.Length - read)) > 0;) read += n;
+            if (read > MaxDocumentBytes)
+                throw Unreadable($"the declaration exceeds {MaxDocumentBytes} bytes");
+            Array.Resize(ref bytes, read);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException or ArgumentException or NotSupportedException)
+        {
+            throw Unreadable($"the declaration cannot be read: {e.GetType().Name}");
+        }
+        if (bytes.AsSpan().StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]))
+            throw Unreadable("the declaration starts with a byte order mark");
+        try { return StrictUtf8.GetString(bytes); }
+        catch (DecoderFallbackException) { throw Unreadable("the declaration is not valid UTF-8"); }
+
+        static DeclarationException Unreadable(string detail) => new("declaration_error:unreadable", [new("", detail)]);
+    }
 
     private sealed class Findings : List<DeclarationFinding>
     {
@@ -292,9 +323,15 @@ internal static class Declarations
         {
             if (profiles[profile] is not JsonObject support)
                 f.Bad("/configuration/composition/profile", $"{profile} is not in surface.profiles");
-            else if (knob is not null && Str(composition?[knob]) is { } value && support[knob] is JsonArray allowed &&
-                     !allowed.Any(v => Str(v) == value))
-                f.Bad("/configuration/composition/" + knob, $"{value} is not in surface.profiles for {profile}");
+            else if (knob is not null)
+            {
+                // §7.2: an omitted knob takes its default, and an omitted support list admits only that default.
+                var fallback = knob == "on_approval" ? Draft.OnApproval.Stop.ToWire() : Draft.ConflictResolution.Deny.ToWire();
+                var value = Str(composition?[knob]) ?? fallback;
+                var allowed = support[knob] is JsonArray list ? list.Select(Str) : [fallback];
+                if (!allowed.Contains(value, StringComparer.Ordinal))
+                    f.Bad("/configuration/composition/" + knob, $"{value} is not in surface.profiles for {profile}");
+            }
         }
         var ids = new HashSet<string>(StringComparer.Ordinal);
         var bindings = (JsonArray)doc["bindings"]!;

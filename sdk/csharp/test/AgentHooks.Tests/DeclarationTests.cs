@@ -63,6 +63,71 @@ public sealed class DeclarationTests
         Assert.Equal("/bindings/0/kind", Assert.Single(unknownKind.Findings).Pointer);
     }
 
+    [Theory]
+    [InlineData(true, false, "/configuration/composition/on_approval")]
+    [InlineData(false, true, "/configuration/composition/on_approval")]
+    [InlineData(true, true, null)]
+    public void OmittedKnobsAndSupportListsTakeTheirDefaults(bool omitKnob, bool omitSupport, string? refusedAt)
+    {
+        var document = JsonNode.Parse(Document)!.AsObject();
+        if (omitKnob) document["configuration"]!["composition"]!.AsObject().Remove("on_approval");
+        if (omitSupport) document["surface"]!["profiles"]!["sequential/first_deny"]!.AsObject().Remove("on_approval");
+
+        if (refusedAt is null)
+        {
+            Assert.NotNull(HookEmitter.FromDeclaration(document.ToJsonString(), Registry()));
+            return;
+        }
+        var error = Assert.Throws<DeclarationException>(() => HookEmitter.FromDeclaration(document.ToJsonString(), Registry()));
+        Assert.Contains(error.Findings, f => f.Pointer == refusedAt);
+    }
+
+    [Theory]
+    [InlineData("bom")]
+    [InlineData("invalid_utf8")]
+    [InlineData("oversize")]
+    [InlineData("directory")]
+    [InlineData("missing")]
+    public void UnreadableDeclarationFilesAreRefused(string kind)
+    {
+        var directory = Directory.CreateTempSubdirectory("agent-hooks-declaration-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "declaration.json");
+            var bytes = System.Text.Encoding.UTF8.GetBytes(Document);
+            switch (kind)
+            {
+                case "bom": File.WriteAllBytes(path, [0xEF, 0xBB, 0xBF, .. bytes]); break;
+                case "invalid_utf8": File.WriteAllBytes(path, [.. bytes[..^1], 0xFF, bytes[^1]]); break;
+                case "oversize": File.WriteAllBytes(path, [.. bytes, .. Enumerable.Repeat((byte)' ', 1 << 20)]); break;
+                case "directory": Directory.CreateDirectory(path); break;
+            }
+
+            var error = Assert.Throws<DeclarationException>(() => HookEmitter.FromDeclarationFile(path, Registry()));
+
+            Assert.Equal("declaration_error:unreadable", error.Code);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ReadableDeclarationFilesBuild()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, Document, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            Assert.NotNull(HookEmitter.FromDeclarationFile(path, Registry()));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private sealed class Deny : IHookInterceptor
     {
         public Task<HookOutcome> InterceptAsync(HookCall call, CancellationToken cancellationToken) =>
