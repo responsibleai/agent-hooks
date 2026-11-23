@@ -6,7 +6,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\AgentHooks.Contracts\AgentHooks.Contracts.csproj" />
+    <ProjectReference Include="../AgentHooks.Contracts/AgentHooks.Contracts.csproj" />
     <PackageReference Include="JsonSchema.Net" Version="9.7.0" />
     <EmbeddedResource Include="../../../../spec/draft/schema/generated/*.json"
                       LogicalName="AgentHooks.Schemas.%(Filename)%(Extension)" />
