@@ -1,0 +1,185 @@
+# Copyright (c) Microsoft. All rights reserved.
+
+# Register in azure-sdk/internal. Publishing uses the build identity, which
+# needs cross-project access to public/azure-sdk-for-net (RELEASING.md).
+trigger:
+  branches:
+    exclude: ["*"]
+  tags:
+    include: ["v*"]
+
+pr: none
+
+parameters:
+  - name: dryRun
+    displayName: Build and check the package without publishing
+    type: boolean
+    default: false
+
+variables:
+  NuGetFeed: https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-net/nuget/v3/index.json
+
+stages:
+  - stage: Build
+    jobs:
+      - job: VersionGate
+        pool:
+          vmImage: ubuntu-24.04
+        steps:
+          - checkout: self
+            fetchDepth: 0
+            fetchTags: true
+            persistCredentials: false
+          - bash: |
+              set -euo pipefail
+              args=(--require-spec-tags)
+              if [[ "$BUILD_SOURCEBRANCH" == refs/tags/* ]]; then
+                args+=(--release-tag "${BUILD_SOURCEBRANCH#refs/tags/}")
+              fi
+              python3 scripts/check-version-consistency.py "${args[@]}"
+            displayName: Check SDK versions and specification tags
+
+      - job: Native
+        dependsOn: VersionGate
+        timeoutInMinutes: 25
+        strategy:
+          matrix:
+            Linux:
+              vmImage: ubuntu-24.04
+              rustTarget: x86_64-unknown-linux-gnu
+              rid: linux-x64
+              nativeLibrary: libagent_hooks_ffi.so
+            MacX64:
+              vmImage: macos-15
+              rustTarget: x86_64-apple-darwin
+              rid: osx-x64
+              nativeLibrary: libagent_hooks_ffi.dylib
+            MacArm64:
+              vmImage: macos-15
+              rustTarget: aarch64-apple-darwin
+              rid: osx-arm64
+              nativeLibrary: libagent_hooks_ffi.dylib
+            Windows:
+              vmImage: windows-2022
+              rustTarget: x86_64-pc-windows-msvc
+              rid: win-x64
+              nativeLibrary: agent_hooks_ffi.dll
+        pool:
+          vmImage: $(vmImage)
+        steps:
+          - checkout: self
+            persistCredentials: false
+          - bash: |
+              set -euo pipefail
+              unset RUSTUP_TOOLCHAIN
+              rustup toolchain install --no-self-update --profile minimal --target "$RUST_TARGET"
+              cargo build --locked --release -p agent-hooks-ffi --target "$RUST_TARGET"
+            displayName: Build native library
+            condition: ne(variables['Agent.OS'], 'Windows_NT')
+            workingDirectory: sdk/rust
+            env:
+              RUST_TARGET: $(rustTarget)
+          - task: UseDotNet@2
+            condition: eq(variables['Agent.OS'], 'Windows_NT')
+            inputs:
+              version: 8.x
+          - pwsh: |
+              rustup toolchain install nightly-2026-10-21 --profile minimal --component rust-src --target x86_64-pc-windows-msvc
+              if ($LASTEXITCODE -ne 0) { throw 'Windows Rust toolchain installation failed.' }
+              $env:CARGO_ENCODED_RUSTFLAGS = $null
+              cargo +nightly-2026-10-21 -Z build-std=std,panic_unwind build --locked --release `
+                -p agent-hooks-ffi --target x86_64-pc-windows-msvc
+              if ($LASTEXITCODE -ne 0) { throw 'Protected Windows FFI build failed.' }
+            displayName: Build protected Windows FFI and standard library
+            condition: eq(variables['Agent.OS'], 'Windows_NT')
+            workingDirectory: sdk/rust
+            env:
+              CARGO_BUILD_JOBS: "2"
+              RUSTFLAGS: -C control-flow-guard=checks -Z stack-protector=strong -D partial-stack-protector
+          - pwsh: |
+              $dll = 'sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.dll'
+              ./scripts/scan-windows-ffi.ps1 -NativeDirectory (Split-Path $dll) `
+                -TemporaryDirectory $env:AGENT_TEMPDIRECTORY
+              ./scripts/check-windows-cfg.ps1 -Dll $dll
+            displayName: Check Windows stack protection and CFG
+            condition: eq(variables['Agent.OS'], 'Windows_NT')
+          - pwsh: |
+              $destination = Join-Path $env:BUILD_ARTIFACTSTAGINGDIRECTORY 'windows-ffi-hardening'
+              New-Item -ItemType Directory -Force -Path $destination | Out-Null
+              Copy-Item "$env:AGENT_TEMPDIRECTORY/windows-ffi-binskim.*" $destination
+              Copy-Item sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.dll $destination
+              Copy-Item sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.pdb $destination
+            displayName: Collect Windows hardening evidence
+            condition: and(always(), eq(variables['Agent.OS'], 'Windows_NT'))
+          - publish: $(Build.ArtifactStagingDirectory)/windows-ffi-hardening
+            artifact: windows-ffi-hardening
+            condition: and(always(), eq(variables['Agent.OS'], 'Windows_NT'))
+          - publish: $(Build.SourcesDirectory)/sdk/rust/target/$(rustTarget)/release/$(nativeLibrary)
+            artifact: ffi-$(rid)
+
+      - job: Pack
+        dependsOn: Native
+        pool:
+          vmImage: ubuntu-24.04
+        steps:
+          - checkout: self
+            persistCredentials: false
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              itemPattern: ffi-*/**
+              targetPath: $(Pipeline.Workspace)/ffi
+          - task: UseDotNet@2
+            inputs:
+              version: 8.x
+          - bash: |
+              set -euo pipefail
+              for rid in linux-x64 osx-x64 osx-arm64 win-x64; do
+                mkdir -p "src/AgentHooks/runtimes/$rid/native"
+                cp "$FFI_ARTIFACTS/ffi-$rid/"* "src/AgentHooks/runtimes/$rid/native/"
+              done
+              test "$(find src/AgentHooks/runtimes -type f | wc -l)" -eq 4
+              dotnet restore --locked-mode
+              dotnet test test/AgentHooks.Tests -c Release --no-restore --filter "Category!=draft"
+              dotnet pack src/AgentHooks -c Release --no-restore -o dist
+              pkg=$(ls dist/*.nupkg)
+              for rid in linux-x64 osx-x64 osx-arm64 win-x64; do
+                unzip -l "$pkg" | grep "runtimes/$rid/native/" || { echo "Missing native library: $rid" >&2; exit 1; }
+              done
+            displayName: Test and pack all four native runtimes
+            workingDirectory: sdk/csharp
+            env:
+              FFI_ARTIFACTS: $(Pipeline.Workspace)/ffi
+              LD_LIBRARY_PATH: $(Pipeline.Workspace)/ffi/ffi-linux-x64
+          - pwsh: |
+              $packages = @(Get-ChildItem sdk/csharp/dist/*.nupkg)
+              if ($packages.Count -ne 1) { throw 'Expected exactly one NuGet package.' }
+              ./scripts/check-windows-cfg.ps1 -Package $packages[0].FullName `
+                -ExpectedDll sdk/csharp/src/AgentHooks/runtimes/win-x64/native/agent_hooks_ffi.dll
+            displayName: Check bundled Windows DLL CFG and release-asset identity
+          - publish: sdk/csharp/dist
+            artifact: nuget
+
+  - stage: Publish
+    dependsOn: Build
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/v'), ${{ not(parameters.dryRun) }})
+    jobs:
+      - job: PublishNuGet
+        pool:
+          vmImage: ubuntu-24.04
+        steps:
+          - checkout: none
+          - download: current
+            artifact: nuget
+          - task: UseDotNet@2
+            inputs:
+              version: 8.x
+          - task: NuGetAuthenticate@1
+            displayName: Authenticate with the Azure Pipelines build identity
+          - bash: |
+              set -euo pipefail
+              dotnet nuget push "$PACKAGE_DIRECTORY/*.nupkg" \
+                --source "$NUGET_FEED" --api-key AzureArtifacts --skip-duplicate
+            displayName: Publish to public/azure-sdk-for-net
+            env:
+              PACKAGE_DIRECTORY: $(Pipeline.Workspace)/nuget
+              NUGET_FEED: $(NuGetFeed)
