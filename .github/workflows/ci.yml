@@ -253,15 +253,15 @@ jobs:
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore --locked-mode
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
       - run: dotnet format --no-restore --verify-no-changes
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
       - run: dotnet build --no-restore -warnaserror
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
       - name: Test (golden identity)
         # The required set: the Category=draft tests run in draft-tests.
         run: dotnet test test/AgentHooks.Tests/ --nologo --filter "Category!=draft"
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
 
@@ -334,7 +334,7 @@ jobs:
         if: runner.os != 'Windows'
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore --locked-mode
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
       - name: Expose native library to the per-OS loader
         # GITHUB_PATH covers the Windows DLL search path; the *_LIBRARY_PATH
         # vars cover the ELF/Mach-O loaders. Native.cs has no custom
@@ -343,7 +343,7 @@ jobs:
         run: echo "${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}" >> "$GITHUB_PATH"
       - name: Test
         run: dotnet test test/AgentHooks.Tests/ --nologo --filter "Category!=draft"
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
@@ -412,7 +412,7 @@ jobs:
         run: |
           dotnet restore --locked-mode
           dotnet test test/AgentHooks.Tests/ --nologo --filter "Category=draft"
-        working-directory: sdk/dotnet
+        working-directory: sdk/csharp
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
       - name: Go draft suite tests

@@ -78,7 +78,7 @@ class MyFrameworkHarness(Harness):
 ```
 
 Equivalent interfaces ship in `sdk/typescript/src/ctk/index.ts`,
-`sdk/dotnet/src/AgentHooks.Conformance/IHarness.cs`,
+`sdk/csharp/src/AgentHooks.Conformance/IHarness.cs`,
 `sdk/go/conformance/harness.go`, and `sdk/rust/core/src/ctk.rs (`ctk` feature)`.
 
 SDK CTK runs currently use `conformance/0.1/` and report against the
@@ -424,14 +424,14 @@ is pinned by per-SDK unit tests instead:
   and per-SDK unit tests (`sdk/rust/core/tests/declaration.rs`,
   `sdk/python/tests/test_declaration.py`,
   `sdk/typescript/test/declaration.test.mjs`,
-  `sdk/dotnet/test/AgentHooks.Tests/DeclarationTests.cs`,
+  `sdk/csharp/test/AgentHooks.Tests/DeclarationTests.cs`,
   `sdk/go/agenthooks/declaration_test.go`). The golden file
   `conformance/golden/declaration.json` pins the resolved canonical
   form of five documents byte for byte in all five SDKs
   (`sdk/rust/core/tests/declaration.rs`,
   `sdk/python/tests/test_golden_declaration.py`,
   `sdk/typescript/test/golden_declaration.test.mjs`,
-  `sdk/dotnet/test/AgentHooks.Tests/DeclarationTests.cs`,
+  `sdk/csharp/test/AgentHooks.Tests/DeclarationTests.cs`,
   `sdk/go/agenthooks/declaration_test.go`).
 - **Failure posture details a vector cannot express (§6.3.1, §7)**:
   an interceptor that emits a `host_warning:*` warning reason (the

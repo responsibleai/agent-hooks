@@ -63,7 +63,7 @@ public sealed class PublicApiTests
             .AppendLine("published package: keep the old signature as a forwarding overload.")
             .AppendLine("Deliberate change: set AGENT_HOOKS_APPROVE_PUBLIC_API=1 for one test run, or copy")
             .AppendLine(receivedPath)
-            .AppendLine("over sdk/dotnet/test/AgentHooks.Tests/" + ApprovedFile + ", and note it in CHANGELOG.md.");
+            .AppendLine("over sdk/csharp/test/AgentHooks.Tests/" + ApprovedFile + ", and note it in CHANGELOG.md.");
         if (removed.Count > 0)
             report.AppendLine().AppendLine("Missing from the assembly (removed or changed):")
                 .AppendJoin('\n', removed.Select(l => "  - " + l.Trim())).AppendLine();

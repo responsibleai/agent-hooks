@@ -153,8 +153,8 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    - `sdk/typescript/Cargo.toml`, `sdk/typescript/Cargo.lock`,
      `sdk/typescript/package.json`,
      `sdk/typescript/npm/*/package.json`
-   - `sdk/dotnet/Directory.Build.props` and
-     `sdk/dotnet/test/AgentHooks.Tests/packages.lock.json`
+   - `sdk/csharp/Directory.Build.props` and
+     `sdk/csharp/test/AgentHooks.Tests/packages.lock.json`
    - install pins in `README.md` and the per-SDK READMEs
 
    Run `pnpm install` from the repository root to refresh `pnpm-lock.yaml`
@@ -224,7 +224,7 @@ Windows DLL and the bundled payload. These checks do not establish a
 downstream consumer's security-policy acceptance.
 
 For local builds and checks, see the
-[Windows source-build instructions](sdk/dotnet/README.md#windows-x64-source-builds-and-release-checks).
+[Windows source-build instructions](sdk/csharp/README.md#windows-x64-source-builds-and-release-checks).
 Changing the nightly pin requires rerunning the native scan, gate regressions,
 Rust tests, .NET tests, package-consumer smoke and latency comparison.
 

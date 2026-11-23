@@ -36,7 +36,7 @@ string; bindings raise a native exception carrying both.
 | Python | `sdk/python/{Cargo.toml,src/lib.rs}` | PyO3 abi3-py310, built by maturin as `agent_hooks._core` |
 | TypeScript | `sdk/typescript/{Cargo.toml,src/native.rs}` | napi-rs, built by `@napi-rs/cli` as `agent-hooks.<platform>.node` |
 | C ABI | `sdk/rust/ffi/` | `libagent_hooks_ffi` cdylib + `include/agent_hooks.h` |
-| .NET | `sdk/dotnet/src/AgentHooks/Native.cs` | `[DllImport("agent_hooks_ffi")]` over the C ABI |
+| .NET | `sdk/csharp/src/AgentHooks/Native.cs` | `[DllImport("agent_hooks_ffi")]` over the C ABI |
 | Go | `sdk/go/agenthooks/native.go` | cgo over the C ABI |
 
 The C ABI returns a heap-allocated `AhResult{ok, value, error_code}` the
