@@ -133,7 +133,15 @@ pnpm install
 pnpm run generate:schema      # write spec/draft/schema/generated/*.json
 pnpm run check:schema         # compile the source, then fail on any drift
 pnpm run check:schema:equivalence --old origin/main   # differential validation against another revision
+pnpm generate                # build emitters and regenerate schemas and draft C# contracts
+git diff --exit-code         # CI's drift check after generation
 ```
+
+The draft TypeSpec source also generates `sdk/csharp/src/AgentHooks.Contracts/Generated/Draft/`.
+Commit that output with source changes; the schema-drift workflow checks it.
+Emitters live in workspace packages under `emitters/`; `spec/draft/main.tsp`
+and `tspconfig.yaml` configure draft contract generation. The contracts assembly
+is Rust-independent; the existing Rust-backed C# SDK remains unchanged.
 
 After a change, regenerate. The Python mirror holds one folder per
 supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`

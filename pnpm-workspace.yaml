@@ -1,4 +1,5 @@
 packages:
+  - emitters/*
   - docs-site
   - spec/scripts
   - sdk/typescript
