@@ -1,4 +1,6 @@
-# Composition profiles
+---
+title: Composition profiles
+---
 
 With more than one interceptor registered, the host decides how their
 verdicts combine. That decision is host configuration, chosen from a

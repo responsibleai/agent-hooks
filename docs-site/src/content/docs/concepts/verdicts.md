@@ -1,4 +1,6 @@
-# Verdicts
+---
+title: Verdicts
+---
 
 An interceptor returns exactly one of three decisions.
 

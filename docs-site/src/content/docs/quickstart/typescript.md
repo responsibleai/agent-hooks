@@ -1,4 +1,6 @@
-# TypeScript quickstart
+---
+title: TypeScript quickstart
+---
 
 ```sh
 npm install @responsibleai/agent-hooks

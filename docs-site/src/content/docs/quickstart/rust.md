@@ -1,4 +1,6 @@
-# Rust quickstart
+---
+title: Rust quickstart
+---
 
 ```sh
 cargo add agent-hooks-sdk

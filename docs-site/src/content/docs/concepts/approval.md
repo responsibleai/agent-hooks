@@ -1,4 +1,6 @@
-# The approval seam
+---
+title: The approval seam
+---
 
 A liftable deny (a `deny` carrying an `approval` block) may be lifted
 by a host-registered approval resolver. The composition profile decides

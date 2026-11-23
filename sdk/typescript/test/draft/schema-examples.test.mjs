@@ -128,6 +128,66 @@ test("invalid draft-only examples still fail validation", async (t) => {
   await assert.rejects(validateExamples(root), /draft-only.json.*HookResponse.json/);
 });
 
+test("draft verdict metadata may be omitted or typed, but not null", async (t) => {
+  const root = await fixture(t);
+  const filename = "examples/Verdict/optional-metadata.json";
+  await write(root, filename, { decision: "allow" });
+  assert.ok(await validateExamples(root) > 0);
+
+  const verdict = {
+    decision: "allow",
+    reason: "policy:checked",
+    message: "Policy checked",
+    warnings: [{ reason: "policy:notice", message: "Review suggested" }],
+    evidence: { artefact: "sha256:abc" },
+    result_labels: ["reviewed"],
+  };
+  await write(root, filename, verdict);
+  assert.ok(await validateExamples(root) > 0);
+  await write(root, filename, { decision: "allow", warnings: [{}], evidence: {}, result_labels: [] });
+  assert.ok(await validateExamples(root) > 0);
+
+  const invalid = [
+    ...["reason", "message", "warnings", "result_labels"].map((field) => ({ ...verdict, [field]: null })),
+    ...["reason", "message"].map((field) => ({
+      ...verdict, warnings: [{ ...verdict.warnings[0], [field]: null }],
+    })),
+    { ...verdict, evidence: { artefact: null } },
+  ];
+  for (const instance of invalid) {
+    await write(root, filename, instance);
+    await assert.rejects(validateExamples(root), /optional-metadata.json.*HookResponse.json/);
+  }
+});
+
+test("draft records omit absent metadata while retaining meaningful nulls", async (t) => {
+  const root = await fixture(t);
+  const filename = "examples/InterceptionRecord/optional-metadata.json";
+  const record = JSON.parse(await readFile(path.join(root, "examples/InterceptionRecord/allow.json"), "utf8"));
+  assert.equal(record.identity_provider, null);
+  assert.equal(record.input_identity, null);
+  assert.equal(record.enforced_identity, null);
+  assert.equal(record.decided_by, null);
+  await write(root, filename, record);
+  assert.ok(await validateExamples(root) > 0);
+
+  const invalid = [
+    ...["reason", "message", "warnings", "result_labels"].map((field) => ({
+      ...record, verdict: { ...record.verdict, [field]: null },
+    })),
+    ...["reason", "message"].map((field) => ({
+      ...record, verdict: { ...record.verdict, warnings: [{ [field]: null }] },
+    })),
+    { ...record, verdict: { ...record.verdict, evidence: { artefact: null } } },
+    { ...record, verdicts: [{ index: 0, decision: "allow", reason: null }] },
+    { ...record, resolved_by: null },
+  ];
+  for (const instance of invalid) {
+    await write(root, filename, instance);
+    await assert.rejects(validateExamples(root), /optional-metadata.json.*InterceptionRecord.json/);
+  }
+});
+
 test("context targets equal their hook payloads, including optional-feature variants", async () => {
   const examples = path.join(schemaRoot, "examples/AgentContext");
   for (const entry of await readdir(examples, { withFileTypes: true })) {

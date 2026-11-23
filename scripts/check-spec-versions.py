@@ -94,7 +94,6 @@ SKIP_DIRS = {
     "target",
     "dist",
     "site",
-    ".mkdocs-venv",
     "bin",
     "obj",
 }

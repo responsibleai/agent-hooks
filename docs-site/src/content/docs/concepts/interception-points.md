@@ -1,4 +1,6 @@
-# Interception points and the agent context
+---
+title: Interception points and the agent context
+---
 
 A host MUST emit eight interception points. The set is closed: a
 context whose `interception_point` is anything else is invalid.

@@ -11,8 +11,8 @@ model ApprovalPresence {
 /** Warning metadata retained in a payload-free record projection. */
 model WarningProjection {
   ...Record<never>;
-  reason?: string | null;
-  message?: string | null;
+  reason?: string;
+  message?: string;
 }
 
 /**
@@ -24,11 +24,11 @@ model WarningProjection {
 model VerdictProjection {
   ...Record<never>;
   decision: Decision;
-  reason?: string | null;
-  message?: string | null;
-  warnings?: WarningProjection[] | null;
+  reason?: string;
+  message?: string;
+  warnings?: WarningProjection[];
   evidence?: Evidence;
-  result_labels?: string[] | null;
+  result_labels?: string[];
   approval?: ApprovalPresence;
 }
 
@@ -57,7 +57,7 @@ model VerdictSlot {
   index: integer;
 
   decision: Decision;
-  reason?: string | null;
+  reason?: string;
 
   /** Host-chosen payload-free registration identifier for the interceptor at index (§10.3). */
   name?: string;
@@ -199,9 +199,9 @@ model InterceptionRecord {
   /**
    * Consultation outcome (§7.6, §10.3): "approval" iff a permit resolution
    * substituted for a verdict; "rejection" iff the seam was consulted and did not
-   * lift the deny; absent/null iff never consulted.
+   * lift the deny; absent iff never consulted.
    */
-  resolved_by?: ResolvedBy | null;
+  resolved_by?: ResolvedBy;
 
   /** Number of interceptors registered at emission time (§10.3). */
   @minValue(0)

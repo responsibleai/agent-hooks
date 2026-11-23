@@ -1,4 +1,6 @@
-# Go quickstart
+---
+title: Go quickstart
+---
 
 ```sh
 go get github.com/responsibleai/agent-hooks/sdk/go/agenthooks
