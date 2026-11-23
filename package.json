@@ -8,8 +8,8 @@
   },
   "devDependencies": {
     "@agent-hooks/emitter-csharp": "workspace:*",
-    "@typespec/compiler": "1.18.0",
-    "@typespec/json-schema": "1.18.0",
+    "@typespec/compiler": "catalog:",
+    "@typespec/json-schema": "catalog:",
     "ajv-cli": "5.0.0",
     "ajv-formats": "3.0.1"
   },
