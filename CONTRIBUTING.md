@@ -83,11 +83,10 @@ Each specification folder's JSON Schemas under `spec/<version>/schema/generated/
 are generated from TypeSpec in `spec/<version>/schema/src/`, except for
 the frozen 0.1 bundle, whose committed artifacts and historical TypeScript
 source are retained without regeneration. Edit
-only `spec/draft/schema/src/`; the generator targets `draft` unless
-`--spec <version>` names another folder. The `drift` job checks the draft;
-the `lint` job checks, with `--spec`, every released bundle that has a
-`main.tsp`, so a frozen TypeSpec source keeps generating its frozen
-output. The JSON stays the normative artifact: it is
+only `spec/draft/schema/src/`. The `drift` job checks the draft; the `lint`
+job runs `tsp compile spec/<version> --emit @typespec/json-schema` for every
+released bundle that has a `main.tsp`, so a frozen TypeSpec source keeps
+generating its frozen output. The JSON stays the normative artifact: it is
 what validators, the conformance kit and the SDK mirrors consume. Do not
 edit it by hand; the `lint` and `drift` checks fail on any byte that
 differs from the generated text.
@@ -121,8 +120,7 @@ differs from the generated text.
   compilation entry point for every draft output: the native JSON Schema
   emitter and any language emitter under `emitters/`
   ([emitters/README.md](emitters/README.md)). `pnpm generate` builds the
-  emitters, then runs `tsp compile spec/draft` once. Generated folders are
-  marked `linguist-generated` in `.gitattributes`.
+  emitters, then runs `tsp compile spec/draft` once.
   Public roots, titles and the schema base URI live in TypeSpec source.
   Output is unmodified native `generated/<Type>.json`, including
   `ApprovalRequest.json` and `ApprovalResolution.json`, not approval fragments.
@@ -138,10 +136,11 @@ pnpm generate                 # build emitters/*, then regenerate every draft ou
 pnpm run check:schema:equivalence --old origin/main   # differential validation against another revision
 ```
 
-`tsp compile` overwrites output but never deletes it. The `drift` check
-deletes every `linguist-generated` file before regenerating, so output for a
-removed type fails it; reproduce that locally with
-`git ls-files -z ':(attr:linguist-generated)' | xargs -0 rm -f && pnpm generate`.
+Every generated folder is rebuilt from scratch, so output for a removed type
+disappears: each language emitter empties its own output folder, and
+`pnpm generate` clears `spec/draft/schema/generated/` (the JSON Schema emitter
+never deletes) before compiling. The `drift` job checks the JSON Schemas; each
+SDK's CI checks its own emitter's output.
 
 After a change, regenerate. The Python mirror holds one folder per
 supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`

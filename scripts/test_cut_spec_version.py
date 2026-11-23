@@ -61,10 +61,6 @@ class CutTest(unittest.TestCase):
         (draft / "schema/examples/AgentContext/input.json").write_text(
             EXAMPLE, encoding="utf-8"
         )
-        (draft / "tspconfig.yaml").write_text(
-            'emit:\n  - "@typespec/json-schema"\n  - "@agent-hooks/emitter-csharp"\n',
-            encoding="utf-8",
-        )
         (self.root / "spec/0.1").mkdir()
 
     def test_cut_writes_the_released_copy_and_leaves_the_draft(self) -> None:
@@ -131,15 +127,6 @@ Every context carries `agent-hooks/0.2`. The schema is
         self.assertEqual(
             (draft / "schema/generated/x.schema.json").read_text(encoding="utf-8"),
             GENERATED,
-        )
-        # The copy regenerates only its own schemas, never the draft's SDK output.
-        self.assertEqual(
-            (self.root / "spec/0.2/tspconfig.yaml").read_text(encoding="utf-8"),
-            cut.RELEASED_TSPCONFIG,
-        )
-        self.assertIn(
-            "@agent-hooks/emitter-csharp",
-            (draft / "tspconfig.yaml").read_text(encoding="utf-8"),
         )
         self.assertTrue(any("tsp compile spec/0.2" in step for step in follow_ups))
         self.assertTrue(
