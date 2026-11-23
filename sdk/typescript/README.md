@@ -27,6 +27,9 @@ version. Check what the tags resolve to with
 
 ## Usage
 
+The SDK is an ES module package for Node.js 20.10 or newer. Use
+`import`/`export` in an ES module project; no CommonJS build is published.
+
 ```ts
 import {
   AgentContextBuilder,
@@ -61,6 +64,42 @@ await emitter.emit(ctx); // throws InterceptionBlocked on a combined deny
 interceptor runs at. At a point, `interceptors_registered`,
 `verdicts[].index` and `decided_by` count and index the interceptors
 bound there, in registration order.
+
+## Generated draft contract (POC)
+
+The independent `@responsibleai/agent-hooks/contract` entry point contains
+types generated directly from the draft TypeSpec source with Alloy and the
+TypeSpec emitter framework. This is a fresh contract, not an adaptation of
+the existing 0.1 API: models are interfaces, decisions and other enums are
+string-literal unions, and hook requests, responses and approval resolutions
+are discriminated unions.
+
+```ts
+import type {
+  PreToolCallRequest,
+  PreToolHookResponse,
+} from "@responsibleai/agent-hooks/contract";
+
+function reviewTool(ctx: PreToolCallRequest): PreToolHookResponse {
+  return {
+    verdict: {
+      decision: "transform",
+      transform: { args: { ...ctx.tool_call.args, reviewed: true } },
+    },
+  };
+}
+```
+
+The contract needs no native module, runtime validators, copied JSON Schemas,
+or compatibility aliases. Runtime integration is outside this POC; the
+existing SDK runtime does not consume these types.
+
+The generator and its dependencies live in this SDK. From this directory,
+run `pnpm run generate:types` to regenerate the contract and
+`pnpm run check:generated` to check drift and type-check the generator.
+The repository-root `generate:typescript` and `check:typescript` commands
+are convenience aliases. Generation reads the draft TypeSpec source directly
+and does not regenerate the normative JSON Schemas.
 
 ## Failure handling
 
@@ -157,5 +196,5 @@ layout): `linux-x64-gnu`, `linux-arm64-gnu`, `darwin-x64`,
 `darwin-arm64` and `win32-x64-msvc`. On other platforms, install from
 source (needs a Rust toolchain): run `pnpm install` at the repository root,
 then `pnpm --dir sdk/typescript build` to produce the module
-for your host platform. A platform mismatch fails at `require` time
+for your host platform. A platform mismatch fails at import time
 with a module-load error naming the missing `.node` binary.

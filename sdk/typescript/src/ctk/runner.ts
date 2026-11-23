@@ -40,10 +40,10 @@ import {
   Verdict,
   canonicalDeclaration,
   requireSpecVersion,
-} from "../index";
-import { resolveDeclaration, resolveSurfaceOnly } from "../declaration";
-import { native } from "../native";
-import type { Harness, LoadRecord, RunRecord, Scenario } from "./index";
+} from "../index.js";
+import { resolveDeclaration, resolveSurfaceOnly } from "../declaration.js";
+import { native } from "../native.js";
+import type { Harness, LoadRecord, RunRecord, Scenario } from "./index.js";
 
 export interface VectorResult {
   id: string;
