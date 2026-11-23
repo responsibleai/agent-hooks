@@ -27,7 +27,8 @@ internal static class Points
         Draft.InterceptionPoint.PreToolCall => nameof(Draft.PreToolCallRequest),
         Draft.InterceptionPoint.PostToolCall => nameof(Draft.PostToolCallRequest),
         Draft.InterceptionPoint.Output => nameof(Draft.OutputRequest),
-        _ => nameof(Draft.AgentShutdownRequest),
+        Draft.InterceptionPoint.AgentShutdown => nameof(Draft.AgentShutdownRequest),
+        _ => throw new ArgumentOutOfRangeException(nameof(point), point, null),
     };
 
     /// <summary>The hook response schema (§5).</summary>
@@ -40,7 +41,8 @@ internal static class Points
         Draft.InterceptionPoint.PreToolCall => nameof(Draft.PreToolHookResponse),
         Draft.InterceptionPoint.PostToolCall => nameof(Draft.PostToolHookResponse),
         Draft.InterceptionPoint.Output => nameof(Draft.OutputHookResponse),
-        _ => nameof(Draft.AgentShutdownHookResponse),
+        Draft.InterceptionPoint.AgentShutdown => nameof(Draft.AgentShutdownHookResponse),
+        _ => throw new ArgumentOutOfRangeException(nameof(point), point, null),
     };
 
     /// <summary>The §5 transform member and the request path it replaces; null where transforms are forbidden.</summary>

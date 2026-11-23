@@ -14,26 +14,31 @@ internal static class Jcs
 {
     public const string ProviderName = "jcs-sha256";
 
+    private const int DefaultMaxDepth = 128;
     private const string MaxSafeInteger = "9007199254740991";
     private const string IntegerDomainDetail = "integer token exceeds 2^53; string-encode 64-bit identifiers, see spec §4.4";
 
     // §10.2: the identity preimage is exactly the required members of the point's request schema,
-    // keeping only the required subfields of object members, so it follows the generated schemas.
+    // keeping only the required subfields of object members, pre-sorted in RFC 8785 key order.
     private static readonly Lazy<Dictionary<Draft.InterceptionPoint, (string Key, string[]? Fields)[]>> Projections = new(() =>
         Points.All.ToDictionary(p => p, p => Project(Schemas.Document(Points.RequestSchema(p)))));
 
     private static (string Key, string[]? Fields)[] Project(JsonObject schema)
     {
         var properties = schema["properties"]!.AsObject();
-        return schema["required"]!.AsArray().Select(r => r!.GetValue<string>()).Select(key =>
-        {
-            var property = Resolve(schema, properties[key]);
-            var fields = property?["type"] is JsonValue type && type.TryGetValue(out string? kind) && kind == "object" &&
-                property["required"] is JsonArray required
-                ? required.Select(f => f!.GetValue<string>()).ToArray()
-                : null;
-            return (key, fields);
-        }).ToArray();
+        return schema["required"]!.AsArray()
+            .Select(r => r!.GetValue<string>())
+            .Order(StringComparer.Ordinal)
+            .Select(key =>
+            {
+                var property = Resolve(schema, properties[key]);
+                var fields = property?["type"] is JsonValue type && type.TryGetValue(out string? kind) && kind == "object" &&
+                    property["required"] is JsonArray required
+                    ? required.Select(f => f!.GetValue<string>()).Order(StringComparer.Ordinal).ToArray()
+                    : null;
+                return (key, fields);
+            })
+            .ToArray();
     }
 
     private static JsonNode? Resolve(JsonObject schema, JsonNode? property) =>
@@ -45,7 +50,7 @@ internal static class Jcs
     public static string Canonicalize(JsonNode? value)
     {
         var element = ToElement(value);
-        ScanIntegerDomain(element.GetRawText());
+        CheckIntegerDomain(element);
         return Write(element);
     }
 
@@ -67,32 +72,56 @@ internal static class Jcs
             var pointer = Schemas.Errors(context, schema).Select(e => e.Pointer).FirstOrDefault(p => p.Length > 0) ?? "";
             throw Invalid($"${pointer.Replace('/', '.')}: does not satisfy the {schema} request schema (see spec §4)");
         }
-        var projection = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        var builder = new StringBuilder();
+        builder.Append('{');
+        var first = true;
         foreach (var (key, keep) in Projections.Value[point.Value])
         {
             if (!context.TryGetProperty(key, out var value)) continue;
+            if (!first) builder.Append(',');
+            first = false;
+            WriteString(builder, key);
+            builder.Append(':');
             if (keep is not null && value.ValueKind == JsonValueKind.Object)
             {
-                var filtered = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+                builder.Append('{');
+                var firstMember = true;
                 foreach (var member in keep)
-                    if (value.TryGetProperty(member, out var kept)) filtered[member] = kept;
-                value = JsonSerializer.SerializeToElement(filtered, Contract.Options);
+                {
+                    if (!value.TryGetProperty(member, out var kept)) continue;
+                    CheckIntegerDomain(kept);
+                    if (!firstMember) builder.Append(',');
+                    firstMember = false;
+                    WriteString(builder, member);
+                    builder.Append(':');
+                    Write(builder, kept);
+                }
+                builder.Append('}');
             }
-            ScanIntegerDomain(value.GetRawText());
-            projection[key] = value;
+            else
+            {
+                CheckIntegerDomain(value);
+                Write(builder, value);
+            }
         }
-        var preimage = JsonSerializer.SerializeToElement(projection, Contract.Options);
-        CheckDepth(preimage);
-        return "sha256:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Write(preimage)))).ToLowerInvariant();
+        builder.Append('}');
+        return "sha256:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString()))).ToLowerInvariant();
     }
 
     /// <summary>Parses untrusted JSON text: rejects duplicate members, lone surrogates, non-finite numbers and excess depth.</summary>
-    internal static JsonNode? Parse(string json, int maxDepth = 128)
+    internal static JsonNode? Parse(string json, int maxDepth = DefaultMaxDepth)
     {
         CheckUnicode(json);
-        using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = maxDepth });
-        CheckParsed(document.RootElement);
-        return JsonNode.Parse(document.RootElement.GetRawText(), documentOptions: new() { MaxDepth = maxDepth });
+        try
+        {
+            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = maxDepth });
+            CheckParsed(document.RootElement, maxDepth);
+        }
+        catch (InvalidOperationException e)
+        {
+            throw new JsonException("invalid Unicode string", e);
+        }
+        return JsonNode.Parse(json, documentOptions: new() { MaxDepth = maxDepth });
     }
 
     internal static int CanonicalSize(JsonNode? value) => Encoding.UTF8.GetByteCount(Canonicalize(value));
@@ -120,17 +149,25 @@ internal static class Jcs
     /// <summary>True when every integer token in <paramref name="json"/> lies within ±(2^53−1).</summary>
     internal static bool InIntegerDomain(string json)
     {
-        try { ScanIntegerDomain(json); return true; }
-        catch (AgentHooksCoreException) { return false; }
+        try
+        {
+            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = DefaultMaxDepth });
+            CheckIntegerDomain(document.RootElement);
+            return true;
+        }
+        catch (Exception e) when (e is AgentHooksCoreException or JsonException)
+        {
+            return false;
+        }
     }
 
     private static JsonElement ToElement(JsonNode? value)
     {
         try
         {
-            var element = Contract.Element(value);
-            CheckParsed(element);
             Contract.ValidateUnicode(value);
+            var element = Contract.Element(value);
+            CheckParsed(element, DefaultMaxDepth);
             return element;
         }
         catch (Exception e) when (e is JsonException or InvalidOperationException or ArgumentException)
@@ -139,29 +176,38 @@ internal static class Jcs
         }
     }
 
-    private static void CheckParsed(JsonElement value)
+    private static void CheckParsed(JsonElement root, int maxDepth)
     {
-        switch (value.ValueKind)
+        var stack = new Stack<(JsonElement Value, int Depth)>();
+        stack.Push((root, 0));
+        while (stack.TryPop(out var entry))
         {
-            case JsonValueKind.Object:
-                var seen = new HashSet<string>(StringComparer.Ordinal);
-                foreach (var property in value.EnumerateObject())
-                {
-                    CheckUnicode(property.Name);
-                    if (!seen.Add(property.Name))
-                        throw new JsonException($"duplicate member \"{property.Name}\"");
-                    CheckParsed(property.Value);
-                }
-                break;
-            case JsonValueKind.Array:
-                foreach (var item in value.EnumerateArray()) CheckParsed(item);
-                break;
-            case JsonValueKind.String:
-                CheckUnicode(value.GetString()!);
-                break;
-            case JsonValueKind.Number:
-                _ = ParseNumber(value.GetRawText());
-                break;
+            switch (entry.Value.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    if (entry.Depth + 1 > maxDepth)
+                        throw new JsonException($"nesting depth exceeds {maxDepth} levels, see spec §12.3");
+                    var seen = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (var property in entry.Value.EnumerateObject())
+                    {
+                        if (!seen.Add(property.Name))
+                            throw new JsonException($"duplicate member \"{property.Name}\"");
+                        stack.Push((property.Value, entry.Depth + 1));
+                    }
+                    break;
+                case JsonValueKind.Array:
+                    if (entry.Depth + 1 > maxDepth)
+                        throw new JsonException($"nesting depth exceeds {maxDepth} levels, see spec §12.3");
+                    foreach (var item in entry.Value.EnumerateArray())
+                        stack.Push((item, entry.Depth + 1));
+                    break;
+                case JsonValueKind.String:
+                    _ = entry.Value.GetString();
+                    break;
+                case JsonValueKind.Number:
+                    _ = ParseNumber(entry.Value.GetRawText());
+                    break;
+            }
         }
     }
 
@@ -175,48 +221,29 @@ internal static class Jcs
         }
     }
 
-    private static void ScanIntegerDomain(string json)
+    private static void CheckIntegerDomain(JsonElement root)
     {
-        for (var i = 0; i < json.Length; i++)
+        var stack = new Stack<JsonElement>();
+        stack.Push(root);
+        while (stack.TryPop(out var current))
         {
-            if (json[i] == '"')
+            switch (current.ValueKind)
             {
-                while (++i < json.Length)
-                {
-                    if (json[i] == '\\') i++;
-                    else if (json[i] == '"') break;
-                }
+                case JsonValueKind.Object:
+                    foreach (var property in current.EnumerateObject()) stack.Push(property.Value);
+                    break;
+                case JsonValueKind.Array:
+                    foreach (var item in current.EnumerateArray()) stack.Push(item);
+                    break;
+                case JsonValueKind.Number:
+                    var raw = current.GetRawText();
+                    if (raw.IndexOfAny(['.', 'e', 'E']) >= 0) break;
+                    var digits = raw[0] == '-' ? raw.AsSpan(1) : raw.AsSpan();
+                    if (digits.Length > MaxSafeInteger.Length ||
+                        (digits.Length == MaxSafeInteger.Length && digits.SequenceCompareTo(MaxSafeInteger) > 0))
+                        throw Invalid(IntegerDomainDetail);
+                    break;
             }
-            else if (json[i] == '-' || char.IsAsciiDigit(json[i]))
-            {
-                var start = i;
-                var integer = true;
-                while (i < json.Length && (char.IsAsciiDigit(json[i]) || json[i] is '-' or '+' or '.' or 'e' or 'E'))
-                {
-                    if (json[i] is '.' or 'e' or 'E') integer = false;
-                    i++;
-                }
-                var sign = json[start] == '-' ? 1 : 0;
-                var digits = json.AsSpan(start + sign, i - start - sign);
-                if (integer && (digits.Length > MaxSafeInteger.Length ||
-                    (digits.Length == MaxSafeInteger.Length && digits.SequenceCompareTo(MaxSafeInteger) > 0)))
-                    throw Invalid(IntegerDomainDetail);
-                i--;
-            }
-        }
-    }
-
-    private static void CheckDepth(JsonElement value)
-    {
-        var stack = new Stack<(JsonElement Value, int Depth)>();
-        stack.Push((value, 1));
-        while (stack.TryPop(out var entry))
-        {
-            if (entry.Depth > 128) throw Invalid("context nests deeper than 128 levels, see spec §12.3");
-            if (entry.Value.ValueKind == JsonValueKind.Array)
-                foreach (var item in entry.Value.EnumerateArray()) stack.Push((item, entry.Depth + 1));
-            else if (entry.Value.ValueKind == JsonValueKind.Object)
-                foreach (var property in entry.Value.EnumerateObject()) stack.Push((property.Value, entry.Depth + 1));
         }
     }
 

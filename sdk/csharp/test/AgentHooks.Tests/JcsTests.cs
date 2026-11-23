@@ -60,8 +60,39 @@ public sealed class JcsTests
     public void DuplicateMembersInParsedJsonNodeFailClosed()
     {
         var duplicate = JsonNode.Parse("{\"x\":1,\"x\":2}");
-        var error = Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(duplicate));
-        Assert.Equal(HostError.ContextInvalid, error.Code);
+        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(duplicate)).Code);
+
+        var nested = JsonNode.Parse("{\"a\":{\"x\":1,\"x\":2}}");
+        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(nested)).Code);
+    }
+
+    [Theory]
+    [InlineData("\"\\uD800\"")]
+    [InlineData("{\"\\uD800\":1}")]
+    [InlineData("{\"x\":1,\"x\":2}")]
+    [InlineData("1e309")]
+    public void ParseRejectsInvalidJsonText(string json) =>
+        Assert.Throws<JsonException>(() => Jcs.Parse(json));
+
+    [Fact]
+    public void DepthLimitIsConsistentAcrossParseAndCanonicalize()
+    {
+        static string Nest(int depth) => new string('[', depth) + "0" + new string(']', depth);
+
+        var atLimit = Jcs.Parse(Nest(128));
+        Assert.Equal(Nest(128), Jcs.Canonicalize(atLimit));
+
+        Assert.ThrowsAny<JsonException>(() => Jcs.Parse(Nest(129)));
+        var tooDeep = JsonNode.Parse(Nest(129), documentOptions: new() { MaxDepth = 256 });
+        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(tooDeep)).Code);
+    }
+
+    [Fact]
+    public void ContractAndPointsRejectInvalidInputs()
+    {
+        Assert.Throws<JsonException>(() => Contract.ToJson("not-an-object"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Points.RequestSchema((Draft.InterceptionPoint)99));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Points.ResponseSchema((Draft.InterceptionPoint)99));
     }
 
     [Fact]
@@ -189,14 +220,16 @@ public sealed class JcsTests
             Jcs.ContextIdentity(Contract.ToJson(request)));
     }
 
-    public static TheoryData<string> GoldenFixtures() => new(Golden().Where(f => f!["expect"]!["canonical_json"] is not null).Select(f => (string)f!["id"]!));
+    private static readonly JsonArray Golden = LoadGolden();
+
+    public static TheoryData<string> GoldenFixtures() => new(Golden.Where(f => f!["expect"]!["canonical_json"] is not null).Select(f => (string)f!["id"]!));
 
     /// <summary>Cross-SDK canonical JSON fixtures; their identities are 0.1-shaped (they bind <c>target</c>) and are not asserted.</summary>
     [Theory]
     [MemberData(nameof(GoldenFixtures))]
     public void GoldenCanonicalJson(string id)
     {
-        var fixture = Golden().Single(f => (string)f!["id"]! == id)!;
+        var fixture = Golden.Single(f => (string)f!["id"]! == id)!;
         var expected = (string)fixture["expect"]!["canonical_json"]!;
         if (id == "G-15-rfc8785-numbers")
         {
@@ -207,6 +240,6 @@ public sealed class JcsTests
         Assert.Equal(expected, Jcs.Canonicalize(fixture["ctx"]));
     }
 
-    private static JsonArray Golden([CallerFilePath] string source = "") =>
+    private static JsonArray LoadGolden([CallerFilePath] string source = "") =>
         JsonNode.Parse(File.ReadAllText(Path.Combine(Path.GetDirectoryName(source)!, "../../../../conformance/golden/identity.json")))!["fixtures"]!.AsArray();
 }
