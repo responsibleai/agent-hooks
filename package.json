@@ -7,10 +7,10 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "@typespec/compiler": "1.18.0",
-    "@typespec/json-schema": "1.18.0",
-    "ajv-cli": "5.0.0",
-    "ajv-formats": "3.0.1"
+    "@typespec/compiler": "catalog:",
+    "@typespec/json-schema": "catalog:",
+    "ajv-cli": "catalog:",
+    "ajv-formats": "catalog:"
   },
   "scripts": {
     "generate": "pnpm --filter \"@agent-hooks/spec-draft...\" run build",
