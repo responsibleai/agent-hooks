@@ -135,7 +135,7 @@ public sealed class GeneratedContractTests
     {
         Assert.True(typeof(Delegate).IsAssignableFrom(handler));
         var invoke = handler.GetMethod("Invoke")!;
-        Assert.Equal(typeof(ValueTask<>).MakeGenericType(response), invoke.ReturnType);
+        Assert.Equal(typeof(Task<>).MakeGenericType(response), invoke.ReturnType);
         var parameters = invoke.GetParameters();
         Assert.Equal(2, parameters.Length);
         Assert.Equal(request, parameters[0].ParameterType);
@@ -179,7 +179,7 @@ public sealed class GeneratedContractTests
             File.ReadAllText(Path.Combine(ExamplesDirectory(), "ApprovalRequest/collection-access.json")))!;
         request.ContextIdentity = "sha256:consulted-context";
         Draft.ApprovalResolverHandler resolver = (context, _) =>
-            ValueTask.FromResult<Draft.ApprovalResolution>(new Draft.ApproveResolution
+            Task.FromResult<Draft.ApprovalResolution>(new Draft.ApproveResolution
             {
                 ContextIdentity = context.ContextIdentity,
                 Verdict = new Draft.AllowVerdict(),

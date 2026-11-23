@@ -18,6 +18,6 @@ export function OperationHandler(props: { type: Operation; name: string }): Chil
   // Alloy has no delegate declaration component; reuse its parameter rendering.
   return <cs.MethodScope name={props.name}>
     <cs.DocWhen doc={getDocComments($, props.type)} />
-    {code`public delegate ValueTask<${<TypeExpression type={props.type.returnType} />}> ${props.name}${<cs.Parameters parameters={parameters} />};`}
+    {code`public delegate Task<${<TypeExpression type={props.type.returnType} />}> ${props.name}${<cs.Parameters parameters={parameters} />};`}
   </cs.MethodScope>;
 }

@@ -3722,7 +3722,7 @@ internal sealed class ApprovalResolutionJsonConverter : DiscriminatedUnionJsonCo
 /// <summary>
 /// Evaluate agent_startup before the session's first input (§3, §4.2).
 /// </summary>
-public delegate ValueTask<AgentStartupHookResponse> AgentStartupHookHandler(
+public delegate Task<AgentStartupHookResponse> AgentStartupHookHandler(
     AgentStartupRequest request,
     CancellationToken cancellationToken = default
 );
@@ -3730,7 +3730,7 @@ public delegate ValueTask<AgentStartupHookResponse> AgentStartupHookHandler(
 /// <summary>
 /// Evaluate input before it enters the agent loop (§3, §4.2).
 /// </summary>
-public delegate ValueTask<InputHookResponse> InputHookHandler(
+public delegate Task<InputHookResponse> InputHookHandler(
     InputRequest request,
     CancellationToken cancellationToken = default
 );
@@ -3738,7 +3738,7 @@ public delegate ValueTask<InputHookResponse> InputHookHandler(
 /// <summary>
 /// Evaluate pre_model_call before invoking the model (§3, §4.2).
 /// </summary>
-public delegate ValueTask<PreModelHookResponse> PreModelHookHandler(
+public delegate Task<PreModelHookResponse> PreModelHookHandler(
     PreModelCallRequest request,
     CancellationToken cancellationToken = default
 );
@@ -3746,7 +3746,7 @@ public delegate ValueTask<PreModelHookResponse> PreModelHookHandler(
 /// <summary>
 /// Evaluate post_model_call before consuming the model response (§3, §4.2).
 /// </summary>
-public delegate ValueTask<PostModelHookResponse> PostModelHookHandler(
+public delegate Task<PostModelHookResponse> PostModelHookHandler(
     PostModelCallRequest request,
     CancellationToken cancellationToken = default
 );
@@ -3754,7 +3754,7 @@ public delegate ValueTask<PostModelHookResponse> PostModelHookHandler(
 /// <summary>
 /// Evaluate pre_tool_call before invoking the tool (§3, §4.2).
 /// </summary>
-public delegate ValueTask<PreToolHookResponse> PreToolHookHandler(
+public delegate Task<PreToolHookResponse> PreToolHookHandler(
     PreToolCallRequest request,
     CancellationToken cancellationToken = default
 );
@@ -3762,7 +3762,7 @@ public delegate ValueTask<PreToolHookResponse> PreToolHookHandler(
 /// <summary>
 /// Evaluate post_tool_call before consuming the tool result (§3, §4.2).
 /// </summary>
-public delegate ValueTask<PostToolHookResponse> PostToolHookHandler(
+public delegate Task<PostToolHookResponse> PostToolHookHandler(
     PostToolCallRequest request,
     CancellationToken cancellationToken = default
 );
@@ -3770,7 +3770,7 @@ public delegate ValueTask<PostToolHookResponse> PostToolHookHandler(
 /// <summary>
 /// Evaluate output before delivering it to the caller (§3, §4.2).
 /// </summary>
-public delegate ValueTask<OutputHookResponse> OutputHookHandler(
+public delegate Task<OutputHookResponse> OutputHookHandler(
     OutputRequest request,
     CancellationToken cancellationToken = default
 );
@@ -3778,7 +3778,7 @@ public delegate ValueTask<OutputHookResponse> OutputHookHandler(
 /// <summary>
 /// Evaluate agent_shutdown after the last output or on abnormal termination (§3, §4.2).
 /// </summary>
-public delegate ValueTask<AgentShutdownHookResponse> AgentShutdownHookHandler(
+public delegate Task<AgentShutdownHookResponse> AgentShutdownHookHandler(
     AgentShutdownRequest request,
     CancellationToken cancellationToken = default
 );
@@ -3788,7 +3788,7 @@ public delegate ValueTask<AgentShutdownHookResponse> AgentShutdownHookHandler(
 /// The host consults this seam only as prescribed by §7.4–§7.6 and §9,
 /// never at agent_shutdown or in evaluate_only mode.
 /// </summary>
-public delegate ValueTask<ApprovalResolution> ApprovalResolverHandler(
+public delegate Task<ApprovalResolution> ApprovalResolverHandler(
     ApprovalRequest request,
     CancellationToken cancellationToken = default
 );

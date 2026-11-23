@@ -95,7 +95,7 @@ dictionary initializers between enum and union emission.
 `operation-handler.tsx` maps the logical operations below to independent async
 C# delegates: one hook handler per request/response pair and an
 `ApprovalResolverHandler`. Each accepts its typed request and an optional
-cancellation token and returns a `ValueTask` of the declared response. The
+cancellation token and returns a `Task` of the declared response. The
 pairings come from TypeSpec operations, not a second hand-maintained hook table;
 no aggregate interceptor interface or runtime dispatcher is generated.
 These types preserve wire shapes; they do not replace JSON Schema validation
