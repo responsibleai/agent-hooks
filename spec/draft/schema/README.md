@@ -110,6 +110,8 @@ contract types, and transform target path, failing generation on missing,
 duplicate, or ambiguous mappings.
 These types preserve wire shapes; they do not replace JSON Schema validation
 of specification constraints.
+The [C# SDK README](../../../sdk/csharp/README.md#generated-draft-contracts-no-rust-dependency)
+describes the generated API.
 
 ## Logical operations
 

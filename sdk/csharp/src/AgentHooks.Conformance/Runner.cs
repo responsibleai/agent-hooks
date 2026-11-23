@@ -1,967 +1,166 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-// CTK runner: load vectors, drive an IHarness, assert `expect`.
-//
-// The assertion engine, capability skip check, and scripted
-// interceptor/resolver evaluation live in the Rust core (Native.Ctk*).
-// This class keeps only vector globbing, the harness setup/run/teardown
-// orchestration (native callbacks), RunRecord marshalling and, for the
-// declaration parts (§7.7.9), the CTK registry and the construction
-// path proof. See conformance/RUNNER.md.
-
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Draft = AgentHooks.Contracts.Draft;
 
 namespace AgentHooks.Conformance;
 
-/// <summary>The outcome of one vector run. <see cref="Part"/> is the
-/// vector's declared-surface tag (§13.1); grouping results by it is the
-/// conformance report. Empty when the vector carries none.</summary>
-public sealed record VectorResult(
-    string Id, string Title, string Status,
-    string Detail, IReadOnlyList<string> Failures, string Part = "");
-
-/// <summary>One part of a conformance report (§13.1): the vectors that
-/// carry one <c>part</c> tag, with their counts.</summary>
-public sealed record PartReport(
-    string Part, int Passed, int Failed, int Skipped, IReadOnlyList<VectorResult> Vectors);
-
-/// <summary>The conformance report a claim attaches (§13.1, §13.3): the
-/// results grouped by <c>part</c>, under the specification version the
-/// claim names. Parts are in name order; each keeps its vectors in run
-/// order.</summary>
-public sealed record ConformanceReport(
-    string Spec, IReadOnlyList<PartReport> Parts, int Passed, int Failed, int Skipped);
-
-/// <summary>What loading a vector's host declaration produced
-/// (§7.7.9): <c>accepted</c> or <c>refused</c>, the
-/// <c>declaration_error:*</c> code on refusal, and whether the value,
-/// JSON, file and builder paths resolved to one canonical form (or
-/// refused with one class).</summary>
-public sealed record LoadRecord(
-    string Outcome, string? Class, bool PathsEquivalent, string? Detail)
+public sealed record VectorResult(string Id, string Title, string Part, string Status, string Detail, IReadOnlyList<string> Failures)
 {
-    public JsonObject ToWire()
-    {
-        var o = new JsonObject { ["outcome"] = Outcome };
-        if (Class is not null) o["class"] = Class;
-        o["paths_equivalent"] = PathsEquivalent;
-        if (Detail is not null) o["detail"] = Detail;
-        return o;
-    }
+    public bool Passed => Status == "pass";
+
+    public bool Skipped => Status == "skip";
 }
 
+/// <summary>The CTK runner (conformance/RUNNER.md): builds the emitter a vector describes, drives a harness, asserts.</summary>
 public static class Runner
 {
-    private static readonly JsonSerializerOptions Compact = new() { WriteIndented = false };
-
-    /// <summary>The skip reason of a draft-only vector under a released version.</summary>
-    public const string DraftOnlySkip = "draft-only vector; see #188";
-
-    /// <summary>The one line every runner answers a report that names the draft.</summary>
-    public const string DraftNotClaimable =
-        "a conformance report cannot name agent-hooks/draft; the draft is never claimed: " +
-        "run the vectors for development and report a released version";
-
-    /// <summary>Group <paramref name="results"/> by <c>part</c> into the
-    /// report a claim attaches, under <paramref name="spec"/>, the released
-    /// version the claim names (a wire string). SDK self-tests use
-    /// <c>conformance/0.1/vectors/</c>. The separate draft suite is not a
-    /// released claim; a report naming it throws an <see cref="ArgumentException"/>
-    /// with <see cref="DraftNotClaimable"/>, since no claim names it.</summary>
-    public static ConformanceReport Report(string spec, IEnumerable<VectorResult> results)
-    {
-        var wire = Spec.Require(spec);
-        if (wire == Spec.Draft) throw new ArgumentException(DraftNotClaimable, nameof(spec));
-        var parts = results
-            .GroupBy(r => r.Part)
-            .OrderBy(g => g.Key, StringComparer.Ordinal)
-            .Select(g => new PartReport(
-                g.Key,
-                g.Count(r => r.Status == "pass"),
-                g.Count(r => r.Status != "pass" && r.Status != "skip"),
-                g.Count(r => r.Status == "skip"),
-                g.ToList()))
-            .ToList();
-        return new ConformanceReport(
-            wire, parts, parts.Sum(p => p.Passed), parts.Sum(p => p.Failed), parts.Sum(p => p.Skipped));
-    }
-
     public static IEnumerable<JsonObject> LoadVectors(string directory)
     {
-        var files = Directory.EnumerateFiles(directory, "AH-CTK-*.json").OrderBy(p => p).ToList();
-        if (files.Count == 0)
-            // A runner fed zero vectors reports 100% pass — a false
-            // conformance signal (§13.2). Fail loudly instead.
-            throw new FileNotFoundException($"no AH-CTK-*.json vectors found in {directory}");
-        foreach (var f in files)
-            yield return (JsonObject)JsonNode.Parse(File.ReadAllText(f))!;
+        var files = Directory.EnumerateFiles(directory, "AH-CTK-*.json").Order(StringComparer.Ordinal).ToList();
+        // Zero vectors would read as a 100% pass (§13.2).
+        if (files.Count == 0) throw new FileNotFoundException($"no AH-CTK-*.json vectors found in {directory}");
+        return files.Select(f => JsonNode.Parse(File.ReadAllText(f))!.AsObject());
     }
 
-    public static async Task<VectorResult> RunVectorAsync(
-        IHarness harness, JsonObject vector, CancellationToken ct = default)
+    public static async Task<VectorResult> RunVectorAsync(IHarness harness, JsonObject vector, CancellationToken cancellationToken = default)
     {
-        var id = (string)vector["id"]!;
-        var title = (string)vector["title"]!;
-        var part = (string?)vector["part"] ?? "";
-        var vectorJson = vector.ToJsonString(Compact);
+        VectorResult Result(string status, string detail, IReadOnlyList<string> failures) =>
+            new((string)vector["id"]!, (string)vector["title"]!, (string?)vector["part"] ?? "", status, detail, failures);
 
-        Spec.Require(harness.Spec, "harness.Spec");
-        // A draft-only vector (introduced_in: draft) is part of the working
-        // test set for the next version and runs under the draft only.
-        // Binding tests to a draft revision is #188.
-        if ((string?)vector["introduced_in"] == "draft" && harness.Spec != Spec.Draft)
-            return new VectorResult(id, title, "skip", DraftOnlySkip, [], part);
+        var surface = harness.Surface;
+        if (CtkEngine.SkipReason(vector, surface.Capabilities.Select(c => c.ToWire())) is { } skip)
+            return Result("skip", skip, []);
 
-        // §7.7.9: a harness with its own declaration is assessed against
-        // the resolved document, so what ran is what a claim cites.
-        var codeSurface = harness.HostSurface;
-        IEnumerable<string> capabilities;
-        string posture;
-        // §6.3.1: the harness document's default failure posture, what a
-        // claim states; a vector's own document may set its own. A
-        // code-surface harness has no document and so the spec default.
-        string onError;
-        if (harness.Declaration is { } own)
-        {
-            var assessed = AssessOwnDeclaration(own, codeSurface);
-            if (assessed.Refused is { } refused)
-                return new VectorResult(id, title, "fail", "",
-                    [$"harness declaration refused: {refused}"], part);
-            capabilities = assessed.Capabilities;
-            posture = assessed.Posture;
-            onError = assessed.OnError;
-        }
-        else
-        {
-            capabilities = harness.Capabilities.Select(c => c.ToWireName());
-            posture = harness.ToolSeamHostError;
-            onError = OnError.Deny.ToWireName();
-        }
-
-        // Capability skip via core.
-        var caps = new JsonArray(
-            capabilities.Order(StringComparer.Ordinal).Select(c => (JsonNode)c).ToArray());
-        var skip = JsonNode.Parse(
-            Native.CtkShouldSkip(vectorJson, caps.ToJsonString(Compact)));
-        if (skip is JsonValue sv && sv.TryGetValue(out string? reason))
-            return new VectorResult(id, title, "skip", reason!, [], part);
-
-        var scenario = Scenario.FromWire((JsonObject)vector["scenario"]!);
         var scripts = new Scripts(vector);
+        var records = new List<Draft.InterceptionRecord>();
+        var messages = new List<string>();
+        void Notify(ControlFailureNotice notice)
+        {
+            lock (messages) messages.Add(notice.Message);
+        }
+        void Sink(Draft.InterceptionRecord record)
+        {
+            lock (records) records.Add(record);
+        }
 
-        var mode = (string?)vector["mode"] == "evaluate_only"
-            ? EnforcementMode.EvaluateOnly : EnforcementMode.Enforce;
-
-        // §13.2: composition vectors carry the profile/knobs they apply
-        // to; absent means the pre-P-003 default.
-        var composition = vector["composition"] is JsonObject co
-            ? CompositionConfig.FromWire(co)
-            : CompositionConfig.Default;
-
-        // §10.1: absent → the default provider; explicit null → unbound.
-        var identityProvider = vector.ContainsKey("identity_provider")
-            ? (string?)vector["identity_provider"]
-            : Spec.JcsSha256;
-
-        RunRecord rr;
-        LoadRecord? load = null;
+        HookEmitter? emitter = null;
+        JsonObject? load = null;
         if (vector["host_declaration"] is JsonObject document)
         {
-            // §7.7.9: a declaration vector builds the emitter through
-            // the loader. The runner proves the construction paths
-            // itself, then hands the document and the CTK registry to
-            // the harness.
-            var registry = scripts.Registry(codeSurface);
-            var (pathsEquivalent, pathDetail) = ProvePaths(document, registry, id);
+            // §7.7.9: a declaration vector builds through the loader; every construction path must agree.
+            var registry = scripts.Registry(surface).OnControlFailure(Notify).WithRecordSink(Sink);
+            var (equivalent, pathDetail) = ProvePaths(document, registry);
+            load = new JsonObject { ["outcome"] = "accepted", ["paths_equivalent"] = equivalent };
             try
             {
-                harness.SetupDeclared(scenario, (JsonObject)document.DeepClone(), registry);
+                emitter = HookEmitter.FromDeclaration(document.ToJsonString(), registry);
             }
             catch (DeclarationException e)
             {
-                harness.Teardown();
-                load = new LoadRecord(
-                    "refused", e.Code, pathsEquivalent,
-                    pathDetail.Length == 0 ? e.Message : $"{e.Message}; paths: {pathDetail}");
-                rr = new RunRecord(RunOutcome.Error, null, [], e.Message);
-                return Assert(vectorJson, id, title, scripts.Recorded, rr, posture, onError, load);
+                load["outcome"] = "refused";
+                load["class"] = e.Code;
+                pathDetail = $"{e.Message} {pathDetail}";
             }
-            try
-            {
-                rr = await harness.RunAsync(ct);
-            }
-            catch (Exception e)
-            {
-                return new VectorResult(id, title, "fail", "",
-                    [$"harness.RunAsync raised: {e}"], part);
-            }
-            finally
-            {
-                harness.Teardown();
-            }
-            load = new LoadRecord(
-                "accepted", null, pathsEquivalent,
-                pathDetail.Length == 0 ? null : pathDetail);
+            if (pathDetail.Length != 0) load["detail"] = pathDetail.Trim();
         }
         else
         {
-            harness.Setup(
-                scenario, scripts.Interceptors(), scripts.Resolver(), mode, composition,
-                identityProvider, scripts.Redact);
-            try
+            emitter = FromFields(vector, scripts, surface).OnControlFailure(Notify).WithRecordSink(Sink).Build();
+        }
+
+        RunRecord run;
+        if (emitter is null) run = new(RunOutcome.Error, null, []);
+        else
+        {
+            try { run = await harness.RunAsync(Scenario.FromWire(vector["scenario"]!.AsObject()), emitter, cancellationToken); }
+            catch (Exception e) when (e is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
-                rr = await harness.RunAsync(ct);
-            }
-            catch (Exception e)
-            {
-                return new VectorResult(id, title, "fail", "",
-                    [$"harness.RunAsync raised: {e}"], part);
-            }
-            finally
-            {
-                harness.Teardown();
+                return Result("fail", "", [$"harness.RunAsync raised: {e}"]);
             }
         }
 
-        return Assert(vectorJson, id, title, scripts.Recorded, rr, posture, onError, load);
-    }
-
-    private static VectorResult Assert(
-        string vectorJson, string id, string title,
-        List<JsonObject> recorded, RunRecord rr, string posture, string onError, LoadRecord? load)
-    {
-        var recordedJson = new JsonArray(
-            recorded.Select(c => (JsonNode)c.DeepClone()).ToArray()).ToJsonString(Compact);
-        var rrJson = RunRecordToWire(rr, posture, onError, load);
-        var result = (JsonObject)JsonNode.Parse(
-            Native.CtkAssert(vectorJson, recordedJson, rrJson))!;
-        return new VectorResult(
-            (string?)result["id"] ?? id,
-            (string?)result["title"] ?? title,
-            (string)result["status"]!,
-            (string?)result["detail"] ?? "",
-            (result["failures"] as JsonArray)?.Select(n => (string)n!).ToList() ?? [],
-            (string?)result["part"] ?? "");
-    }
-
-    /// <summary>What a harness's own declaration resolves to: the
-    /// capabilities and posture a run is assessed against, or the
-    /// refusal that fails the run.</summary>
-    private sealed record AssessedSurface(
-        IReadOnlyList<string> Capabilities, string Posture, string OnError, string? Refused);
-
-    /// <summary>Resolutions of harness declarations, keyed on the
-    /// document text and the code surface. The pair fixes the result,
-    /// so one entry serves every vector of a run and every harness
-    /// instance that ships the same document: §7.7.9 resolves the
-    /// document once, before any vector runs, not once per vector.</summary>
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, AssessedSurface>
-        OwnDeclarations = new(StringComparer.Ordinal);
-
-    /// <summary>Resolve a harness's own document against its code
-    /// surface (steps 2 to 8 of §7.7.6). The references and kinds it
-    /// names are the host's to register per run, so they are not
-    /// checked here; the CTK registry a vector builds is checked when
-    /// that vector's document is loaded.</summary>
-    private static AssessedSurface AssessOwnDeclaration(JsonObject own, HostSurface codeSurface)
-    {
-        var text = own.ToJsonString(Compact);
-        var key = text + "\n" + codeSurface.ToWire().ToJsonString(Compact);
-        return OwnDeclarations.GetOrAdd(key, _ =>
+        var wire = new JsonObject
         {
-            try
+            ["outcome"] = run.Outcome.ToString().ToLowerInvariant(),
+            ["final_output"] = run.FinalOutput?.DeepClone(),
+            ["tool_invocations"] = new JsonArray(run.ToolInvocations.Select(t => (JsonNode)t.DeepClone()).ToArray()),
+            ["records"] = new JsonArray(records.Select(r => (JsonNode)ContractSerializer.Serialize(r)).ToArray()),
+            ["postures"] = new JsonObject
             {
-                var resolved = HostDeclaration.FromJson(text).ResolveSurfaceOnly(codeSurface);
-                return new AssessedSurface(
-                    resolved.SurfaceCapabilities.Order(StringComparer.Ordinal).ToList(),
-                    resolved.ToolSeamHostError.ToWireName(),
-                    resolved.FailureOnError.ToWireName(),
-                    null);
-            }
-            catch (DeclarationException e)
-            {
-                return new AssessedSurface([], "", "", e.Message);
-            }
-        });
+                ["tool_seam_host_error"] = surface.ToolSeamPosture.ToWire(),
+                ["on_error"] = Draft.OnError.Deny.ToWire(),
+            },
+            ["host_messages"] = new JsonArray(messages.Select(m => (JsonNode)m).ToArray()),
+            ["load"] = load,
+        };
+        var failures = CtkEngine.Assert(vector, scripts.Recorded, wire);
+        return Result(failures.Count == 0 ? "pass" : "fail", "", failures);
     }
 
-    /// <summary>Resolve <paramref name="document"/> through the four
-    /// construction paths (§7.7.7) and compare: value, JSON text, a
-    /// temporary file and the builder. Equal canonical forms, or equal
-    /// refusal classes, prove the paths equivalent.</summary>
-    public static (bool Equivalent, string Detail) ProvePaths(
-        JsonObject document, HostRegistry registry, string tag)
+    /// <summary>A field-based vector: mode, composition, provider and scripts configure a builder directly.</summary>
+    private static HookEmitterBuilder FromFields(JsonObject vector, Scripts scripts, HostSurface surface)
     {
-        var text = document.ToJsonString(Compact);
-        var path = Path.Combine(
-            Path.GetTempPath(),
-            $"agent-hooks-ctk-{tag}-{Environment.ProcessId}-{DateTime.UtcNow.Ticks}.json");
-        var outcomes = new List<(string Name, string Key, string Short)>
+        var builder = HookEmitter.CreateBuilder()
+            .WithMode(WireEnum.Parse((string?)vector["mode"], Draft.ModeExtensions.TryParseWire) ?? Draft.Mode.Enforce)
+            .WithToolSeamPosture(surface.ToolSeamPosture);
+        if (vector["composition"] is JsonObject c)
         {
-            Outcome("value", () => HostDeclaration.FromNode(document).Resolve(registry)),
-            Outcome("json", () => HostDeclaration.FromJson(text).Resolve(registry)),
-            Outcome("file", () =>
+            builder.WithComposition(
+                WireEnum.Parse((string?)c["profile"], Draft.CompositionProfileExtensions.TryParseWire) ?? Draft.CompositionProfile.SequentialFirstDeny,
+                WireEnum.Parse((string?)c["on_approval"], Draft.OnApprovalExtensions.TryParseWire) ?? Draft.OnApproval.Stop,
+                WireEnum.Parse((string?)c["on_transform_conflict"], Draft.ConflictResolutionExtensions.TryParseWire) ?? Draft.ConflictResolution.Deny,
+                WireEnum.Parse((string?)c["on_disagreement"], Draft.ConflictResolutionExtensions.TryParseWire) ?? Draft.ConflictResolution.Deny);
+        }
+        // §10.1: absent selects the default provider; an explicit null leaves records unbound.
+        if (vector.TryGetPropertyValue("identity_provider", out var provider))
+            builder.WithIdentityProvider((string?)provider switch
+            {
+                null => null,
+                "ctk-fault" => Scripts.FaultingProvider,
+                _ => IdentityProvider.JcsSha256,
+            });
+        foreach (var interceptor in scripts.Interceptors()) builder.Use(interceptor);
+        if (scripts.Resolver is { } resolver) builder.WithApprovalResolver(resolver);
+        if (scripts.Redactor is { } redactor) builder.WithApprovalRedactor(redactor);
+        return builder;
+    }
+
+    /// <summary>
+    /// §7.7.9: the JSON text, file and typed <see cref="Draft.HostDeclaration"/> paths must resolve to the same
+    /// declaration or refuse with the same class. A document the typed model cannot represent skips that path.
+    /// </summary>
+    public static (bool Equivalent, string Detail) ProvePaths(JsonObject document, HostRegistry registry)
+    {
+        var text = document.ToJsonString();
+        var file = Path.Combine(AppContext.BaseDirectory, $"ctk-declaration-{Guid.NewGuid():N}.json");
+        var outcomes = new List<(string Path, string Key)>
+        {
+            ("json", Outcome(() => HookEmitter.FromDeclaration(text, registry))),
+            ("file", Outcome(() =>
             {
                 try
                 {
-                    File.WriteAllText(path, text);
-                    return HostDeclaration.FromPath(path).Resolve(registry);
+                    File.WriteAllText(file, text);
+                    return HookEmitter.FromDeclarationFile(file, registry);
                 }
-                finally
-                {
-                    // A cleanup problem must not fail the vector.
-                    try { File.Delete(path); }
-                    catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
-                }
-            }),
-            Outcome("builder", () => BuilderFromNode(document).Build().Resolve(registry)),
+                finally { File.Delete(file); }
+            })),
         };
-        if (outcomes.All(o => o.Key == outcomes[0].Key))
-            return (true, "");
-        var detail = string.Concat(outcomes.Select(o => $"{o.Name}: {o.Short}; "));
-        var oks = outcomes.Where(o => o.Key.StartsWith("ok:", StringComparison.Ordinal)).ToList();
-        if (oks.Count >= 2 && oks[0].Key != oks[1].Key)
+        Draft.HostDeclaration? typed = null;
+        try { typed = ContractSerializer.Deserialize<Draft.HostDeclaration>(document); }
+        catch (Exception e) when (e is JsonException or InvalidOperationException or NotSupportedException) { }
+        if (typed is not null) outcomes.Add(("typed", Outcome(() => HookEmitter.FromDeclaration(typed, registry))));
+
+        return outcomes.All(o => o.Key == outcomes[0].Key)
+            ? (true, "")
+            : (false, string.Join("; ", outcomes.Select(o => $"{o.Path}: {o.Key}")));
+
+        static string Outcome(Func<HookEmitter> build)
         {
-            var a = oks[0].Key; var b = oks[1].Key;
-            var pos = 0;
-            while (pos < a.Length && pos < b.Length && a[pos] == b[pos]) pos++;
-            detail += $"first difference at byte {pos}";
-        }
-        return (false, detail);
-
-        static (string, string, string) Outcome(string name, Func<ResolvedDeclaration> f)
-        {
-            try
-            {
-                return (name, "ok:" + f().CanonicalJson(), "accepted");
-            }
-            catch (DeclarationException e)
-            {
-                return (name, "err:" + e.Code, e.Message);
-            }
-        }
-    }
-
-    /// <summary>Rebuild a document through <see cref="DeclarationBuilder"/>,
-    /// member by member (§7.7.7, the code path). Members the typed
-    /// setters cannot express exactly (an unknown member, a wrong type)
-    /// go through <see cref="DeclarationBuilder.Raw"/>, so the result is
-    /// validated like the file it came from.</summary>
-    public static DeclarationBuilder BuilderFromNode(JsonObject document)
-    {
-        var b = DeclarationBuilder.Empty();
-        foreach (var (key, value) in document)
-        {
-            switch (key, value)
-            {
-                case ("declaration", JsonValue v) when v.TryGetValue(out string? s):
-                    b.Version(s);
-                    break;
-                case ("spec", JsonValue v) when v.TryGetValue(out string? s):
-                    b.Spec(s);
-                    break;
-                case ("id", JsonValue v) when v.TryGetValue(out string? s):
-                    b.Id(s);
-                    break;
-                case ("host", JsonObject h)
-                    when h.All(kv => kv.Key is "name" or "version")
-                        && IsString(h["name"], out var hostName)
-                        && (h["version"] is null && !h.ContainsKey("version")
-                            || IsString(h["version"], out _)):
-                    b.Host(hostName, h.ContainsKey("version") ? (string?)h["version"] : null);
-                    break;
-                case ("configuration", JsonObject c) when TypedConfiguration(c) is { } apply:
-                    foreach (var a in apply) a(b);
-                    break;
-                case ("surface", JsonObject sf) when TypedSurface(sf) is { } apply:
-                    foreach (var a in apply) a(b);
-                    break;
-                case ("bindings", JsonArray items) when TypedBindings(items) is { } apply:
-                    foreach (var a in apply) a(b);
-                    break;
-                case ("extensions", JsonObject e):
-                    foreach (var (ek, ev) in e) b.Extension(ek, ev);
-                    break;
-                default:
-                    b.Raw(key, value);
-                    break;
-            }
-        }
-        return b;
-    }
-
-    private static bool IsString(JsonNode? n, out string s)
-    {
-        if (n is JsonValue v && v.TryGetValue(out string? got))
-        {
-            s = got;
-            return true;
-        }
-        s = "";
-        return false;
-    }
-
-    /// <summary>A JSON integer without fraction or exponent, zero or more.</summary>
-    private static bool IsUInt(JsonNode? n, out long value)
-    {
-        value = 0;
-        return n is JsonValue v && v.TryGetValue(out value) && value >= 0;
-    }
-
-    private static List<Action<DeclarationBuilder>>? TypedConfiguration(JsonObject c)
-    {
-        var apply = new List<Action<DeclarationBuilder>>();
-        foreach (var (k, v) in c)
-        {
-            switch (k)
-            {
-                case "mode" when IsString(v, out var m) && m is "enforce" or "evaluate_only":
-                    var mode = m == "evaluate_only" ? EnforcementMode.EvaluateOnly : EnforcementMode.Enforce;
-                    apply.Add(b => b.Mode(mode));
-                    break;
-                case "composition" when v is JsonObject comp
-                    && comp.All(kv => kv.Key is "profile" or "on_approval" or "on_disagreement" or "on_transform_conflict"):
-                    var profile = CompositionProfile.SequentialFirstDeny;
-                    if (comp.ContainsKey("profile"))
-                    {
-                        if (!IsString(comp["profile"], out var p)) return null;
-                        try { profile = CompositionProfileExtensions.FromWireName(p); }
-                        catch (ArgumentOutOfRangeException) { return null; }
-                    }
-                    OnApproval? onApproval = null;
-                    SynthesisPolicy? onDisagreement = null, onTransformConflict = null;
-                    foreach (var (kk, vv) in comp)
-                    {
-                        if (kk == "profile") continue;
-                        if (!IsString(vv, out var s)) return null;
-                        switch (kk, s)
-                        {
-                            case ("on_approval", "stop"): onApproval = OnApproval.Stop; break;
-                            case ("on_approval", "resume"): onApproval = OnApproval.Resume; break;
-                            case ("on_disagreement", "deny"): onDisagreement = SynthesisPolicy.Deny; break;
-                            case ("on_disagreement", "approval"): onDisagreement = SynthesisPolicy.Approval; break;
-                            case ("on_transform_conflict", "deny"): onTransformConflict = SynthesisPolicy.Deny; break;
-                            case ("on_transform_conflict", "approval"): onTransformConflict = SynthesisPolicy.Approval; break;
-                            default: return null;
-                        }
-                    }
-                    var cfg = new CompositionConfig(profile, onApproval, onDisagreement, onTransformConflict);
-                    apply.Add(b => b.Composition(cfg));
-                    break;
-                case "identity_provider" when v is null:
-                    apply.Add(b => b.IdentityProvider(null));
-                    break;
-                case "identity_provider" when IsString(v, out var ip):
-                    apply.Add(b => b.IdentityProvider(ip));
-                    break;
-                case "approval" when v is JsonObject a:
-                    foreach (var (ak, av) in a)
-                    {
-                        string? name;
-                        if (av is null) name = null;
-                        else if (IsString(av, out var n)) name = n;
-                        else return null;
-                        switch (ak)
-                        {
-                            case "resolver": apply.Add(b => b.ApprovalResolver(name)); break;
-                            case "redactor": apply.Add(b => b.ApprovalRedactor(name)); break;
-                            default: return null;
-                        }
-                    }
-                    break;
-                case "posture" when v is JsonObject p && p.Count == 1
-                    && IsString(p["tool_seam_host_error"], out var posture)
-                    && posture is "continue" or "terminate":
-                    var tsp = posture == "terminate" ? ToolSeamPosture.Terminate : ToolSeamPosture.Continue;
-                    apply.Add(b => b.ToolSeamHostError(tsp));
-                    break;
-                case "failure" when v is JsonObject fl && fl.Count == 1
-                    && IsString(fl["on_error"], out var onError)
-                    && onError is "deny" or "continue":
-                    var oe = OnErrorExtensions.FromWireName(onError);
-                    apply.Add(b => b.FailureOnError(oe));
-                    break;
-                case "timeouts" when v is JsonObject t:
-                    foreach (var (tk, tv) in t)
-                    {
-                        long? ms;
-                        if (tv is null) ms = null;
-                        else if (IsUInt(tv, out var n)) ms = n;
-                        else return null;
-                        switch (tk)
-                        {
-                            case "interceptor_ms": apply.Add(b => b.InterceptorTimeoutMs(ms)); break;
-                            case "approval_resolver_ms": apply.Add(b => b.ApprovalResolverTimeoutMs(ms)); break;
-                            default: return null;
-                        }
-                    }
-                    break;
-                case "records" when v is JsonObject r && r.Count == 1 && r.ContainsKey("max_buffered"):
-                    if (r["max_buffered"] is null) apply.Add(b => b.MaxBufferedRecords(null));
-                    else if (IsUInt(r["max_buffered"], out var n)) apply.Add(b => b.MaxBufferedRecords(n));
-                    else return null;
-                    break;
-                default:
-                    return null;
-            }
-        }
-        return apply;
-    }
-
-    private static List<InterceptionPoint>? PointsOf(JsonNode? v)
-    {
-        if (v is not JsonArray a) return null;
-        var points = new List<InterceptionPoint>();
-        foreach (var n in a)
-        {
-            if (!IsString(n, out var s)) return null;
-            try { points.Add(InterceptionPointExtensions.FromWireName(s)); }
-            catch (ArgumentOutOfRangeException) { return null; }
-        }
-        return points;
-    }
-
-    private static List<string>? StringsOf(JsonNode? v)
-    {
-        if (v is not JsonArray a) return null;
-        var strings = new List<string>();
-        foreach (var n in a)
-        {
-            if (!IsString(n, out var s)) return null;
-            strings.Add(s);
-        }
-        return strings;
-    }
-
-    private static List<Action<DeclarationBuilder>>? TypedSurface(JsonObject sf)
-    {
-        var apply = new List<Action<DeclarationBuilder>>();
-        bool? buffered = null;
-        if (sf.ContainsKey("buffered_output"))
-        {
-            if (sf["buffered_output"] is not JsonValue bv || !bv.TryGetValue(out bool bb)) return null;
-            buffered = bb;
-        }
-        string? bound = null;
-        if (sf.ContainsKey("exposure_bound"))
-        {
-            if (!IsString(sf["exposure_bound"], out var eb)) return null;
-            bound = eb;
-        }
-        if (buffered is { } buf) apply.Add(b => b.BufferedOutput(buf, bound));
-        else if (bound is not null) return null;
-        foreach (var (k, v) in sf)
-        {
-            switch (k)
-            {
-                case "interception_points":
-                    if (PointsOf(v) is not { } points) return null;
-                    apply.Add(b => b.SurfacePoints(points));
-                    break;
-                case "capabilities":
-                    if (StringsOf(v) is not { } caps) return null;
-                    apply.Add(b => b.SurfaceCapabilities(caps));
-                    break;
-                case "declaration_versions":
-                    if (StringsOf(v) is not { } versions) return null;
-                    apply.Add(b => b.SurfaceDeclarationVersions(versions));
-                    break;
-                case "profiles":
-                    if (v is not JsonObject profiles) return null;
-                    foreach (var (name, knobs) in profiles)
-                    {
-                        CompositionProfile profile;
-                        try { profile = CompositionProfileExtensions.FromWireName(name); }
-                        catch (ArgumentOutOfRangeException) { return null; }
-                        if (knobs is not JsonObject ko
-                            || !ko.All(kv => kv.Key is "on_approval" or "on_disagreement" or "on_transform_conflict")
-                            || ko.Any(kv => StringsOf(kv.Value) is null))
-                            return null;
-                        var support = KnobSupport.FromWire(ko);
-                        apply.Add(b => b.SurfaceProfile(profile, support));
-                    }
-                    break;
-                case "buffered_output":
-                case "exposure_bound":
-                    break;
-                default:
-                    return null;
-            }
-        }
-        return apply;
-    }
-
-    private static List<Action<DeclarationBuilder>>? TypedBindings(JsonArray items)
-    {
-        var apply = new List<Action<DeclarationBuilder>>();
-        if (items.Count == 0)
-        {
-            // The written-down empty-deny host (§7.7.5): Bind is never
-            // called, so the member is set explicitly.
-            apply.Add(b => b.Raw("bindings", new JsonArray()));
-            return apply;
-        }
-        foreach (var item in items)
-        {
-            if (item is not JsonObject o
-                || !o.All(kv => kv.Key is "id" or "kind" or "config" or "at" or "timeout_ms" or "on_error")
-                || !IsString(o["id"], out var id)
-                || !IsString(o["kind"], out var kind))
-                return null;
-            // Bind without config omits the member; a present
-            // `"config": null` must round-trip as null so the builder
-            // path equals the text path.
-            var configSet = o.ContainsKey("config");
-            var config = o["config"]?.DeepClone();
-            List<InterceptionPoint>? at = null;
-            if (o.ContainsKey("at") && (at = PointsOf(o["at"])) is null) return null;
-            long? timeout = null;
-            var unbounded = false;
-            if (o.ContainsKey("timeout_ms"))
-            {
-                if (o["timeout_ms"] is null) unbounded = true;
-                else if (IsUInt(o["timeout_ms"], out var t)) timeout = t;
-                else return null;
-            }
-            OnError? onError = null;
-            if (o.ContainsKey("on_error"))
-            {
-                if (!IsString(o["on_error"], out var oe) || oe is not ("deny" or "continue")) return null;
-                onError = OnErrorExtensions.FromWireName(oe);
-            }
-            var options = new BindOptions(at, timeout, unbounded, onError);
-            apply.Add(b =>
-            {
-                if (configSet) b.BindWith(id, kind, config, options);
-                else b.BindWith(id, kind, options);
-            });
-        }
-        return apply;
-    }
-
-    private static string RunRecordToWire(
-        RunRecord rr, string toolSeamHostError, string onError, LoadRecord? load)
-    {
-        var identities = new JsonArray();
-        foreach (var (i, e) in rr.Identities ?? [])
-            identities.Add(new JsonObject
-            {
-                ["input_identity"] = i,
-                ["enforced_identity"] = e,
-            });
-        var records = new JsonArray(
-            (rr.Records ?? []).Select(r => (JsonNode)r.DeepClone()).ToArray());
-        var o = new JsonObject
-        {
-            ["outcome"] = rr.Outcome.ToWireName(),
-            ["final_output"] = rr.FinalOutput?.DeepClone(),
-            ["tool_invocations"] = new JsonArray(
-                rr.ToolInvocations.Select(t => (JsonNode)t.DeepClone()).ToArray()),
-            ["error"] = rr.Error,
-            ["identities"] = identities,
-            ["records"] = records,
-            // Harness *declarations* (§13.1), not observed behavior: the
-            // engine selects expect.run_outcome_by_posture entries by them.
-            ["postures"] = new JsonObject
-            {
-                ["tool_seam_host_error"] = toolSeamHostError,
-                ["on_error"] = onError,
-            },
-            // §6.3.1: what the host told the principal, verbatim and in
-            // order; expect.host_messages_must_contain asserts on it.
-            ["host_messages"] = new JsonArray(
-                (rr.HostMessages ?? []).Select(m => (JsonNode)m).ToArray()),
-        };
-        if (load is not null) o["load"] = load.ToWire();
-        return o.ToJsonString(Compact);
-    }
-
-    /// <summary>The scripted interceptors and resolver a vector carries,
-    /// shared by the field-based and the declaration path.</summary>
-    private sealed class Scripts
-    {
-        private readonly List<string> _scripts;
-        private readonly string _approval;
-
-        public Scripts(JsonObject vector)
-        {
-            // Multi-interceptor vectors (§7.1 fold-through) use
-            // interceptor_scripts; single-interceptor vectors use
-            // interceptor_script. Only the FIRST interceptor records:
-            // expect.interceptions describes each emission as the
-            // first-registered interceptor saw it. An empty
-            // interceptor_scripts registers zero interceptors (§7
-            // fail-closed vector).
-            if (vector["interceptor_scripts"] is JsonArray multi)
-                _scripts = multi.Select(s => s!.ToJsonString(Compact)).ToList();
-            else
-                _scripts = [(vector["interceptor_script"] ?? new JsonArray()).ToJsonString(Compact)];
-            _approval = (vector["approval_script"] ?? new JsonArray()).ToJsonString(Compact);
-            Redact = vector["redact_for_approval"] is JsonArray ra
-                ? ra.Select(n => (string)n!).ToList()
-                : [];
-        }
-
-        public List<JsonObject> Recorded { get; } = [];
-
-        public List<string> Redact { get; }
-
-        /// <summary>Scripted interceptor <paramref name="i"/>; only index 0 records.</summary>
-        private ScriptedInterceptor Interceptor(int i) => i == 0
-            ? new RecordingScriptedInterceptor(_scripts[i], Recorded)
-            : new ScriptedInterceptor(_scripts[i]);
-
-        public List<IInterceptor> Interceptors() =>
-            Enumerable.Range(0, _scripts.Count).Select(i => (IInterceptor)Interceptor(i)).ToList();
-
-        public IApprovalResolver? Resolver() =>
-            _approval == "[]" ? null : new ScriptedResolver(_approval);
-
-        /// <summary>The CTK registry for a declaration vector (§7.7.9):
-        /// kinds <c>ctk.scripted</c> and <c>ctk.managed</c> (both config
-        /// <c>{"script": i}</c>), identity provider <c>ctk-fault</c>,
-        /// approval resolver <c>ctk-scripted</c>, redactor
-        /// <c>ctk-redact</c>. <c>ctk.scripted</c> is a standard
-        /// registration the emitter wraps in its own timer, so
-        /// <c>fault: hang</c> under it pins the emitter-owned timeout.
-        /// <c>ctk.managed</c> is the same scripted interceptor through
-        /// the managed-interceptor path (§7): it receives the bound the
-        /// binding resolved to and reports typed outcomes, so
-        /// <c>fault: hang</c> and <c>fault: cancel</c> under it report
-        /// <c>timeout</c> and <c>cancelled</c>. The principal channel is
-        /// the harness's own: it adds its control failure notifier in
-        /// <c>SetupDeclared</c> and reports what it delivered as
-        /// <c>RunRecord.HostMessages</c>.</summary>
-        public HostRegistry Registry(HostSurface surface)
-        {
-            var approval = _approval;
-            var redact = Redact.ToList();
-            return HostRegistry.ForConformance(surface)
-                .Kind("ctk.scripted", ScriptedFor)
-                .ManagedKind("ctk.managed", (config, ctx) => new ScriptedManagedInterceptor(ScriptedFor(config, ctx)))
-                .IdentityProvider("ctk-fault", _ => throw new InvalidOperationException("ctk scripted provider fault"))
-                .ApprovalResolver("ctk-scripted", new ScriptedResolver(approval))
-                .ApprovalRedactor("ctk-redact", ReferenceHarness.Redactor(redact));
-        }
-
-        /// <summary>The scripted interceptor a <c>ctk.scripted</c> or
-        /// <c>ctk.managed</c> binding selects through config
-        /// <c>{"script": i}</c>.</summary>
-        private ScriptedInterceptor ScriptedFor(JsonNode? config, BindingContext ctx)
-        {
-            if (config?["script"] is not JsonValue v || !v.TryGetValue(out long i) || i < 0)
-                throw new InvalidOperationException("config.script must be an unsigned integer index");
-            if (i >= _scripts.Count)
-                throw new InvalidOperationException(
-                    $"config.script {i} is out of range for binding {ctx.Id}");
-            return Interceptor((int)i);
-        }
-    }
-
-    /// <summary>A §5-invalid verdict shape (transform decision, no body)
-    /// used to surface scripted stale wire vocabulary through the §5 gate
-    /// (fail closed into <c>host_error:verdict_invalid</c>).</summary>
-    private static Verdict InvalidVerdict() => new(Decision.Transform);
-
-    /// <summary>What a scripted rule asks the interceptor to do.</summary>
-    private enum ScriptedFault
-    {
-        /// <summary>No fault: <c>Verdict</c> holds the scripted verdict.</summary>
-        None,
-
-        /// <summary><c>fault: raise</c>: throw natively (§6.3 interceptor_failed).</summary>
-        Raise,
-
-        /// <summary><c>fault: hang</c>: do not return within the binding's
-        /// bound. Under a standard registration (<c>ctk.scripted</c>) the
-        /// emitter's own timer ends the call; under a managed one
-        /// (<c>ctk.managed</c>) the interceptor reports the typed
-        /// timeout.</summary>
-        Hang,
-
-        /// <summary><c>fault: cancel</c>: the typed cancelled outcome of a
-        /// managed interceptor (§7, §6.3.1); defined only for
-        /// <c>ctk.managed</c>.</summary>
-        Cancel,
-    }
-
-    /// <summary><c>fault: hang</c> grace: a standard scripted interceptor
-    /// returns allow once this much time has passed without the host
-    /// cancelling it, so an unbounded host fails the vector on
-    /// <c>tool_not_invoked</c> instead of hanging it. It is well past
-    /// the 50 ms bound the hang vectors set.</summary>
-    private static readonly TimeSpan HangGrace = TimeSpan.FromSeconds(10);
-
-    /// <summary>Replays one interceptor rule list via the Rust core.</summary>
-    private class ScriptedInterceptor(string rulesJson) : IInterceptor
-    {
-        protected readonly string RulesJson = rulesJson;
-
-        /// <summary>Evaluate the rules against <paramref name="ctx"/>
-        /// (recording it first, in the recording subclass) and name the
-        /// fault, if any; <c>mutate</c> is applied here.</summary>
-        public virtual (ScriptedFault Fault, Verdict? Verdict) Evaluate(AgentContext ctx)
-        {
-            var w = (JsonObject)JsonNode.Parse(
-                Native.CtkScriptedIntercept(RulesJson, ctx.Json.ToJsonString(Compact)))!;
-            switch ((string?)w["__ctk_fault__"])
-            {
-                case "mutate":
-                    // §7 isolation fault (TM-05): tamper with the received
-                    // context in-place; the emitter's copy isolation must
-                    // keep enforcement, identity, and siblings unaffected.
-                    ctx.Json["target"] = "TAMPERED";
-                    if (ctx.Json["tool_call"] is JsonObject tc)
-                        tc["args"] = new JsonObject { ["tampered"] = true };
-                    return (ScriptedFault.None, new Verdict(Decision.Allow) { Reason = "ctk:mutated" });
-                case "raise":
-                    return (ScriptedFault.Raise, null);
-                case "hang":
-                    return (ScriptedFault.Hang, null);
-                case "cancel":
-                    return (ScriptedFault.Cancel, null);
-                case not null:
-                    return (ScriptedFault.None, InvalidVerdict());
-            }
-            try
-            {
-                return (ScriptedFault.None, Verdict.FromWire(w));
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                // A scripted verdict in the superseded five-verdict
-                // vocabulary (pre-P-003 `warn`/`escalate`) fails the §5
-                // gate (fail closed): the closed set is three (§5.1).
-                return (ScriptedFault.None, InvalidVerdict());
-            }
-        }
-
-        public async ValueTask<Verdict> InterceptAsync(
-            AgentContext ctx, CancellationToken ct = default)
-        {
-            var (fault, verdict) = Evaluate(ctx);
-            switch (fault)
-            {
-                case ScriptedFault.Raise:
-                    // Fault injection: exercise §6.3 interceptor_failed.
-                    throw new InvalidOperationException("ctk scripted fault: raise");
-                case ScriptedFault.Hang:
-                    // Block past the binding's bound without watching the
-                    // token, as the Rust runner does: the emitter's own
-                    // timer ends the call and this delay runs out
-                    // unobserved. Returning on cancellation instead would
-                    // race the timer, and WhenAny can pick the allow. The
-                    // allow after the grace is what an unbounded host
-                    // observes, and the vector then fails on
-                    // tool_not_invoked.
-                    await Task.Delay(HangGrace, CancellationToken.None);
-                    return Verdict.Allow;
-                case ScriptedFault.Cancel:
-                    // `cancel` is defined only for ctk.managed (HARNESS.md);
-                    // a standard interceptor has no cancelled outcome, so
-                    // fail closed through the §5 gate.
-                    return InvalidVerdict();
-                default:
-                    return verdict!;
-            }
-        }
-    }
-
-    /// <summary>Records every ctx (deep copy) then replays the rules.</summary>
-    private sealed class RecordingScriptedInterceptor(
-        string rulesJson, List<JsonObject> recorded) : ScriptedInterceptor(rulesJson)
-    {
-        public override (ScriptedFault Fault, Verdict? Verdict) Evaluate(AgentContext ctx)
-        {
-            recorded.Add((JsonObject)ctx.Json.DeepClone());
-            return base.Evaluate(ctx);
-        }
-    }
-
-    /// <summary>The same script through the managed-interceptor path
-    /// (§7): the <c>ctk.managed</c> kind of a declaration vector owns
-    /// its own deadline, so <c>hang</c> waits out the bound it was
-    /// handed, cancels and cleans up the work and reports the typed
-    /// timeout, and <c>cancel</c> reports the typed cancelled outcome.
-    /// <c>raise</c> throws natively and <c>malformed_verdict</c> returns
-    /// the §5-invalid shape, as under <c>ctk.scripted</c>.</summary>
-    private sealed class ScriptedManagedInterceptor(ScriptedInterceptor inner) : IManagedInterceptor
-    {
-        public async ValueTask<ManagedInterceptorOutcome> InterceptManagedAsync(
-            AgentContext ctx, TimeSpan? bound, CancellationToken ct = default)
-        {
-            var (fault, verdict) = inner.Evaluate(ctx);
-            switch (fault)
-            {
-                case ScriptedFault.Raise:
-                    throw new InvalidOperationException("ctk scripted fault: raise");
-                case ScriptedFault.Hang:
-                    if (bound is { } d)
-                    {
-                        // The work (a delay standing in for a process or a
-                        // request) is cancelled at the deadline and awaited,
-                        // so it is cleaned up before the outcome is reported.
-                        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                        cts.CancelAfter(d);
-                        try
-                        {
-                            await Task.Delay(HangGrace, cts.Token);
-                        }
-                        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-                        {
-                            return ManagedInterceptorOutcome.Timeout;
-                        }
-                        return ManagedInterceptorOutcome.FromVerdict(Verdict.Allow);
-                    }
-                    await Task.Delay(HangGrace, ct);
-                    return ManagedInterceptorOutcome.FromVerdict(Verdict.Allow);
-                case ScriptedFault.Cancel:
-                    return ManagedInterceptorOutcome.Cancelled;
-                default:
-                    return ManagedInterceptorOutcome.FromVerdict(verdict!);
-            }
-        }
-    }
-
-    /// <summary>Replays the vector's approval_script via the Rust core.</summary>
-    private sealed class ScriptedResolver(string rulesJson) : IApprovalResolver
-    {
-        public ValueTask<ApprovalResolution> ResolveAsync(
-            ApprovalRequest req, CancellationToken ct = default)
-        {
-            // §10.1: identity may be null (null provider). The scripted
-            // engine works in strings; "" round-trips to null below.
-            var r = (JsonObject)JsonNode.Parse(
-                Native.CtkScriptedResolve(
-                    rulesJson, req.Context.Json.ToJsonString(Compact),
-                    req.ContextIdentity ?? ""))!;
-            if (r.ContainsKey("__ctk_fault__"))
-            {
-                // Fault injection: exercise §9 approval_resolver_failed.
-                throw new InvalidOperationException("ctk scripted fault: raise");
-            }
-            var outcome = (string)r["outcome"]! switch
-            {
-                "approve" => ApprovalOutcome.Approve,
-                "reject" => ApprovalOutcome.Reject,
-                _ => ApprovalOutcome.Unresolved,
-            };
-            Verdict? v;
-            try
-            {
-                v = r["verdict"] is JsonObject vw ? Verdict.FromWire(vw) : null;
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                // Superseded wire vocabulary fails the §5 gate (fail closed).
-                v = InvalidVerdict();
-            }
-            var echoed = (string?)r["context_identity"] ?? "";
-            return ValueTask.FromResult(new ApprovalResolution(
-                outcome,
-                echoed.Length == 0 && req.ContextIdentity is null ? null : echoed,
-                v));
+            try { return "ok:" + Jcs.Canonicalize(build().Declaration!); }
+            catch (DeclarationException e) { return "err:" + e.Code; }
         }
     }
 }

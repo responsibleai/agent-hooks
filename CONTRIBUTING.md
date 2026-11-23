@@ -52,8 +52,9 @@
   commands below run both sets. Binding tests to a draft revision is
   #188.
 - **All five SDKs.** A contract change is not done until Rust core,
-  Python, TypeScript, .NET, and Go agree; the Rust core is the single
-  source of truth and the wrappers delegate to it.
+  Python, TypeScript, .NET, and Go agree. Python, TypeScript, and Go
+  delegate primitives to Rust; C# implements them natively. Shared
+  golden fixtures and conformance vectors pin cross-language behavior.
 
 ## Node.js tooling
 
@@ -196,15 +197,15 @@ cd sdk/rust && cargo test --workspace --all-features && cargo clippy --workspace
 cd sdk/python && maturin develop --release && python -m pytest tests/ && ruff check
 # TypeScript (rebuild native when core changed)
 pnpm install && pnpm --dir sdk/typescript test
-# .NET (needs the FFI cdylib on the library path)
+# .NET (managed-only; no Rust build required)
 cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
-cd sdk/csharp && LD_LIBRARY_PATH=../rust/target/release dotnet test
+cd sdk/csharp && dotnet test
 # Go
 cd sdk/go && CGO_ENABLED=1 go test ./...
 ```
 
-For the protected Windows x64 FFI used by .NET/NuGet, follow the
-[Windows source-build instructions](sdk/csharp/README.md#windows-x64-source-builds-and-release-checks).
+For the protected Windows x64 FFI release, follow the
+[Windows build instructions](RELEASING.md#windows-ffi-hardening).
 That artifact needs a pinned nightly compiler and a rebuilt, stack-protected
 standard library; a plain stable FFI build is not equivalent.
 

@@ -29,8 +29,8 @@ public sealed class JcsTests
     [InlineData("-18446744073709551616")]
     public void IntegersOutsideTheSafeDomainFailClosed(string json)
     {
-        var error = Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(JsonNode.Parse(json)));
-        Assert.Equal(HostError.ContextInvalid, error.Code);
+        var error = Assert.Throws<HookException>(() => Jcs.Canonicalize(JsonNode.Parse(json)));
+        Assert.Equal(HostErrors.ContextInvalid, error.Reason);
         Assert.DoesNotContain(json, error.Detail);
     }
 
@@ -61,10 +61,10 @@ public sealed class JcsTests
     public void DuplicateMembersInParsedJsonNodeFailClosed()
     {
         var duplicate = JsonNode.Parse("{\"x\":1,\"x\":2}");
-        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(duplicate)).Code);
+        Assert.Equal(HostErrors.ContextInvalid, Assert.Throws<HookException>(() => Jcs.Canonicalize(duplicate)).Reason);
 
         var nested = JsonNode.Parse("{\"a\":{\"x\":1,\"x\":2}}");
-        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(nested)).Code);
+        Assert.Equal(HostErrors.ContextInvalid, Assert.Throws<HookException>(() => Jcs.Canonicalize(nested)).Reason);
     }
 
     [Theory]
@@ -85,11 +85,11 @@ public sealed class JcsTests
 
         Assert.ThrowsAny<JsonException>(() => Jcs.Parse(Nest(129)));
         var tooDeep = JsonNode.Parse(Nest(129), documentOptions: new() { MaxDepth = 256 });
-        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(tooDeep)).Code);
+        Assert.Equal(HostErrors.ContextInvalid, Assert.Throws<HookException>(() => Jcs.Canonicalize(tooDeep)).Reason);
 
         JsonNode deepInMemory = JsonValue.Create(0)!;
         for (var i = 0; i < 2000; i++) deepInMemory = new JsonArray(deepInMemory);
-        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(deepInMemory)).Code);
+        Assert.Equal(HostErrors.ContextInvalid, Assert.Throws<HookException>(() => Jcs.Canonicalize(deepInMemory)).Reason);
     }
 
     [Fact]
@@ -146,13 +146,13 @@ public sealed class JcsTests
         Assert.Throws<JsonException>(() => ContractSerializer.Serialize(badOptional));
 
         var badNodeValue = new JsonObject { ["k"] = "\uD800" };
-        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(badNodeValue)).Code);
+        Assert.Equal(HostErrors.ContextInvalid, Assert.Throws<HookException>(() => Jcs.Canonicalize(badNodeValue)).Reason);
 
         var badNodeKey = new JsonObject { ["\uD800"] = 1 };
-        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(badNodeKey)).Code);
+        Assert.Equal(HostErrors.ContextInvalid, Assert.Throws<HookException>(() => Jcs.Canonicalize(badNodeKey)).Reason);
 
         var badCharValue = JsonValue.Create('\uD800');
-        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(badCharValue)).Code);
+        Assert.Equal(HostErrors.ContextInvalid, Assert.Throws<HookException>(() => Jcs.Canonicalize(badCharValue)).Reason);
 
         var badFromJson = new JsonObject { ["id"] = "\uD800", ["framework"] = "x" };
         Assert.Throws<JsonException>(() => ContractSerializer.Deserialize<Draft.ContextMetadataAgent>(badFromJson));
@@ -173,23 +173,23 @@ public sealed class JcsTests
 
         var missingPoint = ValidBase();
         missingPoint.Remove("interception_point");
-        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.ContextIdentity(missingPoint)).Code);
+        Assert.Equal(HostErrors.ContextInvalid, Assert.Throws<HookException>(() => Jcs.ContextIdentity(missingPoint)).Reason);
 
         var unknownPoint = ValidBase();
         unknownPoint["interception_point"] = "not_a_point";
-        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.ContextIdentity(unknownPoint)).Code);
+        Assert.Equal(HostErrors.ContextInvalid, Assert.Throws<HookException>(() => Jcs.ContextIdentity(unknownPoint)).Reason);
 
         var negativeSequence = ValidBase();
         negativeSequence["sequence"] = -1;
-        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.ContextIdentity(negativeSequence)).Code);
+        Assert.Equal(HostErrors.ContextInvalid, Assert.Throws<HookException>(() => Jcs.ContextIdentity(negativeSequence)).Reason);
 
         var fractionalSequence = ValidBase();
         fractionalSequence["sequence"] = 1.5;
-        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.ContextIdentity(fractionalSequence)).Code);
+        Assert.Equal(HostErrors.ContextInvalid, Assert.Throws<HookException>(() => Jcs.ContextIdentity(fractionalSequence)).Reason);
 
         var missingToolCall = ValidBase();
         missingToolCall.Remove("tool_call");
-        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.ContextIdentity(missingToolCall)).Code);
+        Assert.Equal(HostErrors.ContextInvalid, Assert.Throws<HookException>(() => Jcs.ContextIdentity(missingToolCall)).Reason);
     }
 
     [Fact]

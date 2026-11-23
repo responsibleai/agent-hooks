@@ -245,11 +245,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with: { toolchain: stable }
-      - name: Build ffi cdylib
-        run: cargo build --locked -p agent-hooks-ffi --release
-        working-directory: sdk/rust
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore
@@ -262,8 +257,6 @@ jobs:
         # The required set: the Category=draft tests run in draft-tests.
         run: dotnet test test/AgentHooks.Tests/ --nologo --filter "Category!=draft"
         working-directory: sdk/csharp
-        env:
-          LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
 
   go:
     runs-on: ubuntu-latest
@@ -304,6 +297,18 @@ jobs:
       - run: cargo test --locked --workspace --all-features -- --skip draft_
         working-directory: sdk/rust
 
+  ffi-windows:
+    timeout-minutes: 25
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build and scan protected Windows FFI
+        timeout-minutes: 15
+        uses: ./.github/actions/windows-ffi
+      - name: Check Windows release DLL CFG and regression gate
+        shell: pwsh
+        run: ./scripts/test-windows-cfg.ps1 -Dll sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.dll
+
   dotnet-xplat:
     timeout-minutes: 25
     strategy:
@@ -311,42 +316,15 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    env:
-      FFI_NATIVE_DIR: ${{ matrix.os == 'windows-latest' && 'sdk/rust/target/x86_64-pc-windows-msvc/release' || 'sdk/rust/target/release' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        if: runner.os != 'Windows'
-        with: { toolchain: stable }
-      - name: Build ffi cdylib
-        if: runner.os != 'Windows'
-        run: cargo build --locked -p agent-hooks-ffi --release
-        working-directory: sdk/rust
-      - name: Build and scan protected Windows FFI
-        if: runner.os == 'Windows'
-        timeout-minutes: 15
-        uses: ./.github/actions/windows-ffi
-      - name: Check Windows release DLL CFG and regression gate
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/test-windows-cfg.ps1 -Dll ${{ env.FFI_NATIVE_DIR }}/agent_hooks_ffi.dll
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
-        if: runner.os != 'Windows'
         with: { dotnet-version: "8.0.x" }
       - run: dotnet restore
         working-directory: sdk/csharp
-      - name: Expose native library to the per-OS loader
-        # GITHUB_PATH covers the Windows DLL search path; the *_LIBRARY_PATH
-        # vars cover the ELF/Mach-O loaders. Native.cs has no custom
-        # resolver, so these are the only search knobs.
-        shell: bash
-        run: echo "${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}" >> "$GITHUB_PATH"
       - name: Test
         run: dotnet test test/AgentHooks.Tests/ --nologo --filter "Category!=draft"
         working-directory: sdk/csharp
-        env:
-          LD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
-          DYLD_LIBRARY_PATH: ${{ github.workspace }}/${{ env.FFI_NATIVE_DIR }}
 
   # The advisory `draft-tests` job runs every vector in
   # `conformance/draft/` under the draft, including IDs also present in
@@ -413,8 +391,6 @@ jobs:
           dotnet restore
           dotnet test test/AgentHooks.Tests/ --nologo --filter "Category=draft"
         working-directory: sdk/csharp
-        env:
-          LD_LIBRARY_PATH: ${{ github.workspace }}/sdk/rust/target/release
       - name: Go draft suite tests
         id: go
         continue-on-error: true
@@ -441,7 +417,7 @@ jobs:
             echo "| --- | --- |"
             echo "| Draft suite vectors against the draft schemas | $VECTORS |"
             echo "| Rust draft_* tests | $RUST |"
-            echo "| FFI build for .NET and Go | $FFI |"
+            echo "| FFI build for Go | $FFI |"
             echo "| Python draft tests | $PYTHON |"
             echo "| TypeScript test/draft | $TYPESCRIPT |"
             echo "| .NET Category=draft tests | $DOTNET |"
@@ -605,8 +581,8 @@ jobs:
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with: { go-version: "1.22" }
       - name: Expose native library to the per-OS loader
-        # GITHUB_PATH covers the Windows DLL search path (mirrors
-        # dotnet-xplat); DYLD_LIBRARY_PATH below covers the Mach-O loader.
+        # GITHUB_PATH covers the Windows DLL search path;
+        # DYLD_LIBRARY_PATH below covers the Mach-O loader.
         shell: bash
         run: echo "${{ github.workspace }}/sdk/rust/target/${{ matrix.target }}/release" >> "$GITHUB_PATH"
       - name: Build and test
