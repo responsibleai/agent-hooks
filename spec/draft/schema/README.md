@@ -14,8 +14,8 @@ The TypeSpec files in `src/` are the editable schema source, with
 `src/main.tsp` importing the bundle's schema sources. The generator compiles
 them with `@typespec/json-schema` to JSON Schema Draft 2020-12.
 
-The same declarations generate the [draft reference](../REFERENCE.md) and
-[reference tables](../REFERENCE-TABLES.md) via `pnpm run generate:reference`
+The same declarations generate the [draft reference](../REFERENCE.md)
+via `pnpm run generate:reference`
 at the repository root. Add `@@category(AgentHooks.MyType, Categories.<member>)`
 to `spec/scripts/reference.tsp`, not to schema sources. The shared categories
 live in `spec/scripts/reference-docs/lib/main.tsp`. Every named project model,

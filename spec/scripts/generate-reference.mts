@@ -6,7 +6,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const directory = dirname(fileURLToPath(import.meta.url));
-const references = ["REFERENCE.md", "REFERENCE-TABLES.md"];
+const references = ["REFERENCE.md"];
 const output = new Map<string, string>();
 const program = await compile(
   {

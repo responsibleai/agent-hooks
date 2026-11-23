@@ -47,8 +47,7 @@ describe("specification bundles", () => {
     // 0.10 sorts after 0.2 numerically, not lexically.
     bundle("0.10", "v0.10");
     bundle("draft", "draft");
-    write("spec/draft/REFERENCE.md", "# Schema reference\n\nSee [tables](REFERENCE-TABLES.md).\n");
-    write("spec/draft/REFERENCE-TABLES.md", "# Reference tables\n\nSee [source](REFERENCE.md).\n");
+    write("spec/draft/REFERENCE.md", "# Schema reference\n\nTypeSpec declarations.\n");
   });
   afterEach(() => rmSync(root, { recursive: true, force: true }));
 
@@ -77,12 +76,7 @@ describe("specification bundles", () => {
       {
         id: "spec/draft/reference",
         title: "Schema reference",
-        body: "\nSee [tables](../reference-tables/).\n",
-      },
-      {
-        id: "spec/draft/reference-tables",
-        title: "Reference tables",
-        body: "\nSee [source](../reference/).\n",
+        body: "\nTypeSpec declarations.\n",
       },
     ]);
   });

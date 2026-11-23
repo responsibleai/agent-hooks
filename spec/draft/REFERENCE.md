@@ -4,7 +4,7 @@
 
 Generated from the TypeSpec declarations. A `?` marks an optional property; `null` is a separate allowed value. The published JSON Schemas remain the normative validation artifacts; the specification defines the behavioral requirements.
 
-Each declaration is shown as a TypeSpec source excerpt, followed by its member documentation. See the [table representation](REFERENCE-TABLES.md) to compare layouts.
+Each declaration is shown as a TypeSpec source excerpt, followed by its member documentation.
 
 - [Common types](#reference-common-types)
 - [Hook requests](#reference-hook-requests)

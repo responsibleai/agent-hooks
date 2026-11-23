@@ -28,10 +28,7 @@ test("groups declarations by enum order and links same-named types by namespace"
     @@category(Hooks.Result, Categories.Responses);
     @@category(Requests.Result, Categories.Requests);
   `);
-  assert.deepEqual(Object.keys(outputs).sort(), [
-    "REFERENCE-TABLES.md",
-    "REFERENCE.md",
-  ]);
+  assert.deepEqual(Object.keys(outputs), ["REFERENCE.md"]);
   for (const page of Object.values(outputs)) {
     assert.ok(
       page.indexOf("## Hook requests") < page.indexOf("## Hook responses"),
@@ -70,21 +67,21 @@ test("documents generic declarations, concrete envelopes, and inherited and nest
     @@category(Envelope, Categories.Responses);
     @@category(Response, Categories.Responses);
   `);
-  const page = outputs["REFERENCE-TABLES.md"];
+  const page = outputs["REFERENCE.md"];
   assert.match(page, /### `Envelope<T>`/);
   assert.match(page, /Generic response wrapper\./);
-  assert.match(page, /\|`value` \|`T` \|/);
+  assert.match(page, /#### `value`\n\nType: `T`\./);
   assert.match(
     page,
     /\[\`Envelope\`\]\(#test-envelope\)&lt;\[\`Kind\`\]\(#test-kind\)&gt;/,
   );
   assert.match(
     page,
-    /\|`reason\?` \|`string` &#124; `null` \|A machine-readable reason\./,
+    /#### `reason\?`\n\nA machine-readable reason\./,
   );
   assert.match(page, /pattern: `\^\(\?!host_error:\)\.\*`/);
-  assert.match(page, /\|`agent.id` \|`string` \| \|minLength: `1` \|/);
-  assert.match(page, /\|`next\?` \|\[\`Response\`\]\(#test-response\)/);
+  assert.match(page, /#### `agent.id`\n\nType: `string`\.\n\nminLength: `1`/);
+  assert.match(page, /#### `next\?`\n\nType: \[\`Response\`\]\(#test-response\)/);
   const declarations = outputs["REFERENCE.md"];
   assert.match(
     declarations,
@@ -133,7 +130,7 @@ test("reads augmented template categories without confusing another namespace's 
   }
 });
 
-test("renders JSON examples, union variants, enums, and Markdown table metacharacters", async () => {
+test("renders JSON examples, union variants, enums, and Markdown metacharacters", async () => {
   const { outputs } = await emitter.compile(`
     enum Choice { First: "a|b", Second: "second" }
     union Selection { Choice, null }
@@ -154,29 +151,25 @@ test("renders JSON examples, union variants, enums, and Markdown table metachara
     @@category(Identifier, Categories.Common);
     @@category(Request, Categories.Requests);
   `);
-  const page = outputs["REFERENCE-TABLES.md"];
-  assert.ok(page.includes('`"a\\|b"`'));
+  const page = outputs["REFERENCE.md"];
+  assert.ok(page.includes('`"a|b"`'));
   assert.match(
     page,
-    /Text with a \\\| separator and `left \\\| right`\./,
+    /Text with a \| separator and `left \| right`\./,
   );
-  assert.ok(page.includes('pattern: `^(hello\\|world)$`'));
+  assert.ok(page.includes('pattern: `^(hello|world)$`'));
   assert.match(page, /- \[\`Choice\`\]\(#choice\)\n- `null`/);
   assert.match(
     page,
-    /\|`choices\?` \|\(\[\`Choice\`\]\(#choice\) &#124; `null`\)\[\] \|/,
+    /Type: \(\[\`Choice\`\]\(#choice\) &#124; `null`\)\[\]\./,
   );
   assert.match(page, /#### Minimal\n\n```json\n{\n  "text": "hello"\n}\n```/);
   const processor = await createMarkdownProcessor({ syntaxHighlight: false });
   const { code } = await processor.render(page);
   assert.ok(code.includes("Text with a | separator and <code>left | right</code>."));
-  assert.ok(code.includes("<td><code>literal?</code></td>\n<td><code>\"left|right\"</code></td>"));
-  assert.ok(code.includes('<td>(<a href="#choice"><code>Choice</code></a> | <code>null</code>)[]</td>'));
-  for (const [, body] of code.matchAll(/<tbody>([\s\S]*?)<\/tbody>/g)) {
-    const rows = [...body.matchAll(/<tr>([\s\S]*?)<\/tr>/g)];
-    const columns = [...rows[0][1].matchAll(/<td>/g)].length;
-    for (const [, row] of rows) assert.equal([...row.matchAll(/<td>/g)].length, columns);
-  }
+  assert.ok(code.includes('Type: <code>"left|right"</code>.'));
+  assert.ok(code.includes('Type: (<a href="#choice"><code>Choice</code></a> | <code>null</code>)[].'));
+  assert.doesNotMatch(code, /<table>/);
   const declarations = outputs["REFERENCE.md"];
   assert.match(
     declarations,
@@ -257,7 +250,7 @@ test("validates category completeness even when no emitter is selected", async (
   assert.equal(diagnostics[0].target.name, "Missing");
 });
 
-test("keeps literal backticks and HTML metacharacters intact in source, examples, and tables", async () => {
+test("keeps literal backticks and HTML metacharacters intact in source, examples, and member docs", async () => {
   const { outputs } = await emitter.compile(`
     @example(#{ text: "\`\`\`" })
     model Literal {
@@ -270,15 +263,14 @@ test("keeps literal backticks and HTML metacharacters intact in source, examples
   const source = outputs["REFERENCE.md"];
   assert.match(source, /````typespec\n[\s\S]*?text: "```";[\s\S]*?\n````/);
   assert.match(source, /````json\n\{\n  "text": "```"\n\}\n````/);
-  const table = outputs["REFERENCE-TABLES.md"];
-  assert.match(table, /````"```"````/);
+  assert.match(source, /````"```"````/);
   const processor = await createMarkdownProcessor({ syntaxHighlight: false });
-  const { code } = await processor.render(table);
+  const { code } = await processor.render(source);
   assert.ok(code.includes('<code>^`&#x3C;a|b>&#x26;`$</code>'));
   assert.ok(code.includes('<code>"```"</code>'));
 });
 
-test("preserves literal regexes, Markdown punctuation, and padded backtick spans in Astro tables", async () => {
+test("preserves literal regexes, Markdown punctuation, and padded backtick spans in Astro", async () => {
   const patterns = [
     String.raw`^(a|b)\.json$`,
     "a*b|c*d",
@@ -293,14 +285,13 @@ test("preserves literal regexes, Markdown punctuation, and padded backtick spans
     @@category(Patterns, Categories.Common);
   `);
   const processor = await createMarkdownProcessor({ syntaxHighlight: false });
-  const { code } = await processor.render(outputs["REFERENCE-TABLES.md"]);
-  const rows = [...code.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].slice(1);
-  assert.equal(rows.length, patterns.length);
-  for (const [i, row] of rows.entries()) {
-    assert.equal([...row[1].matchAll(/<td>/g)].length, 4);
+  const { code } = await processor.render(outputs["REFERENCE.md"]);
+  const constraints = [...code.matchAll(/<p>pattern: <code>([\s\S]*?)<\/code><\/p>/g)];
+  assert.equal(constraints.length, patterns.length);
+  for (const [i, constraint] of constraints.entries()) {
     assert.ok(
-      row[1].includes(`<td>pattern: <code>${patterns[i]}</code></td>`),
-      row[1],
+      constraint[1] === patterns[i],
+      constraint[1],
     );
   }
 });

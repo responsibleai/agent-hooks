@@ -28,7 +28,6 @@ import {
   getTypeName,
   isArrayModelType,
   isTemplateInstance,
-  isTemplateDeclaration,
   isType,
   serializeValueAsJson,
   walkPropertiesInherited,
@@ -210,15 +209,6 @@ export function Reference(props: ReferenceProps) {
     return constraints(props.type);
   }
 
-  function DocumentationCell(props: { text: string }) {
-    // Prose is Markdown, not TableCell's literal-text input. Keep its markup.
-    return (
-      <md.TableCell>
-        <group>{props.text.replaceAll("|", "\\|").replace(/\r?\n/g, "<br>")}</group>
-      </md.TableCell>
-    );
-  }
-
   function sourceSnippet(type: Declaration): string {
     const source = getSourceLocation(type, { locateId: false });
     if (source.isSynthetic) {
@@ -302,24 +292,17 @@ export function Reference(props: ReferenceProps) {
     return text.trim();
   }
 
-  function DeclarationDoc({
-    type,
-    tables,
-  }: {
-    type: Declaration;
-    tables: boolean;
-  }) {
+  function DeclarationDoc({ type }: { type: Declaration }) {
     const examples = getExamples(program, type);
     const model = type.kind === "Model" ? type : undefined;
     const properties = model ? propertyDocs(model) : [];
-    const showSource = !tables || isTemplateDeclaration(type);
     return (
       <md.Section>
         <md.Heading level={3} refkey={headingKey(type)} id={anchor(type)}>
           <md.InlineCode>{getTypeName(type, { namespaceFilter: () => false })}</md.InlineCode>
         </md.Heading>
         {doc(type)}
-        {showSource && <md.Code lang="typespec">{sourceSnippet(type)}</md.Code>}
+        <md.Code lang="typespec">{sourceSnippet(type)}</md.Code>
         {constraints(type)}
         {model?.baseModel && <>Extends {typeExpression(model.baseModel)}.</>}
         {model?.indexer && (
@@ -330,31 +313,15 @@ export function Reference(props: ReferenceProps) {
           !model.baseModel &&
           !model.indexer &&
           "An object with no declared properties."}
-        {tables && properties.length > 0 && (
-          <md.Table columns={["Property", "Type", "Description", "Constraints"].map((header) => ({ header }))}>
-            <For each={properties}>
-              {(property) => (
-                <md.TableRow>
-                  <md.TableCell><md.InlineCode>{property.name}</md.InlineCode></md.TableCell>
-                  <md.TableCell><TypeExpression type={property.type} /></md.TableCell>
-                  <DocumentationCell text={property.description} />
-                  <md.TableCell><Constraints type={property.constraints} /></md.TableCell>
-                </md.TableRow>
-              )}
-            </For>
-          </md.Table>
-        )}
-        {!tables && (
-          <For each={properties} doubleHardline>
-            {(property) => (
-              <md.Section heading={<md.InlineCode>{property.name}</md.InlineCode>}>
-                {property.description}
-                {code`Type: ${<TypeExpression type={property.type} />}.`}
-                <Constraints type={property.constraints} />
-              </md.Section>
-            )}
-          </For>
-        )}
+        <For each={properties} doubleHardline>
+          {(property) => (
+            <md.Section heading={<md.InlineCode>{property.name}</md.InlineCode>}>
+              {property.description}
+              {code`Type: ${<TypeExpression type={property.type} />}.`}
+              <Constraints type={property.constraints} />
+            </md.Section>
+          )}
+        </For>
         {type.kind === "Union" && (
           <md.List bullet="-">
             {[...type.variants.values()].map((variant) => (
@@ -365,20 +332,7 @@ export function Reference(props: ReferenceProps) {
             ))}
           </md.List>
         )}
-        {tables && type.kind === "Enum" && (
-          <md.Table columns={["Member", "Value", "Description"].map((header) => ({ header }))}>
-            <For each={[...type.members.values()]}>
-              {(member) => (
-                <md.TableRow>
-                  <md.TableCell><md.InlineCode>{member.name}</md.InlineCode></md.TableCell>
-                  <md.TableCell><md.InlineCode>{JSON.stringify(member.value ?? member.name)}</md.InlineCode></md.TableCell>
-                  <DocumentationCell text={doc(member)} />
-                </md.TableRow>
-              )}
-            </For>
-          </md.Table>
-        )}
-        {!tables && type.kind === "Enum" && (
+        {type.kind === "Enum" && (
           <For each={[...type.members.values()]} doubleHardline>
             {(member) => (
               <md.Section heading={<md.InlineCode>{member.name}</md.InlineCode>}>
@@ -434,57 +388,49 @@ export function Reference(props: ReferenceProps) {
 
   return (
     <Output>
-      {[
-        { path: "REFERENCE.md", tables: false },
-        { path: "REFERENCE-TABLES.md", tables: true },
-      ].map(({ path, tables }) => (
-        <md.SourceFile path={path}>
-          <md.Section heading="Agent Hooks schema reference">
-            {
-              "<!-- Generated by @agent-hooks/reference-docs. Do not edit by hand. -->"
-            }
-            {
-              "Generated from the TypeSpec declarations. A `?` marks an optional property; `null` is a separate allowed value. The published JSON Schemas remain the normative validation artifacts; the specification defines the behavioral requirements."
-            }
-            {!tables &&
-              "Each declaration is shown as a TypeSpec source excerpt, followed by its member documentation. See the [table representation](REFERENCE-TABLES.md) to compare layouts."}
-            {tables &&
-              "See the [declaration reference](REFERENCE.md) for TypeSpec excerpts and per-property documentation."}
-            <md.List bullet="-">
-              {props.categories.map((category) => (
-                <md.Link
+      <md.SourceFile path="REFERENCE.md">
+        <md.Section heading="Agent Hooks schema reference">
+          {
+            "<!-- Generated by @agent-hooks/reference-docs. Do not edit by hand. -->"
+          }
+          {
+            "Generated from the TypeSpec declarations. A `?` marks an optional property; `null` is a separate allowed value. The published JSON Schemas remain the normative validation artifacts; the specification defines the behavioral requirements."
+          }
+          {"Each declaration is shown as a TypeSpec source excerpt, followed by its member documentation."}
+          <md.List bullet="-">
+            {props.categories.map((category) => (
+              <md.Link
+                refkey={headingKey(category)}
+                title={category.title}
+              />
+            ))}
+          </md.List>
+          <For each={props.categories} doubleHardline>
+            {(category) => (
+              <md.Section>
+                <md.Heading
+                  level={2}
                   refkey={headingKey(category)}
-                  title={category.title}
-                />
-              ))}
-            </md.List>
-            <For each={props.categories} doubleHardline>
-              {(category) => (
-                <md.Section>
-                  <md.Heading
-                    level={2}
-                    refkey={headingKey(category)}
-                    id={`reference-${category.title.toLowerCase().replaceAll(" ", "-")}`}
-                  >
-                    {category.title}
-                  </md.Heading>
-                  <md.List bullet="-">
-                    {category.declarations.map((type) => (
-                      <md.Link
-                        refkey={headingKey(type)}
-                        title={`\`${getTypeName(type, { namespaceFilter: () => false })}\``}
-                      />
-                    ))}
-                  </md.List>
-                  <For each={category.declarations} doubleHardline>
-                    {(type) => <DeclarationDoc type={type} tables={tables} />}
-                  </For>
-                </md.Section>
-              )}
-            </For>
-          </md.Section>
-        </md.SourceFile>
-      ))}
+                  id={`reference-${category.title.toLowerCase().replaceAll(" ", "-")}`}
+                >
+                  {category.title}
+                </md.Heading>
+                <md.List bullet="-">
+                  {category.declarations.map((type) => (
+                    <md.Link
+                      refkey={headingKey(type)}
+                      title={`\`${getTypeName(type, { namespaceFilter: () => false })}\``}
+                    />
+                  ))}
+                </md.List>
+                <For each={category.declarations} doubleHardline>
+                  {(type) => <DeclarationDoc type={type} />}
+                </For>
+              </md.Section>
+            )}
+          </For>
+        </md.Section>
+      </md.SourceFile>
     </Output>
   );
 }

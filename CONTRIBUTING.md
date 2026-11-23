@@ -77,13 +77,12 @@ The specification pages and schema URLs come straight from `spec/` and
 same build GitHub Pages deploys, run `pnpm --filter @agent-hooks/docs build`
 and then `pnpm --filter @agent-hooks/docs preview`. The artifact is `docs-site/dist/`.
 
-The draft [schema reference](spec/draft/REFERENCE.md) and its
-[table representation](spec/draft/REFERENCE-TABLES.md) are generated from the
+The draft [schema reference](spec/draft/REFERENCE.md) is generated from the
 same TypeSpec source as the JSON Schemas. After editing declarations or their
-documentation, run `pnpm run generate:reference` and commit both Markdown files.
+documentation, run `pnpm run generate:reference` and commit the Markdown file.
 `pnpm run check:reference` rejects stale output; `pnpm run test:reference`
 exercises the emitter. The Pages workflow runs both before building the site.
-The loader publishes these files directly, without a separate staging copy.
+The loader publishes this file directly, without a separate staging copy.
 Assign each schema declaration to an ordered section in the docs-only entrypoint
 `spec/scripts/reference.tsp` with
 `@@category(AgentHooks.MyType, Categories.<member>)`, including generic templates
@@ -93,9 +92,8 @@ missing categories at their declarations. Anonymous shapes, concrete template
 instances, and imported library types are excluded. Keep documentation metadata
 out of the schema sources; schema compilation does not import the docs library.
 JSON Schemas remain normative; the reference does not change validation.
-The emitter pins Alloy's published dev builds for Markdown tables, inline code,
-safe code fences, and heading references. Only documentation prose needs local
-table normalization, because Alloy treats direct string cells as literal text.
+The emitter pins Alloy's published dev builds for inline code, safe code fences,
+and heading references.
 
 ## Schema source
 
