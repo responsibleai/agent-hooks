@@ -192,7 +192,7 @@ class NpmReleaseTest(unittest.TestCase):
         self.run_case(["hard"] + ["existing"] * (len(DIRS) - 1), status=1)
 
     def test_soft_first_publication(self):
-        self.run_case(["soft"] * 5 + ["fresh", "fresh"])
+        self.run_case(["soft"] * 6 + ["fresh"])
 
     def test_missing_artifact(self):
         self.run_case(["fresh"] * len(DIRS), missing=True, status=1)

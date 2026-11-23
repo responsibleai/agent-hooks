@@ -441,12 +441,12 @@ jobs:
               channel_packages+=("$name")
             elif (cd "$dir" && npm publish --access public --tag latest); then
               channel_packages+=("$name")
-            elif [[ "$dir" == npm/* ]] && ! npm view "$name" name >/dev/null 2>&1; then
+            elif [[ "$dir" == npm/* || "$dir" == packages/contracts ]] && ! npm view "$name" name >/dev/null 2>&1; then
               # npm trusted publishing cannot be configured for a package
-              # that has never been published, so a brand-new platform
-              # package fails its first OIDC publish. Fail soft: consumers
-              # tolerate a missing optionalDependency; bootstrap the
-              # package manually, then rerun this workflow (idempotent).
+              # that has never been published. Fail soft for new platform
+              # packages and the independent contracts package so the
+              # existing runtime can still ship. Bootstrap the new package
+              # manually, then rerun this workflow (idempotent).
               echo "::warning::$name@$V first publish failed — bootstrap the new package on npmjs.com (one-time token publish), configure its trusted publisher, then rerun"
             else
               exit 1

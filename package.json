@@ -14,8 +14,9 @@
     "ajv-formats": "3.0.1"
   },
   "scripts": {
-    "generate": "pnpm run generate:schema && pnpm --filter @agent-hooks/typescript-emitter build && tsp compile spec/draft",
-    "check:generated": "pnpm generate && git diff --exit-code",
+    "generate": "pnpm run generate:schema && pnpm run generate:typescript",
+    "generate:typescript": "pnpm --filter @agent-hooks/typescript-emitter build && tsp compile spec/draft",
+    "check:generated": "pnpm run check:schema && pnpm run generate:typescript && git diff --exit-code -- sdk/typescript/packages/contracts/src/generated && status=$(git status --porcelain -- sdk/typescript/packages/contracts/src/generated) && if [ -n \"$status\" ]; then printf '%s\\n' \"$status\"; exit 1; fi",
     "generate:schema": "pnpm --dir spec/scripts run generate:schema",
     "check:schema": "pnpm --dir spec/scripts run check:schema",
     "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"

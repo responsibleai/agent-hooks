@@ -121,7 +121,7 @@ export interface Input {
 export interface Model {
   id: string;
   vendor?: string;
-  params?: Record<string, JsonValue>;
+  params?: JsonObject;
 }
 
 /**
@@ -138,7 +138,7 @@ export interface Message {
 export interface ToolCallRequest {
   id?: string;
   name: string;
-  args: Record<string, JsonValue>;
+  args: JsonObject;
 }
 
 /**
@@ -164,7 +164,7 @@ export interface Usage {
 export interface ToolCall {
   id: string;
   name: string;
-  args: Record<string, JsonValue>;
+  args: JsonObject;
   content_hash?: string;
 }
 
@@ -183,7 +183,7 @@ export interface ToolResult {
 export interface ToolDecl {
   name: string;
   description?: string;
-  schema?: Record<string, JsonValue>;
+  schema?: JsonObject;
 }
 
 /**
@@ -286,7 +286,7 @@ export interface AgentStartupRequest {
     cost_usd?: number;
   };
   interception_point: "agent_startup";
-  extensions?: Record<string, JsonValue>;
+  extensions?: Extensions;
   agent_init: AgentInit;
 }
 
@@ -331,7 +331,7 @@ export interface InputRequest {
     cost_usd?: number;
   };
   interception_point: "input";
-  extensions?: Record<string, JsonValue>;
+  extensions?: Extensions;
   input: Input;
 }
 
@@ -376,7 +376,7 @@ export interface PreModelCallRequest {
     cost_usd?: number;
   };
   interception_point: "pre_model_call";
-  extensions?: Record<string, JsonValue>;
+  extensions?: Extensions;
   model: Model;
   messages: Array<Message>;
   tools?: Array<ToolDecl>;
@@ -424,7 +424,7 @@ export interface PostModelCallRequest {
     cost_usd?: number;
   };
   interception_point: "post_model_call";
-  extensions?: Record<string, JsonValue>;
+  extensions?: Extensions;
   model: Model;
   response: Response;
   request_id?: string;
@@ -472,7 +472,7 @@ export interface PreToolCallRequest {
     cost_usd?: number;
   };
   interception_point: "pre_tool_call";
-  extensions?: Record<string, JsonValue>;
+  extensions?: Extensions;
   tool_call: ToolCall;
 }
 
@@ -517,7 +517,7 @@ export interface PostToolCallRequest {
     cost_usd?: number;
   };
   interception_point: "post_tool_call";
-  extensions?: Record<string, JsonValue>;
+  extensions?: Extensions;
   tool_call: ToolCall;
   tool_result: ToolResult;
 }
@@ -563,7 +563,7 @@ export interface OutputRequest {
     cost_usd?: number;
   };
   interception_point: "output";
-  extensions?: Record<string, JsonValue>;
+  extensions?: Extensions;
   output: Output;
 }
 
@@ -608,7 +608,7 @@ export interface AgentShutdownRequest {
     cost_usd?: number;
   };
   interception_point: "agent_shutdown";
-  extensions?: Record<string, JsonValue>;
+  extensions?: Extensions;
   summary: Summary;
 }
 
@@ -639,7 +639,7 @@ export interface Evidence {
    * Content address (sha256:<hex>) or URI of an offline-verifiable proof.
    */
   artefact?: string | null;
-  verification_pointers?: Record<string, string>;
+  verification_pointers?: VerificationPointers;
 }
 
 /**
@@ -727,7 +727,33 @@ export interface DenyVerdict {
    * Present only on deny: marks the deny as liftable by the approval seam (§9).
    * MAY be empty; reserved for approver-facing parameters.
    */
-  approval?: Record<string, JsonValue>;
+  approval?: JsonObject;
+}
+
+export interface TransformVerdict<TTransform> {
+  /**
+   * Interceptor-supplied machine identifier. The host_error: prefix is reserved
+   * for host-synthesized failures (§11).
+   */
+  reason?: string | null;
+  /**
+   * Human-readable text for the caller.
+   */
+  message?: string | null;
+  /**
+   * Recorded concerns that do not affect control flow (§5.1). Permitted on any
+   * decision; unioned across an emission's verdicts (§7.3). Reasons starting with
+   * host_warning: are reserved for the host (§11.1).
+   */
+  warnings?: Array<Warning> | null;
+  evidence?: Evidence;
+  /**
+   * Interceptor-supplied labels the host MUST persist with the produced data and
+   * resurface on later interception points (§5.4).
+   */
+  result_labels?: Array<string> | null;
+  decision: "transform";
+  transform: TTransform;
 }
 
 /**
@@ -755,7 +781,7 @@ export interface PostModelHookTransform {
  * Replaces the complete tool args for the pre-tool hook.
  */
 export interface PreToolHookTransform {
-  args: Record<string, JsonValue>;
+  args: JsonObject;
 }
 
 /**
@@ -777,199 +803,55 @@ export interface OutputHookTransform {
  */
 export interface AgentStartupHookResponse {
   verdict: NonTransformVerdict;
-  extensions?: Record<string, JsonValue>;
+  extensions?: Extensions;
 }
 
 /**
  * input response.
  */
 export interface InputHookResponse {
-  verdict: AllowVerdict | DenyVerdict | {
-    /**
-     * Interceptor-supplied machine identifier. The host_error: prefix is reserved
-     * for host-synthesized failures (§11).
-     */
-    reason?: string | null;
-    /**
-     * Human-readable text for the caller.
-     */
-    message?: string | null;
-    /**
-     * Recorded concerns that do not affect control flow (§5.1). Permitted on any
-     * decision; unioned across an emission's verdicts (§7.3). Reasons starting with
-     * host_warning: are reserved for the host (§11.1).
-     */
-    warnings?: Array<Warning> | null;
-    evidence?: Evidence;
-    /**
-     * Interceptor-supplied labels the host MUST persist with the produced data and
-     * resurface on later interception points (§5.4).
-     */
-    result_labels?: Array<string> | null;
-    decision: "transform";
-    transform: InputHookTransform;
-  };
-  extensions?: Record<string, JsonValue>;
+  verdict: AllowVerdict | DenyVerdict | TransformVerdict<InputHookTransform>;
+  extensions?: Extensions;
 }
 
 /**
  * pre_model_call response.
  */
 export interface PreModelHookResponse {
-  verdict: AllowVerdict | DenyVerdict | {
-    /**
-     * Interceptor-supplied machine identifier. The host_error: prefix is reserved
-     * for host-synthesized failures (§11).
-     */
-    reason?: string | null;
-    /**
-     * Human-readable text for the caller.
-     */
-    message?: string | null;
-    /**
-     * Recorded concerns that do not affect control flow (§5.1). Permitted on any
-     * decision; unioned across an emission's verdicts (§7.3). Reasons starting with
-     * host_warning: are reserved for the host (§11.1).
-     */
-    warnings?: Array<Warning> | null;
-    evidence?: Evidence;
-    /**
-     * Interceptor-supplied labels the host MUST persist with the produced data and
-     * resurface on later interception points (§5.4).
-     */
-    result_labels?: Array<string> | null;
-    decision: "transform";
-    transform: PreModelHookTransform;
-  };
-  extensions?: Record<string, JsonValue>;
+  verdict: AllowVerdict | DenyVerdict | TransformVerdict<PreModelHookTransform>;
+  extensions?: Extensions;
 }
 
 /**
  * post_model_call response.
  */
 export interface PostModelHookResponse {
-  verdict: AllowVerdict | DenyVerdict | {
-    /**
-     * Interceptor-supplied machine identifier. The host_error: prefix is reserved
-     * for host-synthesized failures (§11).
-     */
-    reason?: string | null;
-    /**
-     * Human-readable text for the caller.
-     */
-    message?: string | null;
-    /**
-     * Recorded concerns that do not affect control flow (§5.1). Permitted on any
-     * decision; unioned across an emission's verdicts (§7.3). Reasons starting with
-     * host_warning: are reserved for the host (§11.1).
-     */
-    warnings?: Array<Warning> | null;
-    evidence?: Evidence;
-    /**
-     * Interceptor-supplied labels the host MUST persist with the produced data and
-     * resurface on later interception points (§5.4).
-     */
-    result_labels?: Array<string> | null;
-    decision: "transform";
-    transform: PostModelHookTransform;
-  };
-  extensions?: Record<string, JsonValue>;
+  verdict: AllowVerdict | DenyVerdict | TransformVerdict<PostModelHookTransform>;
+  extensions?: Extensions;
 }
 
 /**
  * pre_tool_call response.
  */
 export interface PreToolHookResponse {
-  verdict: AllowVerdict | DenyVerdict | {
-    /**
-     * Interceptor-supplied machine identifier. The host_error: prefix is reserved
-     * for host-synthesized failures (§11).
-     */
-    reason?: string | null;
-    /**
-     * Human-readable text for the caller.
-     */
-    message?: string | null;
-    /**
-     * Recorded concerns that do not affect control flow (§5.1). Permitted on any
-     * decision; unioned across an emission's verdicts (§7.3). Reasons starting with
-     * host_warning: are reserved for the host (§11.1).
-     */
-    warnings?: Array<Warning> | null;
-    evidence?: Evidence;
-    /**
-     * Interceptor-supplied labels the host MUST persist with the produced data and
-     * resurface on later interception points (§5.4).
-     */
-    result_labels?: Array<string> | null;
-    decision: "transform";
-    transform: PreToolHookTransform;
-  };
-  extensions?: Record<string, JsonValue>;
+  verdict: AllowVerdict | DenyVerdict | TransformVerdict<PreToolHookTransform>;
+  extensions?: Extensions;
 }
 
 /**
  * post_tool_call response.
  */
 export interface PostToolHookResponse {
-  verdict: AllowVerdict | DenyVerdict | {
-    /**
-     * Interceptor-supplied machine identifier. The host_error: prefix is reserved
-     * for host-synthesized failures (§11).
-     */
-    reason?: string | null;
-    /**
-     * Human-readable text for the caller.
-     */
-    message?: string | null;
-    /**
-     * Recorded concerns that do not affect control flow (§5.1). Permitted on any
-     * decision; unioned across an emission's verdicts (§7.3). Reasons starting with
-     * host_warning: are reserved for the host (§11.1).
-     */
-    warnings?: Array<Warning> | null;
-    evidence?: Evidence;
-    /**
-     * Interceptor-supplied labels the host MUST persist with the produced data and
-     * resurface on later interception points (§5.4).
-     */
-    result_labels?: Array<string> | null;
-    decision: "transform";
-    transform: PostToolHookTransform;
-  };
-  extensions?: Record<string, JsonValue>;
+  verdict: AllowVerdict | DenyVerdict | TransformVerdict<PostToolHookTransform>;
+  extensions?: Extensions;
 }
 
 /**
  * output response.
  */
 export interface OutputHookResponse {
-  verdict: AllowVerdict | DenyVerdict | {
-    /**
-     * Interceptor-supplied machine identifier. The host_error: prefix is reserved
-     * for host-synthesized failures (§11).
-     */
-    reason?: string | null;
-    /**
-     * Human-readable text for the caller.
-     */
-    message?: string | null;
-    /**
-     * Recorded concerns that do not affect control flow (§5.1). Permitted on any
-     * decision; unioned across an emission's verdicts (§7.3). Reasons starting with
-     * host_warning: are reserved for the host (§11.1).
-     */
-    warnings?: Array<Warning> | null;
-    evidence?: Evidence;
-    /**
-     * Interceptor-supplied labels the host MUST persist with the produced data and
-     * resurface on later interception points (§5.4).
-     */
-    result_labels?: Array<string> | null;
-    decision: "transform";
-    transform: OutputHookTransform;
-  };
-  extensions?: Record<string, JsonValue>;
+  verdict: AllowVerdict | DenyVerdict | TransformVerdict<OutputHookTransform>;
+  extensions?: Extensions;
 }
 
 /**
@@ -977,7 +859,7 @@ export interface OutputHookResponse {
  */
 export interface AgentShutdownHookResponse {
   verdict: NonTransformVerdict;
-  extensions?: Record<string, JsonValue>;
+  extensions?: Extensions;
 }
 
 /**
@@ -987,7 +869,7 @@ export interface AgentShutdownHookResponse {
  * member is validated against the §5 schema only when its reason is not
  * host_error:*.
  */
-export type LiftableDeny = Record<string, JsonValue> & {
+export type LiftableDeny = DenyVerdict | Record<string, JsonValue> & {
   decision: "deny";
 };
 
@@ -997,9 +879,7 @@ export type LiftableDeny = Record<string, JsonValue> & {
 export interface ApprovalRequest {
   context_identity: string | null;
   interception_point: InterceptionPoint;
-  verdict: Record<string, JsonValue> & {
-    decision: "deny";
-  };
+  verdict: LiftableDeny;
   /**
    * The AgentContext as presented to the resolver. MAY be redacted per host policy.
    */
@@ -1078,7 +958,7 @@ export interface VerdictProjection {
   warnings?: Array<WarningProjection> | null;
   evidence?: Evidence;
   result_labels?: Array<string> | null;
-  approval?: Record<string, never>;
+  approval?: ApprovalPresence;
 }
 
 /**
@@ -1317,7 +1197,7 @@ export interface UnanimousSupport {
  */
 export interface ProfileSupport {
   "sequential/first_deny"?: FirstDenySupport;
-  "sequential/run_all"?: Record<string, never>;
+  "sequential/run_all"?: RunAllSupport;
   "parallel/strictest"?: StrictestSupport;
   "parallel/unanimous"?: UnanimousSupport;
 }
@@ -1456,7 +1336,7 @@ export interface HostDeclaration {
    * Host-specific extras, kept verbatim and never read by the loader. Keys
    * follow the §4.6 namespace rule; the §4.6 reserved namespaces apply.
    */
-  extensions?: Record<string, JsonValue>;
+  extensions?: Extensions;
 }
 
 /**

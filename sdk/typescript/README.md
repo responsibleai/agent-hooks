@@ -28,4 +28,6 @@ pnpm --filter @responsibleai/agent-hooks test
 `pnpm generate` regenerates the normative JSON Schemas with the existing schema
 tooling, builds the TypeScript emitter, and runs `tsp compile spec/draft`.
 After building the emitter, `pnpm exec tsp compile spec/draft` can also be run
-directly. The single drift check regenerates and runs `git diff --exit-code`.
+directly. The single drift check checks JSON Schemas without rewriting them
+(including orphaned schemas), then regenerates TypeScript contracts and rejects
+both tracked changes and untracked output files.

@@ -76,7 +76,14 @@ def cut(root: Path, version: str, date: str) -> list[str]:
     if not draft_file.is_file():
         raise SystemExit(f"{draft_file} is missing")
 
-    shutil.copytree(draft, target, symlinks=False)
+    shutil.copytree(
+        draft,
+        target,
+        symlinks=False,
+        ignore=lambda directory, names: (
+            {"tspconfig.yaml"} if Path(directory) == draft else set()
+        ),
+    )
     (target / "AGENT-HOOKS-DRAFT.md").unlink()
     released = released_text(draft_file.read_text(encoding="utf-8"), version, date)
     (target / f"AGENT-HOOKS-{version}.md").write_text(released, encoding="utf-8")

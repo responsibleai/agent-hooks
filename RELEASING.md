@@ -21,7 +21,9 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    draft wire string `agent-hooks/draft` to `agent-hooks/X.Y` in every
    text file of the copy, and rewrites the copy's `spec/draft/`
    self-references. The draft itself does not change; it keeps
-   `agent-hooks/draft`. The script prints what remains.
+   `agent-hooks/draft`. The draft-only root `tspconfig.yaml` is excluded so
+   compiling a frozen copy cannot overwrite the draft TypeScript contracts.
+   The script prints what remains.
 
    ```bash
    python3 scripts/cut-spec-version.py X.Y
@@ -247,7 +249,8 @@ on tags, including dry runs; manual branch dry runs do not require a tag.
 
 - crates.io `agent-hooks-sdk`
 - PyPI `agent-hooks-sdk` (five platform wheels and the sdist)
-- npm `@responsibleai/agent-hooks` plus five platform packages
+- npm `@responsibleai/agent-hooks-contracts`, `@responsibleai/agent-hooks`,
+  plus five platform packages
   `@responsibleai/agent-hooks-<platform>`. Every version publishes
   under the `latest` dist-tag, pre-releases included, so a plain
   `npm install` gets the newest release. A pre-release also gets a
@@ -262,6 +265,14 @@ Each package gets a provenance attestation and an SBOM. Every leg
 skips versions and files that already exist, so a rerun after a
 partial failure is safe, and a non-dry dispatch on the tag ref appends
 missing artifacts. The workflow creates no GitHub Release object.
+
+New npm packages need a one-time manual publication before their trusted
+publisher can be configured. An initial OIDC publish failure for an unpublished
+platform package or the independent contracts package produces a warning and
+does not block the runtime package. Publish the new package once with a
+short-lived token, configure its trusted publisher (including "Allow npm
+dist-tag"), and rerun the tag workflow. Failures for existing packages remain
+fatal.
 
 ### Go module tag
 
@@ -317,7 +328,7 @@ with 2FA, not a stored automation token:
 ```bash
 V=<version>
 TAG=<alpha|beta|rc|next>
-for p in agent-hooks agent-hooks-linux-x64-gnu agent-hooks-linux-arm64-gnu \
+for p in agent-hooks-contracts agent-hooks agent-hooks-linux-x64-gnu agent-hooks-linux-arm64-gnu \
          agent-hooks-darwin-x64 agent-hooks-darwin-arm64 \
          agent-hooks-win32-x64-msvc; do
   npm dist-tag add "@responsibleai/$p@$V" "$TAG"

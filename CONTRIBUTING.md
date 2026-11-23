@@ -170,7 +170,7 @@ no runtime or native dependency.
 
 ```bash
 pnpm generate
-pnpm run check:generated  # regenerate schemas and contracts, then git diff --exit-code
+pnpm run check:generated  # check schemas without rewriting, then check contract drift
 ```
 
 Generation builds the emitter before running `tsp compile spec/draft`; the
@@ -179,7 +179,9 @@ The SDK receives generated output only. The native runtime and its `./ctk`
 entry point live in `sdk/typescript/packages/agent-hooks`; native platform
 packages stay under `sdk/typescript/npm`. The existing JSON Schema generator
 remains separate internally, but is included in `pnpm generate` and the
-single drift check.
+single drift check. Schema checking rejects missing, changed, and orphaned files
+without rewriting them. Contract checking regenerates TypeScript and rejects
+tracked changes and untracked output files.
 
 Commit TypeSpec edits and generated contract types together; do not edit the
 generated TypeScript by hand. No JSON Schema copies are needed in the SDK.
