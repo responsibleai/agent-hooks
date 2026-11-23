@@ -31,7 +31,7 @@ updates:
     groups:
       node: { patterns: ["*"] }
   - package-ecosystem: nuget
-    directory: /sdk/dotnet
+    directory: /sdk/csharp
     schedule: { interval: weekly }
     groups:
       dotnet: { patterns: ["*"] }

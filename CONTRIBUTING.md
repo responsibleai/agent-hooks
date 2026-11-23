@@ -187,13 +187,13 @@ cd sdk/python && maturin develop --release && python -m pytest tests/ && ruff ch
 pnpm install && pnpm --dir sdk/typescript test
 # .NET (needs the FFI cdylib on the library path)
 cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
-cd sdk/dotnet && LD_LIBRARY_PATH=../rust/target/release dotnet test
+cd sdk/csharp && LD_LIBRARY_PATH=../rust/target/release dotnet test
 # Go
 cd sdk/go && CGO_ENABLED=1 go test ./...
 ```
 
 For the protected Windows x64 FFI used by .NET/NuGet, follow the
-[Windows source-build instructions](sdk/dotnet/README.md#windows-x64-source-builds-and-release-checks).
+[Windows source-build instructions](sdk/csharp/README.md#windows-x64-source-builds-and-release-checks).
 That artifact needs a pinned nightly compiler and a rebuilt, stack-protected
 standard library; a plain stable FFI build is not equivalent.
 

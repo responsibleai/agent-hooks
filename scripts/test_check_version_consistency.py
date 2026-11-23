@@ -93,7 +93,7 @@ class ReleaseTagTest(unittest.TestCase):
                     "sdk/rust/Cargo.toml": version,
                     "sdk/python/pyproject.toml": python_version,
                     "sdk/typescript/package.json": version,
-                    "sdk/dotnet/Directory.Build.props": version,
+                    "sdk/csharp/Directory.Build.props": version,
                 },
             ),
             contextlib.redirect_stdout(output),
@@ -275,7 +275,7 @@ CORES = {
     "sdk/rust/core/src/types.rs": RUST_TYPES,
     "sdk/typescript/src/index.ts": TS_INDEX,
     "sdk/python/python/agent_hooks/_types.py": PY_TYPES,
-    "sdk/dotnet/src/AgentHooks/Types.cs": CS_TYPES,
+    "sdk/csharp/src/AgentHooks/Types.cs": CS_TYPES,
     "sdk/go/agenthooks/types.go": GO_TYPES,
 }
 

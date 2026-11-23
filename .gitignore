@@ -463,5 +463,5 @@ sdk/go/**/*.test
 docs-site/.astro/
 
 # Native pack staging (release pipeline / local pack verification)
-sdk/dotnet/src/AgentHooks/runtimes/
-sdk/dotnet/ffi-artifacts/
+sdk/csharp/src/AgentHooks/runtimes/
+sdk/csharp/ffi-artifacts/

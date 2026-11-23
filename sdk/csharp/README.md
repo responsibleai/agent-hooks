@@ -18,7 +18,7 @@ composition profiles, the identity-provider seam, and the CTK runner.
 # Or build from source on Linux/macOS (needs a Rust toolchain):
 git clone https://github.com/responsibleai/agent-hooks && cd agent-hooks
 cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
-dotnet build sdk/dotnet
+dotnet build sdk/csharp
 # at runtime the native library must be resolvable, e.g.:
 # LD_LIBRARY_PATH=sdk/rust/target/release dotnet run
 ```
@@ -173,7 +173,7 @@ try {
 } finally { Pop-Location }
 $env:RUSTFLAGS = $null
 $env:PATH = "$(Resolve-Path sdk\rust\target\x86_64-pc-windows-msvc\release);$env:PATH"
-dotnet test sdk\dotnet\test\AgentHooks.Tests
+dotnet test sdk\csharp\test\AgentHooks.Tests
 ```
 
 Use a dedicated developer shell: the environment flags above are process-local.

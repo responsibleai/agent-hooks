@@ -15,7 +15,7 @@
 # Per-language SDK owners (bindings, packaging, CI for that language).
 /sdk/python/                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
 /sdk/typescript/                @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
-/sdk/dotnet/                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/sdk/csharp/                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
 /sdk/go/                        @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
 
 /.github/                       @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
