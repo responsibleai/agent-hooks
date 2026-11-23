@@ -68,6 +68,9 @@ public sealed class GeneratedContractTests
         Assert.Equal("""{"interceptor_ms":5000}""", JsonSerializer.Serialize(timeouts));
         Assert.Equal("""{"prompt_tokens":0}""",
             JsonSerializer.Serialize(JsonSerializer.Deserialize<Draft.Usage>("""{"prompt_tokens":0}""")));
+        var usage = JsonSerializer.Deserialize<Draft.Usage>("{}")!;
+        Assert.Null(usage.PromptTokens);
+        Assert.Equal("{}", JsonSerializer.Serialize(usage));
         Assert.Equal("""{"buffered_output":false,"exposure_bound":"one token"}""",
             JsonSerializer.Serialize<Draft.Surface>(new Draft.UnbufferedSurface { ExposureBound = "one token" }));
     }

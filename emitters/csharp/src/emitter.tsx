@@ -148,22 +148,29 @@ function ContractProperty(props: { type: ModelProperty }): Children {
   const attributes = [
     <cs.Attribute name="JsonPropertyName" args={[JSON.stringify(property.name)]} />,
   ];
-  if (property.optional) {
+  // Only optional nullable members need Optional<T?> to keep absent distinct from null.
+  const nullable = nullableInner(type) !== undefined;
+  const tristate = property.optional && nullable;
+  if (tristate) {
     attributes.push(<cs.Attribute name="JsonIgnore" args={["Condition = JsonIgnoreCondition.WhenWritingDefault"]} />);
   } else {
-    attributes.push(<cs.Attribute name="JsonRequired" />);
+    attributes.push(property.optional
+      ? <cs.Attribute name="JsonIgnore" args={["Condition = JsonIgnoreCondition.WhenWritingNull"]} />
+      : <cs.Attribute name="JsonRequired" />);
     const scalar = nullableInner(type) ?? type;
     if (scalar.kind === "Scalar" && $.scalar.getStdBase(scalar)?.name === "integer") {
       attributes.push(<JsonConverterAttribute name="BigIntegerJsonConverter" />);
     }
   }
   const expression = <ef.TypeExpression type={type} />;
+  const propertyType = tristate ? code`Optional<${expression}>`
+    : property.optional ? code`${expression}?` : expression;
   const initializer = type.kind === "EnumMember"
     ? code`${<ef.TypeExpression type={type.enum} />}.${cs.createCSharpNamePolicy().getName(type.name, "enum-member")}`
     : JSON.stringify(value);
   return <cs.Property
     public name={property.name}
-    type={property.optional ? code`Optional<${expression}>` : expression}
+    type={propertyType}
     required={!property.optional && !constant}
     get={constant ? code`return ${initializer};` : true}
     set={constant ? code`if (value != ${initializer}) throw new JsonException(${JSON.stringify(`Expected ${property.name} = ${String(value)}.`)});` : true}

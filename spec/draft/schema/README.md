@@ -86,8 +86,10 @@ This targets the draft only, not the frozen 0.1 bundle or the existing Rust-back
 `spec/draft/tspconfig.yaml` loads the `@agent-hooks/emitter-csharp` workspace
 package. Its `emitters/csharp/src/emitter.tsx` uses `@typespec/emitter-framework` for
 TypeSpec context, model/enum declarations, properties, documentation and type
-references. Its component overrides preserve optional-property presence,
-literal wire values, arbitrary JSON, and unbounded integers. Raw
+references. Optional properties map to C# nullable types and are omitted when
+null; only optional properties that also allow `null` use `Optional<T?>`, so an
+absent member stays distinct from an explicit `null`. Component overrides also
+preserve literal wire values, arbitrary JSON, and unbounded integers. Raw
 `@alloy-js/csharp` components supply discriminated-union interfaces/converters,
 dictionary models and extension-data members not covered by the framework.
 `json-components.tsx` shares converter declarations, converter attributes and

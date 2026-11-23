@@ -426,12 +426,12 @@ public sealed class Model
     public required string Id { get; set; }
 
     [JsonPropertyName("vendor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Vendor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Vendor { get; set; }
 
     [JsonPropertyName("params")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<JsonObject> Params { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonObject? Params { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -460,8 +460,8 @@ public sealed class Message
 public sealed class ToolCallRequest
 {
     [JsonPropertyName("id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Id { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Id { get; set; }
 
     [JsonPropertyName("name")]
     [JsonRequired]
@@ -502,12 +502,14 @@ public sealed class Response
 public sealed class Usage
 {
     [JsonPropertyName("prompt_tokens")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<BigInteger> PromptTokens { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonConverter(typeof(BigIntegerJsonConverter))]
+    public BigInteger? PromptTokens { get; set; }
 
     [JsonPropertyName("completion_tokens")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<BigInteger> CompletionTokens { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonConverter(typeof(BigIntegerJsonConverter))]
+    public BigInteger? CompletionTokens { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -531,8 +533,8 @@ public sealed class ToolCall
     public required JsonObject Args { get; set; }
 
     [JsonPropertyName("content_hash")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> ContentHash { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ContentHash { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -552,8 +554,8 @@ public sealed class ToolResult
     public required bool IsError { get; set; }
 
     [JsonPropertyName("duration_ms")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<double> DurationMs { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? DurationMs { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -569,12 +571,12 @@ public sealed class ToolDecl
     public required string Name { get; set; }
 
     [JsonPropertyName("description")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Description { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; set; }
 
     [JsonPropertyName("schema")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<JsonObject> Schema { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonObject? Schema { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -603,16 +605,18 @@ public sealed class Summary
     public required SummaryReason Reason { get; set; }
 
     [JsonPropertyName("tool_calls")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<BigInteger> ToolCalls { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonConverter(typeof(BigIntegerJsonConverter))]
+    public BigInteger? ToolCalls { get; set; }
 
     [JsonPropertyName("errors")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<BigInteger> Errors { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonConverter(typeof(BigIntegerJsonConverter))]
+    public BigInteger? Errors { get; set; }
 
     [JsonPropertyName("duration_seconds")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<double> DurationSeconds { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? DurationSeconds { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -653,20 +657,20 @@ public sealed class ContextMetadata
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -683,12 +687,12 @@ public sealed class ContextMetadataAgent
     public required string Framework { get; set; }
 
     [JsonPropertyName("name")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Name { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Name { get; set; }
 
     [JsonPropertyName("version")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Version { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Version { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -701,12 +705,13 @@ public sealed class ContextMetadataSession
     public required string Id { get; set; }
 
     [JsonPropertyName("started_at")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> StartedAt { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StartedAt { get; set; }
 
     [JsonPropertyName("turn")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<BigInteger> Turn { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonConverter(typeof(BigIntegerJsonConverter))]
+    public BigInteger? Turn { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -715,12 +720,12 @@ public sealed class ContextMetadataSession
 public sealed class ContextMetadataTrace
 {
     [JsonPropertyName("trace_id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> TraceId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TraceId { get; set; }
 
     [JsonPropertyName("span_id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> SpanId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SpanId { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -729,12 +734,12 @@ public sealed class ContextMetadataTrace
 public sealed class ContextMetadataTenant
 {
     [JsonPropertyName("id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Id { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Id { get; set; }
 
     [JsonPropertyName("name")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Name { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Name { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -743,12 +748,12 @@ public sealed class ContextMetadataTenant
 public sealed class ContextMetadataActor
 {
     [JsonPropertyName("id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Id { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Id { get; set; }
 
     [JsonPropertyName("kind")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ActorKind> Kind { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ActorKind? Kind { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -757,20 +762,20 @@ public sealed class ContextMetadataActor
 public sealed class ContextMetadataBudgets
 {
     [JsonPropertyName("tool_call_count")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<double> ToolCallCount { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ToolCallCount { get; set; }
 
     [JsonPropertyName("token_count")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<double> TokenCount { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? TokenCount { get; set; }
 
     [JsonPropertyName("elapsed_seconds")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<double> ElapsedSeconds { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? ElapsedSeconds { get; set; }
 
     [JsonPropertyName("cost_usd")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<double> CostUsd { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CostUsd { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -811,20 +816,20 @@ public sealed class AgentStartupContext : AgentContext
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -837,8 +842,8 @@ public sealed class AgentStartupContext : AgentContext
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("agent_init")]
     [JsonRequired]
@@ -883,20 +888,20 @@ public sealed class InputContext : AgentContext
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -907,8 +912,8 @@ public sealed class InputContext : AgentContext
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("input")]
     [JsonRequired]
@@ -953,20 +958,20 @@ public sealed class PreModelCallContext : AgentContext
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -979,8 +984,8 @@ public sealed class PreModelCallContext : AgentContext
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("model")]
     [JsonRequired]
@@ -991,12 +996,12 @@ public sealed class PreModelCallContext : AgentContext
     public required Message[] Messages { get; set; }
 
     [JsonPropertyName("tools")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ToolDecl[]> Tools { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ToolDecl[]? Tools { get; set; }
 
     [JsonPropertyName("request_id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> RequestId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RequestId { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -1037,20 +1042,20 @@ public sealed class PostModelCallContext : AgentContext
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1063,8 +1068,8 @@ public sealed class PostModelCallContext : AgentContext
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("model")]
     [JsonRequired]
@@ -1075,12 +1080,12 @@ public sealed class PostModelCallContext : AgentContext
     public required Response Response { get; set; }
 
     [JsonPropertyName("request_id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> RequestId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RequestId { get; set; }
 
     [JsonPropertyName("usage")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Usage> Usage { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Usage? Usage { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -1121,20 +1126,20 @@ public sealed class PreToolCallContext : AgentContext
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1147,8 +1152,8 @@ public sealed class PreToolCallContext : AgentContext
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("tool_call")]
     [JsonRequired]
@@ -1193,20 +1198,20 @@ public sealed class PostToolCallContext : AgentContext
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1219,8 +1224,8 @@ public sealed class PostToolCallContext : AgentContext
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("tool_call")]
     [JsonRequired]
@@ -1269,20 +1274,20 @@ public sealed class OutputContext : AgentContext
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1293,8 +1298,8 @@ public sealed class OutputContext : AgentContext
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("output")]
     [JsonRequired]
@@ -1339,20 +1344,20 @@ public sealed class AgentShutdownContext : AgentContext
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1365,8 +1370,8 @@ public sealed class AgentShutdownContext : AgentContext
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("summary")]
     [JsonRequired]
@@ -1411,20 +1416,20 @@ public sealed class AgentStartupRequest
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1437,8 +1442,8 @@ public sealed class AgentStartupRequest
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("agent_init")]
     [JsonRequired]
@@ -1483,20 +1488,20 @@ public sealed class InputRequest
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1507,8 +1512,8 @@ public sealed class InputRequest
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("input")]
     [JsonRequired]
@@ -1553,20 +1558,20 @@ public sealed class PreModelCallRequest
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1579,20 +1584,20 @@ public sealed class PreModelCallRequest
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("messages")]
     [JsonRequired]
     public required Message[] Messages { get; set; }
 
     [JsonPropertyName("tools")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ToolDecl[]> Tools { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ToolDecl[]? Tools { get; set; }
 
     [JsonPropertyName("request_id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> RequestId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RequestId { get; set; }
 
     [JsonPropertyName("model")]
     [JsonRequired]
@@ -1637,20 +1642,20 @@ public sealed class PostModelCallRequest
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1663,16 +1668,16 @@ public sealed class PostModelCallRequest
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("request_id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> RequestId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RequestId { get; set; }
 
     [JsonPropertyName("usage")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Usage> Usage { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Usage? Usage { get; set; }
 
     [JsonPropertyName("model")]
     [JsonRequired]
@@ -1721,20 +1726,20 @@ public sealed class PreToolCallRequest
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1747,8 +1752,8 @@ public sealed class PreToolCallRequest
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("tool_call")]
     [JsonRequired]
@@ -1793,20 +1798,20 @@ public sealed class PostToolCallRequest
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1819,8 +1824,8 @@ public sealed class PostToolCallRequest
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("tool_call")]
     [JsonRequired]
@@ -1869,20 +1874,20 @@ public sealed class OutputRequest
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1893,8 +1898,8 @@ public sealed class OutputRequest
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("output")]
     [JsonRequired]
@@ -1939,20 +1944,20 @@ public sealed class AgentShutdownRequest
     public required ContextMetadataSession Session { get; set; }
 
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTrace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTrace? Trace { get; set; }
 
     [JsonPropertyName("tenant")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataTenant> Tenant { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataTenant? Tenant { get; set; }
 
     [JsonPropertyName("actor")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataActor> Actor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataActor? Actor { get; set; }
 
     [JsonPropertyName("budgets")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ContextMetadataBudgets> Budgets { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ContextMetadataBudgets? Budgets { get; set; }
 
     [JsonPropertyName("interception_point")]
     [JsonRequired]
@@ -1965,8 +1970,8 @@ public sealed class AgentShutdownRequest
     }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 
     [JsonPropertyName("summary")]
     [JsonRequired]
@@ -1989,12 +1994,12 @@ public sealed class Warning
     /// validation.
     /// </summary>
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Message { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
 }
 
 /// <summary>
@@ -2012,12 +2017,12 @@ public sealed class Evidence
     /// Content address (sha256:<hex>) or URI of an offline-verifiable proof.
     /// </summary>
     [JsonPropertyName("artefact")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Artefact { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Artefact { get; set; }
 
     [JsonPropertyName("verification_pointers")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<VerificationPointers> VerificationPointers { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public VerificationPointers? VerificationPointers { get; set; }
 }
 
 /// <summary>
@@ -2030,15 +2035,15 @@ public sealed class VerdictBase
     /// for host-synthesized failures (§11).
     /// </summary>
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     /// <summary>
     /// Human-readable text for the caller.
     /// </summary>
     [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Message { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
 
     /// <summary>
     /// Recorded concerns that do not affect control flow (§5.1). Permitted on any
@@ -2046,20 +2051,20 @@ public sealed class VerdictBase
     /// host_warning: are reserved for the host (§11.1).
     /// </summary>
     [JsonPropertyName("warnings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Warning[]> Warnings { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Warning[]? Warnings { get; set; }
 
     [JsonPropertyName("evidence")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Evidence> Evidence { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Evidence? Evidence { get; set; }
 
     /// <summary>
     /// Interceptor-supplied labels the host MUST persist with the produced data and
     /// resurface on later interception points (§5.4).
     /// </summary>
     [JsonPropertyName("result_labels")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string[]> ResultLabels { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? ResultLabels { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -2076,15 +2081,15 @@ public sealed class AllowVerdict : NonTransformVerdict, InputHookResponseVerdict
     /// for host-synthesized failures (§11).
     /// </summary>
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     /// <summary>
     /// Human-readable text for the caller.
     /// </summary>
     [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Message { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
 
     /// <summary>
     /// Recorded concerns that do not affect control flow (§5.1). Permitted on any
@@ -2092,20 +2097,20 @@ public sealed class AllowVerdict : NonTransformVerdict, InputHookResponseVerdict
     /// host_warning: are reserved for the host (§11.1).
     /// </summary>
     [JsonPropertyName("warnings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Warning[]> Warnings { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Warning[]? Warnings { get; set; }
 
     [JsonPropertyName("evidence")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Evidence> Evidence { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Evidence? Evidence { get; set; }
 
     /// <summary>
     /// Interceptor-supplied labels the host MUST persist with the produced data and
     /// resurface on later interception points (§5.4).
     /// </summary>
     [JsonPropertyName("result_labels")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string[]> ResultLabels { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? ResultLabels { get; set; }
 
     [JsonPropertyName("decision")]
     [JsonRequired]
@@ -2127,15 +2132,15 @@ public sealed class DenyVerdict : NonTransformVerdict, InputHookResponseVerdict,
     /// for host-synthesized failures (§11).
     /// </summary>
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     /// <summary>
     /// Human-readable text for the caller.
     /// </summary>
     [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Message { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
 
     /// <summary>
     /// Recorded concerns that do not affect control flow (§5.1). Permitted on any
@@ -2143,20 +2148,20 @@ public sealed class DenyVerdict : NonTransformVerdict, InputHookResponseVerdict,
     /// host_warning: are reserved for the host (§11.1).
     /// </summary>
     [JsonPropertyName("warnings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Warning[]> Warnings { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Warning[]? Warnings { get; set; }
 
     [JsonPropertyName("evidence")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Evidence> Evidence { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Evidence? Evidence { get; set; }
 
     /// <summary>
     /// Interceptor-supplied labels the host MUST persist with the produced data and
     /// resurface on later interception points (§5.4).
     /// </summary>
     [JsonPropertyName("result_labels")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string[]> ResultLabels { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? ResultLabels { get; set; }
 
     [JsonPropertyName("decision")]
     [JsonRequired]
@@ -2171,8 +2176,8 @@ public sealed class DenyVerdict : NonTransformVerdict, InputHookResponseVerdict,
     /// MAY be empty; reserved for approver-facing parameters.
     /// </summary>
     [JsonPropertyName("approval")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<JsonObject> Approval { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonObject? Approval { get; set; }
 }
 
 /// <summary>
@@ -2252,8 +2257,8 @@ public sealed class AgentStartupHookResponse
     public required NonTransformVerdict Verdict { get; set; }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 }
 
 [JsonConverter(typeof(NonTransformVerdictJsonConverter))]
@@ -2283,8 +2288,8 @@ public sealed class InputHookResponse
     public required InputHookResponseVerdict Verdict { get; set; }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 }
 
 [JsonConverter(typeof(InputHookResponseVerdictJsonConverter))]
@@ -2315,15 +2320,15 @@ public sealed class TransformVerdictInputHookTransform : InputHookResponseVerdic
     /// for host-synthesized failures (§11).
     /// </summary>
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     /// <summary>
     /// Human-readable text for the caller.
     /// </summary>
     [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Message { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
 
     /// <summary>
     /// Recorded concerns that do not affect control flow (§5.1). Permitted on any
@@ -2331,20 +2336,20 @@ public sealed class TransformVerdictInputHookTransform : InputHookResponseVerdic
     /// host_warning: are reserved for the host (§11.1).
     /// </summary>
     [JsonPropertyName("warnings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Warning[]> Warnings { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Warning[]? Warnings { get; set; }
 
     [JsonPropertyName("evidence")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Evidence> Evidence { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Evidence? Evidence { get; set; }
 
     /// <summary>
     /// Interceptor-supplied labels the host MUST persist with the produced data and
     /// resurface on later interception points (§5.4).
     /// </summary>
     [JsonPropertyName("result_labels")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string[]> ResultLabels { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? ResultLabels { get; set; }
 
     [JsonPropertyName("decision")]
     [JsonRequired]
@@ -2370,8 +2375,8 @@ public sealed class PreModelHookResponse
     public required PreModelHookResponseVerdict Verdict { get; set; }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 }
 
 [JsonConverter(typeof(PreModelHookResponseVerdictJsonConverter))]
@@ -2402,15 +2407,15 @@ public sealed class TransformVerdictPreModelHookTransform : PreModelHookResponse
     /// for host-synthesized failures (§11).
     /// </summary>
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     /// <summary>
     /// Human-readable text for the caller.
     /// </summary>
     [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Message { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
 
     /// <summary>
     /// Recorded concerns that do not affect control flow (§5.1). Permitted on any
@@ -2418,20 +2423,20 @@ public sealed class TransformVerdictPreModelHookTransform : PreModelHookResponse
     /// host_warning: are reserved for the host (§11.1).
     /// </summary>
     [JsonPropertyName("warnings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Warning[]> Warnings { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Warning[]? Warnings { get; set; }
 
     [JsonPropertyName("evidence")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Evidence> Evidence { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Evidence? Evidence { get; set; }
 
     /// <summary>
     /// Interceptor-supplied labels the host MUST persist with the produced data and
     /// resurface on later interception points (§5.4).
     /// </summary>
     [JsonPropertyName("result_labels")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string[]> ResultLabels { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? ResultLabels { get; set; }
 
     [JsonPropertyName("decision")]
     [JsonRequired]
@@ -2457,8 +2462,8 @@ public sealed class PostModelHookResponse
     public required PostModelHookResponseVerdict Verdict { get; set; }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 }
 
 [JsonConverter(typeof(PostModelHookResponseVerdictJsonConverter))]
@@ -2489,15 +2494,15 @@ public sealed class TransformVerdictPostModelHookTransform : PostModelHookRespon
     /// for host-synthesized failures (§11).
     /// </summary>
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     /// <summary>
     /// Human-readable text for the caller.
     /// </summary>
     [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Message { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
 
     /// <summary>
     /// Recorded concerns that do not affect control flow (§5.1). Permitted on any
@@ -2505,20 +2510,20 @@ public sealed class TransformVerdictPostModelHookTransform : PostModelHookRespon
     /// host_warning: are reserved for the host (§11.1).
     /// </summary>
     [JsonPropertyName("warnings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Warning[]> Warnings { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Warning[]? Warnings { get; set; }
 
     [JsonPropertyName("evidence")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Evidence> Evidence { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Evidence? Evidence { get; set; }
 
     /// <summary>
     /// Interceptor-supplied labels the host MUST persist with the produced data and
     /// resurface on later interception points (§5.4).
     /// </summary>
     [JsonPropertyName("result_labels")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string[]> ResultLabels { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? ResultLabels { get; set; }
 
     [JsonPropertyName("decision")]
     [JsonRequired]
@@ -2544,8 +2549,8 @@ public sealed class PreToolHookResponse
     public required PreToolHookResponseVerdict Verdict { get; set; }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 }
 
 [JsonConverter(typeof(PreToolHookResponseVerdictJsonConverter))]
@@ -2576,15 +2581,15 @@ public sealed class TransformVerdictPreToolHookTransform : PreToolHookResponseVe
     /// for host-synthesized failures (§11).
     /// </summary>
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     /// <summary>
     /// Human-readable text for the caller.
     /// </summary>
     [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Message { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
 
     /// <summary>
     /// Recorded concerns that do not affect control flow (§5.1). Permitted on any
@@ -2592,20 +2597,20 @@ public sealed class TransformVerdictPreToolHookTransform : PreToolHookResponseVe
     /// host_warning: are reserved for the host (§11.1).
     /// </summary>
     [JsonPropertyName("warnings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Warning[]> Warnings { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Warning[]? Warnings { get; set; }
 
     [JsonPropertyName("evidence")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Evidence> Evidence { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Evidence? Evidence { get; set; }
 
     /// <summary>
     /// Interceptor-supplied labels the host MUST persist with the produced data and
     /// resurface on later interception points (§5.4).
     /// </summary>
     [JsonPropertyName("result_labels")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string[]> ResultLabels { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? ResultLabels { get; set; }
 
     [JsonPropertyName("decision")]
     [JsonRequired]
@@ -2631,8 +2636,8 @@ public sealed class PostToolHookResponse
     public required PostToolHookResponseVerdict Verdict { get; set; }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 }
 
 [JsonConverter(typeof(PostToolHookResponseVerdictJsonConverter))]
@@ -2663,15 +2668,15 @@ public sealed class TransformVerdictPostToolHookTransform : PostToolHookResponse
     /// for host-synthesized failures (§11).
     /// </summary>
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     /// <summary>
     /// Human-readable text for the caller.
     /// </summary>
     [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Message { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
 
     /// <summary>
     /// Recorded concerns that do not affect control flow (§5.1). Permitted on any
@@ -2679,20 +2684,20 @@ public sealed class TransformVerdictPostToolHookTransform : PostToolHookResponse
     /// host_warning: are reserved for the host (§11.1).
     /// </summary>
     [JsonPropertyName("warnings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Warning[]> Warnings { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Warning[]? Warnings { get; set; }
 
     [JsonPropertyName("evidence")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Evidence> Evidence { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Evidence? Evidence { get; set; }
 
     /// <summary>
     /// Interceptor-supplied labels the host MUST persist with the produced data and
     /// resurface on later interception points (§5.4).
     /// </summary>
     [JsonPropertyName("result_labels")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string[]> ResultLabels { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? ResultLabels { get; set; }
 
     [JsonPropertyName("decision")]
     [JsonRequired]
@@ -2718,8 +2723,8 @@ public sealed class OutputHookResponse
     public required OutputHookResponseVerdict Verdict { get; set; }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 }
 
 [JsonConverter(typeof(OutputHookResponseVerdictJsonConverter))]
@@ -2750,15 +2755,15 @@ public sealed class TransformVerdictOutputHookTransform : OutputHookResponseVerd
     /// for host-synthesized failures (§11).
     /// </summary>
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     /// <summary>
     /// Human-readable text for the caller.
     /// </summary>
     [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Message { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
 
     /// <summary>
     /// Recorded concerns that do not affect control flow (§5.1). Permitted on any
@@ -2766,20 +2771,20 @@ public sealed class TransformVerdictOutputHookTransform : OutputHookResponseVerd
     /// host_warning: are reserved for the host (§11.1).
     /// </summary>
     [JsonPropertyName("warnings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Warning[]> Warnings { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Warning[]? Warnings { get; set; }
 
     [JsonPropertyName("evidence")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Evidence> Evidence { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Evidence? Evidence { get; set; }
 
     /// <summary>
     /// Interceptor-supplied labels the host MUST persist with the produced data and
     /// resurface on later interception points (§5.4).
     /// </summary>
     [JsonPropertyName("result_labels")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string[]> ResultLabels { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? ResultLabels { get; set; }
 
     [JsonPropertyName("decision")]
     [JsonRequired]
@@ -2805,8 +2810,8 @@ public sealed class AgentShutdownHookResponse
     public required NonTransformVerdict Verdict { get; set; }
 
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 }
 
 /// <summary>
@@ -2852,8 +2857,8 @@ public sealed class ApprovalRequest
     /// The AgentContext as presented to the resolver. MAY be redacted per host policy.
     /// </summary>
     [JsonPropertyName("context")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<AgentContext> Context { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AgentContext? Context { get; set; }
 }
 
 [JsonConverter(typeof(AgentContextJsonConverter))]
@@ -2982,12 +2987,12 @@ public sealed class ApprovalPresence {}
 public sealed class WarningProjection
 {
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Message { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
 }
 
 /// <summary>
@@ -3004,28 +3009,28 @@ public sealed class VerdictProjection
     public required Decision Decision { get; set; }
 
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     [JsonPropertyName("message")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Message { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Message { get; set; }
 
     [JsonPropertyName("warnings")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<WarningProjection[]> Warnings { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public WarningProjection[]? Warnings { get; set; }
 
     [JsonPropertyName("evidence")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Evidence> Evidence { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Evidence? Evidence { get; set; }
 
     [JsonPropertyName("result_labels")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string[]> ResultLabels { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string[]? ResultLabels { get; set; }
 
     [JsonPropertyName("approval")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ApprovalPresence> Approval { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ApprovalPresence? Approval { get; set; }
 }
 
 /// <summary>
@@ -3036,12 +3041,12 @@ public sealed class VerdictProjection
 public sealed class Trace
 {
     [JsonPropertyName("trace_id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> TraceId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TraceId { get; set; }
 
     [JsonPropertyName("span_id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> SpanId { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SpanId { get; set; }
 }
 
 /// <summary>
@@ -3060,15 +3065,15 @@ public sealed class VerdictSlot
     public required Decision Decision { get; set; }
 
     [JsonPropertyName("reason")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Reason { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reason { get; set; }
 
     /// <summary>
     /// Host-chosen payload-free registration identifier for the interceptor at index (§10.3).
     /// </summary>
     [JsonPropertyName("name")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Name { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Name { get; set; }
 
     /// <summary>
     /// Present iff this slot's verdict is the allow the host substituted under
@@ -3076,8 +3081,8 @@ public sealed class VerdictSlot
     /// carried. The entry's decision is allow and reason is absent.
     /// </summary>
     [JsonPropertyName("substituted_for")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<SubstitutedFor> SubstitutedFor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SubstitutedFor? SubstitutedFor { get; set; }
 }
 
 /// <summary>
@@ -3150,16 +3155,16 @@ public sealed class InterceptionRecord
     /// when the context lacked the field.
     /// </summary>
     [JsonPropertyName("timestamp")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Timestamp { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Timestamp { get; set; }
 
     /// <summary>
     /// OPTIONAL. W3C Trace Context identifiers echoed from the context's optional
     /// trace block (§4.5, §10.3); absent when the context carried neither member.
     /// </summary>
     [JsonPropertyName("trace")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Trace> Trace { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Trace? Trace { get; set; }
 
     /// <summary>
     /// Registration index of the interceptor whose verdict won aggregation or whose
@@ -3183,8 +3188,8 @@ public sealed class InterceptionRecord
     /// substituted_for (§6.3.1); otherwise OPTIONAL in sequential/first_deny.
     /// </summary>
     [JsonPropertyName("verdicts")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<VerdictSlot[]> Verdicts { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public VerdictSlot[]? Verdicts { get; set; }
 
     /// <summary>
     /// true iff one or more registered interceptors were never invoked in this
@@ -3192,8 +3197,8 @@ public sealed class InterceptionRecord
     /// for the sequential profiles (§7.4).
     /// </summary>
     [JsonPropertyName("fold_truncated")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> FoldTruncated { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? FoldTruncated { get; set; }
 
     /// <summary>
     /// Consultation outcome (§7.6, §10.3): "approval" iff a permit resolution
@@ -3201,8 +3206,8 @@ public sealed class InterceptionRecord
     /// lift the deny; absent iff never consulted.
     /// </summary>
     [JsonPropertyName("resolved_by")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ResolvedBy> ResolvedBy { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ResolvedBy? ResolvedBy { get; set; }
 
     /// <summary>
     /// Number of interceptors registered at emission time (§10.3).
@@ -3221,16 +3226,16 @@ public sealed class InterceptionRecordComposition
     public required CompositionProfile Profile { get; set; }
 
     [JsonPropertyName("on_approval")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<OnApproval> OnApproval { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OnApproval? OnApproval { get; set; }
 
     [JsonPropertyName("on_disagreement")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ConflictResolution> OnDisagreement { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ConflictResolution? OnDisagreement { get; set; }
 
     [JsonPropertyName("on_transform_conflict")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ConflictResolution> OnTransformConflict { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ConflictResolution? OnTransformConflict { get; set; }
 }
 
 /// <summary>
@@ -3247,8 +3252,8 @@ public sealed class Host
     public required string Name { get; set; }
 
     [JsonPropertyName("version")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Version { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Version { get; set; }
 }
 
 /// <summary>
@@ -3259,29 +3264,29 @@ public sealed class Host
 public sealed class CompositionConfig
 {
     [JsonPropertyName("profile")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<CompositionProfile> Profile { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CompositionProfile? Profile { get; set; }
 
     /// <summary>
     /// Consulted by sequential/first_deny only; refused under any other profile (§7.7.3).
     /// </summary>
     [JsonPropertyName("on_approval")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<OnApproval> OnApproval { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OnApproval? OnApproval { get; set; }
 
     /// <summary>
     /// Consulted by parallel/unanimous only.
     /// </summary>
     [JsonPropertyName("on_disagreement")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ConflictResolution> OnDisagreement { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ConflictResolution? OnDisagreement { get; set; }
 
     /// <summary>
     /// Consulted by parallel/strictest only.
     /// </summary>
     [JsonPropertyName("on_transform_conflict")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ConflictResolution> OnTransformConflict { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ConflictResolution? OnTransformConflict { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -3310,8 +3315,8 @@ public sealed class PostureConfig
     /// §13.1. Must equal the posture the host's code implements.
     /// </summary>
     [JsonPropertyName("tool_seam_host_error")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ToolSeamHostError> ToolSeamHostError { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ToolSeamHostError? ToolSeamHostError { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -3353,8 +3358,8 @@ public sealed class FailureConfig
     /// host_warning:control_failed and records the cause in substituted_for.
     /// </summary>
     [JsonPropertyName("on_error")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<OnError> OnError { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OnError? OnError { get; set; }
 }
 
 /// <summary>
@@ -3368,12 +3373,12 @@ public sealed class Configuration
     /// §8.
     /// </summary>
     [JsonPropertyName("mode")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Mode> Mode { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Mode? Mode { get; set; }
 
     [JsonPropertyName("composition")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<CompositionConfig> Composition { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CompositionConfig? Composition { get; set; }
 
     /// <summary>
     /// §10.1: "jcs-sha256" (the default), a registered custom provider name
@@ -3384,32 +3389,32 @@ public sealed class Configuration
     public Optional<string?> IdentityProvider { get; set; }
 
     [JsonPropertyName("approval")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ApprovalConfig> Approval { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ApprovalConfig? Approval { get; set; }
 
     [JsonPropertyName("posture")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<PostureConfig> Posture { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PostureConfig? Posture { get; set; }
 
     [JsonPropertyName("timeouts")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<TimeoutsConfig> Timeouts { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TimeoutsConfig? Timeouts { get; set; }
 
     [JsonPropertyName("records")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<RecordsConfig> Records { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public RecordsConfig? Records { get; set; }
 
     [JsonPropertyName("failure")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<FailureConfig> Failure { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public FailureConfig? Failure { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class FirstDenySupport
 {
     [JsonPropertyName("on_approval")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<OnApproval[]> OnApproval { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OnApproval[]? OnApproval { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -3419,16 +3424,16 @@ public sealed class RunAllSupport {}
 public sealed class StrictestSupport
 {
     [JsonPropertyName("on_transform_conflict")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ConflictResolution[]> OnTransformConflict { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ConflictResolution[]? OnTransformConflict { get; set; }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class UnanimousSupport
 {
     [JsonPropertyName("on_disagreement")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ConflictResolution[]> OnDisagreement { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ConflictResolution[]? OnDisagreement { get; set; }
 }
 
 /// <summary>
@@ -3440,20 +3445,20 @@ public sealed class UnanimousSupport
 public sealed class ProfileSupport
 {
     [JsonPropertyName("sequential/first_deny")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<FirstDenySupport> SequentialFirstDeny { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public FirstDenySupport? SequentialFirstDeny { get; set; }
 
     [JsonPropertyName("sequential/run_all")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<RunAllSupport> SequentialRunAll { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public RunAllSupport? SequentialRunAll { get; set; }
 
     [JsonPropertyName("parallel/strictest")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<StrictestSupport> ParallelStrictest { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public StrictestSupport? ParallelStrictest { get; set; }
 
     [JsonPropertyName("parallel/unanimous")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<UnanimousSupport> ParallelUnanimous { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public UnanimousSupport? ParallelUnanimous { get; set; }
 }
 
 public sealed class SurfaceBase
@@ -3463,16 +3468,16 @@ public sealed class SurfaceBase
     /// agent_shutdown (§3.2), and omits the model or tool points only in pairs.
     /// </summary>
     [JsonPropertyName("interception_points")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<InterceptionPoint[]> InterceptionPoints { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InterceptionPoint[]? InterceptionPoints { get; set; }
 
     [JsonPropertyName("capabilities")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Capability[]> Capabilities { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Capability[]? Capabilities { get; set; }
 
     [JsonPropertyName("profiles")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ProfileSupport> Profiles { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProfileSupport? Profiles { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
@@ -3490,23 +3495,23 @@ public sealed class BufferedSurface : Surface
     /// agent_shutdown (§3.2), and omits the model or tool points only in pairs.
     /// </summary>
     [JsonPropertyName("interception_points")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<InterceptionPoint[]> InterceptionPoints { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InterceptionPoint[]? InterceptionPoints { get; set; }
 
     [JsonPropertyName("capabilities")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Capability[]> Capabilities { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Capability[]? Capabilities { get; set; }
 
     [JsonPropertyName("profiles")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ProfileSupport> Profiles { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProfileSupport? Profiles { get; set; }
 
     /// <summary>
     /// §12.1a. false must be declared explicitly and requires exposure_bound.
     /// </summary>
     [JsonPropertyName("buffered_output")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<bool> BufferedOutput { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? BufferedOutput { get; set; }
 }
 
 /// <summary>
@@ -3521,16 +3526,16 @@ public sealed class UnbufferedSurface : Surface
     /// agent_shutdown (§3.2), and omits the model or tool points only in pairs.
     /// </summary>
     [JsonPropertyName("interception_points")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<InterceptionPoint[]> InterceptionPoints { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InterceptionPoint[]? InterceptionPoints { get; set; }
 
     [JsonPropertyName("capabilities")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Capability[]> Capabilities { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Capability[]? Capabilities { get; set; }
 
     [JsonPropertyName("profiles")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<ProfileSupport> Profiles { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProfileSupport? Profiles { get; set; }
 
     /// <summary>
     /// §12.1a. false must be declared explicitly and requires exposure_bound.
@@ -3581,16 +3586,16 @@ public sealed class Binding
     /// Default {}.
     /// </summary>
     [JsonPropertyName("config")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<JsonElement> Config { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Config { get; set; }
 
     /// <summary>
     /// Points this binding runs at, each in the surface. Default: every surface
     /// point.
     /// </summary>
     [JsonPropertyName("at")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<InterceptionPoint[]> At { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public InterceptionPoint[]? At { get; set; }
 
     /// <summary>
     /// Per-binding bound. Default: configuration.timeouts.interceptor_ms; null is unbounded.
@@ -3605,8 +3610,8 @@ public sealed class Binding
     /// configuration.failure.on_error.
     /// </summary>
     [JsonPropertyName("on_error")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<OnError> OnError { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OnError? OnError { get; set; }
 }
 
 /// <summary>
@@ -3623,8 +3628,8 @@ public sealed class Binding
 public sealed class HostDeclaration
 {
     [JsonPropertyName("configuration")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Configuration> Configuration { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Configuration? Configuration { get; set; }
 
     /// <summary>
     /// Ordered: array order is dispatch order. REQUIRED, so an empty-deny host
@@ -3639,8 +3644,8 @@ public sealed class HostDeclaration
     /// Ignored by the loader; kept for editors.
     /// </summary>
     [JsonPropertyName("$schema")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Schema { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Schema { get; set; }
 
     /// <summary>
     /// REQUIRED. The specification version the document is written for
@@ -3660,12 +3665,12 @@ public sealed class HostDeclaration
     /// OPTIONAL. An operator label for logs. Never stamped on records.
     /// </summary>
     [JsonPropertyName("id")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<string> Id { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Id { get; set; }
 
     [JsonPropertyName("host")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Host> Host { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Host? Host { get; set; }
 
     /// <summary>
     /// The declared surface (§13.1) in file form. OPTIONAL: when absent the host's
@@ -3674,16 +3679,16 @@ public sealed class HostDeclaration
     /// explicitly.
     /// </summary>
     [JsonPropertyName("surface")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Surface> Surface { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Surface? Surface { get; set; }
 
     /// <summary>
     /// Host-specific extras, kept verbatim and never read by the loader. Keys
     /// follow the §4.6 namespace rule; the §4.6 reserved namespaces apply.
     /// </summary>
     [JsonPropertyName("extensions")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Optional<Extensions> Extensions { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Extensions? Extensions { get; set; }
 }
 
 [JsonConverter(typeof(SurfaceJsonConverter))]
