@@ -201,11 +201,11 @@ public sealed class HookEmitterTests
     [Fact]
     public async Task TimeoutsCancelTheInterceptor()
     {
-        var cancelled = new TaskCompletionSource();
+        CancellationToken seen = default;
         var emitter = HookEmitter.CreateBuilder()
             .Use(async (_, ct) =>
             {
-                using var registration = ct.Register(() => cancelled.TrySetResult());
+                seen = ct;
                 await Task.Delay(Timeout.Infinite, ct);
                 return Allow();
             }, Continue with { Timeout = TimeSpan.FromMilliseconds(20) })
@@ -215,7 +215,7 @@ public sealed class HookEmitterTests
         var result = await emitter.EmitAsync(PreToolCall());
 
         Assert.True(result.Proceeds);
-        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(seen.IsCancellationRequested);
     }
 
     [Fact]
