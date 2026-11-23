@@ -9,11 +9,11 @@
     "test": "node --test test/*.test.ts"
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "7.3.9",
-    "@astrojs/starlight": "0.43.1",
-    "astro": "7.4.12",
-    "astro-mermaid": "2.2.0",
-    "astro-rehype-relative-markdown-links": "0.19.2",
-    "mermaid": "12.3.0"
+    "@astrojs/markdown-remark": "catalog:",
+    "@astrojs/starlight": "catalog:",
+    "astro": "catalog:",
+    "astro-mermaid": "catalog:",
+    "astro-rehype-relative-markdown-links": "catalog:",
+    "mermaid": "catalog:"
   }
 }

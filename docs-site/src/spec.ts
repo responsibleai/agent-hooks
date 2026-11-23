@@ -63,8 +63,9 @@ export function specPages(root: string): SpecPage[] {
 
 /**
  * Maps each published path under /schema/ to its source file: every JSON
- * document with an $id in a bundle (outside src/ and examples/), each
- * conformance/<bundle>/vectors.schema.json, and the bundle's path grammar.
+ * document with an $id in a bundle (outside src/, examples/ and installed
+ * node_modules/), each conformance/<bundle>/vectors.schema.json, and the
+ * bundle's path grammar.
  */
 export function schemaFiles(root: string): Map<string, string> {
   const published = new Map<string, string>();
@@ -98,7 +99,7 @@ export function schemaFiles(root: string): Map<string, string> {
     const folder = join(root, "spec", bundle);
     const prefixes = new Set<string>();
     for (const name of readdirSync(folder, { recursive: true, encoding: "utf8" }).sort()) {
-      if (name.endsWith(".json") && !/(^|[\\/])(src|examples)[\\/]/.test(name)) {
+      if (name.endsWith(".json") && !/(^|[\\/])(src|examples|node_modules)[\\/]/.test(name)) {
         const prefix = publishById(join(folder, name));
         if (prefix) prefixes.add(prefix);
       }

@@ -6,9 +6,9 @@
     "build": "rimraf schema/generated && tsp compile ."
   },
   "devDependencies": {
-    "@typespec/compiler": "1.18.0",
-    "@typespec/json-schema": "1.18.0",
-    "rimraf": "6.1.4"
+    "@typespec/compiler": "catalog:",
+    "@typespec/json-schema": "catalog:",
+    "rimraf": "catalog:"
   },
   "engines": {
     "node": ">=22"

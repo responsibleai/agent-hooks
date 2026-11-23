@@ -171,6 +171,51 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@astrojs/markdown-remark':
+      specifier: 7.3.9
+      version: 7.3.9
+    '@astrojs/starlight':
+      specifier: 0.43.1
+      version: 0.43.1
+    '@typespec/compiler':
+      specifier: 1.18.0
+      version: 1.18.0
+    '@typespec/json-schema':
+      specifier: 1.18.0
+      version: 1.18.0
+    ajv:
+      specifier: 8.20.0
+      version: 8.20.0
+    ajv-cli:
+      specifier: 5.0.0
+      version: 5.0.0
+    ajv-formats:
+      specifier: 3.0.1
+      version: 3.0.1
+    astro:
+      specifier: 7.4.12
+      version: 7.4.12
+    astro-mermaid:
+      specifier: 2.2.0
+      version: 2.2.0
+    astro-rehype-relative-markdown-links:
+      specifier: 0.19.2
+      version: 0.19.2
+    mermaid:
+      specifier: 12.3.0
+      version: 12.3.0
+    rimraf:
+      specifier: 6.1.4
+      version: 6.1.4
+    tsx:
+      specifier: 4.23.15
+      version: 4.23.15
+    typescript:
+      specifier: 7.0.2
+      version: 7.0.2
+
 overrides:
   minimatch: ^11.0.9
   glob: ^14.0.6
@@ -180,37 +225,37 @@ importers:
   .:
     devDependencies:
       '@typespec/compiler':
-        specifier: 1.18.0
+        specifier: 'catalog:'
         version: 1.18.0(@types/node@26.6.6)
       '@typespec/json-schema':
-        specifier: 1.18.0
+        specifier: 'catalog:'
         version: 1.18.0(@typespec/compiler@1.18.0(@types/node@26.6.6))
       ajv-cli:
-        specifier: 5.0.0
+        specifier: 'catalog:'
         version: 5.0.0(ts-node@10.9.2(@types/node@26.6.6)(typescript@7.0.2))
       ajv-formats:
-        specifier: 3.0.1
+        specifier: 'catalog:'
         version: 3.0.1
 
   docs-site:
     dependencies:
       '@astrojs/markdown-remark':
-        specifier: 7.3.9
+        specifier: 'catalog:'
         version: 7.3.9
       '@astrojs/starlight':
-        specifier: 0.43.1
+        specifier: 'catalog:'
         version: 0.43.1(@astrojs/markdown-remark@7.3.9)(astro@7.4.12(@astrojs/markdown-remark@7.3.9)(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))(typescript@7.0.2)
       astro:
-        specifier: 7.4.12
+        specifier: 'catalog:'
         version: 7.4.12(@astrojs/markdown-remark@7.3.9)(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
       astro-mermaid:
-        specifier: 2.2.0
+        specifier: 'catalog:'
         version: 2.2.0(astro@7.4.12(@astrojs/markdown-remark@7.3.9)(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))(mermaid@12.3.0)
       astro-rehype-relative-markdown-links:
-        specifier: 0.19.2
+        specifier: 'catalog:'
         version: 0.19.2(astro@7.4.12(@astrojs/markdown-remark@7.3.9)(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
       mermaid:
-        specifier: 12.3.0
+        specifier: 'catalog:'
         version: 12.3.0
 
   sdk/typescript:
@@ -237,28 +282,28 @@ importers:
   spec/draft:
     devDependencies:
       '@typespec/compiler':
-        specifier: 1.18.0
+        specifier: 'catalog:'
         version: 1.18.0(@types/node@26.6.6)
       '@typespec/json-schema':
-        specifier: 1.18.0
+        specifier: 'catalog:'
         version: 1.18.0(@typespec/compiler@1.18.0(@types/node@26.6.6))
       rimraf:
-        specifier: 6.1.4
+        specifier: 'catalog:'
         version: 6.1.4
 
   spec/scripts:
     devDependencies:
       ajv:
-        specifier: 8.20.0
+        specifier: 'catalog:'
         version: 8.20.0
       ajv-formats:
-        specifier: 3.0.1
+        specifier: 'catalog:'
         version: 3.0.1
       tsx:
-        specifier: 4.23.15
+        specifier: 'catalog:'
         version: 4.23.15
       typescript:
-        specifier: 7.0.2
+        specifier: 'catalog:'
         version: 7.0.2
 
 packages:
