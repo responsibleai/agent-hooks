@@ -20,9 +20,9 @@ model Warning {
    * validation.
    */
   @pattern("^(?!host_error:|host_warning:).*")
-  reason?: string | null;
+  reason?: string;
 
-  message?: string | null;
+  message?: string;
 }
 
 /** Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14). */
@@ -33,7 +33,7 @@ model Evidence {
   ...Record<never>;
 
   /** Content address (sha256:<hex>) or URI of an offline-verifiable proof. */
-  artefact?: string | null;
+  artefact?: string;
 
   verification_pointers?: VerificationPointers;
 }
@@ -45,17 +45,17 @@ model VerdictBase {
    * for host-synthesized failures (§11).
    */
   @pattern("^(?!host_error:).*")
-  reason?: string | null;
+  reason?: string;
 
   /** Human-readable text for the caller. */
-  message?: string | null;
+  message?: string;
 
   /**
    * Recorded concerns that do not affect control flow (§5.1). Permitted on any
    * decision; unioned across an emission's verdicts (§7.3). Reasons starting with
    * host_warning: are reserved for the host (§11.1).
    */
-  warnings?: Warning[] | null;
+  warnings?: Warning[];
 
   evidence?: Evidence;
 
@@ -63,7 +63,7 @@ model VerdictBase {
    * Interceptor-supplied labels the host MUST persist with the produced data and
    * resurface on later interception points (§5.4).
    */
-  result_labels?: string[] | null;
+  result_labels?: string[];
 }
 
 // Example: [allow](../examples/Verdict/allow.json)

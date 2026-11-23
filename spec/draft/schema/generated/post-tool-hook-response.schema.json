@@ -33,57 +33,29 @@
       "type": "object",
       "properties": {
         "reason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "string",
           "pattern": "^(?!host_error:).*",
           "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11)."
         },
         "message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "string",
           "description": "Human-readable text for the caller."
         },
         "warnings": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/Warning"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Warning"
+          },
           "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1)."
         },
         "evidence": {
           "$ref": "#/$defs/Evidence"
         },
         "result_labels": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4)."
         },
         "decision": {
@@ -103,57 +75,29 @@
       "type": "object",
       "properties": {
         "reason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "string",
           "pattern": "^(?!host_error:).*",
           "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11)."
         },
         "message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "string",
           "description": "Human-readable text for the caller."
         },
         "warnings": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/Warning"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Warning"
+          },
           "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1)."
         },
         "evidence": {
           "$ref": "#/$defs/Evidence"
         },
         "result_labels": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4)."
         },
         "decision": {
@@ -177,57 +121,29 @@
       "type": "object",
       "properties": {
         "reason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "string",
           "pattern": "^(?!host_error:).*",
           "description": "Interceptor-supplied machine identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11)."
         },
         "message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "string",
           "description": "Human-readable text for the caller."
         },
         "warnings": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/Warning"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Warning"
+          },
           "description": "Recorded concerns that do not affect control flow (§5.1). Permitted on any\ndecision; unioned across an emission's verdicts (§7.3). Reasons starting with\nhost_warning: are reserved for the host (§11.1)."
         },
         "evidence": {
           "$ref": "#/$defs/Evidence"
         },
         "result_labels": {
-          "anyOf": [
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
           "description": "Interceptor-supplied labels the host MUST persist with the produced data and\nresurface on later interception points (§5.4)."
         },
         "decision": {
@@ -260,26 +176,12 @@
       "type": "object",
       "properties": {
         "reason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "string",
           "pattern": "^(?!host_error:|host_warning:).*",
           "description": "Interceptor-supplied warning identifier. The host_error: prefix is reserved\nfor host-synthesized failures (§11) and host_warning: for host-synthesized\nwarnings (§11.1); an interceptor warning with either prefix fails §5\nvalidation."
         },
         "message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "string"
         }
       },
       "unevaluatedProperties": {
@@ -291,14 +193,7 @@
       "type": "object",
       "properties": {
         "artefact": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "type": "string",
           "description": "Content address (sha256:<hex>) or URI of an offline-verifiable proof."
         },
         "verification_pointers": {

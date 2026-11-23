@@ -1847,7 +1847,7 @@ of the record.
   "verdicts": [ { "index": 0, "decision": "allow", "reason": "string", "name": "string",
                   "substituted_for": "host_error:interceptor_timeout" }, ... ], // substituted_for present iff a §6.3.1 continuation filled this slot
   "fold_truncated": false,
-  "resolved_by": "approval" | "rejection" | null,
+  "resolved_by": "approval" | "rejection",            // absent iff approval was never consulted
   "interceptors_registered": 0
 }
 ```
