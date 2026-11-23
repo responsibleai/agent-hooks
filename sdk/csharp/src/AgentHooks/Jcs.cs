@@ -20,25 +20,39 @@ internal static class Jcs
         .Select(e => double.Parse("1e" + e.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture))
         .ToArray();
 
-    private static readonly (string Key, string[]? Fields)[] CoreFields =
-    [
-        ("spec", null), ("interception_point", null), ("timestamp", null), ("sequence", null),
-        ("agent", ["id", "framework"]), ("session", ["id"]),
-    ];
+    // §10.2: the identity preimage is exactly the required members of the point's request schema,
+    // keeping only the required subfields of object members, so it follows the generated schemas.
+    private static readonly Lazy<Dictionary<string, (string Key, string[]? Fields)[]>> Projections = new(() =>
+        Points.All.ToDictionary(p => Points.Wire(p), p => Project(Schemas.Document(Points.RequestSchema(p))), StringComparer.Ordinal));
 
-    /// <summary>The members of each point's payload that bind into the identity (§10.1).</summary>
-    private static (string Key, string[]? Fields)[] PointFields(string? point) => point switch
+    // Used only for an absent or unknown point: the members every point binds.
+    private static readonly Lazy<(string Key, string[]? Fields)[]> CoreFields = new(() =>
     {
-        "agent_startup" => [("agent_init", ["tools_registered"])],
-        "input" => [("input", ["content", "role"])],
-        "pre_model_call" => [("model", ["id"]), ("messages", null)],
-        "post_model_call" => [("model", ["id"]), ("response", ["content", "tool_calls", "finish_reason"])],
-        "pre_tool_call" => [("tool_call", ["id", "name", "args"])],
-        "post_tool_call" => [("tool_call", ["id", "name", "args"]), ("tool_result", ["value", "is_error"])],
-        "output" => [("output", ["content"])],
-        "agent_shutdown" => [("summary", ["reason"])],
-        _ => [],
-    };
+        var all = Projections.Value.Values.ToList();
+        return all[0].Where(f => all.All(p => p.Any(g => g.Key == f.Key))).ToArray();
+    });
+
+    private static (string Key, string[]? Fields)[] PointFields(string? point) =>
+        point is not null && Projections.Value.TryGetValue(point, out var fields) ? fields : CoreFields.Value;
+
+    private static (string Key, string[]? Fields)[] Project(JsonObject schema)
+    {
+        var properties = schema["properties"]!.AsObject();
+        return schema["required"]!.AsArray().Select(r => r!.GetValue<string>()).Select(key =>
+        {
+            var property = Resolve(schema, properties[key]);
+            var fields = property?["type"] is JsonValue type && type.TryGetValue(out string? kind) && kind == "object" &&
+                property["required"] is JsonArray required
+                ? required.Select(f => f!.GetValue<string>()).ToArray()
+                : null;
+            return (key, fields);
+        }).ToArray();
+    }
+
+    private static JsonNode? Resolve(JsonObject schema, JsonNode? property) =>
+        property?["$ref"]?.GetValue<string>() is { } reference && reference.StartsWith("#/$defs/", StringComparison.Ordinal)
+            ? schema["$defs"]?[reference["#/$defs/".Length..]]
+            : property;
 
     /// <summary>The RFC 8785 form of <paramref name="value"/>; integers must fit ±(2^53−1).</summary>
     public static string Canonicalize(JsonNode? value)
@@ -58,7 +72,7 @@ internal static class Jcs
             sequence.GetRawText() == "-0")
             throw Invalid("$.sequence: missing or not an integer >= 0 (see spec §4)");
         var projection = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-        foreach (var (key, keep) in CoreFields.Concat(PointFields(point)))
+        foreach (var (key, keep) in PointFields(point))
         {
             if (!context.TryGetProperty(key, out var value)) continue;
             if (keep is not null && value.ValueKind == JsonValueKind.Object)
