@@ -205,7 +205,8 @@ runtime dependencies. No public API or wire format changes.
 GitHub CI and release use the same
 [Windows FFI action](../../.github/actions/windows-ffi/action.yml). It and
 the .NET Azure Pipeline share
-[the Windows scan script](../../scripts/scan-windows-ffi.ps1), including
+[the protected Windows build](../../scripts/build-windows-ffi.ps1) and
+[scan script](../../scripts/scan-windows-ffi.ps1), including
 a hash-pinned, signature-verified Microsoft.CodeAnalysis.BinSkim 4.4.9 package.
 They retain the DLL, matching PDB and full scan report as
 `windows-ffi-hardening` build artifacts. The gate requires a completed analysis,

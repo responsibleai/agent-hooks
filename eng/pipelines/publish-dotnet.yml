@@ -72,7 +72,8 @@ stages:
           - bash: |
               set -euo pipefail
               unset RUSTUP_TOOLCHAIN
-              rustup toolchain install --no-self-update --profile minimal --target "$RUST_TARGET"
+              rustup toolchain install --no-self-update --profile minimal
+              rustup target add "$RUST_TARGET"
               cargo build --locked --release -p agent-hooks-ffi --target "$RUST_TARGET"
             displayName: Build native library
             condition: ne(variables['Agent.OS'], 'Windows_NT')
@@ -83,19 +84,9 @@ stages:
             condition: eq(variables['Agent.OS'], 'Windows_NT')
             inputs:
               version: 8.x
-          - pwsh: |
-              rustup toolchain install nightly-2026-10-21 --profile minimal --component rust-src --target x86_64-pc-windows-msvc
-              if ($LASTEXITCODE -ne 0) { throw 'Windows Rust toolchain installation failed.' }
-              $env:CARGO_ENCODED_RUSTFLAGS = $null
-              cargo +nightly-2026-10-21 -Z build-std=std,panic_unwind build --locked --release `
-                -p agent-hooks-ffi --target x86_64-pc-windows-msvc
-              if ($LASTEXITCODE -ne 0) { throw 'Protected Windows FFI build failed.' }
+          - pwsh: ./scripts/build-windows-ffi.ps1
             displayName: Build protected Windows FFI and standard library
             condition: eq(variables['Agent.OS'], 'Windows_NT')
-            workingDirectory: sdk/rust
-            env:
-              CARGO_BUILD_JOBS: "2"
-              RUSTFLAGS: -C control-flow-guard=checks -Z stack-protector=strong -D partial-stack-protector
           - pwsh: |
               $dll = 'sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.dll'
               ./scripts/scan-windows-ffi.ps1 -NativeDirectory (Split-Path $dll) `
@@ -106,14 +97,19 @@ stages:
           - pwsh: |
               $destination = Join-Path $env:BUILD_ARTIFACTSTAGINGDIRECTORY 'windows-ffi-hardening'
               New-Item -ItemType Directory -Force -Path $destination | Out-Null
-              Copy-Item "$env:AGENT_TEMPDIRECTORY/windows-ffi-binskim.*" $destination
-              Copy-Item sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.dll $destination
-              Copy-Item sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.pdb $destination
+              $paths = @(
+                "$env:AGENT_TEMPDIRECTORY/windows-ffi-binskim.*"
+                'sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.dll'
+                'sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.pdb'
+              )
+              foreach ($path in $paths) {
+                if (Test-Path $path) { Copy-Item $path $destination }
+              }
             displayName: Collect Windows hardening evidence
-            condition: and(always(), eq(variables['Agent.OS'], 'Windows_NT'))
+            condition: and(succeededOrFailed(), eq(variables['Agent.OS'], 'Windows_NT'))
           - publish: $(Build.ArtifactStagingDirectory)/windows-ffi-hardening
             artifact: windows-ffi-hardening
-            condition: and(always(), eq(variables['Agent.OS'], 'Windows_NT'))
+            condition: and(succeededOrFailed(), eq(variables['Agent.OS'], 'Windows_NT'))
           - publish: $(Build.SourcesDirectory)/sdk/rust/target/$(rustTarget)/release/$(nativeLibrary)
             artifact: ffi-$(rid)
 

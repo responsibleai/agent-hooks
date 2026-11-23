@@ -262,7 +262,8 @@ The Windows x64 FFI legs use pinned nightly Rust
 strong stack protection and CFG. Other release legs keep their existing
 toolchains. Do not replace this leg with a plain stable Cargo build.
 GitHub Actions uses [the shared Windows build action](.github/actions/windows-ffi/action.yml);
-both CI systems use [the same scan script](scripts/scan-windows-ffi.ps1).
+both CI systems use [the same protected build](scripts/build-windows-ffi.ps1)
+and [scan script](scripts/scan-windows-ffi.ps1).
 
 Before native upload, the full matching-PDB BinSkim scan must complete,
 match the DLL hash, pass BA2014 and BA2008 without suppression, and have
@@ -311,7 +312,7 @@ on tags, including dry runs; manual branch dry runs do not require a tag.
 - Go: nothing. The `go` job builds and tests `sdk/go` as a consumer
   would see it. See the next section.
 
-GitHub package builds get a provenance attestation and an SBOM. The
+GitHub-published packages get a provenance attestation and an SBOM. The
 .NET package published by Azure Pipelines is built separately and
 retains its native hardening evidence, but has no ESRP signing or
 provenance attestation in that pipeline yet. Every publishing leg skips
