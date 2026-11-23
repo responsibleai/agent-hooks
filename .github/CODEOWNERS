@@ -9,14 +9,14 @@
 /VERSIONING.md                  @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
 
 # The Rust core is the single implementation every SDK binds to.
-/sdk/rust/core/                 @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
-/sdk/rust/ffi/                  @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/sdk/rust/core/                 @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
+/sdk/rust/ffi/                  @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
 
 # Per-language SDK owners (bindings, packaging, CI for that language).
-/sdk/python/                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
-/sdk/typescript/                @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
-/sdk/csharp/                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
-/sdk/go/                        @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/sdk/python/                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
+/sdk/typescript/                @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
+/sdk/csharp/                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
+/sdk/go/                        @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
 
 /.github/                       @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
 
