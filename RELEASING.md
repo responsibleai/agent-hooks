@@ -205,8 +205,8 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
 
 3. Dry run: Actions, `release`, Run workflow with `dry_run: true` on
    `main`. This builds every artifact (five Python wheels and the
-   sdist, the crate package, five napi bindings, four FFI libraries and
-   the nupkg, and the Go build and tests). It uploads the build
+   sdist, the crate package, five napi bindings, the two nupkgs, and the Go
+   build and tests). It uploads the build
    artifacts to the run, publishes nothing and attests nothing.
 
 #### Windows FFI hardening
@@ -221,8 +221,8 @@ Before native upload, the full matching-PDB BinSkim scan must complete,
 match the DLL hash, pass BA2014 and BA2008 without suppression, and have
 no error findings. The `windows-ffi-hardening` artifact retains the DLL,
 PDB, SARIF and scanner log for 14 days. Existing warnings remain reported,
-not waived. The FFI release assets retain this protection independently
-of the managed-only NuGet packages. These checks do not establish a
+not waived. The release workflow no longer ships FFI libraries; the
+managed-only NuGet packages carry no native code. These checks do not establish a
 downstream consumer's security-policy acceptance.
 
 For a local equivalent, use a Windows x64 MSVC developer shell with PowerShell

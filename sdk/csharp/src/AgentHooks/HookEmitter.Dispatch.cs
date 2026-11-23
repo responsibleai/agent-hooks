@@ -44,7 +44,7 @@ public sealed partial class HookEmitter
                 if (await ConsultAsync(point, state, v, ct) is not { } c)
                     return new(Verdicts.WithUnions(v, pool), i, slots, Truncated(i), resolvedBy);
                 if (!c.Permitted)
-                    return new(Verdicts.WithUnions(c.Verdict, pool), Verdicts.IsHostSynthesized(c.Verdict) ? null : i, slots, Truncated(i), "rejection");
+                    return new(Verdicts.WithUnions(c.Verdict, [.. pool, c.Verdict]), Verdicts.IsHostSynthesized(c.Verdict) ? null : i, slots, Truncated(i), "rejection");
                 resolvedBy = "approval";
                 pool.Add(c.Verdict);
                 if (_onApproval == Draft.OnApproval.Stop)
@@ -53,7 +53,7 @@ public sealed partial class HookEmitter
             else if (Verdicts.Decision(v) == "transform")
             {
                 if (Fold(point, state, v) is { } failure)
-                    return new(failure, null, slots, Truncated(i), resolvedBy);
+                    return new(Verdicts.WithUnions(failure, pool), null, slots, Truncated(i), resolvedBy);
                 lastTransform = (i, v);
             }
         }
@@ -72,7 +72,7 @@ public sealed partial class HookEmitter
             if (Verdicts.Decision(v) == "transform" && Fold(point, state, v) is { } failure)
             {
                 slots.Add(Verdicts.Slot(i, failure, active[i].Name, substitutedFor));
-                return new(failure, null, slots);
+                return new(Verdicts.WithUnions(failure, [.. all, v]), null, slots, i + 1 < active.Length);
             }
             all.Add(v);
             slots.Add(Verdicts.Slot(i, v, active[i].Name, substitutedFor));
@@ -122,7 +122,7 @@ public sealed partial class HookEmitter
             combined = all[winner];
             if (max > 0) decidedBy = winner;
             if (parallel && max == 1 && Fold(point, state, combined) is { } failure)
-                return new(failure, null, slots);
+                return new(Verdicts.WithUnions(failure, all), null, slots);
         }
         combined = Verdicts.WithUnions(combined, all);
 
@@ -137,7 +137,7 @@ public sealed partial class HookEmitter
             else
             {
                 resolvedBy = "rejection";
-                combined = Verdicts.WithUnions(c.Verdict, all);
+                combined = Verdicts.WithUnions(c.Verdict, [.. all, c.Verdict]);
                 if (Verdicts.IsHostSynthesized(c.Verdict)) decidedBy = null;
             }
         }
@@ -255,16 +255,33 @@ public sealed partial class HookEmitter
         }
         catch (Exception e) { return Fail(HostErrors.ApprovalResolverFailed, e.GetType().Name); }
 
-        var echo = resolution["context_identity"] is JsonValue v && v.TryGetValue(out string? s) ? s : null;
-        if (echo != identity) return Fail(HostErrors.ApprovalIdentityMismatch);
+        // §9 order: identity echo, then outcome/verdict shape, then unresolved, then the resolution schema.
+        if (resolution is null) return Fail(HostErrors.ApprovalResolverFailed, "the resolver returned no resolution (see spec §9)");
+        if (!resolution.TryGetPropertyValue("context_identity", out var rawEcho)
+            || !(identity is null ? rawEcho is null : rawEcho is JsonValue v && v.TryGetValue(out string? s) && s == identity))
+            return Fail(HostErrors.ApprovalIdentityMismatch);
         var outcome = resolution["outcome"] is JsonValue o && o.TryGetValue(out string? text) ? text : null;
-        if (outcome == "unresolved" || resolution["verdict"] is not JsonObject resolved) return Fail(HostErrors.ApprovalUnresolved);
-        if (!Schemas.IsValid(resolution, nameof(Draft.ApprovalResolution)))
+        if (outcome is not ("approve" or "reject" or "unresolved") || (outcome == "unresolved") == resolution.ContainsKey("verdict"))
+            return Fail(HostErrors.ApprovalResolverFailed, "the resolution outcome and verdict disagree (see spec §9)");
+        if (outcome == "unresolved") return Fail(HostErrors.ApprovalUnresolved);
+        if (!Schemas.IsValid(resolution, nameof(Draft.ApprovalResolution)) || resolution["verdict"] is not JsonObject resolved)
             return Fail(HostErrors.VerdictInvalid, "the resolution does not satisfy the approval resolution schema (see spec §9)");
+        try
+        {
+            if (resolved["evidence"] is { } evidence && Jcs.CanonicalSize(evidence) > 10240)
+                return Fail(HostErrors.VerdictInvalid, "evidence canonical size exceeds 10240 bytes (see spec §5.3)");
+        }
+        catch (HookException)
+        {
+            return Fail(HostErrors.VerdictInvalid, "resolution evidence is outside the I-JSON domain (see spec §4.4)");
+        }
         return new((JsonObject)resolved.DeepClone(), outcome == "approve");
     }
 
-    /// <summary>Races <paramref name="run"/> against <paramref name="limit"/>; the timer wins ties and cancellations it caused.</summary>
+    /// <summary>
+    /// Runs <paramref name="run"/> under one linked token that expires after <paramref name="limit"/>: a timeout cancels
+    /// the call and reports <c>TimedOut</c>, caller cancellation propagates promptly, and late faults are observed.
+    /// </summary>
     private static async Task<(bool TimedOut, T? Value)> RaceAsync<T>(
         TimeSpan limit, Func<CancellationToken, Task<T>> run, CancellationToken ct)
     {
@@ -272,21 +289,16 @@ public sealed partial class HookEmitter
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
         linked.CancelAfter(limit);
         var task = run(linked.Token);
-        using var stop = new CancellationTokenSource();
-        var winner = await Task.WhenAny(task, Task.Delay(limit, stop.Token));
-        if (winner != task)
-        {
-            _ = task.ContinueWith(t => t.Exception, TaskScheduler.Default);
-            return (true, default);
-        }
-        stop.Cancel();
         try
         {
-            var value = await task;
-            return linked.IsCancellationRequested && !ct.IsCancellationRequested ? (true, default) : (false, value);
+            return (false, await task.WaitAsync(linked.Token));
         }
-        catch (OperationCanceledException) when (linked.IsCancellationRequested && !ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (linked.IsCancellationRequested)
         {
+            _ = task.ContinueWith(
+                static t => _ = t.Exception, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            if (ct.IsCancellationRequested) throw;
             return (true, default);
         }
     }

@@ -186,6 +186,137 @@ public sealed class HookEmitterTests
         Assert.Null(record.InputIdentity);
     }
 
+    [Fact]
+    public async Task TypedEmissionsTolerateIntegersOutsideTheCanonicalDomain()
+    {
+        var request = PreToolCall();
+        request.Extensions = new Draft.Extensions { ["acme"] = JsonSerializer.SerializeToElement(9007199254740993L) };
+
+        var result = await HookEmitter.CreateBuilder().Build().EmitAsync(request);
+
+        Assert.False(result.Proceeds);
+        Assert.Same(request, result.Request);
+    }
+
+    [Fact]
+    public async Task TimeoutsCancelTheInterceptor()
+    {
+        var cancelled = new TaskCompletionSource();
+        var emitter = HookEmitter.CreateBuilder()
+            .Use(async (_, ct) =>
+            {
+                using var registration = ct.Register(() => cancelled.TrySetResult());
+                await Task.Delay(Timeout.Infinite, ct);
+                return Allow();
+            }, Continue with { Timeout = TimeSpan.FromMilliseconds(20) })
+            .OnControlFailure(_ => { })
+            .Build();
+
+        var result = await emitter.EmitAsync(PreToolCall());
+
+        Assert.True(result.Proceeds);
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task CallerCancellationReturnsPromptlyFromAnUncooperativeInterceptor()
+    {
+        var never = new TaskCompletionSource<HookOutcome>();
+        var emitter = HookEmitter.CreateBuilder()
+            .Use((_, _) => never.Task, Continue with { Timeout = TimeSpan.FromMinutes(5) })
+            .OnControlFailure(_ => { })
+            .Build();
+        using var caller = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        var result = await emitter.EmitAsync(PreToolCall(), caller.Token).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(result.Proceeds);
+        Assert.Equal(HostErrors.InterceptorFailed, (string?)result.Verdict["reason"]);
+    }
+
+    [Theory]
+    [InlineData("""{ "outcome": "maybe" }""", HostErrors.ApprovalIdentityMismatch)]
+    [InlineData("""{ "context_identity": "sha256:other", "outcome": "approve", "verdict": { "decision": "allow" } }""", HostErrors.ApprovalIdentityMismatch)]
+    [InlineData("""{ "context_identity": "$echo", "outcome": "maybe", "verdict": { "decision": "allow" } }""", HostErrors.ApprovalResolverFailed)]
+    [InlineData("""{ "context_identity": "$echo", "outcome": "approve" }""", HostErrors.ApprovalResolverFailed)]
+    [InlineData("""{ "context_identity": "$echo", "outcome": "unresolved", "verdict": { "decision": "allow" } }""", HostErrors.ApprovalResolverFailed)]
+    [InlineData("""{ "context_identity": "$echo", "outcome": "unresolved" }""", HostErrors.ApprovalUnresolved)]
+    [InlineData("""{ "context_identity": "$echo", "outcome": "approve", "verdict": { "decision": "allow", "evidence": "$big" } }""", HostErrors.VerdictInvalid)]
+    public async Task ApprovalResolutionsAreValidatedInSpecOrder(string resolution, string reason)
+    {
+        var emitter = HookEmitter.CreateBuilder()
+            .Use((_, _) => Task.FromResult<HookOutcome>(LiftableDeny()))
+            .WithApprovalResolver(new Resolver(request =>
+            {
+                var json = resolution
+                    .Replace("\"$echo\"", request["context_identity"]!.ToJsonString())
+                    .Replace("\"$big\"", new JsonObject { ["artefact"] = new string('x', 10240) }.ToJsonString());
+                return JsonNode.Parse(json)!.AsObject();
+            }))
+            .Build();
+
+        var result = await emitter.EmitAsync(PreToolCall());
+
+        Assert.False(result.Proceeds);
+        Assert.Equal(reason, (string?)result.Verdict["reason"]);
+    }
+
+    [Fact]
+    public async Task ARejectionKeepsTheResolverWarningsAlongsideThePool()
+    {
+        var emitter = HookEmitter.CreateBuilder()
+            .Use((_, _) => Task.FromResult<HookOutcome>(new JsonObject
+            {
+                ["verdict"] = new JsonObject { ["decision"] = "allow", ["warnings"] = new JsonArray(new JsonObject { ["reason"] = "w0" }) },
+            }))
+            .Use((_, _) => Task.FromResult<HookOutcome>(LiftableDeny()))
+            .WithApprovalResolver(new Resolver(request => new JsonObject
+            {
+                ["context_identity"] = request["context_identity"]!.DeepClone(),
+                ["outcome"] = "reject",
+                ["verdict"] = new JsonObject
+                {
+                    ["decision"] = "deny",
+                    ["reason"] = "nope",
+                    ["warnings"] = new JsonArray(new JsonObject { ["reason"] = "w1" }),
+                },
+            }))
+            .Build();
+
+        var result = await emitter.EmitAsync(PreToolCall());
+
+        Assert.Equal(Draft.ResolvedBy.Rejection, result.Record.ResolvedBy);
+        Assert.Equal(["w0", "w1"], result.Verdict["warnings"]!.AsArray().Select(w => (string?)w!["reason"]));
+    }
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(2, 2)]
+    public async Task IdentityProviderFailuresFailClosedWithoutARetry(int failingCall, int expectedCalls)
+    {
+        var calls = 0;
+        var provider = new IdentityProvider("acme", request =>
+            ++calls == failingCall ? throw new InvalidOperationException() : IdentityProvider.JcsSha256.Compute(request));
+        var emitter = HookEmitter.CreateBuilder()
+            .OnPreToolCall((_, _) => Task.FromResult(new Draft.PreToolHookResponse
+            {
+                Verdict = new Draft.TransformVerdictPreToolHookTransform
+                {
+                    Transform = new Draft.PreToolHookTransform { Args = new Draft.JsonObject() },
+                },
+            }))
+            .WithIdentityProvider(provider)
+            .Build();
+
+        var result = await emitter.EmitAsync(PreToolCall());
+
+        Assert.False(result.Proceeds);
+        Assert.Equal(HostErrors.ContextInvalid, (string?)result.Verdict["reason"]);
+        Assert.Null(Contract.ToJson(result.Record)["decided_by"]);
+        Assert.Null(result.Record.EnforcedIdentity);
+        Assert.Equal(expectedCalls, calls);
+    }
+
     internal static Draft.PreToolCallRequest PreToolCall() =>
         Contract.FromJson<Draft.PreToolCallRequest>(JsonNode.Parse(File.ReadAllText(Example("AgentContext/pre-tool-call.json"))));
 
@@ -193,4 +324,14 @@ public sealed class HookEmitterTests
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../../../../spec/draft/schema/examples", path));
 
     private static JsonObject Allow() => new() { ["verdict"] = new JsonObject { ["decision"] = "allow" } };
+
+    private static JsonObject LiftableDeny() => new()
+    {
+        ["verdict"] = new JsonObject { ["decision"] = "deny", ["reason"] = "needs_review", ["approval"] = new JsonObject() },
+    };
+
+    private sealed class Resolver(Func<JsonObject, JsonObject> resolve) : IApprovalResolver
+    {
+        public Task<JsonObject> ResolveAsync(JsonObject request, CancellationToken cancellationToken) => Task.FromResult(resolve(request));
+    }
 }

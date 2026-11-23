@@ -147,7 +147,7 @@ existing schema layout are unchanged in this first step toward
 This separate assembly is consumed by the native C# SDK; neither assembly
 depends on Rust. The runtime validates draft wire values against generated
 JSON Schemas. See the
-[.NET contract documentation](sdk/csharp/README.md#generated-draft-contracts-no-rust-dependency)
+[.NET contract documentation](sdk/csharp/README.md)
 for type mappings and the focused contract tests, which need no native library.
 
 After a change, regenerate. The Python mirror holds one folder per
@@ -201,7 +201,6 @@ cd sdk/python && maturin develop --release && python -m pytest tests/ && ruff ch
 # TypeScript (rebuild native when core changed)
 pnpm install && pnpm --dir sdk/typescript test
 # .NET (managed-only; no Rust build required)
-cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
 cd sdk/csharp && dotnet test
 # Go
 cd sdk/go && CGO_ENABLED=1 go test ./...

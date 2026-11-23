@@ -570,7 +570,7 @@ jobs:
       - name: Install ${{ matrix.target }} for the pinned toolchain
         # rust-toolchain.toml pins the toolchain inside sdk/rust; the
         # setup action installs targets for `stable` only, so the target
-        # must be added in the pinned context (as in release.yml ffi-build).
+        # must be added in the pinned context.
         shell: bash
         run: rustup target add ${{ matrix.target }}
         working-directory: sdk/rust

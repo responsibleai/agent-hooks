@@ -1,6 +1,7 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 using System.Runtime.CompilerServices;
+using System.Text.Json.Nodes;
 using AgentHooks.Conformance;
 using Xunit;
 
@@ -27,13 +28,16 @@ public sealed class ConformanceTests
         ["AH-CTK-158"] = "binds every point (no `at`) yet strictly expects no interceptions (§7.7.3)",
     };
 
-    public static TheoryData<string> Vectors() => new(Runner.LoadVectors(VectorsDirectory()).Select(v => (string)v["id"]!));
+    private static readonly Dictionary<string, JsonObject> All =
+        Runner.LoadVectors(VectorsDirectory()).ToDictionary(v => (string)v["id"]!, StringComparer.Ordinal);
+
+    public static TheoryData<string> Vectors() => new(All.Keys);
 
     [Theory]
     [MemberData(nameof(Vectors))]
     public async Task ReferenceHarnessPassesVector(string id)
     {
-        var vector = Runner.LoadVectors(VectorsDirectory()).Single(v => (string)v["id"]! == id);
+        var vector = All[id];
         var result = await Runner.RunVectorAsync(new ReferenceHarness(), vector);
 
         Assert.Equal(CapabilitySkips.Contains(id), result.Skipped);
