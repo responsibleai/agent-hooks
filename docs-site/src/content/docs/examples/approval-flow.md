@@ -1,4 +1,6 @@
-# Example: human approval end-to-end
+---
+title: "Example: human approval end-to-end"
+---
 
 A policy escalates a wire transfer; a resolver (standing in for your
 approval UI) lifts it; the record attributes both halves. Runnable as

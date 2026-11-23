@@ -67,7 +67,8 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    python3 scripts/check-version-consistency.py
    python3 scripts/check-file-headers.py
    python3 -m unittest discover -s scripts -p "test_*.py"
-   python3 scripts/stage-docs-site.py
+   pnpm --filter @agent-hooks/docs test
+   pnpm --filter @agent-hooks/docs build
    for version in 0.1 draft; do
      root="spec/$version/schema/generated"
      mapfile -t refs < <(find "$root" -name '*.schema.json' | sed 's/^/-r=/')

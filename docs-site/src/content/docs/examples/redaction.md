@@ -1,4 +1,6 @@
-# Example: redaction transform
+---
+title: "Example: redaction transform"
+---
 
 A transform rewrites the target before the action runs. The tool
 receives the redacted value; the audit record proves the rewrite

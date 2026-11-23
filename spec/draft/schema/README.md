@@ -96,6 +96,27 @@ mirror remains versioned under `schema/0.1/` and `schema/draft/`; update
 draft copies only alongside corresponding SDK changes, as described in
 [Contributing](../../../CONTRIBUTING.md#schema-source).
 
+## Logical operations
+
+`src/operations.tsp` describes the request/response pairings from the
+[interceptor contract (§7) and approval seam (§9)](../AGENT-HOOKS-DRAFT.md)
+as transport-neutral TypeSpec interfaces:
+
+- `Interceptor` has one operation per interception point: `agentStartup`,
+  `input`, `preModelCall`, `postModelCall`, `preToolCall`, `postToolCall`,
+  `output`, and `agentShutdown`. Each takes its hook-specific request and
+  returns the matching hook response envelope.
+- `ApprovalResolver.resolve` takes the approval `request` and returns
+  `resolution`, including approve, reject, and unresolved outcomes.
+
+These are logical calls from the host, not HTTP endpoints or a new SDK
+interface requirement. An interceptor remains the callable described in
+§7; the operation names do not change the wire `interception_point` values.
+Transport, authentication, and remote service bindings remain implementation
+concerns. The operations add no streaming protocol and do not change the
+generated JSON Schemas. Timing, composition, enforcement, approval echo
+validation, and failure handling remain governed by the specification.
+
 ## Filesystem paths are not public schema identities
 
 This layout does not change validation semantics. The draft's schemas
