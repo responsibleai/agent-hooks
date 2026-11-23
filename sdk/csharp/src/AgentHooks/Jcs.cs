@@ -165,7 +165,7 @@ internal static class Jcs
     {
         try
         {
-            Contract.ValidateUnicode(value);
+            Contract.ValidateUnicode(value, DefaultMaxDepth);
             var element = Contract.Element(value);
             CheckParsed(element, DefaultMaxDepth);
             return element;

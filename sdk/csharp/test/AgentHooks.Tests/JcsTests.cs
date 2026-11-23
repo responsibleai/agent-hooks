@@ -35,6 +35,7 @@ public sealed class JcsTests
     }
 
     [Fact]
+    [Trait("Category", "draft")]
     public void DistinctCloseDecimalsProduceDistinctIdentities()
     {
         static Draft.PreToolCallRequest Make(double n) => new()
@@ -85,11 +86,22 @@ public sealed class JcsTests
         Assert.ThrowsAny<JsonException>(() => Jcs.Parse(Nest(129)));
         var tooDeep = JsonNode.Parse(Nest(129), documentOptions: new() { MaxDepth = 256 });
         Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(tooDeep)).Code);
+
+        JsonNode deepInMemory = JsonValue.Create(0)!;
+        for (var i = 0; i < 2000; i++) deepInMemory = new JsonArray(deepInMemory);
+        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(deepInMemory)).Code);
     }
 
     [Fact]
-    public void ContractAndPointsRejectInvalidInputs()
+    public void ContractHandlesDateTimeLeavesAndRejectsInvalidInputs()
     {
+        var withDates = new JsonObject
+        {
+            ["dt"] = JsonValue.Create(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)),
+            ["dto"] = JsonValue.Create(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)),
+        };
+        Assert.Equal("{\"dt\":\"2026-01-01T00:00:00Z\",\"dto\":\"2026-01-01T00:00:00+00:00\"}", Jcs.Canonicalize(withDates));
+
         Assert.Throws<JsonException>(() => Contract.ToJson("not-an-object"));
         Assert.Throws<ArgumentOutOfRangeException>(() => Points.RequestSchema((Draft.InterceptionPoint)99));
         Assert.Throws<ArgumentOutOfRangeException>(() => Points.ResponseSchema((Draft.InterceptionPoint)99));
@@ -138,9 +150,16 @@ public sealed class JcsTests
 
         var badNodeKey = new JsonObject { ["\uD800"] = 1 };
         Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(badNodeKey)).Code);
+
+        var badCharValue = JsonValue.Create('\uD800');
+        Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(badCharValue)).Code);
+
+        var badFromJson = new JsonObject { ["id"] = "\uD800", ["framework"] = "x" };
+        Assert.Throws<JsonException>(() => Contract.FromJson<Draft.ContextMetadataAgent>(badFromJson));
     }
 
     [Fact]
+    [Trait("Category", "draft")]
     public void InvalidEnvelopesFailClosedInContextIdentity()
     {
         static JsonObject ValidBase() => Contract.ToJson(new Draft.PreToolCallRequest
@@ -196,6 +215,7 @@ public sealed class JcsTests
     }
 
     [Fact]
+    [Trait("Category", "draft")]
     public void IdentityBindsOnlyTheRequiredProjection()
     {
         var request = new Draft.PreToolCallRequest
