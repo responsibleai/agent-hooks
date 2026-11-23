@@ -145,6 +145,31 @@ public sealed class GeneratedContractTests
     }
 
     [Fact]
+    public void GeneratedHookInterfacesUseSuggestedMethodNamesAndTypedResponses()
+    {
+        var interceptorMethods = typeof(Draft.IInterceptor).GetMethods()
+            .ToDictionary(method => method.Name, method => method.ReturnType);
+        Assert.Equal(
+            new Dictionary<string, Type>
+            {
+                [nameof(Draft.IInterceptor.AgentStartingAsync)] = typeof(Task<Draft.AgentStartupHookResponse>),
+                [nameof(Draft.IInterceptor.InputReceivedAsync)] = typeof(Task<Draft.InputHookResponse>),
+                [nameof(Draft.IInterceptor.ModelCallingAsync)] = typeof(Task<Draft.PreModelHookResponse>),
+                [nameof(Draft.IInterceptor.ModelCalledAsync)] = typeof(Task<Draft.PostModelHookResponse>),
+                [nameof(Draft.IInterceptor.ToolCallingAsync)] = typeof(Task<Draft.PreToolHookResponse>),
+                [nameof(Draft.IInterceptor.ToolCalledAsync)] = typeof(Task<Draft.PostToolHookResponse>),
+                [nameof(Draft.IInterceptor.OutputSendingAsync)] = typeof(Task<Draft.OutputHookResponse>),
+                [nameof(Draft.IInterceptor.AgentStoppingAsync)] = typeof(Task<Draft.AgentShutdownHookResponse>),
+            },
+            interceptorMethods);
+
+        var resolverMethods = typeof(Draft.IApprovalResolver).GetMethods();
+        var resolveApproval = Assert.Single(resolverMethods);
+        Assert.Equal(nameof(Draft.IApprovalResolver.ResolveApprovalAsync), resolveApproval.Name);
+        Assert.Equal(typeof(Task<Draft.ApprovalResolution>), resolveApproval.ReturnType);
+    }
+
+    [Fact]
     public void IntegersAndOpenMetadataAreLossless()
     {
         var json = JsonNode.Parse(File.ReadAllText(Path.Combine(ExamplesDirectory(), "AgentContext/pre-tool-call.json")))!;
