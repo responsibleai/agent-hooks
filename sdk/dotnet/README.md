@@ -65,6 +65,33 @@ resolved bound and reports a `ManagedInterceptorOutcome` (`FromVerdict`,
 `Timeout` after cleanup, `Cancelled`, `Failed`), where a cancelled
 outcome is never a timeout and never continues.
 
+### Typed tool hooks
+
+A hook for one tool point receives a typed, read-only view of the
+context (`ToolCall.Name`, `ToolCall.Args`, `ToolResult.Value`, `Tenant`
+and so on) instead of raw JSON, and runs only at that point:
+
+```csharp
+sealed class EgressGuard : IPreToolCallHook
+{
+    public ValueTask<Verdict> OnPreToolCallAsync(PreToolCallRequest request, CancellationToken ct) =>
+        ValueTask.FromResult(request.ToolCall.Name == "http_get"
+            ? Verdict.Deny("egress_blocked")
+            : Verdict.Allow);
+}
+
+emitter.RegisterHook(new EgressGuard(), "egress-guard");
+```
+
+`RegisterHook` takes the same name and `OnError` as `RegisterWithOptions`
+and binds the hook at `pre_tool_call` (or `post_tool_call` for an
+`IPostToolCallHook`; a type implementing both is bound once at each).
+`OnPreToolCall(name, (request, ct) => ...)` and `OnPostToolCall` take a
+lambda. `PreToolCallRequest.TransformArgs(args)` and
+`PostToolCallRequest.TransformValue(value)` return a transform replacing
+the whole arguments or result, and `PreToolCallRequest.ForTest(...)`
+builds a request for unit tests.
+
 ## Host declaration
 
 A host can load its configuration, declared surface and interceptor
