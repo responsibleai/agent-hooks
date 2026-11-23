@@ -1,23 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageId>ResponsibleAI.AgentHooks</PackageId>
-    <Description>Framework-neutral agent control contract (AGENT-HOOKS-0.1). .NET wrapper over the canonical Rust core via libagent_hooks_ffi. Cooperative contract, not a security boundary: the host is fully trusted (see SECURITY.md).</Description>
+    <Description>Native C# Agent Hooks SDK (draft spec): typed hooks over the generated contracts, composition, approval, declarations and interception records. Cooperative contract, not a security boundary: the host is fully trusted (see SECURITY.md).</Description>
     <RootNamespace>AgentHooks</RootNamespace>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../AgentHooks.Contracts/AgentHooks.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="JsonSchema.Net" Version="9.7.0" />
     <EmbeddedResource Include="../../../../spec/draft/schema/generated/*.json"
                       LogicalName="AgentHooks.Schemas.%(Filename)%(Extension)" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- Per-RID native libraries (libagent_hooks_ffi) are staged under
-         runtimes/ by the release pipeline before pack, so the published
-         package resolves the native library through the standard RID
-         probing with no consumer action. The glob is empty in local dev
-         builds: resolve via LD_LIBRARY_PATH / DYLD_LIBRARY_PATH / PATH
-         to sdk/rust/target/release. -->
-    <None Include="runtimes/**" Pack="true" PackagePath="runtimes/" Visible="false" />
   </ItemGroup>
 </Project>

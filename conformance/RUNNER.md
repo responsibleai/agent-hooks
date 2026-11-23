@@ -1,7 +1,9 @@
 # Writing a CTK runner
 
-The CTK engine lives in the Rust core (`sdk/rust/core/src/ctk_engine.rs`)
-and is exposed through every binding as four functions:
+The Rust-backed SDKs use `sdk/rust/core/src/ctk_engine.rs`. C# implements
+the same assertion and scripting engine natively in
+`sdk/csharp/src/AgentHooks.Conformance/CtkEngine.cs`.
+The shared logical surface has four functions:
 
 | Function | Purpose |
 | --- | --- |
@@ -19,8 +21,8 @@ Two more core functions serve the host declaration parts (§7.7.9):
 
 The per-language runner is implemented in
 `sdk/python/python/agent_hooks/ctk/runner.py`; other SDKs follow the same
-flow, calling the core through FFI and using their language's `Harness`
-protocol for setup and execution.
+flow, calling either the Rust core through FFI or the managed C# engine
+and using their language's `Harness` protocol for setup and execution.
 A harness states the specification version it builds under
 (`harness.spec`, a wire string); the runner refuses a harness without
 one, and keeps draft-only vectors out of a run under a

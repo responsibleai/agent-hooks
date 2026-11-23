@@ -3,15 +3,19 @@
 using System.Collections;
 using System.Numerics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using AgentHooks.Contracts;
 
+[assembly: InternalsVisibleTo("AgentHooks.Conformance")]
+[assembly: InternalsVisibleTo("AgentHooks.Tests")]
+
 namespace AgentHooks;
 
 /// <summary>Bridges the generated contract types and their wire JSON.</summary>
-internal static class Contract
+public static class Contract
 {
     internal static readonly JsonSerializerOptions Options = new() { MaxDepth = 256 };
 

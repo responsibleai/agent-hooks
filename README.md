@@ -196,9 +196,10 @@ its own reason namespace, by convention `runtime_error:<code>`. It
 never uses `host_error:*`: §11 reserves that namespace for verdicts the
 host synthesizes, and §5 validation rejects it from an interceptor.
 
-Everything normative runs once, in the Rust core. The Python,
-TypeScript, .NET and Go SDKs bind it and own only dispatch into host
-code, timeouts and runtime integration. Golden files pin
+Python, TypeScript, and Go bind the Rust core for contract primitives
+and own dispatch into host code, timeouts, and runtime integration.
+C# implements the full runtime natively, with generated TypeSpec draft
+contracts and no Rust or native-library dependency. Golden files pin
 byte-identical canonical JSON, context identities and resolved
 declarations across the five.
 
