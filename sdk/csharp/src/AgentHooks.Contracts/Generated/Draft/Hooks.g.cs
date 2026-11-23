@@ -10,76 +10,76 @@ namespace AgentHooks.Contracts.Draft;
 
 #nullable enable
 
-public interface IInterceptor
-{
-    /// <summary>
-    /// Evaluate agent_startup before the session's first input (§3, §4.2).
-    /// </summary>
-    Task<AgentStartupHookResponse> AgentStartingAsync(
-        AgentStartupRequest request,
-        CancellationToken cancellationToken = default
-    );
+/// <summary>
+/// Evaluate agent_startup before the session's first input (§3, §4.2).
+/// </summary>
+public delegate Task<AgentStartupHookResponse> AgentStartupHookHandler(
+    AgentStartupRequest request,
+    CancellationToken cancellationToken = default
+);
 
-    /// <summary>
-    /// Evaluate input before it enters the agent loop (§3, §4.2).
-    /// </summary>
-    Task<InputHookResponse> InputReceivedAsync(InputRequest request, CancellationToken cancellationToken = default);
+/// <summary>
+/// Evaluate input before it enters the agent loop (§3, §4.2).
+/// </summary>
+public delegate Task<InputHookResponse> InputHookHandler(
+    InputRequest request,
+    CancellationToken cancellationToken = default
+);
 
-    /// <summary>
-    /// Evaluate pre_model_call before invoking the model (§3, §4.2).
-    /// </summary>
-    Task<PreModelHookResponse> ModelCallingAsync(
-        PreModelCallRequest request,
-        CancellationToken cancellationToken = default
-    );
+/// <summary>
+/// Evaluate pre_model_call before invoking the model (§3, §4.2).
+/// </summary>
+public delegate Task<PreModelHookResponse> PreModelHookHandler(
+    PreModelCallRequest request,
+    CancellationToken cancellationToken = default
+);
 
-    /// <summary>
-    /// Evaluate post_model_call before consuming the model response (§3, §4.2).
-    /// </summary>
-    Task<PostModelHookResponse> ModelCalledAsync(
-        PostModelCallRequest request,
-        CancellationToken cancellationToken = default
-    );
+/// <summary>
+/// Evaluate post_model_call before consuming the model response (§3, §4.2).
+/// </summary>
+public delegate Task<PostModelHookResponse> PostModelHookHandler(
+    PostModelCallRequest request,
+    CancellationToken cancellationToken = default
+);
 
-    /// <summary>
-    /// Evaluate pre_tool_call before invoking the tool (§3, §4.2).
-    /// </summary>
-    Task<PreToolHookResponse> ToolCallingAsync(
-        PreToolCallRequest request,
-        CancellationToken cancellationToken = default
-    );
+/// <summary>
+/// Evaluate pre_tool_call before invoking the tool (§3, §4.2).
+/// </summary>
+public delegate Task<PreToolHookResponse> PreToolHookHandler(
+    PreToolCallRequest request,
+    CancellationToken cancellationToken = default
+);
 
-    /// <summary>
-    /// Evaluate post_tool_call before consuming the tool result (§3, §4.2).
-    /// </summary>
-    Task<PostToolHookResponse> ToolCalledAsync(
-        PostToolCallRequest request,
-        CancellationToken cancellationToken = default
-    );
+/// <summary>
+/// Evaluate post_tool_call before consuming the tool result (§3, §4.2).
+/// </summary>
+public delegate Task<PostToolHookResponse> PostToolHookHandler(
+    PostToolCallRequest request,
+    CancellationToken cancellationToken = default
+);
 
-    /// <summary>
-    /// Evaluate output before delivering it to the caller (§3, §4.2).
-    /// </summary>
-    Task<OutputHookResponse> OutputSendingAsync(OutputRequest request, CancellationToken cancellationToken = default);
+/// <summary>
+/// Evaluate output before delivering it to the caller (§3, §4.2).
+/// </summary>
+public delegate Task<OutputHookResponse> OutputHookHandler(
+    OutputRequest request,
+    CancellationToken cancellationToken = default
+);
 
-    /// <summary>
-    /// Evaluate agent_shutdown after the last output or on abnormal termination (§3, §4.2).
-    /// </summary>
-    Task<AgentShutdownHookResponse> AgentStoppingAsync(
-        AgentShutdownRequest request,
-        CancellationToken cancellationToken = default
-    );
-}
+/// <summary>
+/// Evaluate agent_shutdown after the last output or on abnormal termination (§3, §4.2).
+/// </summary>
+public delegate Task<AgentShutdownHookResponse> AgentShutdownHookHandler(
+    AgentShutdownRequest request,
+    CancellationToken cancellationToken = default
+);
 
-public interface IApprovalResolver
-{
-    /// <summary>
-    /// Resolve a liftable deny, echoing the request's context_identity.
-    /// The host consults this seam only as prescribed by §7.4–§7.6 and §9,
-    /// never at agent_shutdown or in evaluate_only mode.
-    /// </summary>
-    Task<ApprovalResolution> ResolveApprovalAsync(
-        ApprovalRequest request,
-        CancellationToken cancellationToken = default
-    );
-}
+/// <summary>
+/// Resolve a liftable deny, echoing the request's context_identity.
+/// The host consults this seam only as prescribed by §7.4–§7.6 and §9,
+/// never at agent_shutdown or in evaluate_only mode.
+/// </summary>
+public delegate Task<ApprovalResolution> ApprovalResolverHandler(
+    ApprovalRequest request,
+    CancellationToken cancellationToken = default
+);

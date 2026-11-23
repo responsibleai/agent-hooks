@@ -115,34 +115,22 @@ function contracts(program: Program) {
     if (!type.name) throw new Error("Unsupported unnamed JSON Schema contract root.");
     visit(type, type.name);
   }
-  const handlers = new Map<string, [Operation, string][]>();
-  const operationMethodNames = new Map([
-    ["agentStartup", "AgentStartingAsync"],
-    ["input", "InputReceivedAsync"],
-    ["preModelCall", "ModelCallingAsync"],
-    ["postModelCall", "ModelCalledAsync"],
-    ["preToolCall", "ToolCallingAsync"],
-    ["postToolCall", "ToolCalledAsync"],
-    ["output", "OutputSendingAsync"],
-    ["agentShutdown", "AgentStoppingAsync"],
-    ["resolve", "ResolveApprovalAsync"],
-  ]);
+  const handlers = new Map<Operation, string>();
   for (const iface of namespace.interfaces.values()) {
-    const interfaceName = `I${policy.getName(iface.name, "class")}`;
-    if (usedNames.has(interfaceName)) throw new Error(`Duplicate C# contract name: ${interfaceName}`);
-    usedNames.add(interfaceName);
-    const operations: [Operation, string][] = [];
     for (const operation of iface.operations.values()) {
       if (isTemplateDeclaration(operation)) continue;
-      const name = operationMethodNames.get(operation.name);
-      if (!name) throw new Error(`Missing C# hook method name for operation ${iface.name}.${operation.name}.`);
+      const responseName = operation.returnType.kind === "Model" ? operation.returnType.name : "";
+      const name = responseName.endsWith("Response")
+        ? `${responseName.slice(0, -"Response".length)}Handler`
+        : `${iface.name}${iface.operations.size === 1 ? "" : policy.getName(operation.name, "class")}Handler`;
       for (const parameter of operation.parameters.properties.values()) {
         visit(parameter.type, `${name}${policy.getName(parameter.name, "class")}`);
       }
       visit(operation.returnType, `${name}Response`);
-      operations.push([operation, name]);
+      if (usedNames.has(name)) throw new Error(`Duplicate C# contract name: ${name}`);
+      handlers.set(operation, name);
+      usedNames.add(name);
     }
-    handlers.set(interfaceName, operations);
   }
   return { names, aliases, handlers };
 }
@@ -332,12 +320,8 @@ function GeneratedContracts(): Children {
       <cs.SourceFile path="Hooks.g.cs" header={header}
         using={["System.Threading", "System.Threading.Tasks"]}>
         {"#nullable enable"}<hbr /><hbr />
-        <For each={[...handlers.entries()]} doubleHardline>
-          {([name, operations]) => <cs.InterfaceDeclaration public name={name}>
-            <For each={operations} doubleHardline>
-              {([type, methodName]) => <OperationHandler type={type} name={methodName} />}
-            </For>
-          </cs.InterfaceDeclaration>}
+        <For each={handlers} doubleHardline>
+          {(type, name) => <OperationHandler type={type} name={name} />}
         </For>
       </cs.SourceFile>
     </cs.Namespace>
