@@ -6,13 +6,15 @@ Generated from the TypeSpec declarations. A `?` marks an optional property; `nul
 
 Each declaration is shown as a TypeSpec source excerpt, followed by its member documentation. See the [table representation](REFERENCE-TABLES.md) to compare layouts.
 
-- [Common types](#common-types)
-- [Hook requests](#hook-requests)
-- [Hook responses](#hook-responses)
-- [Verdicts](#verdicts)
-- [Approval seam](#approval-seam)
-- [Interception records](#interception-records)
-- [Host declaration](#host-declaration)
+- [Common types](#reference-common-types)
+- [Hook requests](#reference-hook-requests)
+- [Hook responses](#reference-hook-responses)
+- [Verdicts](#reference-verdicts)
+- [Approval seam](#reference-approval-seam)
+- [Interception records](#reference-interception-records)
+- [Host declaration](#reference-host-declaration)
+
+<a id="reference-common-types"></a>
 
 ## Common types
 
@@ -24,9 +26,9 @@ Each declaration is shown as a TypeSpec source excerpt, followed by its member d
 - [`Mode`](#agenthooks-mode)
 - [`OnApproval`](#agenthooks-onapproval)
 
-### `CompositionProfile`
-
 <a id="agenthooks-compositionprofile"></a>
+
+### `CompositionProfile`
 
 Composition profiles (§7.1), in §7.2 table order.
 
@@ -55,9 +57,9 @@ Value: `"parallel/strictest"`.
 
 Value: `"parallel/unanimous"`.
 
-### `ConflictResolution`
-
 <a id="agenthooks-conflictresolution"></a>
+
+### `ConflictResolution`
 
 Values of the on_disagreement and on_transform_conflict knobs (§7.2).
 
@@ -76,9 +78,9 @@ Value: `"deny"`.
 
 Value: `"approval"`.
 
-### `Extensions`
-
 <a id="agenthooks-extensions"></a>
+
+### `Extensions`
 
 Namespaced extensions (§4.6): any value under a key that follows the
 namespace rule.
@@ -92,9 +94,9 @@ propertyNames: `{"pattern":"^[a-z][a-z0-9_]*$"}`
 
 Additional entries: `unknown`.
 
-### `InterceptionPoint`
-
 <a id="agenthooks-interceptionpoint"></a>
+
+### `InterceptionPoint`
 
 Agent Hooks — interception point
 
@@ -145,9 +147,9 @@ Value: `"output"`.
 
 Value: `"agent_shutdown"`.
 
-### `JsonObject`
-
 <a id="agenthooks-jsonobject"></a>
+
+### `JsonObject`
 
 An open JSON object, not an arbitrary JSON value.
 
@@ -157,9 +159,9 @@ model JsonObject {}
 
 An object with no declared properties.
 
-### `Mode`
-
 <a id="agenthooks-mode"></a>
+
+### `Mode`
 
 Enforcement modes (§8).
 
@@ -178,9 +180,9 @@ Value: `"enforce"`.
 
 Value: `"evaluate_only"`.
 
-### `OnApproval`
-
 <a id="agenthooks-onapproval"></a>
+
+### `OnApproval`
 
 Values of the on_approval knob (§7.2).
 
@@ -198,6 +200,8 @@ Value: `"stop"`.
 #### `Resume`
 
 Value: `"resume"`.
+
+<a id="reference-hook-requests"></a>
 
 ## Hook requests
 
@@ -228,9 +232,9 @@ Value: `"resume"`.
 - [`ToolResult`](#agenthooks-toolresult)
 - [`Usage`](#agenthooks-usage)
 
-### `ActorKind`
-
 <a id="agenthooks-actorkind"></a>
+
+### `ActorKind`
 
 Who acts (§4.5).
 
@@ -254,9 +258,9 @@ Value: `"service"`.
 
 Value: `"agent"`.
 
-### `AgentContext`
-
 <a id="agenthooks-agentcontext"></a>
+
+### `AgentContext`
 
 Agent Hooks — agent context
 
@@ -286,9 +290,9 @@ union AgentContext {
 - [`OutputRequest`](#agenthooks-outputrequest)
 - [`AgentShutdownRequest`](#agenthooks-agentshutdownrequest)
 
-### `AgentInit`
-
 <a id="agenthooks-agentinit"></a>
+
+### `AgentInit`
 
 Conditional payload of agent_startup (§4.2).
 
@@ -302,9 +306,9 @@ model AgentInit {
 
 Type: `string`[].
 
-### `AgentShutdownRequest`
-
 <a id="agenthooks-agentshutdownrequest"></a>
+
+### `AgentShutdownRequest`
 
 The request at agent_shutdown: summary is required (§4.2).
 
@@ -448,9 +452,9 @@ Type: [`Extensions`](#agenthooks-extensions).
 
 Type: [`Summary`](#agenthooks-summary).
 
-### `AgentStartupRequest`
-
 <a id="agenthooks-agentstartuprequest"></a>
+
+### `AgentStartupRequest`
 
 The request at agent_startup: agent_init is required (§4.2).
 
@@ -594,9 +598,9 @@ Type: [`Extensions`](#agenthooks-extensions).
 
 Type: [`AgentInit`](#agenthooks-agentinit).
 
-### `ContextMetadata`
-
 <a id="agenthooks-contextmetadata"></a>
+
+### `ContextMetadata`
 
 Metadata available at every interception point.
 
@@ -772,9 +776,9 @@ Type: `float64`.
 
 Type: `float64`.
 
-### `HooksRequest<TPoint>`
-
 <a id="agenthooks-hooksrequest"></a>
+
+### `HooksRequest<TPoint>`
 
 ```typespec
 model HooksRequest<TPoint extends InterceptionPoint = InterceptionPoint> {
@@ -913,9 +917,9 @@ Type: `TPoint`.
 
 Type: [`Extensions`](#agenthooks-extensions).
 
-### `Input`
-
 <a id="agenthooks-input"></a>
+
+### `Input`
 
 Conditional payload of input (§4.2).
 
@@ -934,9 +938,9 @@ Type: `unknown`.
 
 Type: [`InputRole`](#agenthooks-inputrole).
 
-### `InputRequest`
-
 <a id="agenthooks-inputrequest"></a>
+
+### `InputRequest`
 
 The request at input: input is required (§4.2).
 
@@ -1080,9 +1084,9 @@ Type: [`Extensions`](#agenthooks-extensions).
 
 Type: [`Input`](#agenthooks-input).
 
-### `InputRole`
-
 <a id="agenthooks-inputrole"></a>
+
+### `InputRole`
 
 Who produced an input (§4.2).
 
@@ -1106,9 +1110,9 @@ Value: `"system"`.
 
 Value: `"external"`.
 
-### `Message`
-
 <a id="agenthooks-message"></a>
+
+### `Message`
 
 One message of the model request (§4.2).
 
@@ -1127,9 +1131,9 @@ Type: `string`.
 
 Type: `unknown`.
 
-### `Model`
-
 <a id="agenthooks-model"></a>
+
+### `Model`
 
 Conditional payload of pre_model_call and post_model_call (§4.2).
 
@@ -1153,9 +1157,9 @@ Type: `string`.
 
 Type: [`JsonObject`](#agenthooks-jsonobject).
 
-### `Output`
-
 <a id="agenthooks-output"></a>
+
+### `Output`
 
 Conditional payload of output (§4.2).
 
@@ -1169,9 +1173,9 @@ model Output {
 
 Type: `unknown`.
 
-### `OutputRequest`
-
 <a id="agenthooks-outputrequest"></a>
+
+### `OutputRequest`
 
 The request at output: output is required (§4.2).
 
@@ -1315,9 +1319,9 @@ Type: [`Extensions`](#agenthooks-extensions).
 
 Type: [`Output`](#agenthooks-output).
 
-### `PostModelCallRequest`
-
 <a id="agenthooks-postmodelcallrequest"></a>
+
+### `PostModelCallRequest`
 
 The request at post_model_call: model and response are required (§4.2).
 
@@ -1476,9 +1480,9 @@ Type: `string`.
 
 Type: [`Usage`](#agenthooks-usage).
 
-### `PostToolCallRequest`
-
 <a id="agenthooks-posttoolcallrequest"></a>
+
+### `PostToolCallRequest`
 
 The request at post_tool_call: tool_call and tool_result are required (§4.2).
 
@@ -1627,9 +1631,9 @@ Type: [`ToolCall`](#agenthooks-toolcall).
 
 Type: [`ToolResult`](#agenthooks-toolresult).
 
-### `PreModelCallRequest`
-
 <a id="agenthooks-premodelcallrequest"></a>
+
+### `PreModelCallRequest`
 
 The request at pre_model_call: model and messages are required (§4.2).
 
@@ -1788,9 +1792,9 @@ Type: [`ToolDecl`](#agenthooks-tooldecl)[].
 
 Type: `string`.
 
-### `PreToolCallRequest`
-
 <a id="agenthooks-pretoolcallrequest"></a>
+
+### `PreToolCallRequest`
 
 The request at pre_tool_call: tool_call is required (§4.2).
 
@@ -1934,9 +1938,9 @@ Type: [`Extensions`](#agenthooks-extensions).
 
 Type: [`ToolCall`](#agenthooks-toolcall).
 
-### `Response`
-
 <a id="agenthooks-response"></a>
+
+### `Response`
 
 Conditional payload of post_model_call (§4.2).
 
@@ -1960,9 +1964,9 @@ Type: [`ToolCallRequest`](#agenthooks-toolcallrequest)[].
 
 Type: `string`.
 
-### `Summary`
-
 <a id="agenthooks-summary"></a>
+
+### `Summary`
 
 Conditional payload of agent_shutdown (§4.2).
 
@@ -2003,9 +2007,9 @@ Type: `float64`.
 
 minimum: `0`
 
-### `SummaryReason`
-
 <a id="agenthooks-summaryreason"></a>
+
+### `SummaryReason`
 
 Why the agent stopped (§4.2).
 
@@ -2029,9 +2033,9 @@ Value: `"error"`.
 
 Value: `"cancelled"`.
 
-### `ToolCall`
-
 <a id="agenthooks-toolcall"></a>
+
+### `ToolCall`
 
 Conditional payload of pre_tool_call and post_tool_call (§4.2).
 
@@ -2072,9 +2076,9 @@ Type: `string`.
 
 pattern: `^sha256:[0-9a-f]{64}$`
 
-### `ToolCallRequest`
-
 <a id="agenthooks-toolcallrequest"></a>
+
+### `ToolCallRequest`
 
 One tool call the model asked for (§4.2).
 
@@ -2098,9 +2102,9 @@ Type: `string`.
 
 Type: [`JsonObject`](#agenthooks-jsonobject).
 
-### `ToolDecl`
-
 <a id="agenthooks-tooldecl"></a>
+
+### `ToolDecl`
 
 One declared tool (§4.3).
 
@@ -2124,9 +2128,9 @@ Type: `string`.
 
 Type: [`JsonObject`](#agenthooks-jsonobject).
 
-### `ToolResult`
-
 <a id="agenthooks-toolresult"></a>
+
+### `ToolResult`
 
 Conditional payload of post_tool_call (§4.2).
 
@@ -2154,9 +2158,9 @@ Type: `float64`.
 
 minimum: `0`
 
-### `Usage`
-
 <a id="agenthooks-usage"></a>
+
+### `Usage`
 
 Token usage of a model call (§4.3).
 
@@ -2182,6 +2186,8 @@ Type: `integer`.
 
 minimum: `0`
 
+<a id="reference-hook-responses"></a>
+
 ## Hook responses
 
 - [`AgentShutdownHookResponse`](#agenthooks-agentshutdownhookresponse)
@@ -2200,9 +2206,9 @@ minimum: `0`
 - [`PreToolHookResponse`](#agenthooks-pretoolhookresponse)
 - [`PreToolHookTransform`](#agenthooks-pretoolhooktransform)
 
-### `AgentShutdownHookResponse`
-
 <a id="agenthooks-agentshutdownhookresponse"></a>
+
+### `AgentShutdownHookResponse`
 
 agent_shutdown response: transforms are forbidden.
 
@@ -2220,9 +2226,9 @@ Type: [`NonTransformVerdict`](#agenthooks-nontransformverdict).
 
 Type: [`Extensions`](#agenthooks-extensions).
 
-### `AgentStartupHookResponse`
-
 <a id="agenthooks-agentstartuphookresponse"></a>
+
+### `AgentStartupHookResponse`
 
 agent_startup response: transforms are forbidden.
 
@@ -2240,9 +2246,9 @@ Type: [`NonTransformVerdict`](#agenthooks-nontransformverdict).
 
 Type: [`Extensions`](#agenthooks-extensions).
 
-### `HookResponse<TVerdict>`
-
 <a id="agenthooks-hookresponse"></a>
+
+### `HookResponse<TVerdict>`
 
 Hook response envelope with a hook-specific verdict.
 
@@ -2262,9 +2268,9 @@ Type: `TVerdict`.
 
 Type: [`Extensions`](#agenthooks-extensions).
 
-### `InputHookResponse`
-
 <a id="agenthooks-inputhookresponse"></a>
+
+### `InputHookResponse`
 
 input response.
 
@@ -2276,15 +2282,15 @@ additionalProperties: `false`
 
 #### `verdict`
 
-Type: [`AllowVerdict`](#agenthooks-allowverdict) | [`DenyVerdict`](#agenthooks-denyverdict) | [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`InputHookTransform`](#agenthooks-inputhooktransform)&gt;.
+Type: [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`InputHookTransform`](#agenthooks-inputhooktransform)&gt;.
 
 #### `extensions?`
 
 Type: [`Extensions`](#agenthooks-extensions).
 
-### `InputHookTransform`
-
 <a id="agenthooks-inputhooktransform"></a>
+
+### `InputHookTransform`
 
 Replaces the complete input payload.
 
@@ -2301,9 +2307,9 @@ additionalProperties: `false`
 
 Type: `InputRequest.input`.
 
-### `OutputHookResponse`
-
 <a id="agenthooks-outputhookresponse"></a>
+
+### `OutputHookResponse`
 
 output response.
 
@@ -2315,15 +2321,15 @@ additionalProperties: `false`
 
 #### `verdict`
 
-Type: [`AllowVerdict`](#agenthooks-allowverdict) | [`DenyVerdict`](#agenthooks-denyverdict) | [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`OutputHookTransform`](#agenthooks-outputhooktransform)&gt;.
+Type: [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`OutputHookTransform`](#agenthooks-outputhooktransform)&gt;.
 
 #### `extensions?`
 
 Type: [`Extensions`](#agenthooks-extensions).
 
-### `OutputHookTransform`
-
 <a id="agenthooks-outputhooktransform"></a>
+
+### `OutputHookTransform`
 
 Replaces the complete output payload.
 
@@ -2340,9 +2346,9 @@ additionalProperties: `false`
 
 Type: `OutputRequest.output`.
 
-### `PostModelHookResponse`
-
 <a id="agenthooks-postmodelhookresponse"></a>
+
+### `PostModelHookResponse`
 
 post_model_call response.
 
@@ -2354,15 +2360,15 @@ additionalProperties: `false`
 
 #### `verdict`
 
-Type: [`AllowVerdict`](#agenthooks-allowverdict) | [`DenyVerdict`](#agenthooks-denyverdict) | [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostModelHookTransform`](#agenthooks-postmodelhooktransform)&gt;.
+Type: [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostModelHookTransform`](#agenthooks-postmodelhooktransform)&gt;.
 
 #### `extensions?`
 
 Type: [`Extensions`](#agenthooks-extensions).
 
-### `PostModelHookTransform`
-
 <a id="agenthooks-postmodelhooktransform"></a>
+
+### `PostModelHookTransform`
 
 Replaces the complete model response payload.
 
@@ -2379,9 +2385,9 @@ additionalProperties: `false`
 
 Type: `PostModelCallRequest.response`.
 
-### `PostToolHookResponse`
-
 <a id="agenthooks-posttoolhookresponse"></a>
+
+### `PostToolHookResponse`
 
 post_tool_call response.
 
@@ -2393,15 +2399,15 @@ additionalProperties: `false`
 
 #### `verdict`
 
-Type: [`AllowVerdict`](#agenthooks-allowverdict) | [`DenyVerdict`](#agenthooks-denyverdict) | [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostToolHookTransform`](#agenthooks-posttoolhooktransform)&gt;.
+Type: [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostToolHookTransform`](#agenthooks-posttoolhooktransform)&gt;.
 
 #### `extensions?`
 
 Type: [`Extensions`](#agenthooks-extensions).
 
-### `PostToolHookTransform`
-
 <a id="agenthooks-posttoolhooktransform"></a>
+
+### `PostToolHookTransform`
 
 Replaces only the value of the tool result.
 
@@ -2418,9 +2424,9 @@ additionalProperties: `false`
 
 Type: `ToolResult.value`.
 
-### `PreModelHookResponse`
-
 <a id="agenthooks-premodelhookresponse"></a>
+
+### `PreModelHookResponse`
 
 pre_model_call response.
 
@@ -2432,15 +2438,15 @@ additionalProperties: `false`
 
 #### `verdict`
 
-Type: [`AllowVerdict`](#agenthooks-allowverdict) | [`DenyVerdict`](#agenthooks-denyverdict) | [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreModelHookTransform`](#agenthooks-premodelhooktransform)&gt;.
+Type: [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreModelHookTransform`](#agenthooks-premodelhooktransform)&gt;.
 
 #### `extensions?`
 
 Type: [`Extensions`](#agenthooks-extensions).
 
-### `PreModelHookTransform`
-
 <a id="agenthooks-premodelhooktransform"></a>
+
+### `PreModelHookTransform`
 
 Replaces the complete model-message array.
 
@@ -2457,9 +2463,9 @@ additionalProperties: `false`
 
 Type: `PreModelCallRequest.messages`.
 
-### `PreToolHookResponse`
-
 <a id="agenthooks-pretoolhookresponse"></a>
+
+### `PreToolHookResponse`
 
 pre_tool_call response.
 
@@ -2471,15 +2477,15 @@ additionalProperties: `false`
 
 #### `verdict`
 
-Type: [`AllowVerdict`](#agenthooks-allowverdict) | [`DenyVerdict`](#agenthooks-denyverdict) | [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreToolHookTransform`](#agenthooks-pretoolhooktransform)&gt;.
+Type: [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreToolHookTransform`](#agenthooks-pretoolhooktransform)&gt;.
 
 #### `extensions?`
 
 Type: [`Extensions`](#agenthooks-extensions).
 
-### `PreToolHookTransform`
-
 <a id="agenthooks-pretoolhooktransform"></a>
+
+### `PreToolHookTransform`
 
 Replaces the complete tool args for the pre-tool hook.
 
@@ -2496,6 +2502,8 @@ additionalProperties: `false`
 
 Type: `ToolCall.args`.
 
+<a id="reference-verdicts"></a>
+
 ## Verdicts
 
 - [`AllowVerdict`](#agenthooks-allowverdict)
@@ -2508,9 +2516,9 @@ Type: `ToolCall.args`.
 - [`VerificationPointers`](#agenthooks-verificationpointers)
 - [`Warning`](#agenthooks-warning)
 
-### `AllowVerdict`
-
 <a id="agenthooks-allowverdict"></a>
+
+### `AllowVerdict`
 
 allow: proceed. Absorbs warn through warnings[] (§5.1).
 
@@ -2529,7 +2537,7 @@ additionalProperties: `false`
 Interceptor-supplied machine identifier. The host_error: prefix is reserved
 for host-synthesized failures (§11).
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 pattern: `^(?!host_error:).*`
 
@@ -2537,7 +2545,7 @@ pattern: `^(?!host_error:).*`
 
 Human-readable text for the caller.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `warnings?`
 
@@ -2545,7 +2553,7 @@ Recorded concerns that do not affect control flow (§5.1). Permitted on any
 decision; unioned across an emission's verdicts (§7.3). Reasons starting with
 host_warning: are reserved for the host (§11.1).
 
-Type: [`Warning`](#agenthooks-warning)[] | `null`.
+Type: [`Warning`](#agenthooks-warning)[] &#124; `null`.
 
 #### `evidence?`
 
@@ -2556,15 +2564,15 @@ Type: [`Evidence`](#agenthooks-evidence).
 Interceptor-supplied labels the host MUST persist with the produced data and
 resurface on later interception points (§5.4).
 
-Type: `string`[] | `null`.
+Type: `string`[] &#124; `null`.
 
 #### `decision`
 
 Type: [`Decision.Allow`](#agenthooks-decision).
 
-### `Decision`
-
 <a id="agenthooks-decision"></a>
+
+### `Decision`
 
 The three decisions (§5).
 
@@ -2588,9 +2596,9 @@ Value: `"deny"`.
 
 Value: `"transform"`.
 
-### `DenyVerdict`
-
 <a id="agenthooks-denyverdict"></a>
+
+### `DenyVerdict`
 
 deny: stop the action. Absorbs escalate through the approval block (§5.1).
 
@@ -2611,7 +2619,7 @@ additionalProperties: `false`
 Interceptor-supplied machine identifier. The host_error: prefix is reserved
 for host-synthesized failures (§11).
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 pattern: `^(?!host_error:).*`
 
@@ -2619,7 +2627,7 @@ pattern: `^(?!host_error:).*`
 
 Human-readable text for the caller.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `warnings?`
 
@@ -2627,7 +2635,7 @@ Recorded concerns that do not affect control flow (§5.1). Permitted on any
 decision; unioned across an emission's verdicts (§7.3). Reasons starting with
 host_warning: are reserved for the host (§11.1).
 
-Type: [`Warning`](#agenthooks-warning)[] | `null`.
+Type: [`Warning`](#agenthooks-warning)[] &#124; `null`.
 
 #### `evidence?`
 
@@ -2638,7 +2646,7 @@ Type: [`Evidence`](#agenthooks-evidence).
 Interceptor-supplied labels the host MUST persist with the produced data and
 resurface on later interception points (§5.4).
 
-Type: `string`[] | `null`.
+Type: `string`[] &#124; `null`.
 
 #### `decision`
 
@@ -2651,9 +2659,9 @@ MAY be empty; reserved for approver-facing parameters.
 
 Type: [`JsonObject`](#agenthooks-jsonobject).
 
-### `Evidence`
-
 <a id="agenthooks-evidence"></a>
+
+### `Evidence`
 
 Offline-verifiable evidence attached to a verdict (§14).
 
@@ -2672,15 +2680,15 @@ additionalProperties: `false`
 
 Content address (sha256:<hex>) or URI of an offline-verifiable proof.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `verification_pointers?`
 
 Type: [`VerificationPointers`](#agenthooks-verificationpointers).
 
-### `NonTransformVerdict`
-
 <a id="agenthooks-nontransformverdict"></a>
+
+### `NonTransformVerdict`
 
 Verdict choices for hooks that do not support transforms.
 
@@ -2694,9 +2702,9 @@ union NonTransformVerdict {
 - [`AllowVerdict`](#agenthooks-allowverdict)
 - [`DenyVerdict`](#agenthooks-denyverdict)
 
-### `TransformVerdict<TTransform>`
-
 <a id="agenthooks-transformverdict"></a>
+
+### `TransformVerdict<TTransform>`
 
 transform: proceed with the hook-specific replacement payload.
 
@@ -2714,7 +2722,7 @@ model TransformVerdict<TTransform> {
 Interceptor-supplied machine identifier. The host_error: prefix is reserved
 for host-synthesized failures (§11).
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 pattern: `^(?!host_error:).*`
 
@@ -2722,7 +2730,7 @@ pattern: `^(?!host_error:).*`
 
 Human-readable text for the caller.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `warnings?`
 
@@ -2730,7 +2738,7 @@ Recorded concerns that do not affect control flow (§5.1). Permitted on any
 decision; unioned across an emission's verdicts (§7.3). Reasons starting with
 host_warning: are reserved for the host (§11.1).
 
-Type: [`Warning`](#agenthooks-warning)[] | `null`.
+Type: [`Warning`](#agenthooks-warning)[] &#124; `null`.
 
 #### `evidence?`
 
@@ -2741,7 +2749,7 @@ Type: [`Evidence`](#agenthooks-evidence).
 Interceptor-supplied labels the host MUST persist with the produced data and
 resurface on later interception points (§5.4).
 
-Type: `string`[] | `null`.
+Type: `string`[] &#124; `null`.
 
 #### `decision`
 
@@ -2751,9 +2759,9 @@ Type: [`Decision.Transform`](#agenthooks-decision).
 
 Type: `TTransform`.
 
-### `VerdictBase`
-
 <a id="agenthooks-verdictbase"></a>
+
+### `VerdictBase`
 
 Members every decision may carry.
 
@@ -2777,7 +2785,7 @@ model VerdictBase {
 Interceptor-supplied machine identifier. The host_error: prefix is reserved
 for host-synthesized failures (§11).
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 pattern: `^(?!host_error:).*`
 
@@ -2785,7 +2793,7 @@ pattern: `^(?!host_error:).*`
 
 Human-readable text for the caller.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `warnings?`
 
@@ -2793,7 +2801,7 @@ Recorded concerns that do not affect control flow (§5.1). Permitted on any
 decision; unioned across an emission's verdicts (§7.3). Reasons starting with
 host_warning: are reserved for the host (§11.1).
 
-Type: [`Warning`](#agenthooks-warning)[] | `null`.
+Type: [`Warning`](#agenthooks-warning)[] &#124; `null`.
 
 #### `evidence?`
 
@@ -2804,11 +2812,11 @@ Type: [`Evidence`](#agenthooks-evidence).
 Interceptor-supplied labels the host MUST persist with the produced data and
 resurface on later interception points (§5.4).
 
-Type: `string`[] | `null`.
-
-### `VerificationPointers`
+Type: `string`[] &#124; `null`.
 
 <a id="agenthooks-verificationpointers"></a>
+
+### `VerificationPointers`
 
 Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14).
 
@@ -2818,9 +2826,9 @@ model VerificationPointers is Record<string>;
 
 Additional entries: `string`.
 
-### `Warning`
-
 <a id="agenthooks-warning"></a>
+
+### `Warning`
 
 A recorded concern that does not affect control flow (§5.1).
 
@@ -2843,13 +2851,15 @@ for host-synthesized failures (§11) and host_warning: for host-synthesized
 warnings (§11.1); an interceptor warning with either prefix fails §5
 validation.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 pattern: `^(?!host_error:|host_warning:).*`
 
 #### `message?`
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
+
+<a id="reference-approval-seam"></a>
 
 ## Approval seam
 
@@ -2862,9 +2872,9 @@ Type: `string` | `null`.
 - [`ResolutionBase`](#agenthooks-resolutionbase)
 - [`UnresolvedResolution`](#agenthooks-unresolvedresolution)
 
-### `ApproveResolution`
-
 <a id="agenthooks-approveresolution"></a>
+
+### `ApproveResolution`
 
 approve: the resolver lifts the deny with an allow verdict.
 
@@ -2884,7 +2894,7 @@ additionalProperties: `false`
 MUST equal the request's context_identity byte for byte (echo rule, §9);
 null echoes as null.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `outcome`
 
@@ -2894,9 +2904,9 @@ Type: [`Outcome.Approve`](#agenthooks-outcome).
 
 Type: [`AllowVerdict`](#agenthooks-allowverdict).
 
-### `LiftableDeny`
-
 <a id="agenthooks-liftabledeny"></a>
+
+### `LiftableDeny`
 
 The liftable deny being consulted: an interceptor's (passes §5,
 verdict.schema.json) or the host-synthesized §7.5 shape, whose reason is a
@@ -2917,9 +2927,9 @@ Additional entries: `unknown`.
 
 Type: [`Decision.Deny`](#agenthooks-decision).
 
-### `Outcome`
-
 <a id="agenthooks-outcome"></a>
+
+### `Outcome`
 
 How a consultation ended (§9).
 
@@ -2943,9 +2953,9 @@ Value: `"reject"`.
 
 Value: `"unresolved"`.
 
-### `RejectResolution`
-
 <a id="agenthooks-rejectresolution"></a>
+
+### `RejectResolution`
 
 reject: the resolver keeps a deny.
 
@@ -2965,7 +2975,7 @@ additionalProperties: `false`
 MUST equal the request's context_identity byte for byte (echo rule, §9);
 null echoes as null.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `outcome`
 
@@ -2975,9 +2985,9 @@ Type: [`Outcome.Reject`](#agenthooks-outcome).
 
 Type: [`DenyVerdict`](#agenthooks-denyverdict).
 
-### `request`
-
 <a id="agenthooks-request"></a>
+
+### `request`
 
 What the host hands the resolver (§9).
 
@@ -2996,7 +3006,7 @@ additionalProperties: `false`
 
 #### `context_identity`
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `interception_point`
 
@@ -3012,9 +3022,9 @@ The AgentContext as presented to the resolver. MAY be redacted per host policy.
 
 Type: [`AgentContext`](#agenthooks-agentcontext).
 
-### `resolution`
-
 <a id="agenthooks-resolution"></a>
+
+### `resolution`
 
 What the resolver returns (§9).
 
@@ -3030,9 +3040,9 @@ union resolution {
 - [`RejectResolution`](#agenthooks-rejectresolution)
 - [`UnresolvedResolution`](#agenthooks-unresolvedresolution)
 
-### `ResolutionBase`
-
 <a id="agenthooks-resolutionbase"></a>
+
+### `ResolutionBase`
 
 ```typespec
 model ResolutionBase {
@@ -3045,11 +3055,11 @@ model ResolutionBase {
 MUST equal the request's context_identity byte for byte (echo rule, §9);
 null echoes as null.
 
-Type: `string` | `null`.
-
-### `UnresolvedResolution`
+Type: `string` &#124; `null`.
 
 <a id="agenthooks-unresolvedresolution"></a>
+
+### `UnresolvedResolution`
 
 unresolved: no decision; the deny stands and no verdict is carried.
 
@@ -3068,11 +3078,13 @@ additionalProperties: `false`
 MUST equal the request's context_identity byte for byte (echo rule, §9);
 null echoes as null.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `outcome`
 
 Type: [`Outcome.Unresolved`](#agenthooks-outcome).
+
+<a id="reference-interception-records"></a>
 
 ## Interception records
 
@@ -3085,9 +3097,9 @@ Type: [`Outcome.Unresolved`](#agenthooks-outcome).
 - [`VerdictSlot`](#agenthooks-verdictslot)
 - [`WarningProjection`](#agenthooks-warningprojection)
 
-### `ApprovalPresence`
-
 <a id="agenthooks-approvalpresence"></a>
+
+### `ApprovalPresence`
 
 Presence only; members are stripped by the projection.
 
@@ -3100,9 +3112,9 @@ additionalProperties: `false`
 
 An object with no declared properties.
 
-### `InterceptionRecord`
-
 <a id="agenthooks-interceptionrecord"></a>
+
+### `InterceptionRecord`
 
 Agent Hooks — interception record
 
@@ -3213,13 +3225,13 @@ Type: [`VerdictProjection`](#agenthooks-verdictprojection).
 
 Identity provider output on the context before dispatch; null iff identity_provider is null.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `enforced_identity`
 
 Identity provider output after composition completes; null iff identity_provider is null.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `identity_provider`
 
@@ -3227,7 +3239,7 @@ The declared identity provider (§10.1): "jcs-sha256", a host-defined id
 (name rules enforced: ^[a-z][a-z0-9_-]*$ and never a jcs prefix), or null
 (identity-unbound).
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 pattern: `^(jcs-sha256|(?!jcs)[a-z][a-z0-9_-]*)$`
 
@@ -3263,7 +3275,7 @@ Registration index of the interceptor whose verdict won aggregation or whose
 liftable deny was consulted (§7.6); null for a pure-allow combination or a
 host-synthesized verdict.
 
-Type: `integer` | `null`.
+Type: `integer` &#124; `null`.
 
 minimum: `0`
 
@@ -3313,7 +3325,7 @@ Consultation outcome (§7.6, §10.3): "approval" iff a permit resolution
 substituted for a verdict; "rejection" iff the seam was consulted and did not
 lift the deny; absent/null iff never consulted.
 
-Type: [`ResolvedBy`](#agenthooks-resolvedby) | `null`.
+Type: [`ResolvedBy`](#agenthooks-resolvedby) &#124; `null`.
 
 #### `interceptors_registered`
 
@@ -3323,9 +3335,9 @@ Type: `integer`.
 
 minimum: `0`
 
-### `ResolvedBy`
-
 <a id="agenthooks-resolvedby"></a>
+
+### `ResolvedBy`
 
 Consultation outcomes a record names (§7.6).
 
@@ -3344,9 +3356,9 @@ Value: `"approval"`.
 
 Value: `"rejection"`.
 
-### `SubstitutedFor`
-
 <a id="agenthooks-substitutedfor"></a>
+
+### `SubstitutedFor`
 
 The host_error reasons a continue posture may substitute for (§6.3.1).
 
@@ -3370,9 +3382,9 @@ Value: `"host_error:interceptor_timeout"`.
 
 Value: `"host_error:verdict_invalid"`.
 
-### `Trace`
-
 <a id="agenthooks-trace"></a>
+
+### `Trace`
 
 W3C Trace Context identifiers echoed from the context's optional trace block
 (§4.5, §10.3).
@@ -3395,9 +3407,9 @@ Type: `string`.
 
 Type: `string`.
 
-### `VerdictProjection`
-
 <a id="agenthooks-verdictprojection"></a>
+
+### `VerdictProjection`
 
 A payload-free projection of the combined verdict (§10.3): transform
 details are omitted, approval members stripped, messages truncated to
@@ -3425,15 +3437,15 @@ Type: [`Decision`](#agenthooks-decision).
 
 #### `reason?`
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `message?`
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `warnings?`
 
-Type: [`WarningProjection`](#agenthooks-warningprojection)[] | `null`.
+Type: [`WarningProjection`](#agenthooks-warningprojection)[] &#124; `null`.
 
 #### `evidence?`
 
@@ -3441,15 +3453,15 @@ Type: [`Evidence`](#agenthooks-evidence).
 
 #### `result_labels?`
 
-Type: `string`[] | `null`.
+Type: `string`[] &#124; `null`.
 
 #### `approval?`
 
 Type: [`ApprovalPresence`](#agenthooks-approvalpresence).
 
-### `VerdictSlot`
-
 <a id="agenthooks-verdictslot"></a>
+
+### `VerdictSlot`
 
 Payload-free summary of one interceptor's verdict (§10.3).
 
@@ -3482,7 +3494,7 @@ Type: [`Decision`](#agenthooks-decision).
 
 #### `reason?`
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `name?`
 
@@ -3498,9 +3510,9 @@ carried. The entry's decision is allow and reason is absent.
 
 Type: [`SubstitutedFor`](#agenthooks-substitutedfor).
 
-### `WarningProjection`
-
 <a id="agenthooks-warningprojection"></a>
+
+### `WarningProjection`
 
 Warning metadata retained in a payload-free record projection.
 
@@ -3516,11 +3528,13 @@ additionalProperties: `false`
 
 #### `reason?`
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 #### `message?`
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
+
+<a id="reference-host-declaration"></a>
 
 ## Host declaration
 
@@ -3550,9 +3564,9 @@ Type: `string` | `null`.
 - [`UnanimousSupport`](#agenthooks-unanimoussupport)
 - [`UnbufferedSurface`](#agenthooks-unbufferedsurface)
 
-### `ApprovalConfig`
-
 <a id="agenthooks-approvalconfig"></a>
+
+### `ApprovalConfig`
 
 ```typespec
 @extension("additionalProperties", false)
@@ -3572,7 +3586,7 @@ additionalProperties: `false`
 §9. A registered approval resolver by reference, or null: liftable denies
 stay denies.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 pattern: `^[a-z][a-z0-9_-]{0,63}$`
 
@@ -3580,13 +3594,13 @@ pattern: `^[a-z][a-z0-9_-]{0,63}$`
 
 §9 redaction seam. A registered approval redactor by reference, or null.
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 pattern: `^[a-z][a-z0-9_-]{0,63}$`
 
-### `Binding`
-
 <a id="agenthooks-binding"></a>
+
+### `Binding`
 
 One interceptor binding (§7.7.4).
 
@@ -3662,9 +3676,9 @@ configuration.failure.on_error.
 
 Type: [`OnError`](#agenthooks-onerror).
 
-### `BoundedTimeoutMs`
-
 <a id="agenthooks-boundedtimeoutms"></a>
+
+### `BoundedTimeoutMs`
 
 ```typespec
 @minValue(1)
@@ -3676,9 +3690,9 @@ minimum: `1`; maximum: `3600000`
 
 Base type: `integer`.
 
-### `BufferedSurface`
-
 <a id="agenthooks-bufferedsurface"></a>
+
+### `BufferedSurface`
 
 The surface of a host that buffers output (§12.1a), the default:
 exposure_bound is absent.
@@ -3722,9 +3736,9 @@ Type: `true`.
 
 default: `true`
 
-### `Capability`
-
 <a id="agenthooks-capability"></a>
+
+### `Capability`
 
 The conformance capability vocabulary (§13.1, conformance/draft/vectors.schema.json)
 less buffered_output, which is the boolean surface member, plus
@@ -3780,9 +3794,9 @@ Value: `"incremental_output"`.
 
 Value: `"host_declaration"`.
 
-### `CompositionConfig`
-
 <a id="agenthooks-compositionconfig"></a>
+
+### `CompositionConfig`
 
 §7.2. A knob the declared profile does not consult is refused, never cleared;
 a consulted knob left unset takes the §7.2 default.
@@ -3827,9 +3841,9 @@ Consulted by parallel/strictest only.
 
 Type: [`ConflictResolution`](#agenthooks-conflictresolution).
 
-### `Configuration`
-
 <a id="agenthooks-configuration"></a>
+
+### `Configuration`
 
 Host configuration (§7.1). Every member is OPTIONAL; defaults are the values
 the specification already names and fail closed.
@@ -3872,7 +3886,7 @@ Type: [`CompositionConfig`](#agenthooks-compositionconfig).
 §10.1: "jcs-sha256" (the default), a registered custom provider name
 (^[a-z][a-z0-9_-]{0,63}$, never a jcs prefix), or null (identity-unbound).
 
-Type: `string` | `null`.
+Type: `string` &#124; `null`.
 
 pattern: `^(jcs-sha256|(?!jcs)[a-z][a-z0-9_-]{0,63})$`
 
@@ -3896,9 +3910,9 @@ Type: [`RecordsConfig`](#agenthooks-recordsconfig).
 
 Type: [`FailureConfig`](#agenthooks-failureconfig).
 
-### `FailureConfig`
-
 <a id="agenthooks-failureconfig"></a>
+
+### `FailureConfig`
 
 ```typespec
 @extension("additionalProperties", false)
@@ -3920,9 +3934,9 @@ Type: [`OnError`](#agenthooks-onerror).
 
 default: `"deny"`
 
-### `FirstDenySupport`
-
 <a id="agenthooks-firstdenysupport"></a>
+
+### `FirstDenySupport`
 
 ```typespec
 @extension("additionalProperties", false)
@@ -3941,9 +3955,9 @@ Type: [`OnApproval`](#agenthooks-onapproval)[].
 
 minItems: `1`; uniqueItems
 
-### `Host`
-
 <a id="agenthooks-host"></a>
+
+### `Host`
 
 OPTIONAL and informative; never checked against code.
 
@@ -3975,9 +3989,9 @@ Type: `string`.
 
 minLength: `1`; maxLength: `64`
 
-### `HostDeclaration`
-
 <a id="agenthooks-hostdeclaration"></a>
+
+### `HostDeclaration`
 
 Agent Hooks — host declaration document (agent-hooks/draft)
 
@@ -4072,9 +4086,9 @@ follow the §4.6 namespace rule; the §4.6 reserved namespaces apply.
 
 Type: [`Extensions`](#agenthooks-extensions).
 
-### `OnError`
-
 <a id="agenthooks-onerror"></a>
+
+### `OnError`
 
 The failure posture (§6.3.1).
 
@@ -4093,9 +4107,9 @@ Value: `"deny"`.
 
 Value: `"continue"`.
 
-### `PostureConfig`
-
 <a id="agenthooks-postureconfig"></a>
+
+### `PostureConfig`
 
 ```typespec
 @extension("additionalProperties", false)
@@ -4115,9 +4129,9 @@ Type: [`ToolSeamHostError`](#agenthooks-toolseamhosterror).
 
 default: `"continue"`
 
-### `ProfileSupport`
-
 <a id="agenthooks-profilesupport"></a>
+
+### `ProfileSupport`
 
 Profiles and the knob values supported under each (§13.1). Only the knobs a
 profile consults may appear; an absent knob member means the §7.2 default
@@ -4151,9 +4165,9 @@ Type: [`StrictestSupport`](#agenthooks-strictestsupport).
 
 Type: [`UnanimousSupport`](#agenthooks-unanimoussupport).
 
-### `RecordsConfig`
-
 <a id="agenthooks-recordsconfig"></a>
+
+### `RecordsConfig`
 
 ```typespec
 @extension("additionalProperties", false)
@@ -4171,13 +4185,13 @@ additionalProperties: `false`
 In-memory record buffer bound; null (the default) is unbounded. The maximum
 is 2^53 - 1 so the resolved document always canonicalises (§4.4).
 
-Type: `integer` | `null`.
+Type: `integer` &#124; `null`.
 
 minimum: `1`; maximum: `9007199254740991`
 
-### `Reference`
-
 <a id="agenthooks-reference"></a>
+
+### `Reference`
 
 Grammar of a registered name: provider, resolver, redactor or binding id.
 
@@ -4190,9 +4204,9 @@ pattern: `^[a-z][a-z0-9_-]{0,63}$`
 
 Base type: `string`.
 
-### `RunAllSupport`
-
 <a id="agenthooks-runallsupport"></a>
+
+### `RunAllSupport`
 
 ```typespec
 @extension("additionalProperties", false)
@@ -4203,9 +4217,9 @@ additionalProperties: `false`
 
 An object with no declared properties.
 
-### `StrictestSupport`
-
 <a id="agenthooks-strictestsupport"></a>
+
+### `StrictestSupport`
 
 ```typespec
 @extension("additionalProperties", false)
@@ -4224,9 +4238,9 @@ Type: [`ConflictResolution`](#agenthooks-conflictresolution)[].
 
 minItems: `1`; uniqueItems
 
-### `Surface`
-
 <a id="agenthooks-surface"></a>
+
+### `Surface`
 
 The declared surface (§13.1) in file form, by output posture.
 
@@ -4240,9 +4254,9 @@ union Surface {
 - [`BufferedSurface`](#agenthooks-bufferedsurface)
 - [`UnbufferedSurface`](#agenthooks-unbufferedsurface)
 
-### `SurfaceBase`
-
 <a id="agenthooks-surfacebase"></a>
+
+### `SurfaceBase`
 
 ```typespec
 model SurfaceBase {
@@ -4277,9 +4291,9 @@ uniqueItems
 
 Type: [`ProfileSupport`](#agenthooks-profilesupport).
 
-### `TimeoutMs`
-
 <a id="agenthooks-timeoutms"></a>
+
+### `TimeoutMs`
 
 A bound in milliseconds; null is unbounded.
 
@@ -4293,9 +4307,9 @@ union TimeoutMs {
 - [`BoundedTimeoutMs`](#agenthooks-boundedtimeoutms)
 - `null`
 
-### `TimeoutsConfig`
-
 <a id="agenthooks-timeoutsconfig"></a>
+
+### `TimeoutsConfig`
 
 ```typespec
 @extension("additionalProperties", false)
@@ -4320,9 +4334,9 @@ Type: [`TimeoutMs`](#agenthooks-timeoutms).
 
 Type: [`TimeoutMs`](#agenthooks-timeoutms).
 
-### `ToolSeamHostError`
-
 <a id="agenthooks-toolseamhosterror"></a>
+
+### `ToolSeamHostError`
 
 The tool-seam posture a host implements (§13.1).
 
@@ -4341,9 +4355,9 @@ Value: `"continue"`.
 
 Value: `"terminate"`.
 
-### `UnanimousSupport`
-
 <a id="agenthooks-unanimoussupport"></a>
+
+### `UnanimousSupport`
 
 ```typespec
 @extension("additionalProperties", false)
@@ -4362,9 +4376,9 @@ Type: [`ConflictResolution`](#agenthooks-conflictresolution)[].
 
 minItems: `1`; uniqueItems
 
-### `UnbufferedSurface`
-
 <a id="agenthooks-unbufferedsurface"></a>
+
+### `UnbufferedSurface`
 
 The surface of a host that streams output (§12.1a): buffered_output is
 written as false and exposure_bound is present.

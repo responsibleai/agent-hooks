@@ -6,13 +6,15 @@ Generated from the TypeSpec declarations. A `?` marks an optional property; `nul
 
 See the [declaration reference](REFERENCE.md) for TypeSpec excerpts and per-property documentation.
 
-- [Common types](#common-types)
-- [Hook requests](#hook-requests)
-- [Hook responses](#hook-responses)
-- [Verdicts](#verdicts)
-- [Approval seam](#approval-seam)
-- [Interception records](#interception-records)
-- [Host declaration](#host-declaration)
+- [Common types](#reference-common-types)
+- [Hook requests](#reference-hook-requests)
+- [Hook responses](#reference-hook-responses)
+- [Verdicts](#reference-verdicts)
+- [Approval seam](#reference-approval-seam)
+- [Interception records](#reference-interception-records)
+- [Host declaration](#reference-host-declaration)
+
+<a id="reference-common-types"></a>
 
 ## Common types
 
@@ -24,33 +26,33 @@ See the [declaration reference](REFERENCE.md) for TypeSpec excerpts and per-prop
 - [`Mode`](#agenthooks-mode)
 - [`OnApproval`](#agenthooks-onapproval)
 
-### `CompositionProfile`
-
 <a id="agenthooks-compositionprofile"></a>
+
+### `CompositionProfile`
 
 Composition profiles (§7.1), in §7.2 table order.
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `SequentialFirstDeny` | `"sequential/first_deny"` |  |
-| `SequentialRunAll` | `"sequential/run_all"` |  |
-| `ParallelStrictest` | `"parallel/strictest"` |  |
-| `ParallelUnanimous` | `"parallel/unanimous"` |  |
-
-### `ConflictResolution`
+|`SequentialFirstDeny` |`"sequential/first_deny"` | |
+|`SequentialRunAll` |`"sequential/run_all"` | |
+|`ParallelStrictest` |`"parallel/strictest"` | |
+|`ParallelUnanimous` |`"parallel/unanimous"` | |
 
 <a id="agenthooks-conflictresolution"></a>
 
+### `ConflictResolution`
+
 Values of the on_disagreement and on_transform_conflict knobs (§7.2).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `Deny` | `"deny"` |  |
-| `Approval` | `"approval"` |  |
-
-### `Extensions`
+|`Deny` |`"deny"` | |
+|`Approval` |`"approval"` | |
 
 <a id="agenthooks-extensions"></a>
+
+### `Extensions`
 
 Namespaced extensions (§4.6): any value under a key that follows the
 namespace rule.
@@ -59,54 +61,56 @@ propertyNames: `{"pattern":"^[a-z][a-z0-9_]*$"}`
 
 Additional entries: `unknown`.
 
-### `InterceptionPoint`
-
 <a id="agenthooks-interceptionpoint"></a>
+
+### `InterceptionPoint`
 
 Agent Hooks — interception point
 
 The closed set of agent lifecycle interception points (AGENT-HOOKS-0.1 §3).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `AgentStartup` | `"agent_startup"` |  |
-| `Input` | `"input"` |  |
-| `PreModelCall` | `"pre_model_call"` |  |
-| `PostModelCall` | `"post_model_call"` |  |
-| `PreToolCall` | `"pre_tool_call"` |  |
-| `PostToolCall` | `"post_tool_call"` |  |
-| `Output` | `"output"` |  |
-| `AgentShutdown` | `"agent_shutdown"` |  |
-
-### `JsonObject`
+|`AgentStartup` |`"agent_startup"` | |
+|`Input` |`"input"` | |
+|`PreModelCall` |`"pre_model_call"` | |
+|`PostModelCall` |`"post_model_call"` | |
+|`PreToolCall` |`"pre_tool_call"` | |
+|`PostToolCall` |`"post_tool_call"` | |
+|`Output` |`"output"` | |
+|`AgentShutdown` |`"agent_shutdown"` | |
 
 <a id="agenthooks-jsonobject"></a>
+
+### `JsonObject`
 
 An open JSON object, not an arbitrary JSON value.
 
 An object with no declared properties.
 
-### `Mode`
-
 <a id="agenthooks-mode"></a>
+
+### `Mode`
 
 Enforcement modes (§8).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `Enforce` | `"enforce"` |  |
-| `EvaluateOnly` | `"evaluate_only"` |  |
-
-### `OnApproval`
+|`Enforce` |`"enforce"` | |
+|`EvaluateOnly` |`"evaluate_only"` | |
 
 <a id="agenthooks-onapproval"></a>
 
+### `OnApproval`
+
 Values of the on_approval knob (§7.2).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `Stop` | `"stop"` |  |
-| `Resume` | `"resume"` |  |
+|`Stop` |`"stop"` | |
+|`Resume` |`"resume"` | |
+
+<a id="reference-hook-requests"></a>
 
 ## Hook requests
 
@@ -137,21 +141,21 @@ Values of the on_approval knob (§7.2).
 - [`ToolResult`](#agenthooks-toolresult)
 - [`Usage`](#agenthooks-usage)
 
-### `ActorKind`
-
 <a id="agenthooks-actorkind"></a>
+
+### `ActorKind`
 
 Who acts (§4.5).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `Human` | `"human"` |  |
-| `Service` | `"service"` |  |
-| `Agent` | `"agent"` |  |
-
-### `AgentContext`
+|`Human` |`"human"` | |
+|`Service` |`"service"` | |
+|`Agent` |`"agent"` | |
 
 <a id="agenthooks-agentcontext"></a>
+
+### `AgentContext`
 
 Agent Hooks — agent context
 
@@ -168,130 +172,130 @@ metadata and optional namespaced extensions.
 - [`OutputRequest`](#agenthooks-outputrequest)
 - [`AgentShutdownRequest`](#agenthooks-agentshutdownrequest)
 
-### `AgentInit`
-
 <a id="agenthooks-agentinit"></a>
+
+### `AgentInit`
 
 Conditional payload of agent_startup (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `tools_registered` | `string`[] |  |  |
-
-### `AgentShutdownRequest`
+|`tools_registered` |`string`[] | | |
 
 <a id="agenthooks-agentshutdownrequest"></a>
 
+### `AgentShutdownRequest`
+
 The request at agent_shutdown: summary is required (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `spec` | `"agent-hooks/draft"` | This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. |  |
-| `timestamp` | `string` |  | format: `date-time` |
-| `sequence` | `integer` |  | minimum: `0` |
-| `agent` | { `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } |  |  |
-| `agent.id` | `string` |  | minLength: `1` |
-| `agent.framework` | `string` |  | pattern: `^[a-z0-9_-]+$` |
-| `agent.name?` | `string` |  |  |
-| `agent.version?` | `string` |  |  |
-| `session` | { `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } |  |  |
-| `session.id` | `string` |  | minLength: `1` |
-| `session.started_at?` | `string` |  | format: `date-time` |
-| `session.turn?` | `integer` |  | minimum: `0` |
-| `trace?` | { `trace_id?`: `string`; `span_id?`: `string` } |  |  |
-| `trace?.trace_id?` | `string` |  |  |
-| `trace?.span_id?` | `string` |  |  |
-| `tenant?` | { `id?`: `string`; `name?`: `string` } |  |  |
-| `tenant?.id?` | `string` |  |  |
-| `tenant?.name?` | `string` |  |  |
-| `actor?` | { `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } |  |  |
-| `actor?.id?` | `string` |  |  |
-| `actor?.kind?` | [`ActorKind`](#agenthooks-actorkind) |  |  |
-| `budgets?` | { `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } |  |  |
-| `budgets?.tool_call_count?` | `float64` |  |  |
-| `budgets?.token_count?` | `float64` |  |  |
-| `budgets?.elapsed_seconds?` | `float64` |  |  |
-| `budgets?.cost_usd?` | `float64` |  |  |
-| `interception_point` | [`InterceptionPoint.AgentShutdown`](#agenthooks-interceptionpoint) |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-| `summary` | [`Summary`](#agenthooks-summary) |  |  |
-
-### `AgentStartupRequest`
+|`spec` |`"agent-hooks/draft"` |This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. | |
+|`timestamp` |`string` | |format: `date-time` |
+|`sequence` |`integer` | |minimum: `0` |
+|`agent` |{ `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } | | |
+|`agent.id` |`string` | |minLength: `1` |
+|`agent.framework` |`string` | |pattern: `^[a-z0-9_-]+$` |
+|`agent.name?` |`string` | | |
+|`agent.version?` |`string` | | |
+|`session` |{ `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } | | |
+|`session.id` |`string` | |minLength: `1` |
+|`session.started_at?` |`string` | |format: `date-time` |
+|`session.turn?` |`integer` | |minimum: `0` |
+|`trace?` |{ `trace_id?`: `string`; `span_id?`: `string` } | | |
+|`trace?.trace_id?` |`string` | | |
+|`trace?.span_id?` |`string` | | |
+|`tenant?` |{ `id?`: `string`; `name?`: `string` } | | |
+|`tenant?.id?` |`string` | | |
+|`tenant?.name?` |`string` | | |
+|`actor?` |{ `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } | | |
+|`actor?.id?` |`string` | | |
+|`actor?.kind?` |[`ActorKind`](#agenthooks-actorkind) | | |
+|`budgets?` |{ `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } | | |
+|`budgets?.tool_call_count?` |`float64` | | |
+|`budgets?.token_count?` |`float64` | | |
+|`budgets?.elapsed_seconds?` |`float64` | | |
+|`budgets?.cost_usd?` |`float64` | | |
+|`interception_point` |[`InterceptionPoint.AgentShutdown`](#agenthooks-interceptionpoint) | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
+|`summary` |[`Summary`](#agenthooks-summary) | | |
 
 <a id="agenthooks-agentstartuprequest"></a>
 
+### `AgentStartupRequest`
+
 The request at agent_startup: agent_init is required (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `spec` | `"agent-hooks/draft"` | This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. |  |
-| `timestamp` | `string` |  | format: `date-time` |
-| `sequence` | `integer` |  | minimum: `0` |
-| `agent` | { `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } |  |  |
-| `agent.id` | `string` |  | minLength: `1` |
-| `agent.framework` | `string` |  | pattern: `^[a-z0-9_-]+$` |
-| `agent.name?` | `string` |  |  |
-| `agent.version?` | `string` |  |  |
-| `session` | { `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } |  |  |
-| `session.id` | `string` |  | minLength: `1` |
-| `session.started_at?` | `string` |  | format: `date-time` |
-| `session.turn?` | `integer` |  | minimum: `0` |
-| `trace?` | { `trace_id?`: `string`; `span_id?`: `string` } |  |  |
-| `trace?.trace_id?` | `string` |  |  |
-| `trace?.span_id?` | `string` |  |  |
-| `tenant?` | { `id?`: `string`; `name?`: `string` } |  |  |
-| `tenant?.id?` | `string` |  |  |
-| `tenant?.name?` | `string` |  |  |
-| `actor?` | { `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } |  |  |
-| `actor?.id?` | `string` |  |  |
-| `actor?.kind?` | [`ActorKind`](#agenthooks-actorkind) |  |  |
-| `budgets?` | { `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } |  |  |
-| `budgets?.tool_call_count?` | `float64` |  |  |
-| `budgets?.token_count?` | `float64` |  |  |
-| `budgets?.elapsed_seconds?` | `float64` |  |  |
-| `budgets?.cost_usd?` | `float64` |  |  |
-| `interception_point` | [`InterceptionPoint.AgentStartup`](#agenthooks-interceptionpoint) |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-| `agent_init` | [`AgentInit`](#agenthooks-agentinit) |  |  |
-
-### `ContextMetadata`
+|`spec` |`"agent-hooks/draft"` |This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. | |
+|`timestamp` |`string` | |format: `date-time` |
+|`sequence` |`integer` | |minimum: `0` |
+|`agent` |{ `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } | | |
+|`agent.id` |`string` | |minLength: `1` |
+|`agent.framework` |`string` | |pattern: `^[a-z0-9_-]+$` |
+|`agent.name?` |`string` | | |
+|`agent.version?` |`string` | | |
+|`session` |{ `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } | | |
+|`session.id` |`string` | |minLength: `1` |
+|`session.started_at?` |`string` | |format: `date-time` |
+|`session.turn?` |`integer` | |minimum: `0` |
+|`trace?` |{ `trace_id?`: `string`; `span_id?`: `string` } | | |
+|`trace?.trace_id?` |`string` | | |
+|`trace?.span_id?` |`string` | | |
+|`tenant?` |{ `id?`: `string`; `name?`: `string` } | | |
+|`tenant?.id?` |`string` | | |
+|`tenant?.name?` |`string` | | |
+|`actor?` |{ `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } | | |
+|`actor?.id?` |`string` | | |
+|`actor?.kind?` |[`ActorKind`](#agenthooks-actorkind) | | |
+|`budgets?` |{ `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } | | |
+|`budgets?.tool_call_count?` |`float64` | | |
+|`budgets?.token_count?` |`float64` | | |
+|`budgets?.elapsed_seconds?` |`float64` | | |
+|`budgets?.cost_usd?` |`float64` | | |
+|`interception_point` |[`InterceptionPoint.AgentStartup`](#agenthooks-interceptionpoint) | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
+|`agent_init` |[`AgentInit`](#agenthooks-agentinit) | | |
 
 <a id="agenthooks-contextmetadata"></a>
 
+### `ContextMetadata`
+
 Metadata available at every interception point.
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `spec` | `"agent-hooks/draft"` | This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. |  |
-| `timestamp` | `string` |  | format: `date-time` |
-| `sequence` | `integer` |  | minimum: `0` |
-| `agent` | { `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } |  |  |
-| `agent.id` | `string` |  | minLength: `1` |
-| `agent.framework` | `string` |  | pattern: `^[a-z0-9_-]+$` |
-| `agent.name?` | `string` |  |  |
-| `agent.version?` | `string` |  |  |
-| `session` | { `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } |  |  |
-| `session.id` | `string` |  | minLength: `1` |
-| `session.started_at?` | `string` |  | format: `date-time` |
-| `session.turn?` | `integer` |  | minimum: `0` |
-| `trace?` | { `trace_id?`: `string`; `span_id?`: `string` } |  |  |
-| `trace?.trace_id?` | `string` |  |  |
-| `trace?.span_id?` | `string` |  |  |
-| `tenant?` | { `id?`: `string`; `name?`: `string` } |  |  |
-| `tenant?.id?` | `string` |  |  |
-| `tenant?.name?` | `string` |  |  |
-| `actor?` | { `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } |  |  |
-| `actor?.id?` | `string` |  |  |
-| `actor?.kind?` | [`ActorKind`](#agenthooks-actorkind) |  |  |
-| `budgets?` | { `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } |  |  |
-| `budgets?.tool_call_count?` | `float64` |  |  |
-| `budgets?.token_count?` | `float64` |  |  |
-| `budgets?.elapsed_seconds?` | `float64` |  |  |
-| `budgets?.cost_usd?` | `float64` |  |  |
-
-### `HooksRequest<TPoint>`
+|`spec` |`"agent-hooks/draft"` |This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. | |
+|`timestamp` |`string` | |format: `date-time` |
+|`sequence` |`integer` | |minimum: `0` |
+|`agent` |{ `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } | | |
+|`agent.id` |`string` | |minLength: `1` |
+|`agent.framework` |`string` | |pattern: `^[a-z0-9_-]+$` |
+|`agent.name?` |`string` | | |
+|`agent.version?` |`string` | | |
+|`session` |{ `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } | | |
+|`session.id` |`string` | |minLength: `1` |
+|`session.started_at?` |`string` | |format: `date-time` |
+|`session.turn?` |`integer` | |minimum: `0` |
+|`trace?` |{ `trace_id?`: `string`; `span_id?`: `string` } | | |
+|`trace?.trace_id?` |`string` | | |
+|`trace?.span_id?` |`string` | | |
+|`tenant?` |{ `id?`: `string`; `name?`: `string` } | | |
+|`tenant?.id?` |`string` | | |
+|`tenant?.name?` |`string` | | |
+|`actor?` |{ `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } | | |
+|`actor?.id?` |`string` | | |
+|`actor?.kind?` |[`ActorKind`](#agenthooks-actorkind) | | |
+|`budgets?` |{ `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } | | |
+|`budgets?.tool_call_count?` |`float64` | | |
+|`budgets?.token_count?` |`float64` | | |
+|`budgets?.elapsed_seconds?` |`float64` | | |
+|`budgets?.cost_usd?` |`float64` | | |
 
 <a id="agenthooks-hooksrequest"></a>
+
+### `HooksRequest<TPoint>`
 
 ```typespec
 model HooksRequest<TPoint extends InterceptionPoint = InterceptionPoint> {
@@ -301,424 +305,426 @@ model HooksRequest<TPoint extends InterceptionPoint = InterceptionPoint> {
 }
 ```
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `spec` | `"agent-hooks/draft"` | This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. |  |
-| `timestamp` | `string` |  | format: `date-time` |
-| `sequence` | `integer` |  | minimum: `0` |
-| `agent` | { `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } |  |  |
-| `agent.id` | `string` |  | minLength: `1` |
-| `agent.framework` | `string` |  | pattern: `^[a-z0-9_-]+$` |
-| `agent.name?` | `string` |  |  |
-| `agent.version?` | `string` |  |  |
-| `session` | { `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } |  |  |
-| `session.id` | `string` |  | minLength: `1` |
-| `session.started_at?` | `string` |  | format: `date-time` |
-| `session.turn?` | `integer` |  | minimum: `0` |
-| `trace?` | { `trace_id?`: `string`; `span_id?`: `string` } |  |  |
-| `trace?.trace_id?` | `string` |  |  |
-| `trace?.span_id?` | `string` |  |  |
-| `tenant?` | { `id?`: `string`; `name?`: `string` } |  |  |
-| `tenant?.id?` | `string` |  |  |
-| `tenant?.name?` | `string` |  |  |
-| `actor?` | { `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } |  |  |
-| `actor?.id?` | `string` |  |  |
-| `actor?.kind?` | [`ActorKind`](#agenthooks-actorkind) |  |  |
-| `budgets?` | { `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } |  |  |
-| `budgets?.tool_call_count?` | `float64` |  |  |
-| `budgets?.token_count?` | `float64` |  |  |
-| `budgets?.elapsed_seconds?` | `float64` |  |  |
-| `budgets?.cost_usd?` | `float64` |  |  |
-| `interception_point` | `TPoint` |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-
-### `Input`
+|`spec` |`"agent-hooks/draft"` |This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. | |
+|`timestamp` |`string` | |format: `date-time` |
+|`sequence` |`integer` | |minimum: `0` |
+|`agent` |{ `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } | | |
+|`agent.id` |`string` | |minLength: `1` |
+|`agent.framework` |`string` | |pattern: `^[a-z0-9_-]+$` |
+|`agent.name?` |`string` | | |
+|`agent.version?` |`string` | | |
+|`session` |{ `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } | | |
+|`session.id` |`string` | |minLength: `1` |
+|`session.started_at?` |`string` | |format: `date-time` |
+|`session.turn?` |`integer` | |minimum: `0` |
+|`trace?` |{ `trace_id?`: `string`; `span_id?`: `string` } | | |
+|`trace?.trace_id?` |`string` | | |
+|`trace?.span_id?` |`string` | | |
+|`tenant?` |{ `id?`: `string`; `name?`: `string` } | | |
+|`tenant?.id?` |`string` | | |
+|`tenant?.name?` |`string` | | |
+|`actor?` |{ `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } | | |
+|`actor?.id?` |`string` | | |
+|`actor?.kind?` |[`ActorKind`](#agenthooks-actorkind) | | |
+|`budgets?` |{ `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } | | |
+|`budgets?.tool_call_count?` |`float64` | | |
+|`budgets?.token_count?` |`float64` | | |
+|`budgets?.elapsed_seconds?` |`float64` | | |
+|`budgets?.cost_usd?` |`float64` | | |
+|`interception_point` |`TPoint` | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
 
 <a id="agenthooks-input"></a>
 
+### `Input`
+
 Conditional payload of input (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `content` | `unknown` |  |  |
-| `role` | [`InputRole`](#agenthooks-inputrole) |  |  |
-
-### `InputRequest`
+|`content` |`unknown` | | |
+|`role` |[`InputRole`](#agenthooks-inputrole) | | |
 
 <a id="agenthooks-inputrequest"></a>
 
+### `InputRequest`
+
 The request at input: input is required (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `spec` | `"agent-hooks/draft"` | This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. |  |
-| `timestamp` | `string` |  | format: `date-time` |
-| `sequence` | `integer` |  | minimum: `0` |
-| `agent` | { `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } |  |  |
-| `agent.id` | `string` |  | minLength: `1` |
-| `agent.framework` | `string` |  | pattern: `^[a-z0-9_-]+$` |
-| `agent.name?` | `string` |  |  |
-| `agent.version?` | `string` |  |  |
-| `session` | { `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } |  |  |
-| `session.id` | `string` |  | minLength: `1` |
-| `session.started_at?` | `string` |  | format: `date-time` |
-| `session.turn?` | `integer` |  | minimum: `0` |
-| `trace?` | { `trace_id?`: `string`; `span_id?`: `string` } |  |  |
-| `trace?.trace_id?` | `string` |  |  |
-| `trace?.span_id?` | `string` |  |  |
-| `tenant?` | { `id?`: `string`; `name?`: `string` } |  |  |
-| `tenant?.id?` | `string` |  |  |
-| `tenant?.name?` | `string` |  |  |
-| `actor?` | { `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } |  |  |
-| `actor?.id?` | `string` |  |  |
-| `actor?.kind?` | [`ActorKind`](#agenthooks-actorkind) |  |  |
-| `budgets?` | { `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } |  |  |
-| `budgets?.tool_call_count?` | `float64` |  |  |
-| `budgets?.token_count?` | `float64` |  |  |
-| `budgets?.elapsed_seconds?` | `float64` |  |  |
-| `budgets?.cost_usd?` | `float64` |  |  |
-| `interception_point` | [`InterceptionPoint.Input`](#agenthooks-interceptionpoint) |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-| `input` | [`Input`](#agenthooks-input) |  |  |
-
-### `InputRole`
+|`spec` |`"agent-hooks/draft"` |This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. | |
+|`timestamp` |`string` | |format: `date-time` |
+|`sequence` |`integer` | |minimum: `0` |
+|`agent` |{ `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } | | |
+|`agent.id` |`string` | |minLength: `1` |
+|`agent.framework` |`string` | |pattern: `^[a-z0-9_-]+$` |
+|`agent.name?` |`string` | | |
+|`agent.version?` |`string` | | |
+|`session` |{ `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } | | |
+|`session.id` |`string` | |minLength: `1` |
+|`session.started_at?` |`string` | |format: `date-time` |
+|`session.turn?` |`integer` | |minimum: `0` |
+|`trace?` |{ `trace_id?`: `string`; `span_id?`: `string` } | | |
+|`trace?.trace_id?` |`string` | | |
+|`trace?.span_id?` |`string` | | |
+|`tenant?` |{ `id?`: `string`; `name?`: `string` } | | |
+|`tenant?.id?` |`string` | | |
+|`tenant?.name?` |`string` | | |
+|`actor?` |{ `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } | | |
+|`actor?.id?` |`string` | | |
+|`actor?.kind?` |[`ActorKind`](#agenthooks-actorkind) | | |
+|`budgets?` |{ `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } | | |
+|`budgets?.tool_call_count?` |`float64` | | |
+|`budgets?.token_count?` |`float64` | | |
+|`budgets?.elapsed_seconds?` |`float64` | | |
+|`budgets?.cost_usd?` |`float64` | | |
+|`interception_point` |[`InterceptionPoint.Input`](#agenthooks-interceptionpoint) | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
+|`input` |[`Input`](#agenthooks-input) | | |
 
 <a id="agenthooks-inputrole"></a>
 
+### `InputRole`
+
 Who produced an input (§4.2).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `User` | `"user"` |  |
-| `System` | `"system"` |  |
-| `External` | `"external"` |  |
-
-### `Message`
+|`User` |`"user"` | |
+|`System` |`"system"` | |
+|`External` |`"external"` | |
 
 <a id="agenthooks-message"></a>
 
+### `Message`
+
 One message of the model request (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `role` | `string` |  |  |
-| `content` | `unknown` |  |  |
-
-### `Model`
+|`role` |`string` | | |
+|`content` |`unknown` | | |
 
 <a id="agenthooks-model"></a>
 
+### `Model`
+
 Conditional payload of pre_model_call and post_model_call (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `id` | `string` |  |  |
-| `vendor?` | `string` |  |  |
-| `params?` | [`JsonObject`](#agenthooks-jsonobject) |  |  |
-
-### `Output`
+|`id` |`string` | | |
+|`vendor?` |`string` | | |
+|`params?` |[`JsonObject`](#agenthooks-jsonobject) | | |
 
 <a id="agenthooks-output"></a>
 
+### `Output`
+
 Conditional payload of output (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `content` | `unknown` |  |  |
-
-### `OutputRequest`
+|`content` |`unknown` | | |
 
 <a id="agenthooks-outputrequest"></a>
 
+### `OutputRequest`
+
 The request at output: output is required (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `spec` | `"agent-hooks/draft"` | This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. |  |
-| `timestamp` | `string` |  | format: `date-time` |
-| `sequence` | `integer` |  | minimum: `0` |
-| `agent` | { `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } |  |  |
-| `agent.id` | `string` |  | minLength: `1` |
-| `agent.framework` | `string` |  | pattern: `^[a-z0-9_-]+$` |
-| `agent.name?` | `string` |  |  |
-| `agent.version?` | `string` |  |  |
-| `session` | { `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } |  |  |
-| `session.id` | `string` |  | minLength: `1` |
-| `session.started_at?` | `string` |  | format: `date-time` |
-| `session.turn?` | `integer` |  | minimum: `0` |
-| `trace?` | { `trace_id?`: `string`; `span_id?`: `string` } |  |  |
-| `trace?.trace_id?` | `string` |  |  |
-| `trace?.span_id?` | `string` |  |  |
-| `tenant?` | { `id?`: `string`; `name?`: `string` } |  |  |
-| `tenant?.id?` | `string` |  |  |
-| `tenant?.name?` | `string` |  |  |
-| `actor?` | { `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } |  |  |
-| `actor?.id?` | `string` |  |  |
-| `actor?.kind?` | [`ActorKind`](#agenthooks-actorkind) |  |  |
-| `budgets?` | { `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } |  |  |
-| `budgets?.tool_call_count?` | `float64` |  |  |
-| `budgets?.token_count?` | `float64` |  |  |
-| `budgets?.elapsed_seconds?` | `float64` |  |  |
-| `budgets?.cost_usd?` | `float64` |  |  |
-| `interception_point` | [`InterceptionPoint.Output`](#agenthooks-interceptionpoint) |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-| `output` | [`Output`](#agenthooks-output) |  |  |
-
-### `PostModelCallRequest`
+|`spec` |`"agent-hooks/draft"` |This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. | |
+|`timestamp` |`string` | |format: `date-time` |
+|`sequence` |`integer` | |minimum: `0` |
+|`agent` |{ `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } | | |
+|`agent.id` |`string` | |minLength: `1` |
+|`agent.framework` |`string` | |pattern: `^[a-z0-9_-]+$` |
+|`agent.name?` |`string` | | |
+|`agent.version?` |`string` | | |
+|`session` |{ `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } | | |
+|`session.id` |`string` | |minLength: `1` |
+|`session.started_at?` |`string` | |format: `date-time` |
+|`session.turn?` |`integer` | |minimum: `0` |
+|`trace?` |{ `trace_id?`: `string`; `span_id?`: `string` } | | |
+|`trace?.trace_id?` |`string` | | |
+|`trace?.span_id?` |`string` | | |
+|`tenant?` |{ `id?`: `string`; `name?`: `string` } | | |
+|`tenant?.id?` |`string` | | |
+|`tenant?.name?` |`string` | | |
+|`actor?` |{ `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } | | |
+|`actor?.id?` |`string` | | |
+|`actor?.kind?` |[`ActorKind`](#agenthooks-actorkind) | | |
+|`budgets?` |{ `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } | | |
+|`budgets?.tool_call_count?` |`float64` | | |
+|`budgets?.token_count?` |`float64` | | |
+|`budgets?.elapsed_seconds?` |`float64` | | |
+|`budgets?.cost_usd?` |`float64` | | |
+|`interception_point` |[`InterceptionPoint.Output`](#agenthooks-interceptionpoint) | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
+|`output` |[`Output`](#agenthooks-output) | | |
 
 <a id="agenthooks-postmodelcallrequest"></a>
 
+### `PostModelCallRequest`
+
 The request at post_model_call: model and response are required (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `spec` | `"agent-hooks/draft"` | This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. |  |
-| `timestamp` | `string` |  | format: `date-time` |
-| `sequence` | `integer` |  | minimum: `0` |
-| `agent` | { `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } |  |  |
-| `agent.id` | `string` |  | minLength: `1` |
-| `agent.framework` | `string` |  | pattern: `^[a-z0-9_-]+$` |
-| `agent.name?` | `string` |  |  |
-| `agent.version?` | `string` |  |  |
-| `session` | { `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } |  |  |
-| `session.id` | `string` |  | minLength: `1` |
-| `session.started_at?` | `string` |  | format: `date-time` |
-| `session.turn?` | `integer` |  | minimum: `0` |
-| `trace?` | { `trace_id?`: `string`; `span_id?`: `string` } |  |  |
-| `trace?.trace_id?` | `string` |  |  |
-| `trace?.span_id?` | `string` |  |  |
-| `tenant?` | { `id?`: `string`; `name?`: `string` } |  |  |
-| `tenant?.id?` | `string` |  |  |
-| `tenant?.name?` | `string` |  |  |
-| `actor?` | { `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } |  |  |
-| `actor?.id?` | `string` |  |  |
-| `actor?.kind?` | [`ActorKind`](#agenthooks-actorkind) |  |  |
-| `budgets?` | { `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } |  |  |
-| `budgets?.tool_call_count?` | `float64` |  |  |
-| `budgets?.token_count?` | `float64` |  |  |
-| `budgets?.elapsed_seconds?` | `float64` |  |  |
-| `budgets?.cost_usd?` | `float64` |  |  |
-| `interception_point` | [`InterceptionPoint.PostModelCall`](#agenthooks-interceptionpoint) |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-| `model` | [`Model`](#agenthooks-model) |  |  |
-| `response` | [`Response`](#agenthooks-response) |  |  |
-| `request_id?` | `string` |  |  |
-| `usage?` | [`Usage`](#agenthooks-usage) |  |  |
-
-### `PostToolCallRequest`
+|`spec` |`"agent-hooks/draft"` |This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. | |
+|`timestamp` |`string` | |format: `date-time` |
+|`sequence` |`integer` | |minimum: `0` |
+|`agent` |{ `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } | | |
+|`agent.id` |`string` | |minLength: `1` |
+|`agent.framework` |`string` | |pattern: `^[a-z0-9_-]+$` |
+|`agent.name?` |`string` | | |
+|`agent.version?` |`string` | | |
+|`session` |{ `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } | | |
+|`session.id` |`string` | |minLength: `1` |
+|`session.started_at?` |`string` | |format: `date-time` |
+|`session.turn?` |`integer` | |minimum: `0` |
+|`trace?` |{ `trace_id?`: `string`; `span_id?`: `string` } | | |
+|`trace?.trace_id?` |`string` | | |
+|`trace?.span_id?` |`string` | | |
+|`tenant?` |{ `id?`: `string`; `name?`: `string` } | | |
+|`tenant?.id?` |`string` | | |
+|`tenant?.name?` |`string` | | |
+|`actor?` |{ `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } | | |
+|`actor?.id?` |`string` | | |
+|`actor?.kind?` |[`ActorKind`](#agenthooks-actorkind) | | |
+|`budgets?` |{ `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } | | |
+|`budgets?.tool_call_count?` |`float64` | | |
+|`budgets?.token_count?` |`float64` | | |
+|`budgets?.elapsed_seconds?` |`float64` | | |
+|`budgets?.cost_usd?` |`float64` | | |
+|`interception_point` |[`InterceptionPoint.PostModelCall`](#agenthooks-interceptionpoint) | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
+|`model` |[`Model`](#agenthooks-model) | | |
+|`response` |[`Response`](#agenthooks-response) | | |
+|`request_id?` |`string` | | |
+|`usage?` |[`Usage`](#agenthooks-usage) | | |
 
 <a id="agenthooks-posttoolcallrequest"></a>
 
+### `PostToolCallRequest`
+
 The request at post_tool_call: tool_call and tool_result are required (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `spec` | `"agent-hooks/draft"` | This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. |  |
-| `timestamp` | `string` |  | format: `date-time` |
-| `sequence` | `integer` |  | minimum: `0` |
-| `agent` | { `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } |  |  |
-| `agent.id` | `string` |  | minLength: `1` |
-| `agent.framework` | `string` |  | pattern: `^[a-z0-9_-]+$` |
-| `agent.name?` | `string` |  |  |
-| `agent.version?` | `string` |  |  |
-| `session` | { `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } |  |  |
-| `session.id` | `string` |  | minLength: `1` |
-| `session.started_at?` | `string` |  | format: `date-time` |
-| `session.turn?` | `integer` |  | minimum: `0` |
-| `trace?` | { `trace_id?`: `string`; `span_id?`: `string` } |  |  |
-| `trace?.trace_id?` | `string` |  |  |
-| `trace?.span_id?` | `string` |  |  |
-| `tenant?` | { `id?`: `string`; `name?`: `string` } |  |  |
-| `tenant?.id?` | `string` |  |  |
-| `tenant?.name?` | `string` |  |  |
-| `actor?` | { `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } |  |  |
-| `actor?.id?` | `string` |  |  |
-| `actor?.kind?` | [`ActorKind`](#agenthooks-actorkind) |  |  |
-| `budgets?` | { `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } |  |  |
-| `budgets?.tool_call_count?` | `float64` |  |  |
-| `budgets?.token_count?` | `float64` |  |  |
-| `budgets?.elapsed_seconds?` | `float64` |  |  |
-| `budgets?.cost_usd?` | `float64` |  |  |
-| `interception_point` | [`InterceptionPoint.PostToolCall`](#agenthooks-interceptionpoint) |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-| `tool_call` | [`ToolCall`](#agenthooks-toolcall) |  |  |
-| `tool_result` | [`ToolResult`](#agenthooks-toolresult) |  |  |
-
-### `PreModelCallRequest`
+|`spec` |`"agent-hooks/draft"` |This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. | |
+|`timestamp` |`string` | |format: `date-time` |
+|`sequence` |`integer` | |minimum: `0` |
+|`agent` |{ `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } | | |
+|`agent.id` |`string` | |minLength: `1` |
+|`agent.framework` |`string` | |pattern: `^[a-z0-9_-]+$` |
+|`agent.name?` |`string` | | |
+|`agent.version?` |`string` | | |
+|`session` |{ `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } | | |
+|`session.id` |`string` | |minLength: `1` |
+|`session.started_at?` |`string` | |format: `date-time` |
+|`session.turn?` |`integer` | |minimum: `0` |
+|`trace?` |{ `trace_id?`: `string`; `span_id?`: `string` } | | |
+|`trace?.trace_id?` |`string` | | |
+|`trace?.span_id?` |`string` | | |
+|`tenant?` |{ `id?`: `string`; `name?`: `string` } | | |
+|`tenant?.id?` |`string` | | |
+|`tenant?.name?` |`string` | | |
+|`actor?` |{ `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } | | |
+|`actor?.id?` |`string` | | |
+|`actor?.kind?` |[`ActorKind`](#agenthooks-actorkind) | | |
+|`budgets?` |{ `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } | | |
+|`budgets?.tool_call_count?` |`float64` | | |
+|`budgets?.token_count?` |`float64` | | |
+|`budgets?.elapsed_seconds?` |`float64` | | |
+|`budgets?.cost_usd?` |`float64` | | |
+|`interception_point` |[`InterceptionPoint.PostToolCall`](#agenthooks-interceptionpoint) | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
+|`tool_call` |[`ToolCall`](#agenthooks-toolcall) | | |
+|`tool_result` |[`ToolResult`](#agenthooks-toolresult) | | |
 
 <a id="agenthooks-premodelcallrequest"></a>
 
+### `PreModelCallRequest`
+
 The request at pre_model_call: model and messages are required (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `spec` | `"agent-hooks/draft"` | This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. |  |
-| `timestamp` | `string` |  | format: `date-time` |
-| `sequence` | `integer` |  | minimum: `0` |
-| `agent` | { `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } |  |  |
-| `agent.id` | `string` |  | minLength: `1` |
-| `agent.framework` | `string` |  | pattern: `^[a-z0-9_-]+$` |
-| `agent.name?` | `string` |  |  |
-| `agent.version?` | `string` |  |  |
-| `session` | { `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } |  |  |
-| `session.id` | `string` |  | minLength: `1` |
-| `session.started_at?` | `string` |  | format: `date-time` |
-| `session.turn?` | `integer` |  | minimum: `0` |
-| `trace?` | { `trace_id?`: `string`; `span_id?`: `string` } |  |  |
-| `trace?.trace_id?` | `string` |  |  |
-| `trace?.span_id?` | `string` |  |  |
-| `tenant?` | { `id?`: `string`; `name?`: `string` } |  |  |
-| `tenant?.id?` | `string` |  |  |
-| `tenant?.name?` | `string` |  |  |
-| `actor?` | { `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } |  |  |
-| `actor?.id?` | `string` |  |  |
-| `actor?.kind?` | [`ActorKind`](#agenthooks-actorkind) |  |  |
-| `budgets?` | { `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } |  |  |
-| `budgets?.tool_call_count?` | `float64` |  |  |
-| `budgets?.token_count?` | `float64` |  |  |
-| `budgets?.elapsed_seconds?` | `float64` |  |  |
-| `budgets?.cost_usd?` | `float64` |  |  |
-| `interception_point` | [`InterceptionPoint.PreModelCall`](#agenthooks-interceptionpoint) |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-| `model` | [`Model`](#agenthooks-model) |  |  |
-| `messages` | [`Message`](#agenthooks-message)[] |  |  |
-| `tools?` | [`ToolDecl`](#agenthooks-tooldecl)[] |  |  |
-| `request_id?` | `string` |  |  |
-
-### `PreToolCallRequest`
+|`spec` |`"agent-hooks/draft"` |This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. | |
+|`timestamp` |`string` | |format: `date-time` |
+|`sequence` |`integer` | |minimum: `0` |
+|`agent` |{ `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } | | |
+|`agent.id` |`string` | |minLength: `1` |
+|`agent.framework` |`string` | |pattern: `^[a-z0-9_-]+$` |
+|`agent.name?` |`string` | | |
+|`agent.version?` |`string` | | |
+|`session` |{ `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } | | |
+|`session.id` |`string` | |minLength: `1` |
+|`session.started_at?` |`string` | |format: `date-time` |
+|`session.turn?` |`integer` | |minimum: `0` |
+|`trace?` |{ `trace_id?`: `string`; `span_id?`: `string` } | | |
+|`trace?.trace_id?` |`string` | | |
+|`trace?.span_id?` |`string` | | |
+|`tenant?` |{ `id?`: `string`; `name?`: `string` } | | |
+|`tenant?.id?` |`string` | | |
+|`tenant?.name?` |`string` | | |
+|`actor?` |{ `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } | | |
+|`actor?.id?` |`string` | | |
+|`actor?.kind?` |[`ActorKind`](#agenthooks-actorkind) | | |
+|`budgets?` |{ `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } | | |
+|`budgets?.tool_call_count?` |`float64` | | |
+|`budgets?.token_count?` |`float64` | | |
+|`budgets?.elapsed_seconds?` |`float64` | | |
+|`budgets?.cost_usd?` |`float64` | | |
+|`interception_point` |[`InterceptionPoint.PreModelCall`](#agenthooks-interceptionpoint) | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
+|`model` |[`Model`](#agenthooks-model) | | |
+|`messages` |[`Message`](#agenthooks-message)[] | | |
+|`tools?` |[`ToolDecl`](#agenthooks-tooldecl)[] | | |
+|`request_id?` |`string` | | |
 
 <a id="agenthooks-pretoolcallrequest"></a>
 
+### `PreToolCallRequest`
+
 The request at pre_tool_call: tool_call is required (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `spec` | `"agent-hooks/draft"` | This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. |  |
-| `timestamp` | `string` |  | format: `date-time` |
-| `sequence` | `integer` |  | minimum: `0` |
-| `agent` | { `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } |  |  |
-| `agent.id` | `string` |  | minLength: `1` |
-| `agent.framework` | `string` |  | pattern: `^[a-z0-9_-]+$` |
-| `agent.name?` | `string` |  |  |
-| `agent.version?` | `string` |  |  |
-| `session` | { `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } |  |  |
-| `session.id` | `string` |  | minLength: `1` |
-| `session.started_at?` | `string` |  | format: `date-time` |
-| `session.turn?` | `integer` |  | minimum: `0` |
-| `trace?` | { `trace_id?`: `string`; `span_id?`: `string` } |  |  |
-| `trace?.trace_id?` | `string` |  |  |
-| `trace?.span_id?` | `string` |  |  |
-| `tenant?` | { `id?`: `string`; `name?`: `string` } |  |  |
-| `tenant?.id?` | `string` |  |  |
-| `tenant?.name?` | `string` |  |  |
-| `actor?` | { `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } |  |  |
-| `actor?.id?` | `string` |  |  |
-| `actor?.kind?` | [`ActorKind`](#agenthooks-actorkind) |  |  |
-| `budgets?` | { `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } |  |  |
-| `budgets?.tool_call_count?` | `float64` |  |  |
-| `budgets?.token_count?` | `float64` |  |  |
-| `budgets?.elapsed_seconds?` | `float64` |  |  |
-| `budgets?.cost_usd?` | `float64` |  |  |
-| `interception_point` | [`InterceptionPoint.PreToolCall`](#agenthooks-interceptionpoint) |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-| `tool_call` | [`ToolCall`](#agenthooks-toolcall) |  |  |
-
-### `Response`
+|`spec` |`"agent-hooks/draft"` |This version's wire string (§4.1). A released version's contexts<br>carry that version's own string, agent-hooks/<major>.<minor>. | |
+|`timestamp` |`string` | |format: `date-time` |
+|`sequence` |`integer` | |minimum: `0` |
+|`agent` |{ `id`: `string`; `framework`: `string`; `name?`: `string`; `version?`: `string` } | | |
+|`agent.id` |`string` | |minLength: `1` |
+|`agent.framework` |`string` | |pattern: `^[a-z0-9_-]+$` |
+|`agent.name?` |`string` | | |
+|`agent.version?` |`string` | | |
+|`session` |{ `id`: `string`; `started_at?`: `string`; `turn?`: `integer` } | | |
+|`session.id` |`string` | |minLength: `1` |
+|`session.started_at?` |`string` | |format: `date-time` |
+|`session.turn?` |`integer` | |minimum: `0` |
+|`trace?` |{ `trace_id?`: `string`; `span_id?`: `string` } | | |
+|`trace?.trace_id?` |`string` | | |
+|`trace?.span_id?` |`string` | | |
+|`tenant?` |{ `id?`: `string`; `name?`: `string` } | | |
+|`tenant?.id?` |`string` | | |
+|`tenant?.name?` |`string` | | |
+|`actor?` |{ `id?`: `string`; `kind?`: [`ActorKind`](#agenthooks-actorkind) } | | |
+|`actor?.id?` |`string` | | |
+|`actor?.kind?` |[`ActorKind`](#agenthooks-actorkind) | | |
+|`budgets?` |{ `tool_call_count?`: `float64`; `token_count?`: `float64`; `elapsed_seconds?`: `float64`; `cost_usd?`: `float64` } | | |
+|`budgets?.tool_call_count?` |`float64` | | |
+|`budgets?.token_count?` |`float64` | | |
+|`budgets?.elapsed_seconds?` |`float64` | | |
+|`budgets?.cost_usd?` |`float64` | | |
+|`interception_point` |[`InterceptionPoint.PreToolCall`](#agenthooks-interceptionpoint) | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
+|`tool_call` |[`ToolCall`](#agenthooks-toolcall) | | |
 
 <a id="agenthooks-response"></a>
 
+### `Response`
+
 Conditional payload of post_model_call (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `content` | `unknown` |  |  |
-| `tool_calls` | [`ToolCallRequest`](#agenthooks-toolcallrequest)[] |  |  |
-| `finish_reason` | `string` |  |  |
-
-### `Summary`
+|`content` |`unknown` | | |
+|`tool_calls` |[`ToolCallRequest`](#agenthooks-toolcallrequest)[] | | |
+|`finish_reason` |`string` | | |
 
 <a id="agenthooks-summary"></a>
 
+### `Summary`
+
 Conditional payload of agent_shutdown (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `reason` | [`SummaryReason`](#agenthooks-summaryreason) |  |  |
-| `tool_calls?` | `integer` |  | minimum: `0` |
-| `errors?` | `integer` |  | minimum: `0` |
-| `duration_seconds?` | `float64` |  | minimum: `0` |
-
-### `SummaryReason`
+|`reason` |[`SummaryReason`](#agenthooks-summaryreason) | | |
+|`tool_calls?` |`integer` | |minimum: `0` |
+|`errors?` |`integer` | |minimum: `0` |
+|`duration_seconds?` |`float64` | |minimum: `0` |
 
 <a id="agenthooks-summaryreason"></a>
 
+### `SummaryReason`
+
 Why the agent stopped (§4.2).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `Completed` | `"completed"` |  |
-| `Error` | `"error"` |  |
-| `Cancelled` | `"cancelled"` |  |
-
-### `ToolCall`
+|`Completed` |`"completed"` | |
+|`Error` |`"error"` | |
+|`Cancelled` |`"cancelled"` | |
 
 <a id="agenthooks-toolcall"></a>
 
+### `ToolCall`
+
 Conditional payload of pre_tool_call and post_tool_call (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `id` | `string` |  | minLength: `1` |
-| `name` | `string` |  | minLength: `1` |
-| `args` | [`JsonObject`](#agenthooks-jsonobject) |  |  |
-| `content_hash?` | `string` |  | pattern: `^sha256:[0-9a-f]{64}$` |
-
-### `ToolCallRequest`
+|`id` |`string` | |minLength: `1` |
+|`name` |`string` | |minLength: `1` |
+|`args` |[`JsonObject`](#agenthooks-jsonobject) | | |
+|`content_hash?` |`string` | |pattern: `^sha256:[0-9a-f]{64}$` |
 
 <a id="agenthooks-toolcallrequest"></a>
 
+### `ToolCallRequest`
+
 One tool call the model asked for (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `id?` | `string` |  |  |
-| `name` | `string` |  |  |
-| `args` | [`JsonObject`](#agenthooks-jsonobject) |  |  |
-
-### `ToolDecl`
+|`id?` |`string` | | |
+|`name` |`string` | | |
+|`args` |[`JsonObject`](#agenthooks-jsonobject) | | |
 
 <a id="agenthooks-tooldecl"></a>
 
+### `ToolDecl`
+
 One declared tool (§4.3).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `name` | `string` |  |  |
-| `description?` | `string` |  |  |
-| `schema?` | [`JsonObject`](#agenthooks-jsonobject) |  |  |
-
-### `ToolResult`
+|`name` |`string` | | |
+|`description?` |`string` | | |
+|`schema?` |[`JsonObject`](#agenthooks-jsonobject) | | |
 
 <a id="agenthooks-toolresult"></a>
 
+### `ToolResult`
+
 Conditional payload of post_tool_call (§4.2).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `value` | `unknown` |  |  |
-| `is_error` | `boolean` |  |  |
-| `duration_ms?` | `float64` |  | minimum: `0` |
-
-### `Usage`
+|`value` |`unknown` | | |
+|`is_error` |`boolean` | | |
+|`duration_ms?` |`float64` | |minimum: `0` |
 
 <a id="agenthooks-usage"></a>
 
+### `Usage`
+
 Token usage of a model call (§4.3).
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `prompt_tokens?` | `integer` |  | minimum: `0` |
-| `completion_tokens?` | `integer` |  | minimum: `0` |
+|`prompt_tokens?` |`integer` | |minimum: `0` |
+|`completion_tokens?` |`integer` | |minimum: `0` |
+
+<a id="reference-hook-responses"></a>
 
 ## Hook responses
 
@@ -738,35 +744,35 @@ Token usage of a model call (§4.3).
 - [`PreToolHookResponse`](#agenthooks-pretoolhookresponse)
 - [`PreToolHookTransform`](#agenthooks-pretoolhooktransform)
 
-### `AgentShutdownHookResponse`
-
 <a id="agenthooks-agentshutdownhookresponse"></a>
+
+### `AgentShutdownHookResponse`
 
 agent_shutdown response: transforms are forbidden.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`NonTransformVerdict`](#agenthooks-nontransformverdict) |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-
-### `AgentStartupHookResponse`
+|`verdict` |[`NonTransformVerdict`](#agenthooks-nontransformverdict) | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
 
 <a id="agenthooks-agentstartuphookresponse"></a>
+
+### `AgentStartupHookResponse`
 
 agent_startup response: transforms are forbidden.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`NonTransformVerdict`](#agenthooks-nontransformverdict) |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-
-### `HookResponse<TVerdict>`
+|`verdict` |[`NonTransformVerdict`](#agenthooks-nontransformverdict) | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
 
 <a id="agenthooks-hookresponse"></a>
+
+### `HookResponse<TVerdict>`
 
 Hook response envelope with a hook-specific verdict.
 
@@ -778,160 +784,162 @@ model HookResponse<TVerdict> {
 }
 ```
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `verdict` | `TVerdict` |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-
-### `InputHookResponse`
+|`verdict` |`TVerdict` | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
 
 <a id="agenthooks-inputhookresponse"></a>
+
+### `InputHookResponse`
 
 input response.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) \| [`DenyVerdict`](#agenthooks-denyverdict) \| [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`InputHookTransform`](#agenthooks-inputhooktransform)&gt; |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-
-### `InputHookTransform`
+|`verdict` |[`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`InputHookTransform`](#agenthooks-inputhooktransform)&gt; | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
 
 <a id="agenthooks-inputhooktransform"></a>
+
+### `InputHookTransform`
 
 Replaces the complete input payload.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `input` | `InputRequest.input` |  |  |
-
-### `OutputHookResponse`
+|`input` |`InputRequest.input` | | |
 
 <a id="agenthooks-outputhookresponse"></a>
+
+### `OutputHookResponse`
 
 output response.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) \| [`DenyVerdict`](#agenthooks-denyverdict) \| [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`OutputHookTransform`](#agenthooks-outputhooktransform)&gt; |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-
-### `OutputHookTransform`
+|`verdict` |[`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`OutputHookTransform`](#agenthooks-outputhooktransform)&gt; | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
 
 <a id="agenthooks-outputhooktransform"></a>
+
+### `OutputHookTransform`
 
 Replaces the complete output payload.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `output` | `OutputRequest.output` |  |  |
-
-### `PostModelHookResponse`
+|`output` |`OutputRequest.output` | | |
 
 <a id="agenthooks-postmodelhookresponse"></a>
+
+### `PostModelHookResponse`
 
 post_model_call response.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) \| [`DenyVerdict`](#agenthooks-denyverdict) \| [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostModelHookTransform`](#agenthooks-postmodelhooktransform)&gt; |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-
-### `PostModelHookTransform`
+|`verdict` |[`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostModelHookTransform`](#agenthooks-postmodelhooktransform)&gt; | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
 
 <a id="agenthooks-postmodelhooktransform"></a>
+
+### `PostModelHookTransform`
 
 Replaces the complete model response payload.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `response` | `PostModelCallRequest.response` |  |  |
-
-### `PostToolHookResponse`
+|`response` |`PostModelCallRequest.response` | | |
 
 <a id="agenthooks-posttoolhookresponse"></a>
+
+### `PostToolHookResponse`
 
 post_tool_call response.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) \| [`DenyVerdict`](#agenthooks-denyverdict) \| [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostToolHookTransform`](#agenthooks-posttoolhooktransform)&gt; |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-
-### `PostToolHookTransform`
+|`verdict` |[`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostToolHookTransform`](#agenthooks-posttoolhooktransform)&gt; | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
 
 <a id="agenthooks-posttoolhooktransform"></a>
+
+### `PostToolHookTransform`
 
 Replaces only the value of the tool result.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `value` | `ToolResult.value` |  |  |
-
-### `PreModelHookResponse`
+|`value` |`ToolResult.value` | | |
 
 <a id="agenthooks-premodelhookresponse"></a>
+
+### `PreModelHookResponse`
 
 pre_model_call response.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) \| [`DenyVerdict`](#agenthooks-denyverdict) \| [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreModelHookTransform`](#agenthooks-premodelhooktransform)&gt; |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-
-### `PreModelHookTransform`
+|`verdict` |[`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreModelHookTransform`](#agenthooks-premodelhooktransform)&gt; | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
 
 <a id="agenthooks-premodelhooktransform"></a>
+
+### `PreModelHookTransform`
 
 Replaces the complete model-message array.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `messages` | `PreModelCallRequest.messages` |  |  |
-
-### `PreToolHookResponse`
+|`messages` |`PreModelCallRequest.messages` | | |
 
 <a id="agenthooks-pretoolhookresponse"></a>
+
+### `PreToolHookResponse`
 
 pre_tool_call response.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) \| [`DenyVerdict`](#agenthooks-denyverdict) \| [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreToolHookTransform`](#agenthooks-pretoolhooktransform)&gt; |  |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) |  |  |
-
-### `PreToolHookTransform`
+|`verdict` |[`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreToolHookTransform`](#agenthooks-pretoolhooktransform)&gt; | | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) | | |
 
 <a id="agenthooks-pretoolhooktransform"></a>
+
+### `PreToolHookTransform`
 
 Replaces the complete tool args for the pre-tool hook.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `args` | `ToolCall.args` |  |  |
+|`args` |`ToolCall.args` | | |
+
+<a id="reference-verdicts"></a>
 
 ## Verdicts
 
@@ -945,78 +953,78 @@ additionalProperties: `false`
 - [`VerificationPointers`](#agenthooks-verificationpointers)
 - [`Warning`](#agenthooks-warning)
 
-### `AllowVerdict`
-
 <a id="agenthooks-allowverdict"></a>
+
+### `AllowVerdict`
 
 allow: proceed. Absorbs warn through warnings[] (§5.1).
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `reason?` | `string` \| `null` | Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). | pattern: `^(?!host_error:).*` |
-| `message?` | `string` \| `null` | Human-readable text for the caller. |  |
-| `warnings?` | [`Warning`](#agenthooks-warning)[] \| `null` | Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). |  |
-| `evidence?` | [`Evidence`](#agenthooks-evidence) |  |  |
-| `result_labels?` | `string`[] \| `null` | Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). |  |
-| `decision` | [`Decision.Allow`](#agenthooks-decision) |  |  |
-
-### `Decision`
+|`reason?` |`string` &#124; `null` |Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). |pattern: `^(?!host_error:).*` |
+|`message?` |`string` &#124; `null` |Human-readable text for the caller. | |
+|`warnings?` |[`Warning`](#agenthooks-warning)[] &#124; `null` |Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). | |
+|`evidence?` |[`Evidence`](#agenthooks-evidence) | | |
+|`result_labels?` |`string`[] &#124; `null` |Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). | |
+|`decision` |[`Decision.Allow`](#agenthooks-decision) | | |
 
 <a id="agenthooks-decision"></a>
 
+### `Decision`
+
 The three decisions (§5).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `Allow` | `"allow"` |  |
-| `Deny` | `"deny"` |  |
-| `Transform` | `"transform"` |  |
-
-### `DenyVerdict`
+|`Allow` |`"allow"` | |
+|`Deny` |`"deny"` | |
+|`Transform` |`"transform"` | |
 
 <a id="agenthooks-denyverdict"></a>
+
+### `DenyVerdict`
 
 deny: stop the action. Absorbs escalate through the approval block (§5.1).
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `reason?` | `string` \| `null` | Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). | pattern: `^(?!host_error:).*` |
-| `message?` | `string` \| `null` | Human-readable text for the caller. |  |
-| `warnings?` | [`Warning`](#agenthooks-warning)[] \| `null` | Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). |  |
-| `evidence?` | [`Evidence`](#agenthooks-evidence) |  |  |
-| `result_labels?` | `string`[] \| `null` | Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). |  |
-| `decision` | [`Decision.Deny`](#agenthooks-decision) |  |  |
-| `approval?` | [`JsonObject`](#agenthooks-jsonobject) | Present only on deny: marks the deny as liftable by the approval seam (§9).<br>MAY be empty; reserved for approver-facing parameters. |  |
-
-### `Evidence`
+|`reason?` |`string` &#124; `null` |Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). |pattern: `^(?!host_error:).*` |
+|`message?` |`string` &#124; `null` |Human-readable text for the caller. | |
+|`warnings?` |[`Warning`](#agenthooks-warning)[] &#124; `null` |Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). | |
+|`evidence?` |[`Evidence`](#agenthooks-evidence) | | |
+|`result_labels?` |`string`[] &#124; `null` |Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). | |
+|`decision` |[`Decision.Deny`](#agenthooks-decision) | | |
+|`approval?` |[`JsonObject`](#agenthooks-jsonobject) |Present only on deny: marks the deny as liftable by the approval seam (§9).<br>MAY be empty; reserved for approver-facing parameters. | |
 
 <a id="agenthooks-evidence"></a>
+
+### `Evidence`
 
 Offline-verifiable evidence attached to a verdict (§14).
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `artefact?` | `string` \| `null` | Content address (sha256:<hex>) or URI of an offline-verifiable proof. |  |
-| `verification_pointers?` | [`VerificationPointers`](#agenthooks-verificationpointers) |  |  |
-
-### `NonTransformVerdict`
+|`artefact?` |`string` &#124; `null` |Content address (sha256:<hex>) or URI of an offline-verifiable proof. | |
+|`verification_pointers?` |[`VerificationPointers`](#agenthooks-verificationpointers) | | |
 
 <a id="agenthooks-nontransformverdict"></a>
+
+### `NonTransformVerdict`
 
 Verdict choices for hooks that do not support transforms.
 
 - [`AllowVerdict`](#agenthooks-allowverdict)
 - [`DenyVerdict`](#agenthooks-denyverdict)
 
-### `TransformVerdict<TTransform>`
-
 <a id="agenthooks-transformverdict"></a>
+
+### `TransformVerdict<TTransform>`
 
 transform: proceed with the hook-specific replacement payload.
 
@@ -1029,50 +1037,52 @@ model TransformVerdict<TTransform> {
 }
 ```
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `reason?` | `string` \| `null` | Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). | pattern: `^(?!host_error:).*` |
-| `message?` | `string` \| `null` | Human-readable text for the caller. |  |
-| `warnings?` | [`Warning`](#agenthooks-warning)[] \| `null` | Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). |  |
-| `evidence?` | [`Evidence`](#agenthooks-evidence) |  |  |
-| `result_labels?` | `string`[] \| `null` | Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). |  |
-| `decision` | [`Decision.Transform`](#agenthooks-decision) |  |  |
-| `transform` | `TTransform` |  |  |
-
-### `VerdictBase`
+|`reason?` |`string` &#124; `null` |Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). |pattern: `^(?!host_error:).*` |
+|`message?` |`string` &#124; `null` |Human-readable text for the caller. | |
+|`warnings?` |[`Warning`](#agenthooks-warning)[] &#124; `null` |Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). | |
+|`evidence?` |[`Evidence`](#agenthooks-evidence) | | |
+|`result_labels?` |`string`[] &#124; `null` |Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). | |
+|`decision` |[`Decision.Transform`](#agenthooks-decision) | | |
+|`transform` |`TTransform` | | |
 
 <a id="agenthooks-verdictbase"></a>
 
+### `VerdictBase`
+
 Members every decision may carry.
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `reason?` | `string` \| `null` | Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). | pattern: `^(?!host_error:).*` |
-| `message?` | `string` \| `null` | Human-readable text for the caller. |  |
-| `warnings?` | [`Warning`](#agenthooks-warning)[] \| `null` | Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). |  |
-| `evidence?` | [`Evidence`](#agenthooks-evidence) |  |  |
-| `result_labels?` | `string`[] \| `null` | Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). |  |
-
-### `VerificationPointers`
+|`reason?` |`string` &#124; `null` |Interceptor-supplied machine identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11). |pattern: `^(?!host_error:).*` |
+|`message?` |`string` &#124; `null` |Human-readable text for the caller. | |
+|`warnings?` |[`Warning`](#agenthooks-warning)[] &#124; `null` |Recorded concerns that do not affect control flow (§5.1). Permitted on any<br>decision; unioned across an emission's verdicts (§7.3). Reasons starting with<br>host_warning: are reserved for the host (§11.1). | |
+|`evidence?` |[`Evidence`](#agenthooks-evidence) | | |
+|`result_labels?` |`string`[] &#124; `null` |Interceptor-supplied labels the host MUST persist with the produced data and<br>resurface on later interception points (§5.4). | |
 
 <a id="agenthooks-verificationpointers"></a>
+
+### `VerificationPointers`
 
 Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14).
 
 Additional entries: `string`.
 
-### `Warning`
-
 <a id="agenthooks-warning"></a>
+
+### `Warning`
 
 A recorded concern that does not affect control flow (§5.1).
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `reason?` | `string` \| `null` | Interceptor-supplied warning identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11) and host_warning: for host-synthesized<br>warnings (§11.1); an interceptor warning with either prefix fails §5<br>validation. | pattern: `^(?!host_error:\|host_warning:).*` |
-| `message?` | `string` \| `null` |  |  |
+|`reason?` |`string` &#124; `null` |Interceptor-supplied warning identifier. The host_error: prefix is reserved<br>for host-synthesized failures (§11) and host_warning: for host-synthesized<br>warnings (§11.1); an interceptor warning with either prefix fails §5<br>validation. |pattern: `^(?!host_error:\|host_warning:).*` |
+|`message?` |`string` &#124; `null` | | |
+
+<a id="reference-approval-seam"></a>
 
 ## Approval seam
 
@@ -1085,23 +1095,23 @@ additionalProperties: `false`
 - [`ResolutionBase`](#agenthooks-resolutionbase)
 - [`UnresolvedResolution`](#agenthooks-unresolvedresolution)
 
-### `ApproveResolution`
-
 <a id="agenthooks-approveresolution"></a>
+
+### `ApproveResolution`
 
 approve: the resolver lifts the deny with an allow verdict.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `context_identity` | `string` \| `null` | MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. |  |
-| `outcome` | [`Outcome.Approve`](#agenthooks-outcome) |  |  |
-| `verdict` | [`AllowVerdict`](#agenthooks-allowverdict) |  |  |
-
-### `LiftableDeny`
+|`context_identity` |`string` &#124; `null` |MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. | |
+|`outcome` |[`Outcome.Approve`](#agenthooks-outcome) | | |
+|`verdict` |[`AllowVerdict`](#agenthooks-allowverdict) | | |
 
 <a id="agenthooks-liftabledeny"></a>
+
+### `LiftableDeny`
 
 The liftable deny being consulted: an interceptor's (passes §5,
 verdict.schema.json) or the host-synthesized §7.5 shape, whose reason is a
@@ -1111,54 +1121,54 @@ host_error:*.
 
 Additional entries: `unknown`.
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `decision` | [`Decision.Deny`](#agenthooks-decision) |  |  |
-
-### `Outcome`
+|`decision` |[`Decision.Deny`](#agenthooks-decision) | | |
 
 <a id="agenthooks-outcome"></a>
 
+### `Outcome`
+
 How a consultation ended (§9).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `Approve` | `"approve"` |  |
-| `Reject` | `"reject"` |  |
-| `Unresolved` | `"unresolved"` |  |
-
-### `RejectResolution`
+|`Approve` |`"approve"` | |
+|`Reject` |`"reject"` | |
+|`Unresolved` |`"unresolved"` | |
 
 <a id="agenthooks-rejectresolution"></a>
+
+### `RejectResolution`
 
 reject: the resolver keeps a deny.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `context_identity` | `string` \| `null` | MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. |  |
-| `outcome` | [`Outcome.Reject`](#agenthooks-outcome) |  |  |
-| `verdict` | [`DenyVerdict`](#agenthooks-denyverdict) |  |  |
-
-### `request`
+|`context_identity` |`string` &#124; `null` |MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. | |
+|`outcome` |[`Outcome.Reject`](#agenthooks-outcome) | | |
+|`verdict` |[`DenyVerdict`](#agenthooks-denyverdict) | | |
 
 <a id="agenthooks-request"></a>
+
+### `request`
 
 What the host hands the resolver (§9).
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `context_identity` | `string` \| `null` |  |  |
-| `interception_point` | [`InterceptionPoint`](#agenthooks-interceptionpoint) |  |  |
-| `verdict` | [`LiftableDeny`](#agenthooks-liftabledeny) |  |  |
-| `context?` | [`AgentContext`](#agenthooks-agentcontext) | The AgentContext as presented to the resolver. MAY be redacted per host policy. |  |
-
-### `resolution`
+|`context_identity` |`string` &#124; `null` | | |
+|`interception_point` |[`InterceptionPoint`](#agenthooks-interceptionpoint) | | |
+|`verdict` |[`LiftableDeny`](#agenthooks-liftabledeny) | | |
+|`context?` |[`AgentContext`](#agenthooks-agentcontext) |The AgentContext as presented to the resolver. MAY be redacted per host policy. | |
 
 <a id="agenthooks-resolution"></a>
+
+### `resolution`
 
 What the resolver returns (§9).
 
@@ -1166,26 +1176,28 @@ What the resolver returns (§9).
 - [`RejectResolution`](#agenthooks-rejectresolution)
 - [`UnresolvedResolution`](#agenthooks-unresolvedresolution)
 
-### `ResolutionBase`
-
 <a id="agenthooks-resolutionbase"></a>
 
-| Property | Type | Description | Constraints |
-| --- | --- | --- | --- |
-| `context_identity` | `string` \| `null` | MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. |  |
+### `ResolutionBase`
 
-### `UnresolvedResolution`
+|Property |Type |Description |Constraints |
+| --- | --- | --- | --- |
+|`context_identity` |`string` &#124; `null` |MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. | |
 
 <a id="agenthooks-unresolvedresolution"></a>
+
+### `UnresolvedResolution`
 
 unresolved: no decision; the deny stands and no verdict is carried.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `context_identity` | `string` \| `null` | MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. |  |
-| `outcome` | [`Outcome.Unresolved`](#agenthooks-outcome) |  |  |
+|`context_identity` |`string` &#124; `null` |MUST equal the request's context_identity byte for byte (echo rule, §9);<br>null echoes as null. | |
+|`outcome` |[`Outcome.Unresolved`](#agenthooks-outcome) | | |
+
+<a id="reference-interception-records"></a>
 
 ## Interception records
 
@@ -1198,9 +1210,9 @@ additionalProperties: `false`
 - [`VerdictSlot`](#agenthooks-verdictslot)
 - [`WarningProjection`](#agenthooks-warningprojection)
 
-### `ApprovalPresence`
-
 <a id="agenthooks-approvalpresence"></a>
+
+### `ApprovalPresence`
 
 Presence only; members are stripped by the projection.
 
@@ -1208,9 +1220,9 @@ additionalProperties: `false`
 
 An object with no declared properties.
 
-### `InterceptionRecord`
-
 <a id="agenthooks-interceptionrecord"></a>
+
+### `InterceptionRecord`
 
 Agent Hooks — interception record
 
@@ -1227,69 +1239,69 @@ null when identity_provider is null (§10.3).
 
 allOf: `[{"if":{"properties":{"composition":{"type":"object","properties":{"profile":{"enum":["sequential/run_all","parallel/strictest","parallel/unanimous"]}}}}},"then":{"required":["verdicts"]}},{"description":"§10.3: identities are null when identity_provider is null.","if":{"properties":{"identity_provider":{"const":null}}},"then":{"properties":{"input_identity":{"const":null},"enforced_identity":{"const":null}}}}]`; additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `interception_point` | [`InterceptionPoint`](#agenthooks-interceptionpoint) |  |  |
-| `mode` | [`Mode`](#agenthooks-mode) |  |  |
-| `verdict` | [`VerdictProjection`](#agenthooks-verdictprojection) |  |  |
-| `input_identity` | `string` \| `null` | Identity provider output on the context before dispatch; null iff identity_provider is null. |  |
-| `enforced_identity` | `string` \| `null` | Identity provider output after composition completes; null iff identity_provider is null. |  |
-| `identity_provider` | `string` \| `null` | The declared identity provider (§10.1): "jcs-sha256", a host-defined id<br>(name rules enforced: ^[a-z][a-z0-9_-]*$ and never a jcs prefix), or null<br>(identity-unbound). | pattern: `^(jcs-sha256\|(?!jcs)[a-z][a-z0-9_-]*)$` |
-| `session_id` | `string` | ctx.session.id — correlates records across a session. |  |
-| `sequence` | `integer` | ctx.sequence — total order of records within the session (§12.2.3). |  |
-| `timestamp?` | `string` | OPTIONAL. The context's RFC 3339 timestamp, copied verbatim (§10.3); absent<br>when the context lacked the field. |  |
-| `trace?` | [`Trace`](#agenthooks-trace) | OPTIONAL. W3C Trace Context identifiers echoed from the context's optional<br>trace block (§4.5, §10.3); absent when the context carried neither member. |  |
-| `decided_by?` | `integer` \| `null` | Registration index of the interceptor whose verdict won aggregation or whose<br>liftable deny was consulted (§7.6); null for a pure-allow combination or a<br>host-synthesized verdict. | minimum: `0` |
-| `composition` | { `profile`: [`CompositionProfile`](#agenthooks-compositionprofile); `on_approval?`: [`OnApproval`](#agenthooks-onapproval); `on_disagreement?`: [`ConflictResolution`](#agenthooks-conflictresolution); `on_transform_conflict?`: [`ConflictResolution`](#agenthooks-conflictresolution) } | The composition profile and knobs in effect for this emission (§7.1). | additionalProperties: `false` |
-| `composition.profile` | [`CompositionProfile`](#agenthooks-compositionprofile) |  |  |
-| `composition.on_approval?` | [`OnApproval`](#agenthooks-onapproval) |  |  |
-| `composition.on_disagreement?` | [`ConflictResolution`](#agenthooks-conflictresolution) |  |  |
-| `composition.on_transform_conflict?` | [`ConflictResolution`](#agenthooks-conflictresolution) |  |  |
-| `verdicts?` | [`VerdictSlot`](#agenthooks-verdictslot)[] | Payload-free per-interceptor summary. REQUIRED in multi-verdict profiles<br>(sequential/run_all, parallel/*) and whenever any slot carries<br>substituted_for (§6.3.1); otherwise OPTIONAL in sequential/first_deny. |  |
-| `fold_truncated?` | `boolean` | true iff one or more registered interceptors were never invoked in this<br>emission (short-circuit, approval-stop, or a failed fold-transform). Defined<br>for the sequential profiles (§7.4). |  |
-| `resolved_by?` | [`ResolvedBy`](#agenthooks-resolvedby) \| `null` | Consultation outcome (§7.6, §10.3): "approval" iff a permit resolution<br>substituted for a verdict; "rejection" iff the seam was consulted and did not<br>lift the deny; absent/null iff never consulted. |  |
-| `interceptors_registered` | `integer` | Number of interceptors registered at emission time (§10.3). | minimum: `0` |
-
-### `ResolvedBy`
+|`interception_point` |[`InterceptionPoint`](#agenthooks-interceptionpoint) | | |
+|`mode` |[`Mode`](#agenthooks-mode) | | |
+|`verdict` |[`VerdictProjection`](#agenthooks-verdictprojection) | | |
+|`input_identity` |`string` &#124; `null` |Identity provider output on the context before dispatch; null iff identity_provider is null. | |
+|`enforced_identity` |`string` &#124; `null` |Identity provider output after composition completes; null iff identity_provider is null. | |
+|`identity_provider` |`string` &#124; `null` |The declared identity provider (§10.1): "jcs-sha256", a host-defined id<br>(name rules enforced: ^[a-z][a-z0-9_-]*$ and never a jcs prefix), or null<br>(identity-unbound). |pattern: `^(jcs-sha256\|(?!jcs)[a-z][a-z0-9_-]*)$` |
+|`session_id` |`string` |ctx.session.id — correlates records across a session. | |
+|`sequence` |`integer` |ctx.sequence — total order of records within the session (§12.2.3). | |
+|`timestamp?` |`string` |OPTIONAL. The context's RFC 3339 timestamp, copied verbatim (§10.3); absent<br>when the context lacked the field. | |
+|`trace?` |[`Trace`](#agenthooks-trace) |OPTIONAL. W3C Trace Context identifiers echoed from the context's optional<br>trace block (§4.5, §10.3); absent when the context carried neither member. | |
+|`decided_by?` |`integer` &#124; `null` |Registration index of the interceptor whose verdict won aggregation or whose<br>liftable deny was consulted (§7.6); null for a pure-allow combination or a<br>host-synthesized verdict. |minimum: `0` |
+|`composition` |{ `profile`: [`CompositionProfile`](#agenthooks-compositionprofile); `on_approval?`: [`OnApproval`](#agenthooks-onapproval); `on_disagreement?`: [`ConflictResolution`](#agenthooks-conflictresolution); `on_transform_conflict?`: [`ConflictResolution`](#agenthooks-conflictresolution) } |The composition profile and knobs in effect for this emission (§7.1). |additionalProperties: `false` |
+|`composition.profile` |[`CompositionProfile`](#agenthooks-compositionprofile) | | |
+|`composition.on_approval?` |[`OnApproval`](#agenthooks-onapproval) | | |
+|`composition.on_disagreement?` |[`ConflictResolution`](#agenthooks-conflictresolution) | | |
+|`composition.on_transform_conflict?` |[`ConflictResolution`](#agenthooks-conflictresolution) | | |
+|`verdicts?` |[`VerdictSlot`](#agenthooks-verdictslot)[] |Payload-free per-interceptor summary. REQUIRED in multi-verdict profiles<br>(sequential/run_all, parallel/*) and whenever any slot carries<br>substituted_for (§6.3.1); otherwise OPTIONAL in sequential/first_deny. | |
+|`fold_truncated?` |`boolean` |true iff one or more registered interceptors were never invoked in this<br>emission (short-circuit, approval-stop, or a failed fold-transform). Defined<br>for the sequential profiles (§7.4). | |
+|`resolved_by?` |[`ResolvedBy`](#agenthooks-resolvedby) &#124; `null` |Consultation outcome (§7.6, §10.3): "approval" iff a permit resolution<br>substituted for a verdict; "rejection" iff the seam was consulted and did not<br>lift the deny; absent/null iff never consulted. | |
+|`interceptors_registered` |`integer` |Number of interceptors registered at emission time (§10.3). |minimum: `0` |
 
 <a id="agenthooks-resolvedby"></a>
 
+### `ResolvedBy`
+
 Consultation outcomes a record names (§7.6).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `Approval` | `"approval"` |  |
-| `Rejection` | `"rejection"` |  |
-
-### `SubstitutedFor`
+|`Approval` |`"approval"` | |
+|`Rejection` |`"rejection"` | |
 
 <a id="agenthooks-substitutedfor"></a>
 
+### `SubstitutedFor`
+
 The host_error reasons a continue posture may substitute for (§6.3.1).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `InterceptorFailed` | `"host_error:interceptor_failed"` |  |
-| `InterceptorTimeout` | `"host_error:interceptor_timeout"` |  |
-| `VerdictInvalid` | `"host_error:verdict_invalid"` |  |
-
-### `Trace`
+|`InterceptorFailed` |`"host_error:interceptor_failed"` | |
+|`InterceptorTimeout` |`"host_error:interceptor_timeout"` | |
+|`VerdictInvalid` |`"host_error:verdict_invalid"` | |
 
 <a id="agenthooks-trace"></a>
+
+### `Trace`
 
 W3C Trace Context identifiers echoed from the context's optional trace block
 (§4.5, §10.3).
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `trace_id?` | `string` |  |  |
-| `span_id?` | `string` |  |  |
-
-### `VerdictProjection`
+|`trace_id?` |`string` | | |
+|`span_id?` |`string` | | |
 
 <a id="agenthooks-verdictprojection"></a>
+
+### `VerdictProjection`
 
 A payload-free projection of the combined verdict (§10.3): transform
 details are omitted, approval members stripped, messages truncated to
@@ -1298,44 +1310,46 @@ warnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1).
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `decision` | [`Decision`](#agenthooks-decision) |  |  |
-| `reason?` | `string` \| `null` |  |  |
-| `message?` | `string` \| `null` |  |  |
-| `warnings?` | [`WarningProjection`](#agenthooks-warningprojection)[] \| `null` |  |  |
-| `evidence?` | [`Evidence`](#agenthooks-evidence) |  |  |
-| `result_labels?` | `string`[] \| `null` |  |  |
-| `approval?` | [`ApprovalPresence`](#agenthooks-approvalpresence) |  |  |
-
-### `VerdictSlot`
+|`decision` |[`Decision`](#agenthooks-decision) | | |
+|`reason?` |`string` &#124; `null` | | |
+|`message?` |`string` &#124; `null` | | |
+|`warnings?` |[`WarningProjection`](#agenthooks-warningprojection)[] &#124; `null` | | |
+|`evidence?` |[`Evidence`](#agenthooks-evidence) | | |
+|`result_labels?` |`string`[] &#124; `null` | | |
+|`approval?` |[`ApprovalPresence`](#agenthooks-approvalpresence) | | |
 
 <a id="agenthooks-verdictslot"></a>
+
+### `VerdictSlot`
 
 Payload-free summary of one interceptor's verdict (§10.3).
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `index` | `integer` |  | minimum: `0` |
-| `decision` | [`Decision`](#agenthooks-decision) |  |  |
-| `reason?` | `string` \| `null` |  |  |
-| `name?` | `string` | Host-chosen payload-free registration identifier for the interceptor at index (§10.3). |  |
-| `substituted_for?` | [`SubstitutedFor`](#agenthooks-substitutedfor) | Present iff this slot's verdict is the allow the host substituted under<br>on_error: continue (§6.3.1): the host_error reason the §6.3 deny would have<br>carried. The entry's decision is allow and reason is absent. |  |
-
-### `WarningProjection`
+|`index` |`integer` | |minimum: `0` |
+|`decision` |[`Decision`](#agenthooks-decision) | | |
+|`reason?` |`string` &#124; `null` | | |
+|`name?` |`string` |Host-chosen payload-free registration identifier for the interceptor at index (§10.3). | |
+|`substituted_for?` |[`SubstitutedFor`](#agenthooks-substitutedfor) |Present iff this slot's verdict is the allow the host substituted under<br>on_error: continue (§6.3.1): the host_error reason the §6.3 deny would have<br>carried. The entry's decision is allow and reason is absent. | |
 
 <a id="agenthooks-warningprojection"></a>
+
+### `WarningProjection`
 
 Warning metadata retained in a payload-free record projection.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `reason?` | `string` \| `null` |  |  |
-| `message?` | `string` \| `null` |  |  |
+|`reason?` |`string` &#124; `null` | | |
+|`message?` |`string` &#124; `null` | | |
+
+<a id="reference-host-declaration"></a>
 
 ## Host declaration
 
@@ -1365,150 +1379,150 @@ additionalProperties: `false`
 - [`UnanimousSupport`](#agenthooks-unanimoussupport)
 - [`UnbufferedSurface`](#agenthooks-unbufferedsurface)
 
-### `ApprovalConfig`
-
 <a id="agenthooks-approvalconfig"></a>
+
+### `ApprovalConfig`
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `resolver?` | `string` \| `null` | §9. A registered approval resolver by reference, or null: liftable denies<br>stay denies. | pattern: `^[a-z][a-z0-9_-]{0,63}$` |
-| `redactor?` | `string` \| `null` | §9 redaction seam. A registered approval redactor by reference, or null. | pattern: `^[a-z][a-z0-9_-]{0,63}$` |
-
-### `Binding`
+|`resolver?` |`string` &#124; `null` |§9. A registered approval resolver by reference, or null: liftable denies<br>stay denies. |pattern: `^[a-z][a-z0-9_-]{0,63}$` |
+|`redactor?` |`string` &#124; `null` |§9 redaction seam. A registered approval redactor by reference, or null. |pattern: `^[a-z][a-z0-9_-]{0,63}$` |
 
 <a id="agenthooks-binding"></a>
+
+### `Binding`
 
 One interceptor binding (§7.7.4).
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `id` | [`Reference`](#agenthooks-reference) | Unique in the array; stamped on verdicts[].name (§10.3). |  |
-| `kind` | `string` | A lookup key into the host's kind registry and nothing more: never a path,<br>class name, URL or module the loader interprets. At least one dot, so every<br>kind carries a namespace the host controls. The first segments agent_hooks<br>and ctk are reserved. This specification defines no kinds. | maxLength: `128`; pattern: `^[a-z][a-z0-9_-]*(\.[a-z][a-z0-9_-]*)+$` |
-| `config?` | `unknown` | Kind-specific; handed to the kind resolver unchanged. The loader interprets<br>none of it; its one check here is the document-wide integer bound of §7.7.6<br>(no integer token above 2^53 - 1, so the resolved form canonicalises).<br>Default {}. |  |
-| `at?` | [`InterceptionPoint`](#agenthooks-interceptionpoint)[] | Points this binding runs at, each in the surface. Default: every surface<br>point. | minItems: `1`; uniqueItems |
-| `timeout_ms?` | [`TimeoutMs`](#agenthooks-timeoutms) | Per-binding bound. Default: configuration.timeouts.interceptor_ms; null is unbounded. |  |
-| `on_error?` | [`OnError`](#agenthooks-onerror) | §6.3.1 failure posture for this binding: what the host does when the<br>interceptor raises, times out or returns an invalid verdict. Default:<br>configuration.failure.on_error. |  |
-
-### `BoundedTimeoutMs`
+|`id` |[`Reference`](#agenthooks-reference) |Unique in the array; stamped on verdicts[].name (§10.3). | |
+|`kind` |`string` |A lookup key into the host's kind registry and nothing more: never a path,<br>class name, URL or module the loader interprets. At least one dot, so every<br>kind carries a namespace the host controls. The first segments agent_hooks<br>and ctk are reserved. This specification defines no kinds. |maxLength: `128`; pattern: `^[a-z][a-z0-9_-]*(\.[a-z][a-z0-9_-]*)+$` |
+|`config?` |`unknown` |Kind-specific; handed to the kind resolver unchanged. The loader interprets<br>none of it; its one check here is the document-wide integer bound of §7.7.6<br>(no integer token above 2^53 - 1, so the resolved form canonicalises).<br>Default {}. | |
+|`at?` |[`InterceptionPoint`](#agenthooks-interceptionpoint)[] |Points this binding runs at, each in the surface. Default: every surface<br>point. |minItems: `1`; uniqueItems |
+|`timeout_ms?` |[`TimeoutMs`](#agenthooks-timeoutms) |Per-binding bound. Default: configuration.timeouts.interceptor_ms; null is unbounded. | |
+|`on_error?` |[`OnError`](#agenthooks-onerror) |§6.3.1 failure posture for this binding: what the host does when the<br>interceptor raises, times out or returns an invalid verdict. Default:<br>configuration.failure.on_error. | |
 
 <a id="agenthooks-boundedtimeoutms"></a>
+
+### `BoundedTimeoutMs`
 
 minimum: `1`; maximum: `3600000`
 
 Base type: `integer`.
 
-### `BufferedSurface`
-
 <a id="agenthooks-bufferedsurface"></a>
+
+### `BufferedSurface`
 
 The surface of a host that buffers output (§12.1a), the default:
 exposure_bound is absent.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `interception_points?` | [`InterceptionPoint`](#agenthooks-interceptionpoint)[] | Points the host emits; always includes agent_startup, input, output and<br>agent_shutdown (§3.2), and omits the model or tool points only in pairs. | minItems: `4`; maxItems: `8`; uniqueItems |
-| `capabilities?` | [`Capability`](#agenthooks-capability)[] |  | uniqueItems |
-| `profiles?` | [`ProfileSupport`](#agenthooks-profilesupport) |  |  |
-| `buffered_output?` | `true` | §12.1a. false must be declared explicitly and requires exposure_bound. | default: `true` |
-
-### `Capability`
+|`interception_points?` |[`InterceptionPoint`](#agenthooks-interceptionpoint)[] |Points the host emits; always includes agent_startup, input, output and<br>agent_shutdown (§3.2), and omits the model or tool points only in pairs. |minItems: `4`; maxItems: `8`; uniqueItems |
+|`capabilities?` |[`Capability`](#agenthooks-capability)[] | |uniqueItems |
+|`profiles?` |[`ProfileSupport`](#agenthooks-profilesupport) | | |
+|`buffered_output?` |`true` |§12.1a. false must be declared explicitly and requires exposure_bound. |default: `true` |
 
 <a id="agenthooks-capability"></a>
+
+### `Capability`
 
 The conformance capability vocabulary (§13.1, conformance/draft/vectors.schema.json)
 less buffered_output, which is the boolean surface member, plus
 host_declaration.
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `ModelCalls` | `"model_calls"` |  |
-| `ToolCalls` | `"tool_calls"` |  |
-| `ParallelToolCalls` | `"parallel_tool_calls"` |  |
-| `Streaming` | `"streaming"` |  |
-| `MultiTurn` | `"multi_turn"` |  |
-| `Int64Json` | `"int64_json"` |  |
-| `BigintJson` | `"bigint_json"` |  |
-| `IncrementalOutput` | `"incremental_output"` |  |
-| `HostDeclaration` | `"host_declaration"` |  |
-
-### `CompositionConfig`
+|`ModelCalls` |`"model_calls"` | |
+|`ToolCalls` |`"tool_calls"` | |
+|`ParallelToolCalls` |`"parallel_tool_calls"` | |
+|`Streaming` |`"streaming"` | |
+|`MultiTurn` |`"multi_turn"` | |
+|`Int64Json` |`"int64_json"` | |
+|`BigintJson` |`"bigint_json"` | |
+|`IncrementalOutput` |`"incremental_output"` | |
+|`HostDeclaration` |`"host_declaration"` | |
 
 <a id="agenthooks-compositionconfig"></a>
+
+### `CompositionConfig`
 
 §7.2. A knob the declared profile does not consult is refused, never cleared;
 a consulted knob left unset takes the §7.2 default.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `profile?` | [`CompositionProfile`](#agenthooks-compositionprofile) |  | default: `"sequential/first_deny"` |
-| `on_approval?` | [`OnApproval`](#agenthooks-onapproval) | Consulted by sequential/first_deny only; refused under any other profile (§7.7.3). |  |
-| `on_disagreement?` | [`ConflictResolution`](#agenthooks-conflictresolution) | Consulted by parallel/unanimous only. |  |
-| `on_transform_conflict?` | [`ConflictResolution`](#agenthooks-conflictresolution) | Consulted by parallel/strictest only. |  |
-
-### `Configuration`
+|`profile?` |[`CompositionProfile`](#agenthooks-compositionprofile) | |default: `"sequential/first_deny"` |
+|`on_approval?` |[`OnApproval`](#agenthooks-onapproval) |Consulted by sequential/first_deny only; refused under any other profile (§7.7.3). | |
+|`on_disagreement?` |[`ConflictResolution`](#agenthooks-conflictresolution) |Consulted by parallel/unanimous only. | |
+|`on_transform_conflict?` |[`ConflictResolution`](#agenthooks-conflictresolution) |Consulted by parallel/strictest only. | |
 
 <a id="agenthooks-configuration"></a>
+
+### `Configuration`
 
 Host configuration (§7.1). Every member is OPTIONAL; defaults are the values
 the specification already names and fail closed.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `mode?` | [`Mode`](#agenthooks-mode) | §8. | default: `"enforce"` |
-| `composition?` | [`CompositionConfig`](#agenthooks-compositionconfig) |  |  |
-| `identity_provider?` | `string` \| `null` | §10.1: "jcs-sha256" (the default), a registered custom provider name<br>(^[a-z][a-z0-9_-]{0,63}$, never a jcs prefix), or null (identity-unbound). | pattern: `^(jcs-sha256\|(?!jcs)[a-z][a-z0-9_-]{0,63})$` |
-| `approval?` | [`ApprovalConfig`](#agenthooks-approvalconfig) |  |  |
-| `posture?` | [`PostureConfig`](#agenthooks-postureconfig) |  |  |
-| `timeouts?` | [`TimeoutsConfig`](#agenthooks-timeoutsconfig) |  |  |
-| `records?` | [`RecordsConfig`](#agenthooks-recordsconfig) |  |  |
-| `failure?` | [`FailureConfig`](#agenthooks-failureconfig) |  |  |
-
-### `FailureConfig`
+|`mode?` |[`Mode`](#agenthooks-mode) |§8. |default: `"enforce"` |
+|`composition?` |[`CompositionConfig`](#agenthooks-compositionconfig) | | |
+|`identity_provider?` |`string` &#124; `null` |§10.1: "jcs-sha256" (the default), a registered custom provider name<br>(^[a-z][a-z0-9_-]{0,63}$, never a jcs prefix), or null (identity-unbound). |pattern: `^(jcs-sha256\|(?!jcs)[a-z][a-z0-9_-]{0,63})$` |
+|`approval?` |[`ApprovalConfig`](#agenthooks-approvalconfig) | | |
+|`posture?` |[`PostureConfig`](#agenthooks-postureconfig) | | |
+|`timeouts?` |[`TimeoutsConfig`](#agenthooks-timeoutsconfig) | | |
+|`records?` |[`RecordsConfig`](#agenthooks-recordsconfig) | | |
+|`failure?` |[`FailureConfig`](#agenthooks-failureconfig) | | |
 
 <a id="agenthooks-failureconfig"></a>
 
+### `FailureConfig`
+
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `on_error?` | [`OnError`](#agenthooks-onerror) | §6.3.1. The document default every binding's on_error inherits. deny keeps<br>the §6.3 substituted deny; continue substitutes an allow carrying<br>host_warning:control_failed and records the cause in substituted_for. | default: `"deny"` |
-
-### `FirstDenySupport`
+|`on_error?` |[`OnError`](#agenthooks-onerror) |§6.3.1. The document default every binding's on_error inherits. deny keeps<br>the §6.3 substituted deny; continue substitutes an allow carrying<br>host_warning:control_failed and records the cause in substituted_for. |default: `"deny"` |
 
 <a id="agenthooks-firstdenysupport"></a>
 
+### `FirstDenySupport`
+
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `on_approval?` | [`OnApproval`](#agenthooks-onapproval)[] |  | minItems: `1`; uniqueItems |
-
-### `Host`
+|`on_approval?` |[`OnApproval`](#agenthooks-onapproval)[] | |minItems: `1`; uniqueItems |
 
 <a id="agenthooks-host"></a>
+
+### `Host`
 
 OPTIONAL and informative; never checked against code.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `name` | `string` | Same grammar as agent.framework (§4.1). | pattern: `^[a-z0-9_-]{1,64}$` |
-| `version?` | `string` |  | minLength: `1`; maxLength: `64` |
-
-### `HostDeclaration`
+|`name` |`string` |Same grammar as agent.framework (§4.1). |pattern: `^[a-z0-9_-]{1,64}$` |
+|`version?` |`string` | |minLength: `1`; maxLength: `64` |
 
 <a id="agenthooks-hostdeclaration"></a>
+
+### `HostDeclaration`
 
 Agent Hooks — host declaration document (agent-hooks/draft)
 
@@ -1523,41 +1537,41 @@ registered names) live in the loader (§7.7.6).
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `configuration?` | [`Configuration`](#agenthooks-configuration) |  |  |
-| `bindings` | [`Binding`](#agenthooks-binding)[] | Ordered: array order is dispatch order. REQUIRED, so an empty-deny host<br>(zero bindings) is written down rather than arrived at by omission. Binding<br>ids are unique. | maxItems: `256` |
-| `$schema?` | `string` | Ignored by the loader; kept for editors. |  |
-| `spec` | `"agent-hooks/draft"` | REQUIRED. The specification version the document is written for<br>(§7.7.3, §7.7.6): this version's wire string. A document written for a<br>released version names that version's own string instead, and is<br>read by that version's rules. |  |
-| `id?` | `string` | OPTIONAL. An operator label for logs. Never stamped on records. | pattern: `^[a-z0-9][a-z0-9._-]{0,63}$` |
-| `host?` | [`Host`](#agenthooks-host) |  |  |
-| `surface?` | [`Surface`](#agenthooks-surface) | The declared surface (§13.1) in file form. OPTIONAL: when absent the host's<br>own code surface applies. Every stated member must be a subset of what the<br>host's code reports; a document a conformance claim cites carries this block<br>explicitly. |  |
-| `extensions?` | [`Extensions`](#agenthooks-extensions) | Host-specific extras, kept verbatim and never read by the loader. Keys<br>follow the §4.6 namespace rule; the §4.6 reserved namespaces apply. |  |
-
-### `OnError`
+|`configuration?` |[`Configuration`](#agenthooks-configuration) | | |
+|`bindings` |[`Binding`](#agenthooks-binding)[] |Ordered: array order is dispatch order. REQUIRED, so an empty-deny host<br>(zero bindings) is written down rather than arrived at by omission. Binding<br>ids are unique. |maxItems: `256` |
+|`$schema?` |`string` |Ignored by the loader; kept for editors. | |
+|`spec` |`"agent-hooks/draft"` |REQUIRED. The specification version the document is written for<br>(§7.7.3, §7.7.6): this version's wire string. A document written for a<br>released version names that version's own string instead, and is<br>read by that version's rules. | |
+|`id?` |`string` |OPTIONAL. An operator label for logs. Never stamped on records. |pattern: `^[a-z0-9][a-z0-9._-]{0,63}$` |
+|`host?` |[`Host`](#agenthooks-host) | | |
+|`surface?` |[`Surface`](#agenthooks-surface) |The declared surface (§13.1) in file form. OPTIONAL: when absent the host's<br>own code surface applies. Every stated member must be a subset of what the<br>host's code reports; a document a conformance claim cites carries this block<br>explicitly. | |
+|`extensions?` |[`Extensions`](#agenthooks-extensions) |Host-specific extras, kept verbatim and never read by the loader. Keys<br>follow the §4.6 namespace rule; the §4.6 reserved namespaces apply. | |
 
 <a id="agenthooks-onerror"></a>
 
+### `OnError`
+
 The failure posture (§6.3.1).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `Deny` | `"deny"` |  |
-| `Continue` | `"continue"` |  |
-
-### `PostureConfig`
+|`Deny` |`"deny"` | |
+|`Continue` |`"continue"` | |
 
 <a id="agenthooks-postureconfig"></a>
 
+### `PostureConfig`
+
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `tool_seam_host_error?` | [`ToolSeamHostError`](#agenthooks-toolseamhosterror) | §13.1. Must equal the posture the host's code implements. | default: `"continue"` |
-
-### `ProfileSupport`
+|`tool_seam_host_error?` |[`ToolSeamHostError`](#agenthooks-toolseamhosterror) |§13.1. Must equal the posture the host's code implements. |default: `"continue"` |
 
 <a id="agenthooks-profilesupport"></a>
+
+### `ProfileSupport`
 
 Profiles and the knob values supported under each (§13.1). Only the knobs a
 profile consults may appear; an absent knob member means the §7.2 default
@@ -1565,26 +1579,26 @@ value only.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `sequential/first_deny?` | [`FirstDenySupport`](#agenthooks-firstdenysupport) |  |  |
-| `sequential/run_all?` | [`RunAllSupport`](#agenthooks-runallsupport) |  |  |
-| `parallel/strictest?` | [`StrictestSupport`](#agenthooks-strictestsupport) |  |  |
-| `parallel/unanimous?` | [`UnanimousSupport`](#agenthooks-unanimoussupport) |  |  |
-
-### `RecordsConfig`
+|`sequential/first_deny?` |[`FirstDenySupport`](#agenthooks-firstdenysupport) | | |
+|`sequential/run_all?` |[`RunAllSupport`](#agenthooks-runallsupport) | | |
+|`parallel/strictest?` |[`StrictestSupport`](#agenthooks-strictestsupport) | | |
+|`parallel/unanimous?` |[`UnanimousSupport`](#agenthooks-unanimoussupport) | | |
 
 <a id="agenthooks-recordsconfig"></a>
 
+### `RecordsConfig`
+
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `max_buffered?` | `integer` \| `null` | In-memory record buffer bound; null (the default) is unbounded. The maximum<br>is 2^53 - 1 so the resolved document always canonicalises (§4.4). | minimum: `1`; maximum: `9007199254740991` |
-
-### `Reference`
+|`max_buffered?` |`integer` &#124; `null` |In-memory record buffer bound; null (the default) is unbounded. The maximum<br>is 2^53 - 1 so the resolved document always canonicalises (§4.4). |minimum: `1`; maximum: `9007199254740991` |
 
 <a id="agenthooks-reference"></a>
+
+### `Reference`
 
 Grammar of a registered name: provider, resolver, redactor or binding id.
 
@@ -1592,97 +1606,97 @@ pattern: `^[a-z][a-z0-9_-]{0,63}$`
 
 Base type: `string`.
 
-### `RunAllSupport`
-
 <a id="agenthooks-runallsupport"></a>
+
+### `RunAllSupport`
 
 additionalProperties: `false`
 
 An object with no declared properties.
 
-### `StrictestSupport`
-
 <a id="agenthooks-strictestsupport"></a>
+
+### `StrictestSupport`
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `on_transform_conflict?` | [`ConflictResolution`](#agenthooks-conflictresolution)[] |  | minItems: `1`; uniqueItems |
-
-### `Surface`
+|`on_transform_conflict?` |[`ConflictResolution`](#agenthooks-conflictresolution)[] | |minItems: `1`; uniqueItems |
 
 <a id="agenthooks-surface"></a>
+
+### `Surface`
 
 The declared surface (§13.1) in file form, by output posture.
 
 - [`BufferedSurface`](#agenthooks-bufferedsurface)
 - [`UnbufferedSurface`](#agenthooks-unbufferedsurface)
 
-### `SurfaceBase`
-
 <a id="agenthooks-surfacebase"></a>
 
-| Property | Type | Description | Constraints |
-| --- | --- | --- | --- |
-| `interception_points?` | [`InterceptionPoint`](#agenthooks-interceptionpoint)[] | Points the host emits; always includes agent_startup, input, output and<br>agent_shutdown (§3.2), and omits the model or tool points only in pairs. | minItems: `4`; maxItems: `8`; uniqueItems |
-| `capabilities?` | [`Capability`](#agenthooks-capability)[] |  | uniqueItems |
-| `profiles?` | [`ProfileSupport`](#agenthooks-profilesupport) |  |  |
+### `SurfaceBase`
 
-### `TimeoutMs`
+|Property |Type |Description |Constraints |
+| --- | --- | --- | --- |
+|`interception_points?` |[`InterceptionPoint`](#agenthooks-interceptionpoint)[] |Points the host emits; always includes agent_startup, input, output and<br>agent_shutdown (§3.2), and omits the model or tool points only in pairs. |minItems: `4`; maxItems: `8`; uniqueItems |
+|`capabilities?` |[`Capability`](#agenthooks-capability)[] | |uniqueItems |
+|`profiles?` |[`ProfileSupport`](#agenthooks-profilesupport) | | |
 
 <a id="agenthooks-timeoutms"></a>
+
+### `TimeoutMs`
 
 A bound in milliseconds; null is unbounded.
 
 - [`BoundedTimeoutMs`](#agenthooks-boundedtimeoutms)
 - `null`
 
-### `TimeoutsConfig`
-
 <a id="agenthooks-timeoutsconfig"></a>
+
+### `TimeoutsConfig`
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `interceptor_ms?` | [`TimeoutMs`](#agenthooks-timeoutms) | §7 interceptor bound; default 5000. null means unbounded and must be written out. |  |
-| `approval_resolver_ms?` | [`TimeoutMs`](#agenthooks-timeoutms) | §9 resolver bound; defaults to the value of interceptor_ms. |  |
-
-### `ToolSeamHostError`
+|`interceptor_ms?` |[`TimeoutMs`](#agenthooks-timeoutms) |§7 interceptor bound; default 5000. null means unbounded and must be written out. | |
+|`approval_resolver_ms?` |[`TimeoutMs`](#agenthooks-timeoutms) |§9 resolver bound; defaults to the value of interceptor_ms. | |
 
 <a id="agenthooks-toolseamhosterror"></a>
 
+### `ToolSeamHostError`
+
 The tool-seam posture a host implements (§13.1).
 
-| Member | Value | Description |
+|Member |Value |Description |
 | --- | --- | --- |
-| `Continue` | `"continue"` |  |
-| `Terminate` | `"terminate"` |  |
-
-### `UnanimousSupport`
+|`Continue` |`"continue"` | |
+|`Terminate` |`"terminate"` | |
 
 <a id="agenthooks-unanimoussupport"></a>
 
+### `UnanimousSupport`
+
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `on_disagreement?` | [`ConflictResolution`](#agenthooks-conflictresolution)[] |  | minItems: `1`; uniqueItems |
-
-### `UnbufferedSurface`
+|`on_disagreement?` |[`ConflictResolution`](#agenthooks-conflictresolution)[] | |minItems: `1`; uniqueItems |
 
 <a id="agenthooks-unbufferedsurface"></a>
+
+### `UnbufferedSurface`
 
 The surface of a host that streams output (§12.1a): buffered_output is
 written as false and exposure_bound is present.
 
 additionalProperties: `false`
 
-| Property | Type | Description | Constraints |
+|Property |Type |Description |Constraints |
 | --- | --- | --- | --- |
-| `interception_points?` | [`InterceptionPoint`](#agenthooks-interceptionpoint)[] | Points the host emits; always includes agent_startup, input, output and<br>agent_shutdown (§3.2), and omits the model or tool points only in pairs. | minItems: `4`; maxItems: `8`; uniqueItems |
-| `capabilities?` | [`Capability`](#agenthooks-capability)[] |  | uniqueItems |
-| `profiles?` | [`ProfileSupport`](#agenthooks-profilesupport) |  |  |
-| `buffered_output` | `false` | §12.1a. false must be declared explicitly and requires exposure_bound. |  |
-| `exposure_bound` | `string` | §12.1a. Present iff buffered_output is false. | minLength: `1`; maxLength: `512` |
+|`interception_points?` |[`InterceptionPoint`](#agenthooks-interceptionpoint)[] |Points the host emits; always includes agent_startup, input, output and<br>agent_shutdown (§3.2), and omits the model or tool points only in pairs. |minItems: `4`; maxItems: `8`; uniqueItems |
+|`capabilities?` |[`Capability`](#agenthooks-capability)[] | |uniqueItems |
+|`profiles?` |[`ProfileSupport`](#agenthooks-profilesupport) | | |
+|`buffered_output` |`false` |§12.1a. false must be declared explicitly and requires exposure_bound. | |
+|`exposure_bound` |`string` |§12.1a. Present iff buffered_output is false. |minLength: `1`; maxLength: `512` |

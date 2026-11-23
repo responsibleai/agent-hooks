@@ -258,11 +258,11 @@ importers:
   spec/scripts/reference-docs:
     dependencies:
       '@alloy-js/core':
-        specifier: 0.26.0
-        version: 0.26.0
+        specifier: 0.27.0-dev.0
+        version: 0.27.0-dev.0
       '@alloy-js/markdown':
-        specifier: 0.26.0
-        version: 0.26.0
+        specifier: 0.27.0-dev.4
+        version: 0.27.0-dev.4
       '@typespec/compiler':
         specifier: ~1.18.0
         version: 1.18.0(@types/node@22.20.5)
@@ -271,8 +271,8 @@ importers:
         version: 1.18.0(@typespec/compiler@1.18.0(@types/node@22.20.5))
     devDependencies:
       '@alloy-js/cli':
-        specifier: 0.26.0
-        version: 0.26.0
+        specifier: 0.27.0-dev.0
+        version: 0.27.0-dev.0
       '@astrojs/markdown-remark':
         specifier: 7.3.9
         version: 7.3.9
@@ -299,16 +299,16 @@ packages:
     resolution: {integrity: sha512-wwQT9G0k+MG82gOVTFDkIpH2s6BxuAuNFOrbcJhvHzIcA9xrSjIOmCMVanvhfmVwnZKp3VCL25wq9Av16xASeQ==}
     engines: {node: '>=22.0.0'}
 
-  '@alloy-js/cli@0.26.0':
-    resolution: {integrity: sha512-tsHD1OFpJ9V7lD7Il3p9rZZyuvXoxmzWjw9eOKJG94o3ofVjBJH+9aQyEAnNxgBFCLVXOFckIl/aikm5/DbRnA==}
+  '@alloy-js/cli@0.27.0-dev.0':
+    resolution: {integrity: sha512-7vIrH2d4zElfI2TBM4LQX5KY5YSSteX+2SOt63HCtWLV/KMFVDHFvhoXjn3j3WGxZIUDiTFiiiU92uxRutf7EA==}
     engines: {node: '>=22.0.0'}
     hasBin: true
 
-  '@alloy-js/core@0.26.0':
-    resolution: {integrity: sha512-E1QloOz5kJgcmAVhOGxgaROIYRO8/B44L3WiftoFEld4SdFpwDCdYSgojjLF9THuPpezRtz8PhTfLgk4pS8SMw==}
+  '@alloy-js/core@0.27.0-dev.0':
+    resolution: {integrity: sha512-/KRTJVkaeJ5GKg6+ZPEr1s/xi1xQSDmt2p/93OGpZm8ZmJO7gAo2Ubrj9OXbLQDSRrxUGjOUnQLHbYUrN02h+g==}
 
-  '@alloy-js/markdown@0.26.0':
-    resolution: {integrity: sha512-N5SE+mX/dwbELL0ljIJYJ+t9dbGjz/uB48xZEmS7uzoPMIAo3rmQxYed+47PO66o3kBC0iFAJauoWzlMYk8F7w==}
+  '@alloy-js/markdown@0.27.0-dev.4':
+    resolution: {integrity: sha512-ONqZOTaksuFe43wPUW8tScTbfqxbrOSnlAmvVFd+wSET9xwrxHt7PD2hrtdaV2cyLhsXNMxbixe0Y3i23ffSBg==}
 
   '@antfu/install-pkg@2.1.0':
     resolution: {integrity: sha512-sdg9NxU3zR4Mnawfbc/x6GB5Wf17WYud5qOuEuxXjaKpYpMkISSJEjItGebXJ2bQ4DIcly4NYH23mtkGJjvKUw==}
@@ -4169,7 +4169,7 @@ snapshots:
       - '@babel/core'
       - supports-color
 
-  '@alloy-js/cli@0.26.0':
+  '@alloy-js/cli@0.27.0-dev.0':
     dependencies:
       '@alloy-js/babel-preset': 0.4.0(@babel/core@8.0.1)
       '@babel/core': 8.0.1
@@ -4179,7 +4179,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@alloy-js/core@0.26.0':
+  '@alloy-js/core@0.27.0-dev.0':
     dependencies:
       '@types/ws': 8.18.2
       '@vue/reactivity': 3.5.45
@@ -4192,9 +4192,11 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@alloy-js/markdown@0.26.0':
+  '@alloy-js/markdown@0.27.0-dev.4':
     dependencies:
-      '@alloy-js/core': 0.26.0
+      '@alloy-js/core': 0.27.0-dev.0
+      github-slugger: 2.0.0
+      pathe: 2.0.3
       yaml: 2.9.1
     transitivePeerDependencies:
       - bufferutil

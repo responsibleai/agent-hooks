@@ -1,6 +1,14 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-import { For, Output } from "@alloy-js/core";
+import {
+  code,
+  For,
+  Output,
+  refkey,
+  SourceFileContext,
+  useContext,
+  type Children,
+} from "@alloy-js/core";
 import * as md from "@alloy-js/markdown";
 import {
   getDoc,
@@ -40,9 +48,9 @@ interface ReferenceProps {
 
 interface PropertyDoc {
   name: string;
-  type: string;
+  type: Type;
   description: string;
-  constraints: string;
+  constraints: Type;
 }
 
 function anchor(type: Declaration): string {
@@ -54,18 +62,12 @@ function anchor(type: Declaration): string {
     .toLowerCase();
 }
 
-function inline(value: string): string {
-  const fence = "`".repeat(
-    Math.max(0, ...[...value.matchAll(/`+/g)].map((match) => match[0].length)) +
-      1,
-  );
-  const padding = /^[` ]|[` ]$/.test(value) ? " " : "";
-  return `${fence}${padding}${value}${padding}${fence}`;
-}
-
-function cell(value: string): string {
-  // GFM removes the pipe escape even inside code spans, preserving their literal text.
-  return value.replaceAll("|", "\\|").replace(/\r?\n/g, "<br>");
+function headingKey(target: object) {
+  const file = useContext(SourceFileContext);
+  if (!file) {
+    throw new Error("Reference headings must be rendered inside a source file.");
+  }
+  return refkey(file.path, target);
 }
 
 function isTypeReference(value: unknown): value is Type {
@@ -75,27 +77,6 @@ function isTypeReference(value: unknown): value is Type {
     "entityKind" in value &&
     value.entityKind === "Type"
   );
-}
-
-function Table(props: { headings: string[]; rows: string[][] }) {
-  return (
-    <For
-      each={[props.headings, props.headings.map(() => "---"), ...props.rows]}
-    >
-      {(row) => `| ${row.map(cell).join(" | ")} |`}
-    </For>
-  );
-}
-
-function Code(props: { lang: string; children: string }) {
-  if (!props.children.includes("```")) {
-    return <md.Code lang={props.lang}>{props.children}</md.Code>;
-  }
-  // Alloy's Code fixes the fence at three backticks, even if the body contains it.
-  const fence = "`".repeat(
-    Math.max(...[...props.children.matchAll(/`+/g)].map((match) => match[0].length)) + 1,
-  );
-  return `${fence}${props.lang}\n${props.children}\n${fence}`;
 }
 
 export function Reference(props: ReferenceProps) {
@@ -110,7 +91,7 @@ export function Reference(props: ReferenceProps) {
       .join("\n\n");
   }
 
-  function typeExpression(type: Type, active = new Set<Type>()): string {
+  function typeExpression(type: Type, active = new Set<Type>()): Children {
     const name = getTypeName(type, { namespaceFilter: () => false });
     if (
       type.kind === "Model" ||
@@ -118,8 +99,10 @@ export function Reference(props: ReferenceProps) {
       type.kind === "Union" ||
       type.kind === "Scalar"
     ) {
-      if (declarations.has(type)) return `[${inline(name)}](#${anchor(type)})`;
-      if (active.has(type)) return inline(name);
+      if (declarations.has(type)) {
+        return <md.Link refkey={headingKey(type)} title={`\`${name}\``} />;
+      }
+      if (active.has(type)) return <md.InlineCode>{name}</md.InlineCode>;
       active = new Set(active).add(type);
     }
     switch (type.kind) {
@@ -128,8 +111,8 @@ export function Reference(props: ReferenceProps) {
           const element = type.indexer.value;
           const expression = typeExpression(element, active);
           return element.kind === "Union" && !element.name
-            ? `(${expression})[]`
-            : `${expression}[]`;
+            ? code`(${expression})[]`
+            : code`${expression}[]`;
         }
         if (isTemplateInstance(type)) {
           const declaration = [...declarations].find(
@@ -138,44 +121,50 @@ export function Reference(props: ReferenceProps) {
               item.name === type.name &&
               item.namespace === type.namespace,
           );
-          const label = declaration
-            ? `[${inline(type.name)}](#${anchor(declaration)})`
-            : inline(type.name);
+          const label = declaration ? (
+            <md.Link refkey={headingKey(declaration)} title={`\`${type.name}\``} />
+          ) : (
+            <md.InlineCode>{type.name}</md.InlineCode>
+          );
           const args = type.templateMapper.args.map((arg) =>
             isType(arg)
               ? typeExpression(arg, active)
-              : inline(getEntityName(arg)),
+              : <md.InlineCode>{getEntityName(arg)}</md.InlineCode>,
           );
-          return `${label}&lt;${args.join(", ")}&gt;`;
+          return code`${label}&lt;${<For each={args} joiner=", ">{(arg) => arg}</For>}&gt;`;
         }
-        if (type.name) return inline(name);
+        if (type.name) return <md.InlineCode>{name}</md.InlineCode>;
         const properties = [...walkPropertiesInherited(type)].map(
           (property) =>
-            `${inline(property.name + (property.optional ? "?" : ""))}: ${typeExpression(property.type, active)}`,
+            code`${<md.InlineCode>{property.name + (property.optional ? "?" : "")}</md.InlineCode>}: ${typeExpression(property.type, active)}`,
         );
         if (type.indexer)
           properties.push(
-            `[key: string]: ${typeExpression(type.indexer.value, active)}`,
+            code`[key: string]: ${typeExpression(type.indexer.value, active)}`,
           );
-        return `{ ${properties.join("; ")} }`;
+        return code`{ ${<For each={properties} joiner="; ">{(property) => property}</For>} }`;
       }
       case "EnumMember":
-        return declarations.has(type.enum)
-          ? `[${inline(name)}](#${anchor(type.enum)})`
-          : inline(name);
+        return declarations.has(type.enum) ? (
+          <md.Link refkey={headingKey(type.enum)} title={`\`${name}\``} />
+        ) : (
+          <md.InlineCode>{name}</md.InlineCode>
+        );
       case "Union":
-        return [...type.variants.values()]
-          .map((variant) => typeExpression(variant.type, active))
-          .join(" | ");
+        return (
+          <For each={[...type.variants.values()]} joiner={" &#124; "}>
+            {(variant) => typeExpression(variant.type, active)}
+          </For>
+        );
       case "Tuple":
-        return `[${type.values.map((value) => typeExpression(value, active)).join(", ")}]`;
+        return code`[${<For each={type.values} joiner=", ">{(value) => typeExpression(value, active)}</For>}]`;
       default:
-        return inline(name);
+        return <md.InlineCode>{name}</md.InlineCode>;
     }
   }
 
-  function constraints(type: Type): string {
-    const values: string[] = [];
+  function constraints(type: Type): Children {
+    const values: { label: string; value?: string }[] = [];
     const numeric = [
       ["minimum", getMinValueAsNumeric(program, type)],
       ["maximum", getMaxValueAsNumeric(program, type)],
@@ -186,22 +175,48 @@ export function Reference(props: ReferenceProps) {
     ] as const;
     for (const [name, value] of numeric) {
       if (value !== undefined)
-        values.push(`${name}: ${inline(value.toString())}`);
+        values.push({ label: name, value: value.toString() });
     }
     const pattern = getPattern(program, type);
-    if (pattern !== undefined) values.push(`pattern: ${inline(pattern)}`);
+    if (pattern !== undefined) values.push({ label: "pattern", value: pattern });
     const format = getFormat(program, type);
-    if (format !== undefined) values.push(`format: ${inline(format)}`);
-    if (getUniqueItems(program, type)) values.push("uniqueItems");
+    if (format !== undefined) values.push({ label: "format", value: format });
+    if (getUniqueItems(program, type)) values.push({ label: "uniqueItems" });
     if (type.kind === "Union" && isOneOf(program, type))
-      values.push("exactly one variant");
+      values.push({ label: "exactly one variant" });
     for (const extension of getExtensions(program, type)) {
       const value = isTypeReference(extension.value)
         ? getTypeName(extension.value)
         : JSON.stringify(extension.value);
-      values.push(`${extension.key}: ${inline(value)}`);
+      values.push({ label: extension.key, value });
     }
-    return values.join("; ");
+    return (
+      <For each={values} joiner="; ">
+        {(entry) => (
+          <>
+            {entry.label}
+            {entry.value !== undefined && <>: <md.InlineCode>{entry.value}</md.InlineCode></>}
+          </>
+        )}
+      </For>
+    );
+  }
+
+  function TypeExpression(props: { type: Type }) {
+    return typeExpression(props.type);
+  }
+
+  function Constraints(props: { type: Type }) {
+    return constraints(props.type);
+  }
+
+  function DocumentationCell(props: { text: string }) {
+    // Prose is Markdown, not TableCell's literal-text input. Keep its markup.
+    return (
+      <md.TableCell>
+        <group>{props.text.replaceAll("|", "\\|").replace(/\r?\n/g, "<br>")}</group>
+      </md.TableCell>
+    );
   }
 
   function sourceSnippet(type: Declaration): string {
@@ -299,12 +314,12 @@ export function Reference(props: ReferenceProps) {
     const properties = model ? propertyDocs(model) : [];
     const showSource = !tables || isTemplateDeclaration(type);
     return (
-      <md.Section
-        heading={inline(getTypeName(type, { namespaceFilter: () => false }))}
-      >
-        {`<a id="${anchor(type)}"></a>`}
+      <md.Section>
+        <md.Heading level={3} refkey={headingKey(type)} id={anchor(type)}>
+          <md.InlineCode>{getTypeName(type, { namespaceFilter: () => false })}</md.InlineCode>
+        </md.Heading>
         {doc(type)}
-        {showSource && <Code lang="typespec">{sourceSnippet(type)}</Code>}
+        {showSource && <md.Code lang="typespec">{sourceSnippet(type)}</md.Code>}
         {constraints(type)}
         {model?.baseModel && <>Extends {typeExpression(model.baseModel)}.</>}
         {model?.indexer && (
@@ -316,23 +331,26 @@ export function Reference(props: ReferenceProps) {
           !model.indexer &&
           "An object with no declared properties."}
         {tables && properties.length > 0 && (
-          <Table
-            headings={["Property", "Type", "Description", "Constraints"]}
-            rows={properties.map((property) => [
-              inline(property.name),
-              property.type,
-              property.description,
-              property.constraints,
-            ])}
-          />
+          <md.Table columns={["Property", "Type", "Description", "Constraints"].map((header) => ({ header }))}>
+            <For each={properties}>
+              {(property) => (
+                <md.TableRow>
+                  <md.TableCell><md.InlineCode>{property.name}</md.InlineCode></md.TableCell>
+                  <md.TableCell><TypeExpression type={property.type} /></md.TableCell>
+                  <DocumentationCell text={property.description} />
+                  <md.TableCell><Constraints type={property.constraints} /></md.TableCell>
+                </md.TableRow>
+              )}
+            </For>
+          </md.Table>
         )}
         {!tables && (
           <For each={properties} doubleHardline>
             {(property) => (
-              <md.Section heading={inline(property.name)}>
+              <md.Section heading={<md.InlineCode>{property.name}</md.InlineCode>}>
                 {property.description}
-                {`Type: ${property.type}.`}
-                {property.constraints}
+                {code`Type: ${<TypeExpression type={property.type} />}.`}
+                <Constraints type={property.constraints} />
               </md.Section>
             )}
           </For>
@@ -348,21 +366,24 @@ export function Reference(props: ReferenceProps) {
           </md.List>
         )}
         {tables && type.kind === "Enum" && (
-          <Table
-            headings={["Member", "Value", "Description"]}
-            rows={[...type.members.values()].map((member) => [
-              inline(member.name),
-              inline(JSON.stringify(member.value ?? member.name)),
-              doc(member),
-            ])}
-          />
+          <md.Table columns={["Member", "Value", "Description"].map((header) => ({ header }))}>
+            <For each={[...type.members.values()]}>
+              {(member) => (
+                <md.TableRow>
+                  <md.TableCell><md.InlineCode>{member.name}</md.InlineCode></md.TableCell>
+                  <md.TableCell><md.InlineCode>{JSON.stringify(member.value ?? member.name)}</md.InlineCode></md.TableCell>
+                  <DocumentationCell text={doc(member)} />
+                </md.TableRow>
+              )}
+            </For>
+          </md.Table>
         )}
         {!tables && type.kind === "Enum" && (
           <For each={[...type.members.values()]} doubleHardline>
             {(member) => (
-              <md.Section heading={inline(member.name)}>
+              <md.Section heading={<md.InlineCode>{member.name}</md.InlineCode>}>
                 {doc(member)}
-                {`Value: ${inline(JSON.stringify(member.value ?? member.name))}.`}
+                {code`Value: ${<md.InlineCode>{JSON.stringify(member.value ?? member.name)}</md.InlineCode>}.`}
               </md.Section>
             )}
           </For>
@@ -374,13 +395,13 @@ export function Reference(props: ReferenceProps) {
           {(example) => (
             <md.Section heading={example.title ?? "Example"}>
               {example.description}
-              <Code lang="json">
+              <md.Code lang="json">
                 {JSON.stringify(
                   serializeValueAsJson(program, example.value, type),
                   null,
                   2,
                 )}
-              </Code>
+              </md.Code>
             </md.Section>
           )}
         </For>
@@ -399,9 +420,9 @@ export function Reference(props: ReferenceProps) {
       const path = `${prefix}${property.name}${property.optional ? "?" : ""}`;
       const entry = {
         name: path,
-        type: typeExpression(property.type),
+        type: property.type,
         description: doc(property),
-        constraints: constraints(property),
+        constraints: property,
       };
       const nested =
         property.type.kind === "Model" && !property.type.name
@@ -432,21 +453,26 @@ export function Reference(props: ReferenceProps) {
             <md.List bullet="-">
               {props.categories.map((category) => (
                 <md.Link
-                  href={`#${category.title.toLowerCase().replaceAll(" ", "-")}`}
+                  refkey={headingKey(category)}
                   title={category.title}
                 />
               ))}
             </md.List>
             <For each={props.categories} doubleHardline>
               {(category) => (
-                <md.Section heading={category.title}>
+                <md.Section>
+                  <md.Heading
+                    level={2}
+                    refkey={headingKey(category)}
+                    id={`reference-${category.title.toLowerCase().replaceAll(" ", "-")}`}
+                  >
+                    {category.title}
+                  </md.Heading>
                   <md.List bullet="-">
                     {category.declarations.map((type) => (
                       <md.Link
-                        href={`#${anchor(type)}`}
-                        title={inline(
-                          getTypeName(type, { namespaceFilter: () => false }),
-                        )}
+                        refkey={headingKey(type)}
+                        title={`\`${getTypeName(type, { namespaceFilter: () => false })}\``}
                       />
                     ))}
                   </md.List>

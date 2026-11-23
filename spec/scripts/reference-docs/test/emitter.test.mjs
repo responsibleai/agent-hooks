@@ -38,7 +38,7 @@ test("groups declarations by enum order and links same-named types by namespace"
     );
     assert.match(
       page,
-      /- \[Hook requests\]\(#hook-requests\)\n- \[Hook responses\]/,
+      /- \[Hook requests\]\(#reference-hook-requests\)\n- \[Hook responses\]/,
     );
     assert.match(page, /\[\`Result\`\]\(#requests-result\)/);
     assert.match(page, /<a id="hooks-result"><\/a>/);
@@ -73,18 +73,18 @@ test("documents generic declarations, concrete envelopes, and inherited and nest
   const page = outputs["REFERENCE-TABLES.md"];
   assert.match(page, /### `Envelope<T>`/);
   assert.match(page, /Generic response wrapper\./);
-  assert.match(page, /\| `value` \| `T` \|/);
+  assert.match(page, /\|`value` \|`T` \|/);
   assert.match(
     page,
     /\[\`Envelope\`\]\(#test-envelope\)&lt;\[\`Kind\`\]\(#test-kind\)&gt;/,
   );
   assert.match(
     page,
-    /\| `reason\?` \| `string` \\\| `null` \| A machine-readable reason\./,
+    /\|`reason\?` \|`string` &#124; `null` \|A machine-readable reason\./,
   );
   assert.match(page, /pattern: `\^\(\?!host_error:\)\.\*`/);
-  assert.match(page, /\| `agent.id` \| `string` \|  \| minLength: `1` \|/);
-  assert.match(page, /\| `next\?` \| \[\`Response\`\]\(#test-response\)/);
+  assert.match(page, /\|`agent.id` \|`string` \| \|minLength: `1` \|/);
+  assert.match(page, /\|`next\?` \|\[\`Response\`\]\(#test-response\)/);
   const declarations = outputs["REFERENCE.md"];
   assert.match(
     declarations,
@@ -97,7 +97,7 @@ test("documents generic declarations, concrete envelopes, and inherited and nest
   assert.doesNotMatch(page, /@category\(Categories.Responses\)/);
   assert.match(declarations, /model Response extends Base/);
   assert.match(declarations, /#### `reason\?`\n\nA machine-readable reason\./);
-  assert.match(declarations, /Type: `string` \| `null`\./);
+  assert.match(declarations, /Type: `string` &#124; `null`\./);
   assert.match(declarations, /#### `agent.id`[\s\S]*?minLength: `1`/);
   assert.match(declarations, /Type: \[\`Response\`\]\(#test-response\)\./);
   assert.doesNotMatch(declarations, /^\| Property \|/m);
@@ -147,6 +147,7 @@ test("renders JSON examples, union variants, enums, and Markdown table metachara
       text: string;
       selection?: Selection;
       choices?: (Choice | null)[];
+      literal?: "left|right";
     }
     @@category(Choice, Categories.Common);
     @@category(Selection, Categories.Common);
@@ -163,9 +164,19 @@ test("renders JSON examples, union variants, enums, and Markdown table metachara
   assert.match(page, /- \[\`Choice\`\]\(#choice\)\n- `null`/);
   assert.match(
     page,
-    /\| `choices\?` \| \(\[\`Choice\`\]\(#choice\) \\\| `null`\)\[\] \|/,
+    /\|`choices\?` \|\(\[\`Choice\`\]\(#choice\) &#124; `null`\)\[\] \|/,
   );
   assert.match(page, /#### Minimal\n\n```json\n{\n  "text": "hello"\n}\n```/);
+  const processor = await createMarkdownProcessor({ syntaxHighlight: false });
+  const { code } = await processor.render(page);
+  assert.ok(code.includes("Text with a | separator and <code>left | right</code>."));
+  assert.ok(code.includes("<td><code>literal?</code></td>\n<td><code>\"left|right\"</code></td>"));
+  assert.ok(code.includes('<td>(<a href="#choice"><code>Choice</code></a> | <code>null</code>)[]</td>'));
+  for (const [, body] of code.matchAll(/<tbody>([\s\S]*?)<\/tbody>/g)) {
+    const rows = [...body.matchAll(/<tr>([\s\S]*?)<\/tr>/g)];
+    const columns = [...rows[0][1].matchAll(/<td>/g)].length;
+    for (const [, row] of rows) assert.equal([...row.matchAll(/<td>/g)].length, columns);
+  }
   const declarations = outputs["REFERENCE.md"];
   assert.match(
     declarations,

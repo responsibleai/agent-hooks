@@ -93,6 +93,9 @@ missing categories at their declarations. Anonymous shapes, concrete template
 instances, and imported library types are excluded. Keep documentation metadata
 out of the schema sources; schema compilation does not import the docs library.
 JSON Schemas remain normative; the reference does not change validation.
+The emitter pins Alloy's published dev builds for Markdown tables, inline code,
+safe code fences, and heading references. Only documentation prose needs local
+table normalization, because Alloy treats direct string cells as literal text.
 
 ## Schema source
 
