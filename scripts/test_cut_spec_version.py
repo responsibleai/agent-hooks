@@ -141,9 +141,7 @@ Every context carries `agent-hooks/0.2`. The schema is
             "@agent-hooks/emitter-csharp",
             (draft / "tspconfig.yaml").read_text(encoding="utf-8"),
         )
-        self.assertTrue(
-            any("tsp compile spec/0.2" in step for step in follow_ups)
-        )
+        self.assertTrue(any("tsp compile spec/0.2" in step for step in follow_ups))
         self.assertTrue(
             any("spec/0.2" in step and "tag" in step for step in follow_ups)
         )
