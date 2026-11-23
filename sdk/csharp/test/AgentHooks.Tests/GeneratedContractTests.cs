@@ -144,6 +144,28 @@ public sealed class GeneratedContractTests
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Draft.InputHookResponse>("{}"));
     }
 
+    [Theory]
+    [InlineData(typeof(Draft.IInterceptor), nameof(Draft.IInterceptor.OnAgentStartupAsync), typeof(Draft.AgentStartupRequest), typeof(Draft.AgentStartupHookResponse))]
+    [InlineData(typeof(Draft.IInterceptor), nameof(Draft.IInterceptor.OnInputAsync), typeof(Draft.InputRequest), typeof(Draft.InputHookResponse))]
+    [InlineData(typeof(Draft.IInterceptor), nameof(Draft.IInterceptor.OnPreModelCallAsync), typeof(Draft.PreModelCallRequest), typeof(Draft.PreModelHookResponse))]
+    [InlineData(typeof(Draft.IInterceptor), nameof(Draft.IInterceptor.OnPostModelCallAsync), typeof(Draft.PostModelCallRequest), typeof(Draft.PostModelHookResponse))]
+    [InlineData(typeof(Draft.IInterceptor), nameof(Draft.IInterceptor.OnPreToolCallAsync), typeof(Draft.PreToolCallRequest), typeof(Draft.PreToolHookResponse))]
+    [InlineData(typeof(Draft.IInterceptor), nameof(Draft.IInterceptor.OnPostToolCallAsync), typeof(Draft.PostToolCallRequest), typeof(Draft.PostToolHookResponse))]
+    [InlineData(typeof(Draft.IInterceptor), nameof(Draft.IInterceptor.OnOutputAsync), typeof(Draft.OutputRequest), typeof(Draft.OutputHookResponse))]
+    [InlineData(typeof(Draft.IInterceptor), nameof(Draft.IInterceptor.OnAgentShutdownAsync), typeof(Draft.AgentShutdownRequest), typeof(Draft.AgentShutdownHookResponse))]
+    [InlineData(typeof(Draft.IApprovalResolver), nameof(Draft.IApprovalResolver.OnResolveAsync), typeof(Draft.ApprovalRequest), typeof(Draft.ApprovalResolution))]
+    public void HookMethodsExposeTypedRequestsAndResponses(Type contract, string name, Type request, Type response)
+    {
+        var method = contract.GetMethod(name);
+        Assert.NotNull(method);
+        Assert.Equal(typeof(Task<>).MakeGenericType(response), method.ReturnType);
+        var parameters = method.GetParameters();
+        Assert.Equal(2, parameters.Length);
+        Assert.Equal(request, parameters[0].ParameterType);
+        Assert.Equal(typeof(CancellationToken), parameters[1].ParameterType);
+        Assert.True(parameters[1].HasDefaultValue);
+    }
+
     [Fact]
     public void IntegersAndOpenMetadataAreLossless()
     {

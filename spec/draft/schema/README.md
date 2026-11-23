@@ -99,12 +99,11 @@ preserve literal wire values, arbitrary JSON, and unbounded integers. Raw
 dictionary models and extension-data members not covered by the framework.
 `json-components.tsx` shares converter declarations, converter attributes and
 dictionary initializers between enum and union emission.
-`operation-handler.tsx` maps the logical operations below to independent async
-C# delegates: one hook handler per request/response pair and an
-`ApprovalResolverHandler`. Each accepts its typed request and an optional
-cancellation token and returns a `Task` of the declared response. The
-pairings come from TypeSpec operations, not a second hand-maintained hook table;
-no aggregate interceptor interface or runtime dispatcher is generated.
+`operation-handler.tsx` maps the logical operations below to methods on
+`IInterceptor` and `IApprovalResolver`, named `On<Operation>Async` (for example,
+`OnPreToolCallAsync` and `OnResolveAsync`). Each accepts its typed request and
+an optional cancellation token and returns a `Task` of the declared response.
+The pairings come from TypeSpec operations; no runtime dispatcher is generated.
 These types preserve wire shapes; they do not replace JSON Schema validation
 of specification constraints.
 
@@ -121,9 +120,9 @@ as transport-neutral TypeSpec interfaces:
 - `ApprovalResolver.resolve` takes `ApprovalRequest` and returns
   `ApprovalResolution`, including approve, reject, and unresolved outcomes.
 
-These are logical calls from the host, not HTTP endpoints or a new SDK
-interface requirement. An interceptor remains the callable described in
-§7; the operation names do not change the wire `interception_point` values.
+These are logical calls from the host, not HTTP endpoints. The generated
+interfaces expose the logical calls without changing wire
+`interception_point` values.
 Transport, authentication, and remote service bindings remain implementation
 concerns. The operations add no streaming protocol and do not change the
 generated JSON Schemas. Timing, composition, enforcement, approval echo
