@@ -7,8 +7,10 @@ the normative artifact; do not edit generated JSON by hand. Frozen
 
 `src/main.tsp` imports the sources, whose public roots use `@jsonSchema`.
 `@baseUri` in `common.tsp` defines the draft identity base,
-and source summaries supply titles. `tspconfig.yaml` configures the native
-`@typespec/json-schema` emitter. One compilation emits all public roots:
+and source summaries supply titles. `spec/draft/main.tsp` and
+`spec/draft/tspconfig.yaml` compile this source once for every draft output,
+including the native `@typespec/json-schema` emitter that writes
+`generated/`. One compilation emits all public roots:
 
 - `AgentContext.json` describes the context union.
 - Eight `*Request.json` roots validate candidate requests at their hooks.
@@ -36,28 +38,19 @@ Use Node.js 22 or later. From the repository root:
 
 ```bash
 pnpm install
-pnpm run generate:schema
-pnpm run check:schema
+pnpm generate
 node spec/scripts/check-schema-examples.mjs
 pnpm run check:schema:equivalence --old <git-ref>
 pnpm run check:schema:equivalence --old <git-ref> --structural-diff
 ```
 
-The generation command invokes the native CLI, equivalent to:
-
-```bash
-cd spec/scripts
-pnpm exec tsp compile schema-emitter.tsp \
-  --import ../draft/schema/src/main.tsp \
-  --config ../draft/schema/tspconfig.yaml
-```
-
-`schema-emitter.tsp` locates the emitter installed in `spec/scripts`.
-`check:schema` runs the same native compilation into a temporary directory
-and compares bytes, including missing and unexpected JSON files. The wrapper
-does not parse or transform emitted JSON. `--spec X.Y` selects another
-TypeSpec bundle. Legacy 0.1 artifacts stay committed and are not regenerated;
-attempting to generate or drift-check a bundle without TypeSpec source fails.
+`pnpm generate` builds every package under `emitters/`, then runs the native
+CLI, `tsp compile spec/draft`; nothing parses or transforms emitted JSON.
+`tsp compile spec/X.Y` regenerates a released TypeSpec bundle. `generated/`
+is marked `linguist-generated` in `.gitattributes`: the `drift` check deletes
+every such file before regenerating, then fails on any changed, new or
+deleted file and prints the diff. Legacy 0.1 artifacts stay committed and are
+not regenerated; that bundle has no `main.tsp` to compile.
 Equivalence checks map old and native public roots for comparison and include
 the draft's actual examples among their mutation seeds.
 

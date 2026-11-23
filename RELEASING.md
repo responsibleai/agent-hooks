@@ -35,8 +35,11 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    different bytes to one path.
 
    ```bash
-   pnpm install && pnpm run generate:schema --spec X.Y
+   pnpm install && pnpm exec tsp compile spec/X.Y
    ```
+
+   The copy's `tspconfig.yaml` emits only its JSON Schemas; the draft's
+   language emitters are not rerun for a released bundle.
 
 3. In `spec/draft/AGENT-HOOKS-DRAFT.md`, point the banner at the new
    version: `The latest released version is [X.Y](../X.Y/AGENT-HOOKS-X.Y.md).`
@@ -79,7 +82,8 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    done
    cd spec/scripts
    node check-schema-examples.mjs
-   pnpm exec tsx generate-schemas.ts --check --spec X.Y
+   cd ../..
+   git add spec/X.Y && pnpm exec tsp compile spec/X.Y && git diff --exit-code spec/X.Y
    ```
 
    Each suite validates only against its matching schema bundle. SDK
@@ -97,7 +101,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    ```bash
    git worktree add /tmp/cut-check origin/main
    (cd /tmp/cut-check && python3 scripts/cut-spec-version.py X.Y --date YYYY-MM-DD \
-     && pnpm install && pnpm run generate:schema --spec X.Y)
+     && pnpm install && pnpm exec tsp compile spec/X.Y)
    diff -r /tmp/cut-check/spec/X.Y spec/X.Y && echo reproducible
    ```
 

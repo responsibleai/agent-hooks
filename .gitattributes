@@ -1,3 +1,8 @@
 *.json text eol=lf
 *.ts text eol=lf
 *.mts text eol=lf
+
+# Generated from TypeSpec by `pnpm generate`. The drift check deletes every
+# linguist-generated file before regenerating, so stale output shows up as a
+# deletion. Emitters mark their output folders here too (emitters/README.md).
+spec/draft/schema/generated/** linguist-generated
