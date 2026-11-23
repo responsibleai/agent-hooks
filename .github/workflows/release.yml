@@ -29,8 +29,8 @@
 #            on the package (repo responsibleai/agent-hooks, workflow
 #            release.yml, environment release) at
 #            npmjs.com > package > Settings > Trusted Publisher.
-#            No token; every package (the loader + each platform
-#            package) needs its own trusted publisher. A brand-new
+#            No token; every package (contracts, loader and each platform)
+#            needs its own trusted publisher. A brand-new
 #            platform package cannot be configured before its first
 #            publish, so its leg fails soft (see the npm publish step).
 #            Every version publishes under `latest`; a pre-release
@@ -328,11 +328,11 @@ jobs:
           cargo fetch --locked
           pnpm exec napi build --release --platform --esm --target ${{ matrix.target }} \
             --js binding.js --dts binding.d.ts
-        working-directory: sdk/typescript
+        working-directory: sdk/typescript/packages/agent-hooks
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: binding-${{ matrix.target }}
-          path: sdk/typescript/*.node
+          path: sdk/typescript/packages/agent-hooks/*.node
           if-no-files-found: error
 
   typescript:
@@ -355,9 +355,13 @@ jobs:
         # napi artifacts copies each downloaded *.node into the matching
         # committed npm/<platform>/ package dir (napi create-npm-dirs).
         run: |
-          pnpm exec napi artifacts -d artifacts
-          pnpm exec tsc
-          npm pack
+          pnpm --filter @responsibleai/agent-hooks exec napi artifacts \
+            --cwd "$GITHUB_WORKSPACE" --package-json-path sdk/typescript/packages/agent-hooks/package.json \
+            --npm-dir sdk/typescript/npm -d sdk/typescript/artifacts
+          pnpm --filter @responsibleai/agent-hooks exec tsc
+          pnpm --filter @responsibleai/agent-hooks-contracts build
+          (cd packages/contracts && npm pack)
+          (cd packages/agent-hooks && npm pack)
         working-directory: sdk/typescript
       - name: Compute the npm dist-tags and rehearse the publish
         # Every version publishes under `latest`. A pre-release also
@@ -366,7 +370,7 @@ jobs:
         # The rehearsal runs on the dry run too, so a bad manifest
         # fails here and not at upload time. No dist-tag call here.
         run: |
-          V=$(node --input-type=module -e 'import { readFileSync } from "node:fs"; console.log(JSON.parse(readFileSync("package.json", "utf8")).version)')
+          V=$(node --input-type=module -e 'import { readFileSync } from "node:fs"; console.log(JSON.parse(readFileSync("packages/agent-hooks/package.json", "utf8")).version)')
           case "$V" in
             *-alpha.*) CHANNEL=alpha ;;
             *-beta.*)  CHANNEL=beta ;;
@@ -379,7 +383,7 @@ jobs:
             echo "NPM_VERSION=$V"
             echo "NPM_CHANNEL=$CHANNEL"
           } >> "$GITHUB_ENV"
-          for dir in npm/linux-x64-gnu npm/linux-arm64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc .; do
+          for dir in npm/linux-x64-gnu npm/linux-arm64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc packages/contracts packages/agent-hooks; do
             (cd "$dir" && npm publish --dry-run --access public --tag latest)
           done
         working-directory: sdk/typescript
@@ -393,7 +397,7 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v2
         with:
           subject-path: |
-            sdk/typescript/*.tgz
+            sdk/typescript/packages/*/*.tgz
             sdk/typescript/npm/**/*.node
       - name: Publish to npm (platform packages, then the loader package)
         if: env.DRY_RUN != 'true' && github.ref_type == 'tag'
@@ -414,19 +418,22 @@ jobs:
           # main unbuildable between a version-bump merge and its publish.
           # pnpm exec napi version syncs the platform dirs; the block is injected
           # here from the loader version, so it cannot mismatch.
-          pnpm exec napi version
+          pnpm --filter @responsibleai/agent-hooks exec napi version \
+            --cwd "$GITHUB_WORKSPACE" --package-json-path sdk/typescript/packages/agent-hooks/package.json \
+            --npm-dir sdk/typescript/npm
           node --input-type=module -e '
             import * as fs from "node:fs";
-            const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            const path = "packages/agent-hooks/package.json";
+            const p = JSON.parse(fs.readFileSync(path, "utf8"));
             const targets = ["linux-x64-gnu","linux-arm64-gnu","darwin-x64","darwin-arm64","win32-x64-msvc"];
             p.optionalDependencies = Object.fromEntries(
               targets.map(t => ["@responsibleai/agent-hooks-" + t, p.version]));
-            fs.writeFileSync("package.json", JSON.stringify(p, null, 2) + "\n");
+            fs.writeFileSync(path, JSON.stringify(p, null, 2) + "\n");
           '
           channel_packages=()
-          for dir in npm/linux-x64-gnu npm/linux-arm64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc .; do
+          for dir in npm/linux-x64-gnu npm/linux-arm64-gnu npm/darwin-x64 npm/darwin-arm64 npm/win32-x64-msvc packages/contracts packages/agent-hooks; do
             name=$(node --input-type=module -e 'import { readFileSync } from "node:fs"; console.log(JSON.parse(readFileSync(process.argv[1], "utf8")).name)' "$dir/package.json")
-            if [ "$dir" != "." ] && ! ls "$dir"/*.node >/dev/null 2>&1; then
+            if [[ "$dir" == npm/* ]] && ! ls "$dir"/*.node >/dev/null 2>&1; then
               echo "::error::$name has no native artifact"; exit 1
             fi
             if npm view "$name@$V" version >/dev/null 2>&1; then
@@ -434,7 +441,7 @@ jobs:
               channel_packages+=("$name")
             elif (cd "$dir" && npm publish --access public --tag latest); then
               channel_packages+=("$name")
-            elif ! npm view "$name" name >/dev/null 2>&1; then
+            elif [[ "$dir" == npm/* ]] && ! npm view "$name" name >/dev/null 2>&1; then
               # npm trusted publishing cannot be configured for a package
               # that has never been published, so a brand-new platform
               # package fails its first OIDC publish. Fail soft: consumers

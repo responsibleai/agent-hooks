@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const script = path.resolve(packageRoot, "../../spec/scripts/schema-equivalence.mts");
+const script = path.resolve(packageRoot, "../../../../spec/scripts/schema-equivalence.mts");
 const idOrigin = "https://responsibleai.github.io/agent-hooks/schema/";
 
 async function fixture(t) {

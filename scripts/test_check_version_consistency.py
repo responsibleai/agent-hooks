@@ -50,7 +50,7 @@ class PlatformPinTest(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertEqual(
             output,
-            "sdk/typescript/package.json commits optionalDependencies; "
+            "sdk/typescript/packages/agent-hooks/package.json commits optionalDependencies; "
             "platform pins are injected at publish time (see release.yml)\n",
         )
 
@@ -92,7 +92,8 @@ class ReleaseTagTest(unittest.TestCase):
                 return_value={
                     "sdk/rust/Cargo.toml": version,
                     "sdk/python/pyproject.toml": python_version,
-                    "sdk/typescript/package.json": version,
+                    "sdk/typescript/packages/agent-hooks/package.json": version,
+                    "sdk/typescript/packages/contracts/package.json": version,
                     "sdk/dotnet/Directory.Build.props": version,
                 },
             ),
@@ -273,7 +274,7 @@ CS_TYPES = (
 GO_TYPES = "var SupportedSpecVersions = []string{{{supported}}}\n"
 CORES = {
     "sdk/rust/core/src/types.rs": RUST_TYPES,
-    "sdk/typescript/src/index.ts": TS_INDEX,
+    "sdk/typescript/packages/agent-hooks/src/index.ts": TS_INDEX,
     "sdk/python/python/agent_hooks/_types.py": PY_TYPES,
     "sdk/dotnet/src/AgentHooks/Types.cs": CS_TYPES,
     "sdk/go/agenthooks/types.go": GO_TYPES,

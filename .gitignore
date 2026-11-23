@@ -228,6 +228,8 @@ PublishScripts/
 *.snupkg
 # The packages folder can be ignored because of Package Restore
 **/[Pp]ackages/*
+!sdk/typescript/packages/agent-hooks/
+!sdk/typescript/packages/contracts/
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
 # Uncomment if necessary however generally it will be regenerated when needed
@@ -443,11 +445,10 @@ build/
 target/
 # Cargo.lock IS committed for the sdk/rust workspace (reproducible builds
 # for the FFI cdylib every other SDK depends on; addresses RM-N17). The
-# per-binding crates (sdk/python, sdk/typescript) also commit theirs.
+# per-binding crates also commit theirs.
 
 # Native build outputs — never commit compiled artefacts (N07).
-sdk/typescript/dist/
-sdk/typescript/*.node
+sdk/typescript/**/*.node
 sdk/python/python/agent_hooks/*.so
 sdk/python/python/agent_hooks/*.pyd
 *.abi3.so

@@ -15,7 +15,7 @@ import { canonicalJson, contextIdentity } from "../dist/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const golden = JSON.parse(
-  readFileSync(resolve(here, "../../../conformance/golden/identity.json"), "utf8"),
+  readFileSync(resolve(here, "../../../../../conformance/golden/identity.json"), "utf8"),
 );
 
 for (const f of golden.fixtures) {

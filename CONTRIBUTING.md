@@ -46,7 +46,7 @@
   draft change cannot turn a required check red. Mark such a test the
   way its suite filters: a `draft_only_` name prefix in Rust
   (`cargo test -- --skip draft_only`), the `draft` pytest marker
-  (`-m "not draft"`), a file under `sdk/typescript/test/draft/`,
+  (`-m "not draft"`), a file under `sdk/typescript/packages/agent-hooks/test/draft/`,
   `[Trait("Category", "draft")]` in .NET (`--filter "Category!=draft"`),
   a `TestDraftOnly` name prefix in Go (`-skip DraftOnly`). The local
   commands below run both sets. Binding tests to a draft revision is
@@ -159,20 +159,27 @@ binding builds must use napi-rs's `--esm` option.
 
 ## TypeScript contract types
 
-`sdk/typescript/scripts/generate-types.tsx` uses Alloy JSX and the TypeSpec emitter
-framework to generate `sdk/typescript/src/generated/types.ts` directly from
-the draft source. The independent `@responsibleai/agent-hooks/contract` entry
-point exposes interfaces, discriminated unions and string-literal unions;
-it has no runtime or native dependency.
+`emitters/typescript` is a TypeSpec emitter package implemented with Alloy JSX
+and the TypeSpec emitter framework. `spec/draft/main.tsp` loads the existing
+draft source; `spec/draft/tspconfig.yaml` runs the emitter and directs its
+committed output to
+`sdk/typescript/packages/contracts/src/generated/draft/index.ts`.
+The independent `@responsibleai/agent-hooks-contracts/draft` entry point
+exposes interfaces, discriminated unions and string-literal unions; it has
+no runtime or native dependency.
 
 ```bash
-pnpm --dir sdk/typescript run generate:types
-pnpm --dir sdk/typescript run check:generated  # check drift and type-check the emitter
+pnpm generate
+pnpm run check:generated  # regenerate schemas and contracts, then git diff --exit-code
 ```
 
-The SDK owns the generator and its development dependencies. Root-level
-`generate:typescript` and `check:typescript` commands delegate to the SDK;
-normative JSON Schemas are generated separately with `pnpm run generate:schema`.
+Generation builds the emitter before running `tsp compile spec/draft`; the
+same compilation can be rerun directly with `pnpm exec tsp compile spec/draft`.
+The SDK receives generated output only. The native runtime and its `./ctk`
+entry point live in `sdk/typescript/packages/agent-hooks`; native platform
+packages stay under `sdk/typescript/npm`. The existing JSON Schema generator
+remains separate internally, but is included in `pnpm generate` and the
+single drift check.
 
 Commit TypeSpec edits and generated contract types together; do not edit the
 generated TypeScript by hand. No JSON Schema copies are needed in the SDK.
@@ -204,7 +211,7 @@ cd sdk/rust && cargo test --workspace --all-features && cargo clippy --workspace
 # Python (rebuild bindings when core changed)
 cd sdk/python && maturin develop --release && python -m pytest tests/ && ruff check
 # TypeScript (rebuild native when core changed)
-pnpm install && pnpm --dir sdk/typescript test
+pnpm install && pnpm --filter @responsibleai/agent-hooks test
 # .NET (needs the FFI cdylib on the library path)
 cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
 cd sdk/dotnet && LD_LIBRARY_PATH=../rust/target/release dotnet test

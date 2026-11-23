@@ -1,0 +1,27 @@
+{
+  "name": "@responsibleai/agent-hooks-contracts",
+  "version": "0.1.0-beta.4",
+  "description": "Generated, versioned Agent Hooks TypeScript contracts with no native or runtime dependencies.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./draft": {
+      "types": "./dist/generated/draft/index.d.ts",
+      "default": "./dist/generated/draft/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/responsibleai/agent-hooks.git",
+    "directory": "sdk/typescript/packages/contracts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

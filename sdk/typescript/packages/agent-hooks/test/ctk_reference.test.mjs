@@ -22,7 +22,7 @@ import {
 } from "../dist/ctk/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const vectorsDir = resolve(here, "../../../conformance/0.1/vectors");
+const vectorsDir = resolve(here, "../../../../../conformance/0.1/vectors");
 
 // Pinned capability skips: a skip outside this manifest fails the
 // suite — the parity gate must not silently degrade to green when a

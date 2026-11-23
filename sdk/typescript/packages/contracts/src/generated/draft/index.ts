@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-// Generated from spec/draft/schema/src/main.tsp. Do not edit.
-// Regenerate with pnpm run generate:types in sdk/typescript.
+// Generated from the AgentHooks TypeSpec specification. Do not edit.
+// Regenerate with pnpm generate from the repository root.
 
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 

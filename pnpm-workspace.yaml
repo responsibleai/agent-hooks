@@ -1,7 +1,8 @@
 packages:
   - docs-site
   - spec/scripts
-  - sdk/typescript
+  - emitters/*
+  - sdk/typescript/packages/*
 
 overrides:
   minimatch: ^11.0.9

@@ -7,12 +7,15 @@
     "node": ">=22"
   },
   "devDependencies": {
+    "@agent-hooks/typescript-emitter": "workspace:*",
+    "@typespec/compiler": "1.18.0",
+    "@typespec/json-schema": "1.18.0",
     "ajv-cli": "5.0.0",
     "ajv-formats": "3.0.1"
   },
   "scripts": {
-    "generate:typescript": "pnpm --dir sdk/typescript run generate:types",
-    "check:typescript": "pnpm --dir sdk/typescript run check:generated",
+    "generate": "pnpm run generate:schema && pnpm --filter @agent-hooks/typescript-emitter build && tsp compile spec/draft",
+    "check:generated": "pnpm generate && git diff --exit-code",
     "generate:schema": "pnpm --dir spec/scripts run generate:schema",
     "check:schema": "pnpm --dir spec/scripts run check:schema",
     "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"

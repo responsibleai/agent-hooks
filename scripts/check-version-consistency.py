@@ -3,12 +3,12 @@
 
 """Fail when the SDK version surfaces disagree (VERSIONING.md).
 
-One tag releases all SDKs together, so the four version manifests
+One tag releases all SDKs together, so the five version manifests
 MUST carry the same version at all times:
 
   sdk/rust/Cargo.toml            [workspace.package] version  (SemVer)
   sdk/python/pyproject.toml      [project] version            (PEP 440)
-  sdk/typescript/package.json    version                      (SemVer)
+  sdk/typescript/packages/*/package.json version              (SemVer)
   sdk/dotnet/Directory.Build.props <Version>                  (SemVer)
 
 Go carries no manifest version: the module version is the git tag.
@@ -33,7 +33,7 @@ never released; the draft is cut, never tagged. With --release-tag TAG,
 the SDK tag must match the shared manifest version, using its SemVer
 spelling. With --print-supported the script prints the entries one
 per line, for workflows that loop
-over them. Finally, sdk/typescript/package.json must not commit
+over them. Finally, the TypeScript runtime package must not commit
 platform pins.
 """
 
@@ -55,7 +55,7 @@ SUPPORTED_CONSTANTS = {
     "sdk/rust/core/src/types.rs": (
         r"pub const SUPPORTED_SPEC_VERSIONS: &\[&str\] = &\[([^\]]*)\]"
     ),
-    "sdk/typescript/src/index.ts": (
+    "sdk/typescript/packages/agent-hooks/src/index.ts": (
         r"export const SUPPORTED_SPEC_VERSIONS: readonly string\[\] = "
         r"Object\.freeze\(\[([^\]]*)\]\)"
     ),
@@ -107,8 +107,10 @@ def read_versions(root: Path = ROOT) -> dict[str, str]:
     assert m, "no version in sdk/python/pyproject.toml"
     versions["sdk/python/pyproject.toml"] = m.group(1)
 
-    pkg = json.loads((root / "sdk/typescript/package.json").read_text(encoding="utf-8"))
-    versions["sdk/typescript/package.json"] = pkg["version"]
+    for package in ("agent-hooks", "contracts"):
+        path = f"sdk/typescript/packages/{package}/package.json"
+        pkg = json.loads((root / path).read_text(encoding="utf-8"))
+        versions[path] = pkg["version"]
 
     props = (root / "sdk/dotnet/Directory.Build.props").read_text(encoding="utf-8")
     m = re.search(r"<Version>([^<]+)</Version>", props)
@@ -318,14 +320,14 @@ def check_spec_tags(root: Path = ROOT) -> int:
 
 
 def check_no_committed_platform_pins(
-    package_path: Path = ROOT / "sdk/typescript/package.json",
+    package_path: Path = ROOT / "sdk/typescript/packages/agent-hooks/package.json",
 ) -> int:
     """The loader manifest must not pin platform packages; the release
     workflow injects optionalDependencies at publish time."""
     pkg = json.loads(package_path.read_text(encoding="utf-8"))
     if "optionalDependencies" in pkg:
         print(
-            "sdk/typescript/package.json commits optionalDependencies; "
+            "sdk/typescript/packages/agent-hooks/package.json commits optionalDependencies; "
             "platform pins are injected at publish time (see release.yml)",
             file=sys.stderr,
         )

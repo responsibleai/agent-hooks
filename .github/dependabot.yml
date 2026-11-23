@@ -16,7 +16,7 @@ updates:
     directories:
       - /sdk/rust
       - /sdk/python
-      - /sdk/typescript
+      - /sdk/typescript/packages/agent-hooks
     schedule: { interval: weekly }
     groups:
       rust: { patterns: ["*"] }

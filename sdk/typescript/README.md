@@ -1,200 +1,31 @@
-# agent-hooks (TypeScript SDK)
+# TypeScript SDK
 
-TypeScript implementation of
-[AGENT-HOOKS-0.1](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md)
-over the canonical Rust core (napi-rs native module): interception
-points, `AgentContextBuilder`, `Verdict` types, host-side
-`InterceptionEmitter` with the four composition profiles, the
-identity-provider seam, the host declaration loader, and the CTK
-runner.
+The TypeScript packages separate generated contracts from native runtime support:
 
-> **Trust model.** agent-hooks is a *cooperative contract*, not a security
-> boundary: the host framework is fully trusted, interceptors run in-process
-> with full data access, and no complete-mediation claim is made. Read
-> [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
-> and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
-> before relying on it.
+| Package | Source | Purpose |
+| --- | --- | --- |
+| [`@responsibleai/agent-hooks-contracts`](packages/contracts/README.md) | `packages/contracts/` | Versioned generated contracts, with no native or runtime dependencies |
+| [`@responsibleai/agent-hooks`](packages/agent-hooks/README.md) | `packages/agent-hooks/` | Native binding, handwritten SDK, and conformance runner (`./ctk`) |
+
+Native platform packages remain under `npm/<platform>/`. Both SDK packages
+are ESM. The runtime does not yet consume the new draft contracts.
+
+The Alloy JSX emitter lives in [`emitters/typescript`](../../emitters/typescript/),
+not in the SDK. `spec/draft/tspconfig.yaml` directs its output to
+`packages/contracts/src/generated/draft/`. Generated files are committed;
+the frozen 0.1 source is not changed or regenerated as a draft contract.
+
+From the repository root:
 
 ```bash
-npm install @responsibleai/agent-hooks
+pnpm install
+pnpm generate
+pnpm run check:generated
+pnpm --filter @responsibleai/agent-hooks-contracts build
+pnpm --filter @responsibleai/agent-hooks test
 ```
 
-A plain install gets the newest release, pre-releases included. The
-channel tags `alpha`, `beta` and `rc` exist for pinning to one line
-(`@responsibleai/agent-hooks@beta`); or pin an exact published
-version. Check what the tags resolve to with
-`npm view @responsibleai/agent-hooks dist-tags`.
-
-## Usage
-
-The SDK is an ES module package for Node.js 20.10 or newer. Use
-`import`/`export` in an ES module project; no CommonJS build is published.
-
-```ts
-import {
-  AgentContextBuilder,
-  InterceptionEmitter,
-  SPEC_VERSION_0_1,
-  Verdict,
-} from "@responsibleai/agent-hooks";
-
-// The host names the specification version it runs under, here 0.1;
-// `SPEC_VERSION_DRAFT` selects the draft. There is no default.
-const emitter = new InterceptionEmitter(SPEC_VERSION_0_1);
-emitter.register({
-  intercept(ctx) {
-    if (ctx.interception_point === "pre_tool_call" && ctx.tool_call.name === "rm") {
-      return { decision: "deny", reason: "dangerous" };
-    }
-    return { decision: "allow" };
-  },
-});
-
-const builder = new AgentContextBuilder({
-  spec: SPEC_VERSION_0_1,
-  agentId: "my-agent",
-  framework: "my-fw",
-  sessionId: "s-1",
-});
-const ctx = builder.preToolCall("tc-1", "http_get", { url });
-await emitter.emit(ctx); // throws InterceptionBlocked on a combined deny
-```
-
-`register(interceptor, name?, at?)` also takes the points an
-interceptor runs at. At a point, `interceptors_registered`,
-`verdicts[].index` and `decided_by` count and index the interceptors
-bound there, in registration order.
-
-## Generated draft contract (POC)
-
-The independent `@responsibleai/agent-hooks/contract` entry point contains
-types generated directly from the draft TypeSpec source with Alloy and the
-TypeSpec emitter framework. This is a fresh contract, not an adaptation of
-the existing 0.1 API: models are interfaces, decisions and other enums are
-string-literal unions, and hook requests, responses and approval resolutions
-are discriminated unions.
-
-```ts
-import type {
-  PreToolCallRequest,
-  PreToolHookResponse,
-} from "@responsibleai/agent-hooks/contract";
-
-function reviewTool(ctx: PreToolCallRequest): PreToolHookResponse {
-  return {
-    verdict: {
-      decision: "transform",
-      transform: { args: { ...ctx.tool_call.args, reviewed: true } },
-    },
-  };
-}
-```
-
-The contract needs no native module, runtime validators, copied JSON Schemas,
-or compatibility aliases. Runtime integration is outside this POC; the
-existing SDK runtime does not consume these types.
-
-The generator and its dependencies live in this SDK. From this directory,
-run `pnpm run generate:types` to regenerate the contract and
-`pnpm run check:generated` to check drift and type-check the generator.
-The repository-root `generate:typescript` and `check:typescript` commands
-are convenience aliases. Generation reads the draft TypeSpec source directly
-and does not regenerate the normative JSON Schemas.
-
-## Failure handling
-
-Every registration and every binding fails closed: an interceptor that
-throws, exceeds its timeout or returns an invalid verdict is recorded
-as `deny host_error:*` and the action stops. An administrator can set
-`on_error: "continue"` for one registration
-(`registerWithOptions(interceptor, { name, onError: "continue" })`, or
-`on_error` on a binding or `configuration.failure.on_error` in a 1.1
-document); the host then puts an `allow` carrying
-`host_warning:control_failed` in that slot, records the cause as
-`verdicts[].substituted_for` and calls the `setControlFailureNotifier`
-callback (required before such a registration is accepted) so the user
-or the agent is told, while cancellation, approval failures, context
-failures, transform failures, `no_interceptor` and an explicit deny
-never continue. An interceptor that owns external work implements
-`interceptManaged(ctx, boundMs)` (`registerManaged`, or a `managedKind`
-in the registry), receives the resolved bound and reports `verdict`,
-`timeout` after cleanup, `failed` or `cancelled`.
-
-## Host declaration
-
-A host can load its configuration, declared surface and interceptor
-bindings from one JSON document (spec §7.7) instead of calling the
-setters. The document is a versioned contract,
-`agent-hooks-declaration/1.1` under the draft and 1.0 under 0.1 (a 1.0
-document loads under both), separate from the wire version the
-document names in its required `spec` member. The SDK exports the
-newest contract version (`DECLARATION_VERSION`), the set it accepts
-(`SUPPORTED_DECLARATION_VERSIONS`), `currentDeclarationVersion(spec)`,
-and `SUPPORTED_SPEC_VERSIONS` with the wire strings `SPEC_VERSION_0_1`
-and `SPEC_VERSION_DRAFT`, the specification versions it supports. A
-document of any other version is refused.
-
-```ts
-import {
-  HostDeclaration,
-  HostRegistry,
-  HostSurface,
-  InterceptionEmitter,
-} from "@responsibleai/agent-hooks";
-
-// What the code can honour. A document may select a subset, never more.
-const surface = HostSurface.fromCapabilities(["model_calls", "tool_calls", "host_declaration"]);
-
-// Kind resolvers turn a binding's `config` into an interceptor. A kind
-// is a lookup key the host names; the spec defines none.
-const registry = new HostRegistry(surface)
-  .kind("com.example.egress", (config, ctx) => new EgressGuard(config))
-  .approvalResolver("operator-queue", queue);
-
-const emitter = await InterceptionEmitter.fromDeclarationPath(
-  "agent-hooks.declaration.json",
-  registry,
-);
-```
-
-The three construction paths yield the same emitter and the same
-records: `fromDeclarationPath` reads a file, `fromDeclarationJson`
-takes the text, `fromDeclarationValue` takes a parsed object, and
-`fromDeclaration` takes a `HostDeclaration` (for example from
-`HostDeclaration.builder()`, one setter per member and `bind(...)` or
-`bindWith(...)` per binding). `emitter.declaration` is the resolved form with every default
-filled; `canonicalDeclaration(emitter.declaration)` is its RFC 8785
-canonical JSON, the equivalence oracle.
-
-A document that names anything the host cannot honour is refused at
-load, before any emission, with a `DeclarationError`. The error carries
-`code` (one of eleven `declaration_error:*` classes), `findings` (JSON
-pointer plus detail, never binding configuration) and, for
-`version_unsupported`, `accepted`. The Rust core runs every check, so
-the class is the same as in the other SDKs. An emitter built from a
-declaration is sealed: `register` and the setters throw
-`EmitterSealed`; `setRecordSink` and `takeRecords` stay allowed.
-Records from such an emitter carry `declaration:
-"agent-hooks-declaration/1.1"` (or `1.0`, the document's own version);
-records from an emitter configured in code do not and are unchanged.
-
-**JavaScript value-domain caveat (spec §4.4):** `JSON.parse` rounds
-integers beyond 2^53 before any guard can run, so this SDK cannot claim
-the `int64_json`/`bigint_json` CTK capabilities — string-encode
-64-bit identifiers at the adapter boundary. Non-finite numbers are
-rejected fail-closed by a pre-serialization scan. The same rounding
-applies to `bindings[].config`: the loader hands the core the validated
-text, so the load checks see the integers the file had, but the
-resolved form and a kind resolver receive JavaScript values.
-String-encode 64-bit values in binding configuration too.
-
-## Native module deployment
-
-The napi-rs native module (`*.node`) ships as per-platform
-`optionalDependencies` packages (the standard napi-rs multi-platform
-layout): `linux-x64-gnu`, `linux-arm64-gnu`, `darwin-x64`,
-`darwin-arm64` and `win32-x64-msvc`. On other platforms, install from
-source (needs a Rust toolchain): run `pnpm install` at the repository root,
-then `pnpm --dir sdk/typescript build` to produce the module
-for your host platform. A platform mismatch fails at import time
-with a module-load error naming the missing `.node` binary.
+`pnpm generate` regenerates the normative JSON Schemas with the existing schema
+tooling, builds the TypeScript emitter, and runs `tsp compile spec/draft`.
+After building the emitter, `pnpm exec tsp compile spec/draft` can also be run
+directly. The single drift check regenerates and runs `git diff --exit-code`.

@@ -19,9 +19,10 @@ DIRS = [
     "npm/darwin-x64",
     "npm/darwin-arm64",
     "npm/win32-x64-msvc",
-    ".",
+    "packages/contracts",
+    "packages/agent-hooks",
 ]
-NAMES = ["@synthetic/package-" + str(i) for i in range(6)]
+NAMES = ["@synthetic/package-" + str(i) for i in range(len(DIRS))]
 STUB = r"""
 import json, os, sys
 args = sys.argv[1:]
@@ -95,7 +96,7 @@ class NpmReleaseTest(unittest.TestCase):
                 (target / "package.json").write_text(
                     json.dumps(dict(name=NAMES[index], version=version))
                 )
-                if directory != "." and not (missing and index == 0):
+                if directory.startswith("npm/") and not (missing and index == 0):
                     (target / "fixture.node").write_text(
                         "Artifact-presence fixture, never loaded.\n"
                     )
@@ -171,31 +172,33 @@ class NpmReleaseTest(unittest.TestCase):
                 self.assertIn("has no native artifact", result.stdout)
 
     def test_visible(self):
-        self.run_case(["existing"] * 6)
+        self.run_case(["existing"] * len(DIRS))
 
     def test_stale_after_success(self):
-        self.run_case(["fresh"] * 6)
+        self.run_case(["fresh"] * len(DIRS))
 
     def test_stable_fresh(self):
-        self.run_case(["fresh"] * 6, stable=True)
+        self.run_case(["fresh"] * len(DIRS), stable=True)
 
     def test_stable_existing(self):
-        self.run_case(["existing"] * 6, stable=True)
+        self.run_case(["existing"] * len(DIRS), stable=True)
 
     def test_mixed_eligibility(self):
-        self.run_case(["existing", "fresh", "soft", "fresh", "existing", "fresh"])
+        self.run_case(
+            ["existing", "fresh", "soft", "fresh", "existing", "fresh", "fresh"]
+        )
 
     def test_existing_publish_failure(self):
-        self.run_case(["hard"] + ["existing"] * 5, status=1)
+        self.run_case(["hard"] + ["existing"] * (len(DIRS) - 1), status=1)
 
     def test_soft_first_publication(self):
-        self.run_case(["soft"] * 6)
+        self.run_case(["soft"] * 5 + ["fresh", "fresh"])
 
     def test_missing_artifact(self):
-        self.run_case(["fresh"] * 6, missing=True, status=1)
+        self.run_case(["fresh"] * len(DIRS), missing=True, status=1)
 
     def test_tag_failure(self):
-        self.run_case(["fresh"] * 6, tag_fail=NAMES[0], status=7)
+        self.run_case(["fresh"] * len(DIRS), tag_fail=NAMES[0], status=7)
 
 
 if __name__ == "__main__":

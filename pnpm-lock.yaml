@@ -179,6 +179,15 @@ importers:
 
   .:
     devDependencies:
+      '@agent-hooks/typescript-emitter':
+        specifier: workspace:*
+        version: link:emitters/typescript
+      '@typespec/compiler':
+        specifier: 1.18.0
+        version: 1.18.0(@types/node@26.6.6)
+      '@typespec/json-schema':
+        specifier: 1.18.0
+        version: 1.18.0(@typespec/compiler@1.18.0(@types/node@26.6.6))
       ajv-cli:
         specifier: 5.0.0
         version: 5.0.0(ts-node@10.9.2(@types/node@26.6.6)(typescript@7.0.2))
@@ -207,29 +216,39 @@ importers:
         specifier: 12.3.0
         version: 12.3.0
 
-  sdk/typescript:
-    devDependencies:
+  emitters/typescript:
+    dependencies:
       '@alloy-js/core':
         specifier: 0.25.0
         version: 0.25.0
       '@alloy-js/typescript':
         specifier: 0.25.0
         version: 0.25.0
-      '@napi-rs/cli':
-        specifier: ^3.7.2
-        version: 3.10.12(@emnapi/core@2.0.0-beta.3)(@emnapi/runtime@2.0.0-beta.3)(@types/node@26.6.6)
-      '@types/node':
-        specifier: ^26.1.1
-        version: 26.6.6
-      '@typespec/compiler':
-        specifier: 1.18.0
-        version: 1.18.0(@types/node@26.6.6)
       '@typespec/emitter-framework':
         specifier: 0.22.0
         version: 0.22.0(@alloy-js/core@0.25.0)(@alloy-js/csharp@0.25.0)(@alloy-js/python@0.6.0)(@alloy-js/typescript@0.25.0)(@typespec/compiler@1.18.0(@types/node@26.6.6))
       '@typespec/json-schema':
         specifier: 1.18.0
         version: 1.18.0(@typespec/compiler@1.18.0(@types/node@26.6.6))
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.1
+        version: 26.6.6
+      '@typespec/compiler':
+        specifier: 1.18.0
+        version: 1.18.0(@types/node@26.6.6)
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
+  sdk/typescript/packages/agent-hooks:
+    devDependencies:
+      '@napi-rs/cli':
+        specifier: ^3.7.2
+        version: 3.10.12(@emnapi/core@2.0.0-beta.3)(@emnapi/runtime@2.0.0-beta.3)(@types/node@26.6.6)
+      '@types/node':
+        specifier: ^26.1.1
+        version: 26.6.6
       ajv:
         specifier: 8.20.0
         version: 8.20.0
@@ -239,6 +258,12 @@ importers:
       tsx:
         specifier: 4.23.15
         version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
+  sdk/typescript/packages/contracts:
+    devDependencies:
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

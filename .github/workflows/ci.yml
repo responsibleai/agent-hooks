@@ -213,19 +213,20 @@ jobs:
       - run: cargo fetch --locked
         # napi-cli does not forward --locked; fetching first pins the
         # graph, and the build below resolves offline-consistent.
-        working-directory: sdk/typescript
+        working-directory: sdk/typescript/packages/agent-hooks
       - run: pnpm run build:native:debug
-        working-directory: sdk/typescript
+        working-directory: sdk/typescript/packages/agent-hooks
       - name: Generated-binding drift (mirrors schema-drift)
         run: git diff --exit-code -- binding.js binding.d.ts
-        working-directory: sdk/typescript
+        working-directory: sdk/typescript/packages/agent-hooks
+      - run: pnpm --filter @responsibleai/agent-hooks-contracts build
       - run: pnpm exec tsc
-        working-directory: sdk/typescript
+        working-directory: sdk/typescript/packages/agent-hooks
       # All test files, never an allowlist: the emitter suite shipped
       # ~100 tests before first running in CI because this line named
       # two files. test/draft/ is the advisory set, run in draft-tests.
       - run: node --test test/*.mjs
-        working-directory: sdk/typescript
+        working-directory: sdk/typescript/packages/agent-hooks
 
   rust:
     runs-on: ubuntu-latest
@@ -405,7 +406,7 @@ jobs:
           pnpm run build:native:debug
           pnpm exec tsc
           node --test test/draft/*.mjs
-        working-directory: sdk/typescript
+        working-directory: sdk/typescript/packages/agent-hooks
       - name: .NET draft suite tests
         id: dotnet
         continue-on-error: true
@@ -476,14 +477,8 @@ jobs:
         run: python3 scripts/check-spec-versions.py
       - name: Repository script regression tests
         run: python3 -m unittest discover -s scripts -p "test_*.py" -v
-      - name: Committed JSON Schemas match their TypeSpec source
-        # Compiles spec/draft/schema/src, regenerates to memory and compares
-        # with the committed files (spec/scripts/generate-schemas.mts).
-        run: pnpm run check:schema
-        working-directory: spec/scripts
-      - name: Generated TypeScript contract matches its TypeSpec source
+      - name: Committed generation matches the specification
         run: pnpm run check:generated
-        working-directory: sdk/typescript
       - name: Released schema bundles match their source
         # The same check for every spec/<MAJOR.MINOR>/ bundle: the frozen
         # source must still generate the frozen output.
@@ -523,7 +518,7 @@ jobs:
           tool: cargo-deny@0.20.2
       - name: cargo deny (all three cargo roots)
         run: |
-          for root in sdk/rust sdk/python sdk/typescript; do
+          for root in sdk/rust sdk/python sdk/typescript/packages/agent-hooks; do
             echo "::group::$root"
             (cd "$root" && cargo deny --locked check advisories licenses bans sources)
             echo "::endgroup::"
@@ -572,7 +567,7 @@ jobs:
           pnpm run build:native:debug
           pnpm exec tsc
           node --test test/*.mjs
-        working-directory: sdk/typescript
+        working-directory: sdk/typescript/packages/agent-hooks
 
   go-xplat:
     # The Windows leg builds the ffi crate for x86_64-pc-windows-gnu:

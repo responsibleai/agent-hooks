@@ -12,7 +12,7 @@ import { SPEC_VERSION_DRAFT } from "../../dist/index.js";
 import { loadVectors, runVector, ReferenceHarness } from "../../dist/ctk/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const vectors = loadVectors(resolve(here, "../../../../conformance/draft/vectors"));
+const vectors = loadVectors(resolve(here, "../../../../../../conformance/draft/vectors"));
 const expectedSkips = new Set(["AH-CTK-090", "AH-CTK-091", "AH-CTK-095", "AH-CTK-110", "AH-CTK-111", "AH-CTK-112", "AH-CTK-113"]);
 
 test("the full draft suite is selected", () => {

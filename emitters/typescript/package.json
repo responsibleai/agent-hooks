@@ -1,0 +1,34 @@
+{
+  "name": "@agent-hooks/typescript-emitter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@alloy-js/core": "0.25.0",
+    "@alloy-js/typescript": "0.25.0",
+    "@typespec/emitter-framework": "0.22.0",
+    "@typespec/json-schema": "1.18.0"
+  },
+  "peerDependencies": {
+    "@typespec/compiler": "1.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@typespec/compiler": "1.18.0",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

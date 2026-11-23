@@ -16,7 +16,7 @@ import {
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = JSON.parse(
   fs.readFileSync(
-    path.join(here, "../../../conformance/golden/interceptor-response.json"),
+    path.join(here, "../../../../../conformance/golden/interceptor-response.json"),
     "utf8",
   ),
 );

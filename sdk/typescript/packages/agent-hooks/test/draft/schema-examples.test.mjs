@@ -16,7 +16,7 @@ import {
   schemaMapping,
   schemaRoot,
   validateExamples,
-} from "../../../../spec/scripts/check-schema-examples.mjs";
+} from "../../../../../../spec/scripts/check-schema-examples.mjs";
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), "schema-examples-"));

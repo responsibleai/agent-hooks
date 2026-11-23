@@ -1,5 +1,5 @@
 # cargo-deny configuration — applies to all three cargo
-# roots (sdk/rust workspace, sdk/python, sdk/typescript), which resolve
+# roots (sdk/rust, sdk/python, sdk/typescript/packages/agent-hooks), which resolve
 # this file from the repository root.
 #
 # The RFC 8785 canonicalization serializer is vendored into the core

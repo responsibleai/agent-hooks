@@ -148,8 +148,9 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    - `sdk/rust/Cargo.toml` and `sdk/rust/Cargo.lock`
    - `sdk/python/Cargo.toml`, `sdk/python/Cargo.lock`,
      `sdk/python/pyproject.toml`
-   - `sdk/typescript/Cargo.toml`, `sdk/typescript/Cargo.lock`,
-     `sdk/typescript/package.json`,
+   - `sdk/typescript/packages/agent-hooks/Cargo.toml`,
+     `sdk/typescript/packages/agent-hooks/Cargo.lock`,
+     `sdk/typescript/packages/*/package.json`,
      `sdk/typescript/npm/*/package.json`
    - `sdk/dotnet/Directory.Build.props` and
      `sdk/dotnet/test/AgentHooks.Tests/packages.lock.json`
@@ -169,8 +170,8 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    `agent-hooks/draft`. Add or drop an entry in all five cores together,
    with its rules in the Rust core's `SpecVersion`.
 
-   Regenerate `sdk/typescript/binding.js` after the bump (`pnpm run
-   build:native` in `sdk/typescript`); the napi version strings it
+   Regenerate `sdk/typescript/packages/agent-hooks/binding.js` after the bump
+   (`pnpm --filter @responsibleai/agent-hooks run build:native`); the napi version strings it
    embeds come from `package.json`, and the CI `typescript` job fails
    on drift.
    Add the tag's row to the table in

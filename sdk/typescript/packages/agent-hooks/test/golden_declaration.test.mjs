@@ -20,7 +20,7 @@ import {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const golden = JSON.parse(
-  readFileSync(resolve(here, "../../../conformance/golden/declaration.json"), "utf8"),
+  readFileSync(resolve(here, "../../../../../conformance/golden/declaration.json"), "utf8"),
 );
 
 const allow = { intercept: () => ({ decision: "allow" }) };
