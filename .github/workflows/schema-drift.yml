@@ -26,7 +26,14 @@ jobs:
       - name: Generate schemas and contracts
         run: pnpm generate
       - name: Check generated drift
-        run: git diff --exit-code
+        run: |
+          git diff --exit-code
+          untracked="$(git ls-files --others --exclude-standard)"
+          if [[ -n "$untracked" ]]; then
+            echo "::error::Generated output includes untracked files:"
+            printf '%s\n' "$untracked"
+            exit 1
+          fi
 
   python-released-schema-mirror:
     runs-on: ubuntu-latest

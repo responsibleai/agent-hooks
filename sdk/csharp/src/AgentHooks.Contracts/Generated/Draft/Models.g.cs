@@ -3504,12 +3504,19 @@ public sealed class BufferedSurface : Surface
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ProfileSupport? Profiles { get; set; }
 
+    private bool? _bufferedOutput;
     /// <summary>
     /// §12.1a. false must be declared explicitly and requires exposure_bound.
     /// </summary>
     [JsonPropertyName("buffered_output")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? BufferedOutput { get; set; }
+    public bool? BufferedOutput
+    {
+        get { return _bufferedOutput; }
+        set {
+            if (value is not null && value != true) throw new JsonException("Expected buffered_output = true."); _bufferedOutput = value;
+        }
+    }
 }
 
 /// <summary>
@@ -3584,8 +3591,8 @@ public sealed class Binding
     /// Default {}.
     /// </summary>
     [JsonPropertyName("config")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public JsonElement? Config { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<JsonElement> Config { get; set; }
 
     /// <summary>
     /// Points this binding runs at, each in the surface. Default: every surface

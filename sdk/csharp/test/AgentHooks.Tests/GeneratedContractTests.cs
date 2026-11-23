@@ -71,8 +71,21 @@ public sealed class GeneratedContractTests
         var usage = JsonSerializer.Deserialize<Draft.Usage>("{}")!;
         Assert.Null(usage.PromptTokens);
         Assert.Equal("{}", JsonSerializer.Serialize(usage));
+        var bindingWithoutConfig = JsonSerializer.Deserialize<Draft.Binding>(
+            """{"id":"one","kind":"example.kind"}""")!;
+        Assert.False(bindingWithoutConfig.Config.IsDefined);
+        Assert.Equal("""{"id":"one","kind":"example.kind"}""", JsonSerializer.Serialize(bindingWithoutConfig));
+        var bindingWithNullConfig = JsonSerializer.Deserialize<Draft.Binding>(
+            """{"id":"one","kind":"example.kind","config":null}""")!;
+        Assert.True(bindingWithNullConfig.Config.IsDefined);
+        Assert.Equal(JsonValueKind.Null, bindingWithNullConfig.Config.Value.ValueKind);
+        Assert.Equal("""{"id":"one","kind":"example.kind","config":null}""",
+            JsonSerializer.Serialize(bindingWithNullConfig));
         Assert.Equal("""{"buffered_output":false,"exposure_bound":"one token"}""",
             JsonSerializer.Serialize<Draft.Surface>(new Draft.UnbufferedSurface { ExposureBound = "one token" }));
+        Assert.Equal("""{"buffered_output":true}""",
+            JsonSerializer.Serialize<Draft.Surface>(new Draft.BufferedSurface { BufferedOutput = true }));
+        Assert.Throws<JsonException>(() => _ = new Draft.BufferedSurface { BufferedOutput = false });
     }
 
     [Fact]
@@ -115,6 +128,8 @@ public sealed class GeneratedContractTests
         Assert.IsType<Draft.BufferedSurface>(JsonSerializer.Deserialize<Draft.Surface>("{}"));
         Assert.IsType<Draft.UnbufferedSurface>(JsonSerializer.Deserialize<Draft.Surface>(
             """{"buffered_output":false,"exposure_bound":"one token"}"""));
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<Draft.Surface>("""{"buffered_output":false}"""));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Draft.Surface>("""{"buffered_output":"false"}"""));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Draft.HostDeclaration>(
             """{"spec":"agent-hooks/0.1","bindings":[]}"""));

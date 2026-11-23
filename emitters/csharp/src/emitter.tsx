@@ -144,14 +144,17 @@ function ContractProperty(props: { type: ModelProperty }): Children {
   const property = props.type;
   const type = unwrap(property.type);
   const value = literal(type);
-  const constant = value !== undefined && !property.optional;
+  const constant = value !== undefined;
+  const optionalConstant = constant && property.optional;
   const attributes = [
     <cs.Attribute name="JsonPropertyName" args={[JSON.stringify(property.name)]} />,
   ];
-  // Only optional nullable members need Optional<T?> to keep absent distinct from null.
+  // Optional unknown values can contain JSON null even without a nullable union.
   const nullable = nullableInner(type) !== undefined;
+  const optionalUnknown = property.optional && type.kind === "Intrinsic" && type.name === "unknown";
   const tristate = property.optional && nullable;
-  if (tristate) {
+  const preservePresence = tristate || optionalUnknown;
+  if (preservePresence) {
     attributes.push(<cs.Attribute name="JsonIgnore" args={["Condition = JsonIgnoreCondition.WhenWritingDefault"]} />);
   } else {
     attributes.push(property.optional
@@ -163,20 +166,34 @@ function ContractProperty(props: { type: ModelProperty }): Children {
     }
   }
   const expression = <ef.TypeExpression type={type} />;
-  const propertyType = tristate ? code`Optional<${expression}>`
+  const propertyType = preservePresence ? code`Optional<${expression}>`
     : property.optional ? code`${expression}?` : expression;
+  const csharpName = cs.createCSharpNamePolicy().getName(property.name, "class");
+  const backingField = `_${csharpName[0].toLowerCase()}${csharpName.slice(1)}`;
   const initializer = type.kind === "EnumMember"
     ? code`${<ef.TypeExpression type={type.enum} />}.${cs.createCSharpNamePolicy().getName(type.name, "enum-member")}`
     : JSON.stringify(value);
-  return <cs.Property
-    public name={property.name}
-    type={propertyType}
-    required={!property.optional && !constant}
-    get={constant ? code`return ${initializer};` : true}
-    set={constant ? code`if (value != ${initializer}) throw new JsonException(${JSON.stringify(`Expected ${property.name} = ${String(value)}.`)});` : true}
-    attributes={attributes}
-    doc={ef.getDocComments($, property)}
-  />;
+  const setter = constant
+    ? property.optional
+      ? code`if (value is not null && value != ${initializer}) throw new JsonException(${JSON.stringify(`Expected ${property.name} = ${String(value)}.`)}); ${backingField} = value;`
+      : code`if (value != ${initializer}) throw new JsonException(${JSON.stringify(`Expected ${property.name} = ${String(value)}.`)});`
+    : true;
+  return <>
+    {optionalConstant && <>
+      <cs.Field private name={backingField} type={code`${expression}?`} />
+      <hbr />
+    </>}
+    <cs.Property
+      public name={property.name}
+      type={propertyType}
+      required={!property.optional && !constant}
+      get={optionalConstant ? code`return ${backingField};`
+        : constant ? code`return ${initializer};` : true}
+      set={setter}
+      attributes={attributes}
+      doc={ef.getDocComments($, property)}
+    />
+  </>;
 }
 
 function EnumContract(props: { type: Enum; name: string }): Children {
