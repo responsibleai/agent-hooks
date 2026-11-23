@@ -133,6 +133,21 @@ Every context carries `agent-hooks/0.2`. The schema is
             any("spec/0.2" in step and "tag" in step for step in follow_ups)
         )
 
+    def test_leaves_the_draft_workspace_package_out_of_the_copy(self) -> None:
+        draft = self.root / "spec/draft"
+        (draft / "package.json").write_text(
+            '{"name": "@agent-hooks/spec-draft"}\n', encoding="utf-8"
+        )
+        (draft / "node_modules/.bin").mkdir(parents=True)
+        (draft / "node_modules/.bin/tsp").write_text("", encoding="utf-8")
+        cut.cut(self.root, "0.2", "2026-12-01")
+        self.assertFalse((self.root / "spec/0.2/package.json").exists())
+        self.assertFalse((self.root / "spec/0.2/node_modules").exists())
+        self.assertTrue((draft / "package.json").is_file())
+        self.assertTrue(
+            (self.root / "spec/0.2/schema/generated/x.schema.json").is_file()
+        )
+
     def test_refuses_bad_versions_dates_and_existing_folders(self) -> None:
         for version in ("0.2.0", "02.1", "draft", "0.١"):
             with self.assertRaises(SystemExit):

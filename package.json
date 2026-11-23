@@ -10,13 +10,11 @@
     "@typespec/compiler": "1.18.0",
     "@typespec/json-schema": "1.18.0",
     "ajv-cli": "5.0.0",
-    "ajv-formats": "3.0.1",
-    "rimraf": "6.1.4"
+    "ajv-formats": "3.0.1"
   },
   "scripts": {
-    "build:emitters": "pnpm --filter \"./emitters/*\" run build",
-    "clean:schema": "rimraf spec/draft/schema/generated",
-    "generate": "pnpm run build:emitters && pnpm run clean:schema && tsp compile spec/draft",
+    "generate": "pnpm --filter \"@agent-hooks/spec-draft...\" run build",
+    "check:changes": "git add --intent-to-add --ignore-removal :/ && git diff --exit-code",
     "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"
   }
 }
