@@ -257,6 +257,10 @@ importers:
       mermaid:
         specifier: 'catalog:'
         version: 12.3.0
+    devDependencies:
+      '@agent-hooks/spec-draft':
+        specifier: workspace:*
+        version: link:../spec/draft
 
   sdk/typescript:
     devDependencies:

@@ -15,5 +15,8 @@
     "astro-mermaid": "catalog:",
     "astro-rehype-relative-markdown-links": "catalog:",
     "mermaid": "catalog:"
+  },
+  "devDependencies": {
+    "@agent-hooks/spec-draft": "workspace:*"
   }
 }

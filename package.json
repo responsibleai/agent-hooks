@@ -13,6 +13,7 @@
     "ajv-formats": "catalog:"
   },
   "scripts": {
+    "build": "pnpm -r build",
     "generate": "pnpm --filter \"@agent-hooks/spec-draft...\" run build",
     "check:changes": "git add --intent-to-add --ignore-removal :/ && git diff --exit-code",
     "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"

@@ -134,7 +134,8 @@ differs from the generated text.
 
 ```bash
 pnpm install
-pnpm generate                 # build emitters/*, then regenerate every draft output
+pnpm build                    # build every workspace package in dependency order (needs Rust for sdk/typescript)
+pnpm generate                 # only emitters/* and spec/draft: regenerate every draft output
 pnpm check:changes            # on a clean tree: fail on any changed, new or deleted file, as CI does
 pnpm run check:schema:equivalence --old origin/main   # differential validation against another revision
 ```
