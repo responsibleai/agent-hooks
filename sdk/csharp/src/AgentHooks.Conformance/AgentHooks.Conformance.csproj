@@ -1,14 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageId>ResponsibleAI.AgentHooks.Conformance</PackageId>
-    <Description>Conformance Test Kit harness contract for AGENT-HOOKS-0.1 (§13.2).</Description>
+    <Description>Conformance Test Kit runner and reference harness for the Agent Hooks draft specification.</Description>
     <RootNamespace>AgentHooks.Conformance</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\AgentHooks\AgentHooks.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- The reference harness's own host declaration (spec section 7.7.9). -->
-    <EmbeddedResource Include="reference.declaration.json" LogicalName="reference.declaration.json" />
   </ItemGroup>
 </Project>

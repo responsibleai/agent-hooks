@@ -74,6 +74,34 @@ experimental draft mirrors do not change automatically with the spec.
 Update draft mirrors only alongside matching SDK behavior changes; mirror
 drift remains advisory. See [Contributing](../../../CONTRIBUTING.md#schema-source).
 
+## C# contract generation
+
+`spec/draft/main.tsp` imports this source and drives the experimental,
+Rust-independent `sdk/csharp/src/AgentHooks.Contracts/` assembly. From the repository root, run
+`pnpm generate` and commit the generated `Generated/Draft/Contracts.g.cs`
+alongside source changes. CI runs `pnpm generate && git diff --exit-code` to
+check drift across schemas and contracts. Do not edit the generated C# by hand.
+This targets the draft only, not the frozen 0.1 bundle or the existing Rust-backed .NET SDK.
+
+`spec/draft/tspconfig.yaml` loads the `@agent-hooks/emitter-csharp` workspace
+package. Its `emitters/csharp/src/emitter.tsx` uses `@typespec/emitter-framework` for
+TypeSpec context, model/enum declarations, properties, documentation and type
+references. Its component overrides preserve optional-property presence,
+literal wire values, arbitrary JSON, and unbounded integers. Raw
+`@alloy-js/csharp` components supply discriminated-union interfaces/converters,
+dictionary models and extension-data members not covered by the framework.
+`json-components.tsx` shares converter declarations, converter attributes and
+dictionary initializers between enum and union emission.
+`operation-handler.tsx` maps the logical operations below to independent async
+C# delegates: one hook handler per request/response pair and an
+`ApprovalResolverHandler`. Each accepts its typed request and an optional
+cancellation token and returns a `ValueTask` of the declared response. The
+pairings come from TypeSpec operations, not a second hand-maintained hook table;
+no aggregate interceptor interface or runtime dispatcher is generated.
+The [C# SDK README](../../../sdk/csharp/README.md#generated-draft-contracts-no-rust-dependency)
+describes the generated API and the distinction between typed contracts and
+specification validation.
+
 ## Logical operations
 
 `src/operations.tsp` describes the request/response pairings from the

@@ -79,7 +79,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    done
    cd spec/scripts
    node check-schema-examples.mjs
-   pnpm exec tsx generate-schemas.mts --check --spec X.Y
+   pnpm exec tsx generate-schemas.ts --check --spec X.Y
    ```
 
    Each suite validates only against its matching schema bundle. SDK
@@ -219,14 +219,32 @@ Before native upload, the full matching-PDB BinSkim scan must complete,
 match the DLL hash, pass BA2014 and BA2008 without suppression, and have
 no error findings. The `windows-ffi-hardening` artifact retains the DLL,
 PDB, SARIF and scanner log for 14 days. Existing warnings remain reported,
-not waived. The NuGet job then verifies exact identity between the scanned
-Windows DLL and the bundled payload. These checks do not establish a
+not waived. The FFI release assets retain this protection independently
+of the managed-only NuGet packages. These checks do not establish a
 downstream consumer's security-policy acceptance.
 
-For local builds and checks, see the
-[Windows source-build instructions](sdk/csharp/README.md#windows-x64-source-builds-and-release-checks).
+For a local equivalent, use a Windows x64 MSVC developer shell with PowerShell
+7.4 or later and run from the repository root:
+
+```powershell
+rustup toolchain install nightly-2026-10-21 --profile minimal --component rust-src --target x86_64-pc-windows-msvc
+$env:RUSTFLAGS = '-C control-flow-guard=checks -Z stack-protector=strong -D partial-stack-protector'
+$env:CARGO_ENCODED_RUSTFLAGS = $null
+Push-Location sdk\rust
+try {
+    cargo +nightly-2026-10-21 -Z build-std=std,panic_unwind build --locked --release `
+        -p agent-hooks-ffi --target x86_64-pc-windows-msvc
+    if ($LASTEXITCODE -ne 0) { throw 'Protected Windows FFI build failed.' }
+} finally { Pop-Location }
+$env:RUSTFLAGS = $null
+.\scripts\check-windows-cfg.ps1 -Dll sdk\rust\target\x86_64-pc-windows-msvc\release\agent_hooks_ffi.dll
+```
+
+Use a dedicated shell and short checkout path. For a full local BinSkim scan
+produced with `--hashes true --trace PdbLoad`, also run
+`scripts/check-windows-stack-protection.ps1 -Dll <dll> -Report <full-binskim.sarif>`.
 Changing the nightly pin requires rerunning the native scan, gate regressions,
-Rust tests, .NET tests, package-consumer smoke and latency comparison.
+Rust tests, package-consumer smoke and latency comparison.
 
 ### Tag
 
@@ -255,7 +273,9 @@ on tags, including dry runs; manual branch dry runs do not require a tag.
   channel tag from its label: `alpha` for `-alpha.N`, `beta` for
   `-beta.N`, `rc` for `-rc.N`, `next` for any other label. Stable
   versions carry only `latest`.
-- NuGet `ResponsibleAI.AgentHooks`, bundling four native runtimes
+- NuGet `ResponsibleAI.AgentHooks.Contracts` and `ResponsibleAI.AgentHooks`,
+  both managed-only. Configure trusted publishing for both package IDs before
+  the first release; the runtime depends on the matching contracts package.
 - Go: nothing. The `go` job builds and tests `sdk/go` as a consumer
   would see it. See the next section.
 

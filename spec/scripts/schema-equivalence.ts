@@ -5,7 +5,7 @@
 // diff between them. Used to show that regenerated schemas admit and reject
 // the same instances as the schemas they replace.
 //
-//   tsx schema-equivalence.mts --old <git-ref|dir> [--new <dir>]
+//   tsx schema-equivalence.ts --old <git-ref|dir> [--new <dir>]
 //       [--random <mutants per seed>] [--seed <n>] [--examples <n>] [--structural-diff]
 //       [--wire-old <string> --wire-new <string>]
 //
@@ -81,7 +81,7 @@ const WIRE_OLD = arg("--wire-old");
 const WIRE_NEW = arg("--wire-new");
 if (!OLD || (WIRE_OLD === undefined) !== (WIRE_NEW === undefined)) {
   console.error(
-    "usage: schema-equivalence.mts --old <git-ref|dir> [--new <dir>] [--structural-diff] [--wire-old <string> --wire-new <string>]",
+    "usage: schema-equivalence.ts --old <git-ref|dir> [--new <dir>] [--structural-diff] [--wire-old <string> --wire-new <string>]",
   );
   process.exit(2);
 }
