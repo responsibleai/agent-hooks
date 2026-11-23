@@ -5,7 +5,7 @@
 // diff between them. Used to show that regenerated schemas admit and reject
 // the same instances as the schemas they replace.
 //
-//   tsx schema-equivalence.mts --old <git-ref|dir> [--new <dir>]
+//   tsx schema-equivalence.ts --old <git-ref|dir> [--new <dir>]
 //       [--random <mutants per seed>] [--seed <n>] [--examples <n>] [--structural-diff]
 //       [--wire-old <string> --wire-new <string>]
 //
@@ -41,6 +41,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { legacySchemaMapping, schemaMapping, requestSchemas } from "./check-schema-examples.mjs";
@@ -67,22 +68,36 @@ const POINTS = [
 
 // ---- arguments --------------------------------------------------------------
 
-function arg(name: string, fallback?: string): string | undefined {
-  const i = process.argv.indexOf(name);
-  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : fallback;
+const USAGE =
+  "usage: schema-equivalence.ts --old <git-ref|dir> [--new <dir>] [--structural-diff] [--wire-old <string> --wire-new <string>]";
+let values;
+try {
+  ({ values } = parseArgs({
+    options: {
+      old: { type: "string" },
+      new: { type: "string", default: join(ROOT, "spec", "draft", "schema", "generated") },
+      random: { type: "string", default: "150" },
+      examples: { type: "string", default: "20" },
+      seed: { type: "string", default: "1" },
+      "structural-diff": { type: "boolean", default: false },
+      "wire-old": { type: "string" },
+      "wire-new": { type: "string" },
+    },
+  }));
+} catch (error) {
+  console.error(`${(error as Error).message}\n${USAGE}`);
+  process.exit(2);
 }
-const OLD = arg("--old");
-const NEW = arg("--new", join(ROOT, "spec", "draft", "schema", "generated"))!;
-const RANDOM = Number(arg("--random", "150"));
-const EXAMPLES = Number(arg("--examples", "20"));
-const SEED = Number(arg("--seed", "1"));
-const STRUCTURAL = process.argv.includes("--structural-diff");
-const WIRE_OLD = arg("--wire-old");
-const WIRE_NEW = arg("--wire-new");
+const OLD = values.old;
+const NEW = values.new;
+const RANDOM = Number(values.random);
+const EXAMPLES = Number(values.examples);
+const SEED = Number(values.seed);
+const STRUCTURAL = values["structural-diff"];
+const WIRE_OLD = values["wire-old"];
+const WIRE_NEW = values["wire-new"];
 if (!OLD || (WIRE_OLD === undefined) !== (WIRE_NEW === undefined)) {
-  console.error(
-    "usage: schema-equivalence.mts --old <git-ref|dir> [--new <dir>] [--structural-diff] [--wire-old <string> --wire-new <string>]",
-  );
+  console.error(USAGE);
   process.exit(2);
 }
 const WIRES = WIRE_OLD !== undefined && WIRE_NEW !== undefined;

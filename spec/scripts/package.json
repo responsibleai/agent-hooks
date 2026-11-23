@@ -1,10 +1,11 @@
 {
   "name": "agent-hooks-spec-scripts",
   "private": true,
+  "type": "module",
   "scripts": {
-    "generate:schema": "tsx generate-schemas.mts",
-    "check:schema": "tsx generate-schemas.mts --check",
-    "check:schema:equivalence": "tsx schema-equivalence.mts"
+    "generate:schema": "tsx generate-schemas.ts",
+    "check:schema": "tsx generate-schemas.ts --check",
+    "check:schema:equivalence": "tsx schema-equivalence.ts"
   },
   "devDependencies": {
     "@typespec/compiler": "1.18.0",
