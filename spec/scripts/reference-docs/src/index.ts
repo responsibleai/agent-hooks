@@ -4,7 +4,6 @@ import { render, traverseOutput } from "@alloy-js/core";
 import {
   createTypeSpecLibrary,
   emitFile,
-  getAutoDecoratorValue,
   getLocationContext,
   getTypeName,
   isTemplateInstance,
@@ -44,35 +43,8 @@ export const $lib = createTypeSpecLibrary({
   },
 });
 
-function isEnumMember(value: unknown): value is EnumMember {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "entityKind" in value &&
-    value.entityKind === "Type" &&
-    "kind" in value &&
-    value.kind === "EnumMember"
-  );
-}
-
-function getCategory(
-  program: Program,
-  type: Declaration,
-): EnumMember | undefined {
-  const stored = getAutoDecoratorValue(
-    program,
-    "AgentHooks.Docs.category",
-    type,
-  );
-  if (stored) {
-    if (!isEnumMember(stored.value)) {
-      throw new Error("The category decorator did not store an enum member.");
-    }
-    return stored.value;
-  }
-
-  // Templates retain augment applications without executing their auto decorators.
-  const application = type.decorators.find(isCategoryDecorator);
+function getCategory(type: Declaration): EnumMember | undefined {
+  const application = type.decorators.findLast(isCategoryDecorator);
   const argument = application?.args[0]?.value;
   return argument && isType(argument) && argument.kind === "EnumMember"
     ? argument
@@ -100,7 +72,7 @@ function schemaDeclarations(program: Program): Declaration[] {
 
 export function $onValidate(program: Program): void {
   for (const type of schemaDeclarations(program)) {
-    if (!getCategory(program, type)) {
+    if (!getCategory(type)) {
       $lib.reportDiagnostic(program, {
         code: "missing-category",
         target: type,
@@ -115,7 +87,7 @@ export async function $onEmit(context: EmitContext): Promise<void> {
   if (program.hasError()) return;
   const declarations = new Map<Declaration, EnumMember>();
   for (const type of schemaDeclarations(program)) {
-    const category = getCategory(program, type);
+    const category = getCategory(type);
     if (category) declarations.set(type, category);
   }
   const firstCategory = declarations.values().next().value;

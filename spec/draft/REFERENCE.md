@@ -3687,7 +3687,7 @@ Additional entries: `never`.
 
 #### `verdict`
 
-Type: [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`InputHookTransform`](#agenthooks-inputhooktransform)&gt;.
+Type: [`AllowVerdict`](#agenthooks-allowverdict) | [`DenyVerdict`](#agenthooks-denyverdict) | [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`InputHookTransform`](#agenthooks-inputhooktransform)&gt;.
 
 #### `extensions?`
 
@@ -3729,7 +3729,7 @@ Additional entries: `never`.
 
 #### `verdict`
 
-Type: [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`OutputHookTransform`](#agenthooks-outputhooktransform)&gt;.
+Type: [`AllowVerdict`](#agenthooks-allowverdict) | [`DenyVerdict`](#agenthooks-denyverdict) | [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`OutputHookTransform`](#agenthooks-outputhooktransform)&gt;.
 
 #### `extensions?`
 
@@ -3771,7 +3771,7 @@ Additional entries: `never`.
 
 #### `verdict`
 
-Type: [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostModelHookTransform`](#agenthooks-postmodelhooktransform)&gt;.
+Type: [`AllowVerdict`](#agenthooks-allowverdict) | [`DenyVerdict`](#agenthooks-denyverdict) | [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostModelHookTransform`](#agenthooks-postmodelhooktransform)&gt;.
 
 #### `extensions?`
 
@@ -3813,7 +3813,7 @@ Additional entries: `never`.
 
 #### `verdict`
 
-Type: [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostToolHookTransform`](#agenthooks-posttoolhooktransform)&gt;.
+Type: [`AllowVerdict`](#agenthooks-allowverdict) | [`DenyVerdict`](#agenthooks-denyverdict) | [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PostToolHookTransform`](#agenthooks-posttoolhooktransform)&gt;.
 
 #### `extensions?`
 
@@ -3855,7 +3855,7 @@ Additional entries: `never`.
 
 #### `verdict`
 
-Type: [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreModelHookTransform`](#agenthooks-premodelhooktransform)&gt;.
+Type: [`AllowVerdict`](#agenthooks-allowverdict) | [`DenyVerdict`](#agenthooks-denyverdict) | [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreModelHookTransform`](#agenthooks-premodelhooktransform)&gt;.
 
 #### `extensions?`
 
@@ -3897,7 +3897,7 @@ Additional entries: `never`.
 
 #### `verdict`
 
-Type: [`AllowVerdict`](#agenthooks-allowverdict) &#124; [`DenyVerdict`](#agenthooks-denyverdict) &#124; [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreToolHookTransform`](#agenthooks-pretoolhooktransform)&gt;.
+Type: [`AllowVerdict`](#agenthooks-allowverdict) | [`DenyVerdict`](#agenthooks-denyverdict) | [`TransformVerdict`](#agenthooks-transformverdict)&lt;[`PreToolHookTransform`](#agenthooks-pretoolhooktransform)&gt;.
 
 #### `extensions?`
 
@@ -4320,7 +4320,7 @@ Additional entries: `never`.
 
 #### `context_identity`
 
-Type: `string` &#124; `null`.
+Type: `string` | `null`.
 
 #### `interception_point`
 
@@ -4379,7 +4379,7 @@ Additional entries: `never`.
 MUST equal the request's context_identity byte for byte (echo rule, §9);
 null echoes as null.
 
-Type: `string` &#124; `null`.
+Type: `string` | `null`.
 
 #### `outcome`
 
@@ -4460,7 +4460,7 @@ Additional entries: `never`.
 MUST equal the request's context_identity byte for byte (echo rule, §9);
 null echoes as null.
 
-Type: `string` &#124; `null`.
+Type: `string` | `null`.
 
 #### `outcome`
 
@@ -4485,7 +4485,7 @@ model ResolutionBase {
 MUST equal the request's context_identity byte for byte (echo rule, §9);
 null echoes as null.
 
-Type: `string` &#124; `null`.
+Type: `string` | `null`.
 
 <a id="agenthooks-unresolvedresolution"></a>
 
@@ -4508,7 +4508,7 @@ Additional entries: `never`.
 MUST equal the request's context_identity byte for byte (echo rule, §9);
 null echoes as null.
 
-Type: `string` &#124; `null`.
+Type: `string` | `null`.
 
 #### `outcome`
 
@@ -4657,13 +4657,13 @@ Type: [`VerdictProjection`](#agenthooks-verdictprojection).
 
 Identity provider output on the context before dispatch; null iff identity_provider is null.
 
-Type: `string` &#124; `null`.
+Type: `string` | `null`.
 
 #### `enforced_identity`
 
 Identity provider output after composition completes; null iff identity_provider is null.
 
-Type: `string` &#124; `null`.
+Type: `string` | `null`.
 
 #### `identity_provider`
 
@@ -4671,7 +4671,7 @@ The declared identity provider (§10.1): "jcs-sha256", a host-defined id
 (name rules enforced: ^[a-z][a-z0-9_-]*$ and never a jcs prefix), or null
 (identity-unbound).
 
-Type: `string` &#124; `null`.
+Type: `string` | `null`.
 
 pattern: `^(jcs-sha256|(?!jcs)[a-z][a-z0-9_-]*)$`
 
@@ -4707,7 +4707,7 @@ Registration index of the interceptor whose verdict won aggregation or whose
 liftable deny was consulted (§7.6); null for a pure-allow combination or a
 host-synthesized verdict.
 
-Type: `integer` &#124; `null`.
+Type: `integer` | `null`.
 
 minimum: `0`
 
@@ -5018,7 +5018,7 @@ Additional entries: `never`.
 §9. A registered approval resolver by reference, or null: liftable denies
 stay denies.
 
-Type: `string` &#124; `null`.
+Type: `string` | `null`.
 
 pattern: `^[a-z][a-z0-9_-]{0,63}$`
 
@@ -5026,7 +5026,7 @@ pattern: `^[a-z][a-z0-9_-]{0,63}$`
 
 §9 redaction seam. A registered approval redactor by reference, or null.
 
-Type: `string` &#124; `null`.
+Type: `string` | `null`.
 
 pattern: `^[a-z][a-z0-9_-]{0,63}$`
 
@@ -5312,7 +5312,7 @@ Type: [`CompositionConfig`](#agenthooks-compositionconfig).
 §10.1: "jcs-sha256" (the default), a registered custom provider name
 (^[a-z][a-z0-9_-]{0,63}$, never a jcs prefix), or null (identity-unbound).
 
-Type: `string` &#124; `null`.
+Type: `string` | `null`.
 
 pattern: `^(jcs-sha256|(?!jcs)[a-z][a-z0-9_-]{0,63})$`
 
@@ -5613,7 +5613,7 @@ Additional entries: `never`.
 In-memory record buffer bound; null (the default) is unbounded. The maximum
 is 2^53 - 1 so the resolved document always canonicalises (§4.4).
 
-Type: `integer` &#124; `null`.
+Type: `integer` | `null`.
 
 minimum: `1`; maximum: `9007199254740991`
 

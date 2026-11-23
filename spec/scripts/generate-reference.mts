@@ -6,7 +6,6 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const directory = dirname(fileURLToPath(import.meta.url));
-const references = ["REFERENCE.md"];
 const output = new Map<string, string>();
 const program = await compile(
   {
@@ -29,28 +28,22 @@ if (program.diagnostics.length > 0) {
       .join("\n"),
   );
 }
-if (
-  output.size !== references.length ||
-  !references.every((name) => output.has(name))
-) {
+const content = output.get("REFERENCE.md");
+if (output.size !== 1 || content === undefined) {
   throw new Error(
-    `expected ${references.join(" and ")}, got ${[...output.keys()].join(", ")}`,
+    `expected REFERENCE.md, got ${[...output.keys()].join(", ")}`,
   );
 }
 const check = process.argv.includes("--check");
-for (const [name, content] of output) {
-  const target = join(directory, "../draft", name);
-  if (check) {
-    const committed = await readFile(target, "utf8");
-    if (committed !== content)
-      throw new Error(
-        `${name} is out of date. Run pnpm run generate:reference.`,
-      );
-  } else {
-    await writeFile(target, content);
-    console.log(`Wrote spec/draft/${name}`);
-  }
-}
+const target = join(directory, "../draft/REFERENCE.md");
 if (check) {
+  const committed = await readFile(target, "utf8");
+  if (committed !== content)
+    throw new Error(
+      "REFERENCE.md is out of date. Run pnpm run generate:reference.",
+    );
   console.log("Reference docs are up to date.");
+} else {
+  await writeFile(target, content);
+  console.log("Wrote spec/draft/REFERENCE.md");
 }

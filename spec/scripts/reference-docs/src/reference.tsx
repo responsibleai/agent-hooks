@@ -5,8 +5,6 @@ import {
   For,
   Output,
   refkey,
-  SourceFileContext,
-  useContext,
   type Children,
 } from "@alloy-js/core";
 import * as md from "@alloy-js/markdown";
@@ -33,8 +31,10 @@ import {
   walkPropertiesInherited,
   type Program,
   type Model,
+  type ModelProperty,
   type Type,
 } from "@typespec/compiler";
+import { SyntaxKind, visitChildren, type Node } from "@typespec/compiler/ast";
 import { getExtensions, getUniqueItems, isOneOf } from "@typespec/json-schema";
 import { isCategoryDecorator, isSummaryDecorator } from "./category.js";
 import type { Declaration } from "./index.js";
@@ -45,13 +45,6 @@ interface ReferenceProps {
   declarations: Set<Declaration>;
 }
 
-interface PropertyDoc {
-  name: string;
-  type: Type;
-  description: string;
-  constraints: Type;
-}
-
 function anchor(type: Declaration): string {
   const namespace = type.namespace && getNamespaceFullName(type.namespace);
   return [namespace, type.name]
@@ -59,14 +52,6 @@ function anchor(type: Declaration): string {
     .join(".")
     .replace(/[^a-zA-Z0-9_-]+/g, "-")
     .toLowerCase();
-}
-
-function headingKey(target: object) {
-  const file = useContext(SourceFileContext);
-  if (!file) {
-    throw new Error("Reference headings must be rendered inside a source file.");
-  }
-  return refkey(file.path, target);
 }
 
 function isTypeReference(value: unknown): value is Type {
@@ -99,7 +84,7 @@ export function Reference(props: ReferenceProps) {
       type.kind === "Scalar"
     ) {
       if (declarations.has(type)) {
-        return <md.Link refkey={headingKey(type)} title={`\`${name}\``} />;
+        return <md.Link refkey={refkey(type)} title={`\`${name}\``} />;
       }
       if (active.has(type)) return <md.InlineCode>{name}</md.InlineCode>;
       active = new Set(active).add(type);
@@ -121,7 +106,7 @@ export function Reference(props: ReferenceProps) {
               item.namespace === type.namespace,
           );
           const label = declaration ? (
-            <md.Link refkey={headingKey(declaration)} title={`\`${type.name}\``} />
+            <md.Link refkey={refkey(declaration)} title={`\`${type.name}\``} />
           ) : (
             <md.InlineCode>{type.name}</md.InlineCode>
           );
@@ -145,13 +130,13 @@ export function Reference(props: ReferenceProps) {
       }
       case "EnumMember":
         return declarations.has(type.enum) ? (
-          <md.Link refkey={headingKey(type.enum)} title={`\`${name}\``} />
+          <md.Link refkey={refkey(type.enum)} title={`\`${name}\``} />
         ) : (
           <md.InlineCode>{name}</md.InlineCode>
         );
       case "Union":
         return (
-          <For each={[...type.variants.values()]} joiner={" &#124; "}>
+          <For each={[...type.variants.values()]} joiner=" | ">
             {(variant) => typeExpression(variant.type, active)}
           </For>
         );
@@ -201,14 +186,6 @@ export function Reference(props: ReferenceProps) {
     );
   }
 
-  function TypeExpression(props: { type: Type }) {
-    return typeExpression(props.type);
-  }
-
-  function Constraints(props: { type: Type }) {
-    return constraints(props.type);
-  }
-
   function sourceSnippet(type: Declaration): string {
     const source = getSourceLocation(type, { locateId: false });
     if (source.isSynthetic) {
@@ -216,44 +193,16 @@ export function Reference(props: ReferenceProps) {
     }
 
     const ranges = new Map<number, number>();
-    const visited = new Set<object>();
-    function collectComments(value: unknown): void {
-      if (typeof value !== "object" || value === null || visited.has(value)) {
+    function collectComments(node: Node): void {
+      if (node.kind === SyntaxKind.Doc) {
+        if (node.pos >= source.pos && node.end <= source.end) {
+          ranges.set(node.pos - source.pos, node.end - source.pos);
+        }
         return;
       }
-      visited.add(value);
-      if (Array.isArray(value)) {
-        for (const item of value) collectComments(item);
-        return;
-      }
-      if ("docs" in value && Array.isArray(value.docs)) {
-        for (const comment of value.docs) {
-          if (
-            typeof comment === "object" &&
-            comment !== null &&
-            "pos" in comment &&
-            "end" in comment &&
-            typeof comment.pos === "number" &&
-            typeof comment.end === "number" &&
-            comment.pos >= source.pos &&
-            comment.end <= source.end
-          ) {
-            ranges.set(comment.pos - source.pos, comment.end - source.pos);
-          }
-        }
-      }
-      for (const [key, child] of Object.entries(value)) {
-        if (
-          key !== "docs" &&
-          key !== "parent" &&
-          key !== "symbol" &&
-          key !== "locals"
-        ) {
-          collectComments(child);
-        }
-      }
+      visitChildren(node, collectComments);
     }
-    collectComments(type.node);
+    if (type.node) collectComments(type.node);
     for (const application of type.decorators) {
       if (
         (!isCategoryDecorator(application) &&
@@ -298,7 +247,7 @@ export function Reference(props: ReferenceProps) {
     const properties = model ? propertyDocs(model) : [];
     return (
       <md.Section>
-        <md.Heading level={3} refkey={headingKey(type)} id={anchor(type)}>
+        <md.Heading level={3} refkey={refkey(type)} id={anchor(type)}>
           <md.InlineCode>{getTypeName(type, { namespaceFilter: () => false })}</md.InlineCode>
         </md.Heading>
         {doc(type)}
@@ -314,11 +263,11 @@ export function Reference(props: ReferenceProps) {
           !model.indexer &&
           "An object with no declared properties."}
         <For each={properties} doubleHardline>
-          {(property) => (
-            <md.Section heading={<md.InlineCode>{property.name}</md.InlineCode>}>
-              {property.description}
-              {code`Type: ${<TypeExpression type={property.type} />}.`}
-              <Constraints type={property.constraints} />
+          {({ name, property }) => (
+            <md.Section heading={<md.InlineCode>{name}</md.InlineCode>}>
+              {doc(property)}
+              {code`Type: ${typeExpression(property.type)}.`}
+              {constraints(property)}
             </md.Section>
           )}
         </For>
@@ -367,22 +316,16 @@ export function Reference(props: ReferenceProps) {
     model: Model,
     prefix = "",
     active = new Set<Model>(),
-  ): PropertyDoc[] {
+  ): { name: string; property: ModelProperty }[] {
     if (active.has(model)) return [];
     active = new Set(active).add(model);
     return [...walkPropertiesInherited(model)].flatMap((property) => {
       const path = `${prefix}${property.name}${property.optional ? "?" : ""}`;
-      const entry = {
-        name: path,
-        type: property.type,
-        description: doc(property),
-        constraints: property,
-      };
       const nested =
         property.type.kind === "Model" && !property.type.name
           ? propertyDocs(property.type, `${path}.`, active)
           : [];
-      return [entry, ...nested];
+      return [{ name: path, property }, ...nested];
     });
   }
 
@@ -400,7 +343,7 @@ export function Reference(props: ReferenceProps) {
           <md.List bullet="-">
             {props.categories.map((category) => (
               <md.Link
-                refkey={headingKey(category)}
+                refkey={refkey(category)}
                 title={category.title}
               />
             ))}
@@ -410,7 +353,7 @@ export function Reference(props: ReferenceProps) {
               <md.Section>
                 <md.Heading
                   level={2}
-                  refkey={headingKey(category)}
+                  refkey={refkey(category)}
                   id={`reference-${category.title.toLowerCase().replaceAll(" ", "-")}`}
                 >
                   {category.title}
@@ -418,7 +361,7 @@ export function Reference(props: ReferenceProps) {
                 <md.List bullet="-">
                   {category.declarations.map((type) => (
                     <md.Link
-                      refkey={headingKey(type)}
+                      refkey={refkey(type)}
                       title={`\`${getTypeName(type, { namespaceFilter: () => false })}\``}
                     />
                   ))}

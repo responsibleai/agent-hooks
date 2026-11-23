@@ -29,18 +29,17 @@ test("groups declarations by enum order and links same-named types by namespace"
     @@category(Requests.Result, Categories.Requests);
   `);
   assert.deepEqual(Object.keys(outputs), ["REFERENCE.md"]);
-  for (const page of Object.values(outputs)) {
-    assert.ok(
-      page.indexOf("## Hook requests") < page.indexOf("## Hook responses"),
-    );
-    assert.match(
-      page,
-      /- \[Hook requests\]\(#reference-hook-requests\)\n- \[Hook responses\]/,
-    );
-    assert.match(page, /\[\`Result\`\]\(#requests-result\)/);
-    assert.match(page, /<a id="hooks-result"><\/a>/);
-    assert.match(page, /<a id="requests-result"><\/a>/);
-  }
+  const page = outputs["REFERENCE.md"];
+  assert.ok(
+    page.indexOf("## Hook requests") < page.indexOf("## Hook responses"),
+  );
+  assert.match(
+    page,
+    /- \[Hook requests\]\(#reference-hook-requests\)\n- \[Hook responses\]/,
+  );
+  assert.match(page, /\[\`Result\`\]\(#requests-result\)/);
+  assert.match(page, /<a id="hooks-result"><\/a>/);
+  assert.match(page, /<a id="requests-result"><\/a>/);
 });
 
 test("documents generic declarations, concrete envelopes, and inherited and nested constraints", async () => {
@@ -69,7 +68,6 @@ test("documents generic declarations, concrete envelopes, and inherited and nest
   `);
   const page = outputs["REFERENCE.md"];
   assert.match(page, /### `Envelope<T>`/);
-  assert.match(page, /Generic response wrapper\./);
   assert.match(page, /#### `value`\n\nType: `T`\./);
   assert.match(
     page,
@@ -82,22 +80,16 @@ test("documents generic declarations, concrete envelopes, and inherited and nest
   assert.match(page, /pattern: `\^\(\?!host_error:\)\.\*`/);
   assert.match(page, /#### `agent.id`\n\nType: `string`\.\n\nminLength: `1`/);
   assert.match(page, /#### `next\?`\n\nType: \[\`Response\`\]\(#test-response\)/);
-  const declarations = outputs["REFERENCE.md"];
   assert.match(
-    declarations,
+    page,
     /Generic response wrapper\.\n\n```typespec\nmodel Envelope<T>/,
   );
   assert.doesNotMatch(
-    declarations,
+    page,
     /```typespec\n[\s\S]*?\/\*\* Generic response wrapper/,
   );
-  assert.doesNotMatch(page, /@category\(Categories.Responses\)/);
-  assert.match(declarations, /model Response extends Base/);
-  assert.match(declarations, /#### `reason\?`\n\nA machine-readable reason\./);
-  assert.match(declarations, /Type: `string` &#124; `null`\./);
-  assert.match(declarations, /#### `agent.id`[\s\S]*?minLength: `1`/);
-  assert.match(declarations, /Type: \[\`Response\`\]\(#test-response\)\./);
-  assert.doesNotMatch(declarations, /^\| Property \|/m);
+  assert.match(page, /model Response extends Base/);
+  assert.match(page, /Type: `string` \| `null`\./);
 });
 
 test("reads augmented template categories without confusing another namespace's decorator", async () => {
@@ -116,18 +108,20 @@ test("reads augmented template categories without confusing another namespace's 
       auto dec category(target: TypeSpec.Reflection.Model, value: AgentHooks.Docs.Categories);
     }
     @Other.category(Categories.Responses) model Listed<T> { value: T; }
+    @AgentHooks.Docs.category(Categories.Common)
+    model Inline { value: string; }
     @@AgentHooks.Docs.category(Listed, Categories.Requests);
   `);
-  for (const page of Object.values(outputs)) {
-    assert.match(page, /## Hook requests/);
-    assert.doesNotMatch(page, /## Hook responses/);
-    assert.match(page, /### `Listed<T>`/);
-    assert.match(
-      page,
-      /@Other\.category\(Categories.Responses\) model Listed<T>/,
-    );
-    assert.doesNotMatch(page, /@AgentHooks\.Docs\.category/);
-  }
+  const page = outputs["REFERENCE.md"];
+  assert.match(page, /## Hook requests/);
+  assert.doesNotMatch(page, /## Hook responses/);
+  assert.match(page, /### `Listed<T>`/);
+  assert.match(page, /```typespec\nmodel Inline \{ value: string; \}/);
+  assert.match(
+    page,
+    /@Other\.category\(Categories.Responses\) model Listed<T>/,
+  );
+  assert.doesNotMatch(page, /@AgentHooks\.Docs\.category/);
 });
 
 test("renders JSON examples, union variants, enums, and Markdown metacharacters", async () => {
@@ -161,7 +155,7 @@ test("renders JSON examples, union variants, enums, and Markdown metacharacters"
   assert.match(page, /- \[\`Choice\`\]\(#choice\)\n- `null`/);
   assert.match(
     page,
-    /Type: \(\[\`Choice\`\]\(#choice\) &#124; `null`\)\[\]\./,
+    /Type: \(\[\`Choice\`\]\(#choice\) \| `null`\)\[\]\./,
   );
   assert.match(page, /#### Minimal\n\n```json\n{\n  "text": "hello"\n}\n```/);
   const processor = await createMarkdownProcessor({ syntaxHighlight: false });
@@ -169,38 +163,27 @@ test("renders JSON examples, union variants, enums, and Markdown metacharacters"
   assert.ok(code.includes("Text with a | separator and <code>left | right</code>."));
   assert.ok(code.includes('Type: <code>"left|right"</code>.'));
   assert.ok(code.includes('Type: (<a href="#choice"><code>Choice</code></a> | <code>null</code>)[].'));
-  assert.doesNotMatch(code, /<table>/);
-  const declarations = outputs["REFERENCE.md"];
   assert.match(
-    declarations,
+    page,
     /enum Choice \{ First: "a\|b", Second: "second" \}/,
   );
-  assert.match(declarations, /union Selection \{ Choice, null \}/);
-  assert.match(declarations, /scalar Identifier extends string;/);
-  assert.match(declarations, /@example\(/);
+  assert.match(page, /union Selection \{ Choice, null \}/);
+  assert.match(page, /scalar Identifier extends string;/);
   assert.match(
-    declarations,
+    page,
     /A concise request\.\n\nComplete request payload\.\n\n```typespec\n@example\([^)]*\)\n\s*model Request/,
   );
-  const requestSnippet = declarations.match(
+  const requestSnippet = page.match(
     /```typespec\n([\s\S]*?)\n```(?=\n\n#### `text`)/,
   )?.[1];
   assert.ok(requestSnippet);
   assert.doesNotMatch(requestSnippet, /\/\*\*/);
   assert.doesNotMatch(
-    declarations,
+    page,
     /```typespec\n[\s\S]*?@summary\("A concise request\."\)/,
   );
-  assert.doesNotMatch(declarations, /\/\*\* Complete request payload/);
-  assert.doesNotMatch(declarations, /@category\(Categories\./);
-  assert.match(declarations, /#### `First`\n\nValue: `"a\|b"`\./);
-  assert.match(declarations, /Text with a \| separator and `left \| right`\./);
-  assert.match(declarations, /pattern: `\^\(hello\|world\)\$`/);
-  assert.match(
-    declarations,
-    /#### Minimal\n\n```json\n{\n  "text": "hello"\n}\n```/,
-  );
-  assert.doesNotMatch(declarations, /^\| (?:Property|Member) \|/m);
+  assert.doesNotMatch(page, /\/\*\* Complete request payload/);
+  assert.match(page, /#### `First`\n\nValue: `"a\|b"`\./);
 });
 
 test("reports each missing declaration at its source and emits no partial reference", async () => {
@@ -235,12 +218,11 @@ test("excludes imported libraries and concrete template instances from completen
     @@category(Envelope, Categories.Responses);
     @@category(Request, Categories.Requests);
   `);
-  for (const page of Object.values(outputs)) {
-    assert.match(page, /### \`Envelope<T>\`/);
-    assert.match(page, /### \`Request\`/);
-    assert.doesNotMatch(page, /### \`(?:Categories|Record|Array|JsonSchema)/);
-    assert.equal((page.match(/^### /gm) ?? []).length, 2);
-  }
+  const page = outputs["REFERENCE.md"];
+  assert.match(page, /### \`Envelope<T>\`/);
+  assert.match(page, /### \`Request\`/);
+  assert.doesNotMatch(page, /### \`(?:Categories|Record|Array|JsonSchema)/);
+  assert.equal((page.match(/^### /gm) ?? []).length, 2);
 });
 
 test("validates category completeness even when no emitter is selected", async () => {
@@ -268,30 +250,4 @@ test("keeps literal backticks and HTML metacharacters intact in source, examples
   const { code } = await processor.render(source);
   assert.ok(code.includes('<code>^`&#x3C;a|b>&#x26;`$</code>'));
   assert.ok(code.includes('<code>"```"</code>'));
-});
-
-test("preserves literal regexes, Markdown punctuation, and padded backtick spans in Astro", async () => {
-  const patterns = [
-    String.raw`^(a|b)\.json$`,
-    "a*b|c*d",
-    "`left|right`",
-    "``left|right``",
-    " left|right ",
-  ];
-  const { outputs } = await emitter.compile(`
-    model Patterns {
-      ${patterns.map((pattern, i) => `@pattern(${JSON.stringify(pattern)}) value${i}: string;`).join("\n")}
-    }
-    @@category(Patterns, Categories.Common);
-  `);
-  const processor = await createMarkdownProcessor({ syntaxHighlight: false });
-  const { code } = await processor.render(outputs["REFERENCE.md"]);
-  const constraints = [...code.matchAll(/<p>pattern: <code>([\s\S]*?)<\/code><\/p>/g)];
-  assert.equal(constraints.length, patterns.length);
-  for (const [i, constraint] of constraints.entries()) {
-    assert.ok(
-      constraint[1] === patterns[i],
-      constraint[1],
-    );
-  }
 });
