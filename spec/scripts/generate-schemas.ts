@@ -27,7 +27,7 @@ function main(): number {
     throw new Error("--spec must name draft or a MAJOR.MINOR version");
   }
   if (args.some((arg, index) => arg !== "--check" && arg !== "--spec" && !(specIndex >= 0 && index === specIndex + 1))) {
-    throw new Error("usage: generate-schemas.mts [--check] [--spec draft|MAJOR.MINOR]");
+    throw new Error("usage: generate-schemas.ts [--check] [--spec draft|MAJOR.MINOR]");
   }
   const schema = resolve(directory, "..", spec, "schema");
   if (!existsSync(join(schema, "src/main.tsp"))) {

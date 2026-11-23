@@ -16,7 +16,7 @@ test("workflow annotation data escapes percent and line breaks", () => {
       "tsx",
       "--input-type=module",
       "-e",
-      'import { escapeWorkflowCommandData } from "../../spec/scripts/generate-schemas.mts"; process.stdout.write(escapeWorkflowCommandData("%\\r\\n::error::injected"))',
+      'import { escapeWorkflowCommandData } from "../../spec/scripts/generate-schemas.ts"; process.stdout.write(escapeWorkflowCommandData("%\\r\\n::error::injected"))',
     ],
     { cwd: sdk, encoding: "utf8" },
   );
