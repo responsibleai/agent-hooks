@@ -48,6 +48,18 @@ internal static class Contract
     /// <summary>Rejects lone UTF-16 surrogates in strings, keys, nodes and extension data before UTF-8 serialization replaces them with U+FFFD.</summary>
     internal static void ValidateUnicode(object? value, int maxDepth = 256)
     {
+        try
+        {
+            ValidateUnicodeCore(value, maxDepth);
+        }
+        catch (InvalidOperationException e)
+        {
+            throw new JsonException("invalid Unicode string", e);
+        }
+    }
+
+    private static void ValidateUnicodeCore(object? value, int maxDepth)
+    {
         var visited = new HashSet<object>(ReferenceEqualityComparer.Instance);
         var stack = new Stack<(object? Value, int Depth)>();
         stack.Push((value, 0));
