@@ -14,7 +14,8 @@
     "@alloy-js/core": "catalog:",
     "@alloy-js/csharp": "catalog:",
     "@typespec/compiler": "catalog:",
-    "@typespec/emitter-framework": "catalog:"
+    "@typespec/emitter-framework": "catalog:",
+    "@typespec/json-schema": "catalog:"
   },
   "devDependencies": {
     "@alloy-js/babel-preset": "catalog:",

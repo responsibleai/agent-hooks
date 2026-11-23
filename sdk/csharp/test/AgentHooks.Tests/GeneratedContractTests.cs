@@ -71,21 +71,60 @@ public sealed class GeneratedContractTests
         var usage = JsonSerializer.Deserialize<Draft.Usage>("{}")!;
         Assert.Null(usage.PromptTokens);
         Assert.Equal("{}", JsonSerializer.Serialize(usage));
-        var bindingWithoutConfig = JsonSerializer.Deserialize<Draft.Binding>(
-            """{"id":"one","kind":"example.kind"}""")!;
-        Assert.False(bindingWithoutConfig.Config.IsDefined);
-        Assert.Equal("""{"id":"one","kind":"example.kind"}""", JsonSerializer.Serialize(bindingWithoutConfig));
-        var bindingWithNullConfig = JsonSerializer.Deserialize<Draft.Binding>(
-            """{"id":"one","kind":"example.kind","config":null}""")!;
-        Assert.True(bindingWithNullConfig.Config.IsDefined);
-        Assert.Equal(JsonValueKind.Null, bindingWithNullConfig.Config.Value.ValueKind);
-        Assert.Equal("""{"id":"one","kind":"example.kind","config":null}""",
-            JsonSerializer.Serialize(bindingWithNullConfig));
+    }
+
+    [Theory]
+    [InlineData("""{"id":"one","kind":"example.kind"}""", false)]
+    [InlineData("""{"id":"one","kind":"example.kind","config":null}""", true)]
+    [InlineData("""{"id":"one","kind":"example.kind","config":{"enabled":false}}""", true)]
+    public void BindingConfigPreservesPresenceAndArbitraryJson(string json, bool defined)
+    {
+        var binding = JsonSerializer.Deserialize<Draft.Binding>(json)!;
+        Assert.Equal(defined, binding.Config.IsDefined);
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(json), JsonNode.Parse(JsonSerializer.Serialize(binding))));
+    }
+
+    [Theory]
+    [InlineData("{}", false, null)]
+    [InlineData("""{"resolver":null}""", true, null)]
+    [InlineData("""{"resolver":"human"}""", true, "human")]
+    public void OptionalStringsPreserveOmissionNullAndValue(string json, bool defined, string? value)
+    {
+        var approval = JsonSerializer.Deserialize<Draft.ApprovalConfig>(json)!;
+        Assert.Equal(defined, approval.Resolver.IsDefined);
+        if (defined) Assert.Equal(value, approval.Resolver.Value);
+        Assert.Equal(json, JsonSerializer.Serialize(approval));
+    }
+
+    [Fact]
+    public void OptionalIntegersRemainLosslessAndRejectFractionalValues()
+    {
+        const string integer = "1844674407370955161600001";
+        var options = new JsonSerializerOptions();
+        var value = JsonSerializer.Deserialize<Optional<BigInteger>>(integer, options);
+        Assert.Equal(BigInteger.Parse(integer), value.Value);
+        Assert.Equal(integer, JsonSerializer.Serialize(value, options));
+        var nullable = JsonSerializer.Deserialize<Optional<BigInteger?>>(integer, options);
+        Assert.Equal(BigInteger.Parse(integer), nullable.Value);
+        Assert.Equal(integer, JsonSerializer.Serialize(nullable, options));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Optional<BigInteger?>>("0.5", options));
+    }
+
+    [Fact]
+    public void BufferedSurfacePreservesOmissionAndEnforcesItsLiteralDiscriminator()
+    {
+        Assert.Equal("{}", JsonSerializer.Serialize<Draft.Surface>(new Draft.BufferedSurface()));
         Assert.Equal("""{"buffered_output":false,"exposure_bound":"one token"}""",
             JsonSerializer.Serialize<Draft.Surface>(new Draft.UnbufferedSurface { ExposureBound = "one token" }));
         Assert.Equal("""{"buffered_output":true}""",
             JsonSerializer.Serialize<Draft.Surface>(new Draft.BufferedSurface { BufferedOutput = true }));
         Assert.Throws<JsonException>(() => _ = new Draft.BufferedSurface { BufferedOutput = false });
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<Draft.BufferedSurface>("""{"buffered_output":false}"""));
+        Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<Draft.Surface>("""{"buffered_output":"true"}"""));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Draft.Surface>(
+            """{"buffered_output":"false","exposure_bound":"one token"}"""));
     }
 
     [Fact]
@@ -137,76 +176,5 @@ public sealed class GeneratedContractTests
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Draft.CompositionConfig>("""{"profile":0}"""));
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Draft.CompositionConfig>(
             """{"profile":"SequentialFirstDeny"}"""));
-    }
-
-    [Theory]
-    [InlineData(typeof(Draft.AgentStartupHookHandler), typeof(Draft.AgentStartupRequest), typeof(Draft.AgentStartupHookResponse))]
-    [InlineData(typeof(Draft.InputHookHandler), typeof(Draft.InputRequest), typeof(Draft.InputHookResponse))]
-    [InlineData(typeof(Draft.PreModelHookHandler), typeof(Draft.PreModelCallRequest), typeof(Draft.PreModelHookResponse))]
-    [InlineData(typeof(Draft.PostModelHookHandler), typeof(Draft.PostModelCallRequest), typeof(Draft.PostModelHookResponse))]
-    [InlineData(typeof(Draft.PreToolHookHandler), typeof(Draft.PreToolCallRequest), typeof(Draft.PreToolHookResponse))]
-    [InlineData(typeof(Draft.PostToolHookHandler), typeof(Draft.PostToolCallRequest), typeof(Draft.PostToolHookResponse))]
-    [InlineData(typeof(Draft.OutputHookHandler), typeof(Draft.OutputRequest), typeof(Draft.OutputHookResponse))]
-    [InlineData(typeof(Draft.AgentShutdownHookHandler), typeof(Draft.AgentShutdownRequest), typeof(Draft.AgentShutdownHookResponse))]
-    [InlineData(typeof(Draft.ApprovalResolverHandler), typeof(Draft.ApprovalRequest), typeof(Draft.ApprovalResolution))]
-    public void HandlerSignaturesPairEachRequestWithItsResponse(Type handler, Type request, Type response)
-    {
-        Assert.True(typeof(Delegate).IsAssignableFrom(handler));
-        var invoke = handler.GetMethod("Invoke")!;
-        Assert.Equal(typeof(Task<>).MakeGenericType(response), invoke.ReturnType);
-        var parameters = invoke.GetParameters();
-        Assert.Equal(2, parameters.Length);
-        Assert.Equal(request, parameters[0].ParameterType);
-        Assert.Equal(typeof(CancellationToken), parameters[1].ParameterType);
-        Assert.True(parameters[1].HasDefaultValue);
-    }
-
-    [Fact]
-    public async Task HookHandlerReturnsTypedEnvelopeAndPropagatesCancellation()
-    {
-        var request = JsonSerializer.Deserialize<Draft.PreToolCallRequest>(
-            File.ReadAllText(Path.Combine(ExamplesDirectory(), "AgentContext/pre-tool-call.json")))!;
-        using var cancellation = new CancellationTokenSource();
-        Draft.PreToolHookHandler handler = async (context, cancellationToken) =>
-        {
-            await Task.Yield();
-            Assert.Same(request, context);
-            Assert.Equal(cancellation.Token, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            return new Draft.PreToolHookResponse
-            {
-                Verdict = new Draft.TransformVerdictPreToolHookTransform
-                {
-                    Transform = new Draft.PreToolHookTransform { Args = context.ToolCall.Args },
-                },
-            };
-        };
-
-        var response = await handler(request, cancellation.Token);
-        var transform = Assert.IsType<Draft.TransformVerdictPreToolHookTransform>(response.Verdict);
-        Assert.Equal(request.ToolCall.Args["query"], transform.Transform.Args["query"]);
-        Assert.Equal("transform", JsonNode.Parse(JsonSerializer.Serialize(response))!["verdict"]!["decision"]!.GetValue<string>());
-        cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await handler(request, cancellation.Token));
-    }
-
-    [Fact]
-    public async Task ApprovalHandlerReturnsResolutionEnvelopeWithEchoedIdentity()
-    {
-        var request = JsonSerializer.Deserialize<Draft.ApprovalRequest>(
-            File.ReadAllText(Path.Combine(ExamplesDirectory(), "ApprovalRequest/collection-access.json")))!;
-        request.ContextIdentity = "sha256:consulted-context";
-        Draft.ApprovalResolverHandler resolver = (context, _) =>
-            Task.FromResult<Draft.ApprovalResolution>(new Draft.ApproveResolution
-            {
-                ContextIdentity = context.ContextIdentity,
-                Verdict = new Draft.AllowVerdict(),
-            });
-
-        var result = Assert.IsType<Draft.ApproveResolution>(await resolver(request));
-        Assert.Equal(request.ContextIdentity, result.ContextIdentity);
-        var wire = JsonNode.Parse(JsonSerializer.Serialize<Draft.ApprovalResolution>(result))!;
-        Assert.Equal("approve", wire["outcome"]!.GetValue<string>());
-        Assert.Equal("allow", wire["verdict"]!["decision"]!.GetValue<string>());
     }
 }

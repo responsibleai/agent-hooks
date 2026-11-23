@@ -23,15 +23,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
+      - name: Clean generated schemas and contracts
+        run: rm -rf spec/draft/schema/generated sdk/csharp/src/AgentHooks.Contracts/Generated/Draft
       - name: Generate schemas and contracts
         run: pnpm generate
       - name: Check generated drift
         run: |
-          git diff --exit-code
-          untracked="$(git ls-files --others --exclude-standard)"
-          if [[ -n "$untracked" ]]; then
-            echo "::error::Generated output includes untracked files:"
-            printf '%s\n' "$untracked"
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            echo "::error::Generated schemas and contracts differ from committed output:"
+            printf '%s\n' "$status"
+            git diff
             exit 1
           fi
 

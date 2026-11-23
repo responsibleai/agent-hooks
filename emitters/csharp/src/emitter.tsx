@@ -10,6 +10,7 @@ import {
   Experimental_ComponentOverrides, Experimental_ComponentOverridesConfig, Output, useTsp, writeOutput,
 } from "@typespec/emitter-framework";
 import * as ef from "@typespec/emitter-framework/csharp";
+import { getJsonSchema } from "@typespec/json-schema";
 import { DictionaryInitializer, JsonConverterAttribute, JsonConverterDeclaration } from "./json-components.js";
 import { OperationHandler } from "./operation-handler.js";
 
@@ -67,6 +68,7 @@ function contracts(program: Program) {
     const type = unwrap(source);
     const inner = nullableInner(type);
     if (inner) return visit(inner, hint);
+    if (type.kind === "EnumMember") return visit(type.enum, type.enum.name);
     if (type.kind !== "Model" && type.kind !== "Union" && type.kind !== "Enum") return;
     if (type.kind === "Model" && type.name === "Array" && type.indexer) {
       return visit(type.indexer.value, `${hint}Item`);
@@ -93,7 +95,13 @@ function contracts(program: Program) {
     names.set(type, name);
     if (type.kind === "Model") {
       for (const property of type.properties.values()) {
-        visit(property.type, `${name}${policy.getName(property.name, "class")}`);
+        const propertyType = unwrap(property.type);
+        let sourceProperty = property;
+        while (sourceProperty.sourceProperty) sourceProperty = sourceProperty.sourceProperty;
+        const sourceName = propertyType.kind === "Model" && !propertyType.name
+          ? sourceProperty.model?.name : undefined;
+        const prefix = sourceName || name;
+        visit(property.type, `${prefix}${policy.getName(property.name, "class")}`);
       }
       if (type.indexer) visit(type.indexer.value, `${name}Value`);
     } else if (type.kind === "Union") {
@@ -103,7 +111,9 @@ function contracts(program: Program) {
     }
   }
   for (const type of [...namespace.enums.values(), ...namespace.models.values(), ...namespace.unions.values()]) {
-    if (!isTemplateDeclaration(type)) visit(type, type.name ?? "Union");
+    if (!getJsonSchema(program, type) || isTemplateDeclaration(type)) continue;
+    if (!type.name) throw new Error("Unsupported unnamed JSON Schema contract root.");
+    visit(type, type.name);
   }
   const handlers = new Map<Operation, string>();
   for (const iface of namespace.interfaces.values()) {
@@ -157,9 +167,11 @@ function ContractProperty(props: { type: ModelProperty }): Children {
   if (preservePresence) {
     attributes.push(<cs.Attribute name="JsonIgnore" args={["Condition = JsonIgnoreCondition.WhenWritingDefault"]} />);
   } else {
-    attributes.push(property.optional
-      ? <cs.Attribute name="JsonIgnore" args={["Condition = JsonIgnoreCondition.WhenWritingNull"]} />
-      : <cs.Attribute name="JsonRequired" />);
+    if (property.optional) {
+      attributes.push(<cs.Attribute name="JsonIgnore" args={["Condition = JsonIgnoreCondition.WhenWritingNull"]} />);
+    } else if (constant) {
+      attributes.push(<cs.Attribute name="JsonRequired" />);
+    }
     const scalar = nullableInner(type) ?? type;
     if (scalar.kind === "Scalar" && $.scalar.getStdBase(scalar)?.name === "integer") {
       attributes.push(<JsonConverterAttribute name="BigIntegerJsonConverter" />);
@@ -228,11 +240,16 @@ function UnionContract(props: { type: Union; name: string; info: UnionContractIn
       baseType={code`DiscriminatedUnionJsonConverter<${reference}>`}
       baseArguments={[
         JSON.stringify(discriminator),
-        <DictionaryInitializer keyType="string" valueType="Type"
-          entries={models.map((model) => ({
-            key: JSON.stringify(String(literal(model.properties.get(discriminator)!.type))),
-            value: code`typeof(${<ef.TypeExpression type={model} />})`,
-          }))} />,
+        <DictionaryInitializer keyType="(JsonValueKind, string)" valueType="Type"
+          entries={models.map((model) => {
+            const value = literal(model.properties.get(discriminator)!.type);
+            const kind = typeof value === "boolean" ? value ? "True" : "False"
+              : typeof value === "number" ? "Number" : "String";
+            return {
+              key: code`(JsonValueKind.${kind}, ${JSON.stringify(String(value))})`,
+              value: code`typeof(${<ef.TypeExpression type={model} />})`,
+            };
+          })} />,
         defaultType,
       ]} />
   </>;

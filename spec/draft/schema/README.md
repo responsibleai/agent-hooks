@@ -79,14 +79,17 @@ drift remains advisory. See [Contributing](../../../CONTRIBUTING.md#schema-sourc
 `spec/draft/main.tsp` imports this source and drives the experimental,
 Rust-independent `sdk/csharp/src/AgentHooks.Contracts/` assembly. From the repository root, run
 `pnpm generate` and commit the generated `Generated/Draft/Models.g.cs` and `Generated/Draft/Hooks.g.cs`
-alongside source changes. CI runs `pnpm generate && git diff --exit-code` to
-check drift across schemas and contracts. Do not edit the generated C# by hand.
+alongside source changes. CI cleans both output directories, runs `pnpm generate`,
+and requires a clean `git status --porcelain`, catching missing, stale and
+untracked generated files. Do not edit the generated C# by hand.
 This targets the draft only, not the frozen 0.1 bundle or the existing Rust-backed .NET SDK.
 
 `spec/draft/tspconfig.yaml` loads the `@agent-hooks/emitter-csharp` workspace
 package. Its `emitters/csharp/src/emitter.tsx` uses `@typespec/emitter-framework` for
 TypeSpec context, model/enum declarations, properties, documentation and type
-references. Optional properties map to C# nullable types and are omitted when
+references. Only declarations reachable from `@jsonSchema` roots or hook
+operations are emitted; spread-only helpers do not become standalone contracts.
+Optional properties map to C# nullable types and are omitted when
 null. Optional nullable unions use `Optional<T?>`, and optional `unknown` uses
 `Optional<JsonElement>`, so an absent member stays distinct from explicit JSON
 null where the wire contract permits it. Optional literal properties validate

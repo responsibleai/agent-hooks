@@ -266,6 +266,9 @@ importers:
       '@typespec/emitter-framework':
         specifier: 'catalog:'
         version: 0.22.0(@alloy-js/core@0.25.0)(@alloy-js/csharp@0.25.0)(@alloy-js/python@0.6.0)(@alloy-js/typescript@0.25.0)(@typespec/compiler@1.18.0(@types/node@26.6.6))
+      '@typespec/json-schema':
+        specifier: 'catalog:'
+        version: 1.18.0(@typespec/compiler@1.18.0(@types/node@26.6.6))
     devDependencies:
       '@alloy-js/babel-preset':
         specifier: 'catalog:'

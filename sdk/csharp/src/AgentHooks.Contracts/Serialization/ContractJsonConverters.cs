@@ -26,34 +26,58 @@ internal sealed class BigIntegerJsonConverter : JsonConverter<BigInteger>
 
 internal sealed class OptionalJsonConverterFactory : JsonConverterFactory
 {
+    private static readonly BigIntegerJsonConverter IntegerConverter = new();
+
     public override bool CanConvert(Type typeToConvert) =>
         typeToConvert.IsGenericType && typeToConvert.GetGenericTypeDefinition() == typeof(Optional<>);
 
-    public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options) =>
-        (JsonConverter)Activator.CreateInstance(
-            typeof(OptionalJsonConverter<>).MakeGenericType(typeToConvert.GetGenericArguments()))!;
+    public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+    {
+        var valueType = typeToConvert.GetGenericArguments()[0];
+        if (valueType == typeof(BigInteger))
+            return new OptionalJsonConverter<BigInteger>(IntegerConverter);
+        if (valueType == typeof(BigInteger?))
+            return new OptionalJsonConverter<BigInteger?>(new NullableBigIntegerJsonConverter());
+        return (JsonConverter)Activator.CreateInstance(typeof(OptionalJsonConverter<>).MakeGenericType(valueType))!;
+    }
+
+    private sealed class NullableBigIntegerJsonConverter : JsonConverter<BigInteger?>
+    {
+        public override BigInteger? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            reader.TokenType == JsonTokenType.Null ? null : IntegerConverter.Read(ref reader, typeof(BigInteger), options);
+
+        public override void Write(Utf8JsonWriter writer, BigInteger? value, JsonSerializerOptions options)
+        {
+            if (value is { } integer)
+                IntegerConverter.Write(writer, integer, options);
+            else
+                writer.WriteNullValue();
+        }
+    }
 
     private sealed class OptionalJsonConverter<T> : JsonConverter<Optional<T>>
     {
+        private readonly JsonConverter<T>? _valueConverter;
+
+        public OptionalJsonConverter() { }
+
+        public OptionalJsonConverter(JsonConverter<T> valueConverter) => _valueConverter = valueConverter;
+
         public override bool HandleNull => true;
 
-        private static JsonSerializerOptions WithIntegerConverter(JsonSerializerOptions options)
-        {
-            if (options.Converters.Any(converter => converter is BigIntegerJsonConverter))
-                return options;
-            var result = new JsonSerializerOptions(options);
-            result.Converters.Add(new BigIntegerJsonConverter());
-            return result;
-        }
-
         public override Optional<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-            new(JsonSerializer.Deserialize<T>(ref reader, WithIntegerConverter(options))!);
+            new(_valueConverter is null
+                ? JsonSerializer.Deserialize<T>(ref reader, options)!
+                : _valueConverter.Read(ref reader, typeof(T), options)!);
 
         public override void Write(Utf8JsonWriter writer, Optional<T> value, JsonSerializerOptions options)
         {
             if (!value.IsDefined)
                 throw new JsonException("An absent optional value cannot be serialized on its own.");
-            JsonSerializer.Serialize(writer, value.Value, WithIntegerConverter(options));
+            if (_valueConverter is null)
+                JsonSerializer.Serialize(writer, value.Value, options);
+            else
+                _valueConverter.Write(writer, value.Value, options);
         }
     }
 }
@@ -79,7 +103,8 @@ internal abstract class StringEnumJsonConverter<T>(IReadOnlyDictionary<T, string
 }
 
 internal abstract class DiscriminatedUnionJsonConverter<T>(
-    string discriminator, IReadOnlyDictionary<string, Type> variants, Type? defaultVariant) : JsonConverter<T>
+    string discriminator, IReadOnlyDictionary<(JsonValueKind, string), Type> variants, Type? defaultVariant) : JsonConverter<T>
+    where T : class
 {
     public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -97,7 +122,7 @@ internal abstract class DiscriminatedUnionJsonConverter<T>(
                 JsonValueKind.False => "false",
                 _ => null,
             };
-            if (key is null || !variants.TryGetValue(key, out variant))
+            if (key is null || !variants.TryGetValue((value.ValueKind, key), out variant))
                 throw new JsonException($"Unknown {discriminator} for {typeof(T).Name}.");
         }
         else
@@ -111,7 +136,7 @@ internal abstract class DiscriminatedUnionJsonConverter<T>(
 
     public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
     {
-        if (value is null || !variants.Values.Contains(value.GetType()))
+        if (!variants.Values.Contains(value.GetType()))
             throw new JsonException($"Unsupported variant of {typeof(T).Name}.");
         JsonSerializer.Serialize(writer, value, value.GetType(), options);
     }
