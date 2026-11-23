@@ -10,10 +10,9 @@ file of the copy it rewrites the spec/draft/ self-references to the new
 folder, the schema id base from schema/draft/ to schema/v<MAJOR.MINOR>/
 (schemas and inventories alike) and the draft wire string
 agent-hooks/draft to agent-hooks/<MAJOR.MINOR>, so the copy is a
-version of its own. The copy's tspconfig.yaml keeps only the JSON
-Schema emitter: language emitters write into the SDKs and follow the
-draft. The draft itself does not change: it keeps its own wire string,
-agent-hooks/draft, before and after the cut. The script then prints what remains by hand: confirm the copy's schemas, point the
+version of its own. The draft itself does not change: it keeps its own
+wire string, agent-hooks/draft, before and after the cut. The script
+then prints what remains by hand: confirm the copy's schemas, point the
 draft banner at the new version, add the spec/README.md row and the
 CHANGELOG section, and tag after merge. RELEASING.md has the full
 procedure.
@@ -41,17 +40,6 @@ HEADER = re.compile(
 DRAFT_WIRE = "agent-hooks/draft"
 ID_ORIGIN = "https://responsibleai.github.io/agent-hooks/schema/"
 TEXT_SUFFIXES = {".md", ".json", ".ts", ".tsp", ".abnf", ".txt"}
-# A released bundle regenerates only its own schemas; the draft's language
-# emitters write outside spec/ and must not be rerun from a frozen copy.
-RELEASED_TSPCONFIG = """# Copyright (c) Microsoft. All rights reserved.
-
-emit:
-  - "@typespec/json-schema"
-options:
-  "@typespec/json-schema":
-    emitter-output-dir: "{project-root}/schema/generated"
-    file-type: json
-"""
 
 
 def released_text(draft_text: str, version: str, date: str) -> str:
@@ -90,8 +78,6 @@ def cut(root: Path, version: str, date: str) -> list[str]:
 
     shutil.copytree(draft, target, symlinks=False)
     (target / "AGENT-HOOKS-DRAFT.md").unlink()
-    if (target / "tspconfig.yaml").is_file():
-        (target / "tspconfig.yaml").write_text(RELEASED_TSPCONFIG, encoding="utf-8")
     released = released_text(draft_file.read_text(encoding="utf-8"), version, date)
     (target / f"AGENT-HOOKS-{version}.md").write_text(released, encoding="utf-8")
     wire = f"agent-hooks/{version}"
@@ -105,7 +91,8 @@ def cut(root: Path, version: str, date: str) -> list[str]:
                 path.write_text(updated, encoding="utf-8")
     return [
         f"stage the copy and confirm its schemas match their source under schema/v{version}/: "
-        f"git add spec/{version} && pnpm exec tsp compile spec/{version} && git diff --exit-code spec/{version}",
+        f"git add spec/{version} && pnpm exec tsp compile spec/{version} --emit @typespec/json-schema "
+        f"&& git diff --exit-code spec/{version}",
         f"point the draft banner in spec/draft/AGENT-HOOKS-DRAFT.md at {version}",
         f"add the spec/README.md row for {version} and set the previous version to Superseded",
         f"move the CHANGELOG.md bullets under 'Unreleased specification' to 'Specification {version} — {date}'",

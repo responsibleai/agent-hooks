@@ -1,7 +1,8 @@
 name: schema-drift
 
 # Checks:
-# - spec-draft-generated-schema-check: regenerate every draft output (spec/draft/tspconfig.yaml), then fail on drift.
+# - spec-draft-generated-schema-check: regenerate the draft JSON Schemas, then fail on drift.
+#   Each language emitter checks its own output in its SDK's CI (emitters/README.md).
 # - python-released-schema-mirror: refresh released Python schema mirrors, then fail on drift.
 # - python-ctk-vector-mirror: refresh the Python CTK vector mirror, then fail on drift.
 # - python-draft-schema-mirror: report experimental draft mirror drift as a warning.
@@ -23,18 +24,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
-      - name: Regenerate draft outputs
-        # Deleting every linguist-generated file (.gitattributes) first makes
-        # output that is no longer produced show up as a deletion.
+      - name: Regenerate draft JSON Schemas
+        # The JSON Schema emitter never deletes output, so clear it first:
+        # a schema that is no longer produced then shows up as a deletion.
         run: |
-          git ls-files -z ':(attr:linguist-generated)' | xargs -0 rm -f
-          pnpm generate
+          pnpm run clean:schema
+          pnpm exec tsp compile spec/draft --emit @typespec/json-schema
       - name: Fail on generated drift
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             git status
             git --no-pager diff
-            echo "::error::generated output differs from its TypeSpec source; run pnpm generate, delete stale generated files, and commit the result"
+            echo "::error::generated JSON Schemas differ from their TypeSpec source; run pnpm generate and commit the result"
             exit 1
           fi
 
@@ -57,8 +58,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
-      - name: Regenerate draft outputs for comparison
-        run: pnpm generate
+      - name: Regenerate draft JSON Schemas for comparison
+        run: pnpm exec tsp compile spec/draft --emit @typespec/json-schema
       - name: Report experimental draft mirror drift
         run: python3 sdk/python/scripts/check-draft-schema-mirror.py
 

@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft. All rights reserved.
 
 # Every output generated from the draft TypeSpec source (`pnpm generate`).
-# Each emitter-output-dir is marked linguist-generated in .gitattributes.
+# Each emitter-output-dir holds only that emitter's generated files.
 emit:
   - "@typespec/json-schema"
 options:

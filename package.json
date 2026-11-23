@@ -14,7 +14,8 @@
   },
   "scripts": {
     "build:emitters": "pnpm --filter \"./emitters/*\" run build",
-    "generate": "pnpm run build:emitters && tsp compile spec/draft",
+    "clean:schema": "node -e \"fs.rmSync('spec/draft/schema/generated', { recursive: true, force: true })\"",
+    "generate": "pnpm run build:emitters && pnpm run clean:schema && tsp compile spec/draft",
     "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"
   }
 }
