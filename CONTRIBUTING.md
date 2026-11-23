@@ -136,7 +136,7 @@ differs from the generated text.
 pnpm install
 pnpm build                    # build every workspace package in dependency order (needs Rust for sdk/typescript)
 pnpm generate                 # only emitters/* and spec/draft: regenerate every draft output
-pnpm check:changes            # on a clean tree: fail on any changed, new or deleted file, as CI does
+pnpm check-for-changed-files  # fail if the working tree has changes, as CI does after generating
 pnpm run check:schema:equivalence --old origin/main   # differential validation against another revision
 ```
 
@@ -144,7 +144,7 @@ Every generated folder is rebuilt from scratch, so output for a removed type
 disappears: each language emitter empties its own output folder, and the
 `spec/draft` build clears `spec/draft/schema/generated/` (the JSON Schema
 emitter never deletes) before compiling. The `drift` job runs
-`pnpm generate && pnpm check:changes`, which checks every draft output.
+`pnpm generate && pnpm check-for-changed-files`, which checks every draft output.
 
 After a change, regenerate. The Python mirror holds one folder per
 supported specification version (`sdk/python/python/agent_hooks/schema/0.1/`

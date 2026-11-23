@@ -236,6 +236,9 @@ importers:
       ajv-formats:
         specifier: 'catalog:'
         version: 3.0.1
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.15
 
   docs-site:
     dependencies:

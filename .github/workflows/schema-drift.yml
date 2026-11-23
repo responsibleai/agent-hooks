@@ -26,12 +26,8 @@ jobs:
       - uses: ./.github/actions/setup
       - name: Regenerate every draft output
         run: pnpm generate
-      - name: Fail on generated drift
-        id: drift
-        run: pnpm check:changes
-      - name: Explain generated drift
-        if: failure() && steps.drift.outcome == 'failure'
-        run: echo "::error::generated outputs differ from their TypeSpec source; run pnpm generate and commit the result"
+      - name: Check for changed files
+        run: pnpm check-for-changed-files
 
   python-released-schema-mirror:
     runs-on: ubuntu-latest

@@ -10,12 +10,13 @@
     "@typespec/compiler": "catalog:",
     "@typespec/json-schema": "catalog:",
     "ajv-cli": "catalog:",
-    "ajv-formats": "catalog:"
+    "ajv-formats": "catalog:",
+    "tsx": "catalog:"
   },
   "scripts": {
     "build": "pnpm -r build",
     "generate": "pnpm --filter \"@agent-hooks/spec-draft...\" run build",
-    "check:changes": "git add --intent-to-add --ignore-removal :/ && git diff --exit-code",
+    "check-for-changed-files": "tsx scripts/check-for-changed-files.ts",
     "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"
   }
 }

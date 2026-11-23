@@ -50,8 +50,8 @@ emitter never deletes stale files), then runs the native CLI, `tsp compile .`;
 nothing parses or transforms emitted JSON.
 `tsp compile spec/X.Y --emit @typespec/json-schema` regenerates a released
 TypeSpec bundle. The `drift` check runs `pnpm generate`, then
-`pnpm check:changes`, which fails on any changed, new or deleted file and
-prints the diff. Legacy 0.1 artifacts stay committed and are
+`pnpm check-for-changed-files`, which fails if the working tree has any
+changes. Legacy 0.1 artifacts stay committed and are
 not regenerated; that bundle has no `main.tsp` to compile.
 Equivalence checks map old and native public roots for comparison and include
 the draft's actual examples among their mutation seeds.
