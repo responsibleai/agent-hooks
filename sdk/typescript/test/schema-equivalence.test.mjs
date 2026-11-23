@@ -75,6 +75,31 @@ test("random mutants do not create circular data", async (t) => {
   assert.match(result.stdout, /0 disagreements/);
 });
 
+test("flat schema directories exclude examples and source while comparing native JSON schemas", async (t) => {
+  const root = await fixture(t);
+  const oldPath = path.join(root, "old");
+  const newPath = path.join(root, "new");
+  for (const set of ["old", "new"]) {
+    await writeSchema(root, set, "draft", "NativeContract.json", { type: "string", enum: ["input"] });
+    for (const excluded of ["examples", "src"]) {
+      const directory = path.join(root, set, excluded, "nested");
+      await mkdir(directory, { recursive: true });
+      await writeFile(path.join(directory, "instance.json"), JSON.stringify({ content: "not a schema" }));
+    }
+  }
+  for (const [oldSet, newSet] of [[oldPath, newPath], [newPath, oldPath]]) {
+    const result = compare(oldSet, newSet);
+    assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
+    assert.match(result.stdout, /NativeContract\.json/);
+    assert.match(result.stdout, /0 disagreements/);
+  }
+
+  await writeSchema(root, "new", "draft", "NativeContract.json", { type: "string", enum: ["custom"] });
+  const changed = compare(oldPath, newPath);
+  assert.equal(changed.status, 1, `${changed.stderr}\n${changed.stdout}`);
+  assert.match(changed.stdout, /NativeContract\.json\s+.*\s+[1-9]\d*$/m);
+});
+
 test("schema equivalence reports a newly added schema file whichever side contains it", async (t) => {
   const root = await fixture(t);
   const oldPath = path.join(root, "v01");

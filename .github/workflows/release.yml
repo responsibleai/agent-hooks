@@ -119,7 +119,7 @@ jobs:
               echo "::error::$suite/vectors contains no vectors"
               exit 1
             fi
-            mapfile -t refs < <(find "$root" -name '*.schema.json' -not -path '*/src/*' | sort | sed 's/^/-r=/')
+            mapfile -t refs < <(find "$root" -name '*.json' -not -path '*/src/*' -not -path '*/examples/*' | sort | sed 's/^/-r=/')
             pnpm exec ajv validate --spec=draft2020 -c ajv-formats \
               -s "$suite/vectors.schema.json" "${refs[@]}" \
               -d "$suite/vectors/*.json"

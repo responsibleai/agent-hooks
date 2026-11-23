@@ -7,7 +7,7 @@ Released specifications live in spec/<MAJOR.MINOR>/, each holding one
 AGENT-HOOKS-<MAJOR.MINOR>.md whose header says Released and names the
 folder as its version. The working text lives in spec/draft/ as
 AGENT-HOOKS-DRAFT.md with Status Draft and Version DRAFT. Every bundle
-has a schema/ folder with at least one *.schema.json outside src/ and
+has a schema/ folder with at least one JSON Schema file outside src/ and
 examples/; which files a bundle's generator produces is the bundle's
 own business, so no other file name is required here. spec/README.md
 links every folder. Every $id in a bundle sits under that bundle's
@@ -209,7 +209,7 @@ def check_bundle(root: Path, folder: Path) -> list[str]:
         schemas = {
             p
             for p in walk(schema_dir)
-            if p.name.endswith(".schema.json")
+            if p.name.endswith(".json")
             and p.is_file()
             and not any(
                 part in NOT_SCHEMAS for part in p.relative_to(schema_dir).parts[:-1]
@@ -217,7 +217,7 @@ def check_bundle(root: Path, folder: Path) -> list[str]:
         }
         if not schemas:
             errors.append(
-                f"{rel}/schema has no *.schema.json files outside src/ and examples/"
+                f"{rel}/schema has no JSON Schema files outside src/ and examples/"
             )
     id_base = ID_ORIGIN + ("draft/" if folder.name == "draft" else f"v{folder.name}/")
     wire = f"agent-hooks/{folder.name}"

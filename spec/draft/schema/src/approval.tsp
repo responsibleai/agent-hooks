@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 
+using TypeSpec.JsonSchema;
 namespace AgentHooks;
 
 /**
@@ -16,7 +17,9 @@ model LiftableDeny {
 
 // Example: [request](../examples/ApprovalRequest/collection-access.json)
 /** What the host hands the resolver (§9). */
-model request {
+@jsonSchema
+@summary("Agent Hooks approval request")
+model ApprovalRequest {
   ...Record<never>;
   context_identity: string | null;
   interception_point: InterceptionPoint;
@@ -68,7 +71,9 @@ model UnresolvedResolution {
 }
 
 /** What the resolver returns (§9). */
-union resolution {
+@jsonSchema
+@summary("Agent Hooks approval resolution")
+union ApprovalResolution {
   ApproveResolution,
   RejectResolution,
   UnresolvedResolution,

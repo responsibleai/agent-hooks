@@ -239,7 +239,7 @@ class CheckTest(unittest.TestCase):
         )
         errors = versions.check(self.root)
         self.assertIn(
-            "spec/0.2/schema has no *.schema.json files outside src/ and examples/",
+            "spec/0.2/schema has no JSON Schema files outside src/ and examples/",
             errors,
         )
 

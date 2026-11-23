@@ -7,7 +7,7 @@
  *
  * A published schema path is immutable: two bundles may publish the same
  * path only with identical bytes, so a release that changes a schema must
- * publish under a new $id path (ID_BASE in spec/scripts/generate-schemas.mts).
+ * publish under a new $id path (the TypeSpec @baseUri).
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -73,8 +73,8 @@ export function schemaFiles(root: string): Map<string, string> {
     if (earlier && !readFileSync(earlier).equals(readFileSync(file))) {
       throw new Error(
         `${relative(root, file)} and ${relative(root, earlier)} both publish schema/${path} ` +
-          "with different content; a published $id path is immutable, so set ID_BASE in " +
-          "spec/scripts/generate-schemas.mts before regenerating",
+          "with different content; a published $id path is immutable, so set the TypeSpec " +
+          "@baseUri before regenerating",
       );
     }
     published.set(path, file);

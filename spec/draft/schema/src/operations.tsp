@@ -40,5 +40,5 @@ interface ApprovalResolver {
    * The host consults this seam only as prescribed by §7.4–§7.6 and §9,
    * never at agent_shutdown or in evaluate_only mode.
    */
-  resolve(request: AgentHooks.request): resolution;
+  resolve(request: ApprovalRequest): ApprovalResolution;
 }
