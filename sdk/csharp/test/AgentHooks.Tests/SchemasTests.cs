@@ -7,6 +7,7 @@ using Draft = AgentHooks.Contracts.Draft;
 
 namespace AgentHooks.Tests;
 
+[Trait("Category", "draft")]
 public sealed class SchemasTests
 {
     private static JsonObject ValidPreToolCallRequest() => Contract.ToJson(new Draft.PreToolCallRequest
