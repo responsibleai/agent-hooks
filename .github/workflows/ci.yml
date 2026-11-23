@@ -126,8 +126,13 @@ jobs:
       - name: Check contract types and behavior without the native SDK
         working-directory: sdk/python/packages/agent-hooks-contracts
         run: |
-          mypy --strict src tests/typing_contract.py
+          mypy --strict src tests
           pytest tests -q
+          ruff check src tests
+          ruff format --check src tests
+      - uses: ./.github/actions/setup
+      - name: Check Python emitter regressions
+        run: pnpm --filter @agent-hooks/python-emitter test
 
   typescript:
     runs-on: ubuntu-latest

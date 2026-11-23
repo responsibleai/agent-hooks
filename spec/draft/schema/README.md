@@ -97,10 +97,10 @@ draft copies only alongside corresponding SDK changes, as described in
 `spec/draft/main.tsp` imports this source as the shared compiler entry point.
 `spec/draft/tspconfig.yaml` selects the emitter package in `emitters/python/`
 and writes versioned output into the standalone pure-Python contracts package,
-`sdk/python/packages/agent-hooks-contracts/src/agent_hooks_contract/generated/draft/`.
+`sdk/python/packages/agent-hooks-contracts/src/agent_hooks_contracts/generated/draft/`.
 From the repository root, run `pnpm generate` to build the emitter and compile
-the draft, or `pnpm check:generated` to regenerate and check Git drift (requires
-the contracts package's Python tooling and Ruff on `PATH`). These types do not
+the draft, or `pnpm check:generated` to regenerate and check tracked and untracked
+Git drift. Neither command needs Python or Ruff. These types do not
 change JSON Schema output, the released 0.1 API, or the SDK's runtime and
 packaged schemas. Other generators remain separate until the broader
 repository reorganization.

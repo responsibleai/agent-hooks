@@ -2,12 +2,11 @@
 
 """The generated wire contract works independently of the native SDK."""
 
-import json
 import subprocess
 import sys
-from typing import get_type_hints
+from typing import get_args, get_type_hints
 
-from agent_hooks_contract.generated import draft as contract
+from agent_hooks_contracts.generated import draft as contract
 from typing_extensions import is_typeddict
 
 
@@ -16,7 +15,7 @@ def test_contract_import_does_not_load_native_sdk() -> None:
         [
             sys.executable,
             "-c",
-            "import sys; import agent_hooks_contract.generated.draft; "
+            "import sys; import agent_hooks_contracts.generated.draft; "
             "assert not any(n == 'agent_hooks' or n.startswith('agent_hooks.') "
             "for n in sys.modules)",
         ],
@@ -24,16 +23,23 @@ def test_contract_import_does_not_load_native_sdk() -> None:
     )
 
 
-def test_contract_json_preserves_wire_values() -> None:
-    response: contract.PreToolHookResponse = {
-        "verdict": {
-            "decision": "transform",
-            "transform": {"args": {"large": 2**80, "nested": [None, True, {"text": "hello"}]}},
-        },
-        "extensions": {"example": {"reviewed": True}},
-    }
-    assert json.loads(json.dumps(response)) == response
-    assert "reason" not in response["verdict"]
+def test_union_arguments_are_runtime_types() -> None:
+    assert get_args(contract.AgentContext) == (
+        contract.AgentStartupRequest,
+        contract.InputRequest,
+        contract.PreModelCallRequest,
+        contract.PostModelCallRequest,
+        contract.PreToolCallRequest,
+        contract.PostToolCallRequest,
+        contract.OutputRequest,
+        contract.AgentShutdownRequest,
+    )
+    assert get_args(contract.ApprovalResolution) == (
+        contract.ApproveResolution,
+        contract.RejectResolution,
+        contract.UnresolvedResolution,
+    )
+    assert get_args(contract.Surface) == (contract.BufferedSurface, contract.UnbufferedSurface)
 
 
 def test_forward_references_and_key_presence() -> None:

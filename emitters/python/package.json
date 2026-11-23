@@ -18,7 +18,8 @@
     "typespec-emitter"
   ],
   "scripts": {
-    "build": "tsc --project tsconfig.json"
+    "build": "tsc --project tsconfig.json",
+    "test": "pnpm run build && tsc --project tsconfig.test.json && tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@alloy-js/core": "0.25.0",
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@types/node": "^26.1.1",
     "@typespec/compiler": "1.18.0",
+    "tsx": "4.23.15",
     "typescript": "7.0.2"
   },
   "engines": {

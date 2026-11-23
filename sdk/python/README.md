@@ -60,7 +60,7 @@ pip install ./sdk/python/packages/agent-hooks-contracts
 ```
 
 ```python
-from agent_hooks_contract.generated.draft import PreToolHookResponse
+from agent_hooks_contracts.generated.draft import PreToolHookResponse
 response: PreToolHookResponse = {
     "verdict": {"decision": "transform", "transform": {"args": {"reviewed": True}}}
 }
@@ -68,7 +68,7 @@ response: PreToolHookResponse = {
 
 The emitter lives in `emitters/python/`, and `pnpm generate` at the repository
 root runs the shared `spec/draft` TypeSpec compilation. Committed output is
-versioned under `agent_hooks_contract/generated/draft/`; there is no implicit
+versioned under `agent_hooks_contracts/generated/draft/`; there is no implicit
 default version. This package is not bundled into the native SDK wheel.
 The existing runtime, released 0.1 API, and schema mirrors are unchanged.
 

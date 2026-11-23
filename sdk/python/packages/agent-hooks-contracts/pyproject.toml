@@ -9,16 +9,16 @@ description = "Generated Python wire contracts for Agent Hooks, without native d
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-dependencies = ["typing-extensions>=4.16.0"]
+dependencies = ["typing-extensions>=4.3.0"]
 
 [project.optional-dependencies]
-dev = ["hatchling>=1.27,<2", "mypy>=2.2.0", "pytest>=9.1.1", "ruff>=0.15.21"]
+dev = ["hatchling>=1.27,<2", "mypy>=2.2.0", "pytest>=9.1.1", "ruff==0.15.21"]
 
 [project.urls]
 Repository = "https://github.com/responsibleai/agent-hooks"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agent_hooks_contract"]
+packages = ["src/agent_hooks_contracts"]
 
 [tool.mypy]
 strict = true

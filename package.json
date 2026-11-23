@@ -14,7 +14,7 @@
   },
   "scripts": {
     "generate": "pnpm --filter @agent-hooks/python-emitter run build && tsp compile spec/draft",
-    "check:generated": "pnpm generate && git diff --exit-code",
+    "check:generated": "pnpm generate && git diff --exit-code && status=$(git status --porcelain --untracked-files=all) && if [ -n \"$status\" ]; then printf '%s\\n' \"$status\"; exit 1; fi",
     "generate:schema": "pnpm --dir spec/scripts run generate:schema",
     "check:schema": "pnpm --dir spec/scripts run check:schema",
     "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"

@@ -1,101 +1,207 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 import { For, namekey, type Children } from "@alloy-js/core";
+import {
+  group as Group,
+  indent as Indent,
+  ifBreak as IfBreak,
+  hbr as Hardline,
+  sbr as Softline,
+  br as Line,
+} from "@alloy-js/core/stc";
 import * as py from "@alloy-js/python";
 import {
   createTypeSpecLibrary,
-  emitFile,
   getDoc,
   isArrayModelType,
+  isNeverType,
   isTemplateDeclaration,
+  isTemplateInstance,
   walkPropertiesInherited,
   type EmitContext,
   type Model,
   type Type,
 } from "@typespec/compiler";
+import { $ } from "@typespec/compiler/typekit";
 import { Output, writeOutput } from "@typespec/emitter-framework";
-import {
-  efRefkey,
-  TypeExpression,
-  typingModule,
-} from "@typespec/emitter-framework/python";
-import { execFileSync } from "node:child_process";
-import { join } from "node:path";
+import { efRefkey, TypeExpression } from "@typespec/emitter-framework/python";
 
 export const $lib = createTypeSpecLibrary({
   name: "@agent-hooks/python-emitter",
   diagnostics: {},
 });
 
+const keywords = new Set([
+  "False",
+  "None",
+  "True",
+  "and",
+  "as",
+  "assert",
+  "async",
+  "await",
+  "break",
+  "class",
+  "continue",
+  "def",
+  "del",
+  "elif",
+  "else",
+  "except",
+  "finally",
+  "for",
+  "from",
+  "global",
+  "if",
+  "import",
+  "in",
+  "is",
+  "lambda",
+  "nonlocal",
+  "not",
+  "or",
+  "pass",
+  "raise",
+  "return",
+  "try",
+  "while",
+  "with",
+  "yield",
+]);
+const isIdentifier = (name: string) =>
+  /^[a-zA-Z_]\w*$/.test(name) && !keywords.has(name);
+const isCollection = (type: Model) =>
+  type.indexer !== undefined &&
+  !isNeverType(type.indexer.value) &&
+  type.properties.size === 0;
+const isObject = (type: Type): type is Model =>
+  type.kind === "Model" && type.name !== "JsonObject" && !isCollection(type);
+const isClass = (type: Type) =>
+  isObject(type) &&
+  [...walkPropertiesInherited(type)].every((property) =>
+    isIdentifier(property.name),
+  );
+const exactName = (name: string) => namekey(name, { ignoreNamePolicy: true });
+
 export async function $onEmit({
   program,
   emitterOutputDir,
 }: EmitContext): Promise<void> {
-  if (program.compilerOptions.noEmit || program.hasError()) return;
+  if (program.compilerOptions.noEmit) return;
   const namespace = program
     .getGlobalNamespaceType()
     .namespaces.get("AgentHooks");
   if (!namespace) throw new Error("Missing AgentHooks namespace");
 
+  const roots = [
+    ...namespace.enums,
+    ...namespace.scalars,
+    ...namespace.models,
+    ...namespace.unions,
+  ].filter(([, type]) => !isTemplateDeclaration(type));
   const declarations = new Map<Type, string>();
-  for (const type of [
-    ...namespace.enums.values(),
-    ...namespace.scalars.values(),
-    ...namespace.models.values(),
-    ...namespace.unions.values(),
-  ]) {
-    if (!isTemplateDeclaration(type)) {
-      if (!type.name) throw new Error("Missing contract declaration name");
-      declarations.set(
+  const nameOwners = new Map<string, Type>();
+  const imports = new Set(["Union"]);
+  const dictionaryImports = new Set<string>();
+  const ordered: Type[] = [];
+  const visited = new Set<Type>();
+  const visiting = new Set<Type>();
+
+  function declare(type: Type, name: string): void {
+    if (
+      name === "JsonValue" ||
+      (nameOwners.has(name) && nameOwners.get(name) !== type)
+    ) {
+      throw new Error(`Duplicate Python declaration name: ${name}`);
+    }
+    declarations.set(type, name);
+    nameOwners.set(name, type);
+  }
+  for (const [name, type] of roots) {
+    declare(
+      type,
+      name === "request"
+        ? "ApprovalRequest"
+        : name === "resolution"
+          ? "ApprovalResolution"
+          : name,
+    );
+  }
+
+  // Discover concrete template/anonymous models and order all declarations by dependency.
+  function visit(type: Type, suggestedName: string): void {
+    if (type.kind === "ModelProperty") {
+      visit(type.type, suggestedName);
+      return;
+    }
+    if (visited.has(type)) return;
+    if (visiting.has(type))
+      throw new Error(`Recursive Python contract type: ${suggestedName}`);
+    visiting.add(type);
+    if (isObject(type) && !declarations.has(type)) {
+      declare(
         type,
-        type.name === "request"
-          ? "ApprovalRequest"
-          : type.name === "resolution"
-            ? "ApprovalResolution"
-            : type.name,
+        isTemplateInstance(type) ? templateName(type) : suggestedName,
       );
     }
-  }
-
-  // TypeSpec templates and anonymous objects need concrete, reusable TypedDict names.
-  function collect(type: Type, suggestedName: string): void {
-    if (type.kind === "ModelProperty" || type.kind === "UnionVariant") {
-      collect(type.type, suggestedName);
-    } else if (type.kind === "Union") {
-      for (const variant of type.variants.values()) {
-        collect(
-          variant.type,
-          `${suggestedName}${variant.type.kind === "Model" ? variant.type.name : ""}`,
-        );
-      }
-    } else if (type.kind === "Model") {
-      if (type.indexer && type.properties.size === 0) {
-        collect(type.indexer.value, `${suggestedName}Item`);
-      } else {
-        if (!declarations.has(type)) {
-          declarations.set(type, suggestedName);
-        }
-        if (visited.has(type)) return;
-        visited.add(type);
-        for (const property of walkPropertiesInherited(type)) {
-          collect(
-            property.type,
-            `${declarations.get(type)}${pascalCase(property.name)}`,
+    const name = declarations.get(type) ?? suggestedName;
+    switch (type.kind) {
+      case "Enum":
+      case "EnumMember":
+      case "Boolean":
+      case "String":
+      case "Number":
+        imports.add("Literal");
+        break;
+      case "Union":
+        for (const [index, variant] of [...type.variants.values()].entries()) {
+          visit(
+            variant.type,
+            `${name}${typeof variant.name === "string" ? pascalCase(variant.name) : `Variant${index + 1}`}`,
           );
         }
-      }
+        break;
+      case "Model":
+        if (type.name === "JsonObject") break;
+        if (isCollection(type)) {
+          visit(type.indexer!.value, `${name}Item`);
+        } else {
+          dictionaryImports.add("TypedDict");
+          for (const property of walkPropertiesInherited(type)) {
+            if (property.optional) dictionaryImports.add("NotRequired");
+            visit(property.type, `${name}${pascalCase(property.name)}`);
+          }
+        }
     }
+    visiting.delete(type);
+    visited.add(type);
+    if (declarations.has(type)) ordered.push(type);
   }
-  const visited = new Set<Model>();
-  for (const [type, name] of declarations) collect(type, name);
+  function templateName(type: Model): string {
+    const plausible = $(program).type.getPlausibleName(type);
+    const prefix = plausible.slice(0, -type.name.length);
+    let overlap = type.name.length;
+    while (overlap > 0 && !prefix.endsWith(type.name.slice(0, overlap)))
+      overlap--;
+    return prefix + type.name.slice(overlap);
+  }
+  for (const [name, type] of roots) visit(type, name);
 
-  const typingExtensions = py.createModule({
-    name: "typing_extensions",
-    descriptor: { ".": ["NotRequired", "TypedDict"] },
-  });
-  const typing = typingModule["."];
-  const dictionary = typingExtensions["."];
-  const exactName = (name: string) => namekey(name, { ignoreNamePolicy: true });
+  function Literal({ values }: { values: Children[] }): Children {
+    return (
+      <Group>
+        {"Literal["}
+        <Indent>
+          <Softline />
+          <For each={values} comma line ender={<IfBreak>,</IfBreak>}>
+            {(value) => value}
+          </For>
+        </Indent>
+        <Softline />
+        {"]"}
+      </Group>
+    );
+  }
 
   function ContractType({
     type,
@@ -104,48 +210,48 @@ export async function $onEmit({
     type: Type;
     inline?: boolean;
   }): Children {
-    if (type.kind === "ModelProperty" || type.kind === "UnionVariant") {
-      return <ContractType type={type.type} />;
-    }
-    if (!inline && declarations.has(type)) {
-      // Quoted references also work in runtime-evaluated aliases on Python 3.10.
-      return ['"', <py.Reference refkey={efRefkey(type)} />, '"'];
-    }
+    if (type.kind === "ModelProperty") return <ContractType type={type.type} />;
+    if (!inline && declarations.has(type))
+      return <py.Reference refkey={efRefkey(type)} />;
     switch (type.kind) {
       case "Enum":
-        return [
-          typing.Literal,
-          "[",
-          <For each={[...type.members.values()]} comma space>
-            {(member) => <py.Atom jsValue={member.value ?? member.name} />}
-          </For>,
-          "]",
-        ];
+        return (
+          <Literal
+            values={[...type.members.values()].map((member) => (
+              <py.Atom jsValue={member.value ?? member.name} />
+            ))}
+          />
+        );
       case "EnumMember":
-        return [
-          typing.Literal,
-          "[",
-          <py.Atom jsValue={type.value ?? type.name} />,
-          "]",
-        ];
+        return (
+          <Literal values={[<py.Atom jsValue={type.value ?? type.name} />]} />
+        );
+      case "Boolean":
+      case "String":
+      case "Number":
+        return <Literal values={[<py.Atom jsValue={type.value} />]} />;
       case "Union":
-        return [
-          typing.Union,
-          "[",
-          <For each={[...type.variants.values()]} comma space>
-            {(variant) => <ContractType type={variant.type} />}
-          </For>,
-          "]",
-        ];
+        return (
+          <Group>
+            <IfBreak>(</IfBreak>
+            <Indent>
+              <Softline />
+              <For each={[...type.variants.values()]} joiner={[<Line />, "| "]}>
+                {(variant) => <ContractType type={variant.type} />}
+              </For>
+            </Indent>
+            <Softline />
+            <IfBreak>)</IfBreak>
+          </Group>
+        );
       case "Model":
         if (type.name === "JsonObject") return "dict[str, JsonValue]";
-        if (type.indexer && type.properties.size === 0) {
+        if (isCollection(type))
           return [
             isArrayModelType(type) ? "list[" : "dict[str, ",
-            <ContractType type={type.indexer.value} />,
+            <ContractType type={type.indexer!.value} />,
             "]",
           ];
-        }
         throw new Error(`Missing TypedDict declaration for ${type.name}`);
       case "Intrinsic":
         if (type.name === "unknown") return "JsonValue";
@@ -153,59 +259,65 @@ export async function $onEmit({
     return <TypeExpression type={type} />;
   }
 
-  function ContractDeclaration({
-    type,
-    name,
-  }: {
-    type: Type;
-    name: string;
-  }): Children {
+  function ContractDeclaration({ type }: { type: Type }): Children {
+    const name = declarations.get(type)!;
     const doc = getDoc(program, type);
-    if (
-      type.kind === "Model" &&
-      type.name !== "JsonObject" &&
-      !(type.indexer && type.properties.size === 0)
-    ) {
-      const properties = [...walkPropertiesInherited(type)];
-      const members = (
-        <For each={properties} hardline>
-          {(property) => [
-            getDoc(program, property) ? (
-              <py.SimpleCommentBlock>
-                {getDoc(program, property)}
-              </py.SimpleCommentBlock>
-            ) : (
-              ""
-            ),
-            getDoc(program, property) ? "\n" : "",
-            `${property.name}: `,
-            property.optional ? [dictionary.NotRequired, "["] : "",
-            <ContractType type={property.type} />,
-            property.optional ? "]" : "",
-          ]}
-        </For>
-      );
-      if (
-        properties.some((property) => !/^[a-zA-Z_]\w*$/.test(property.name))
-      ) {
+    if (isObject(type)) {
+      const properties = [...walkPropertiesInherited(type)].map((property) => ({
+        property,
+        doc: getDoc(program, property),
+      }));
+      function Members({
+        functional = false,
+      }: {
+        functional?: boolean;
+      }): Children {
+        return (
+          <For
+            each={properties}
+            hardline
+            ender={functional ? "," : undefined}
+            joiner={functional ? [",", <Hardline />] : <Hardline />}
+          >
+            {({ property, doc }) => [
+              doc
+                ? [
+                    <py.SimpleCommentBlock>{doc}</py.SimpleCommentBlock>,
+                    <Hardline />,
+                  ]
+                : "",
+              functional ? <py.Atom jsValue={property.name} /> : property.name,
+              ": ",
+              property.optional ? "NotRequired[" : "",
+              <ContractType type={property.type} />,
+              property.optional ? "]" : "",
+            ]}
+          </For>
+        );
+      }
+      if (!isClass(type)) {
         return (
           <py.VariableDeclaration
             name={exactName(name)}
             refkey={efRefkey(type)}
             doc={doc}
             initializer={[
-              dictionary.TypedDict,
-              `("${name}", {`,
-              <For each={properties} comma space>
-                {(property) => [
-                  <py.Atom jsValue={property.name} />,
-                  ": ",
-                  property.optional ? [dictionary.NotRequired, "["] : "",
-                  <ContractType type={property.type} />,
-                  property.optional ? "]" : "",
-                ]}
-              </For>,
-              "})",
+              "TypedDict(",
+              <Indent>
+                <Hardline />
+                <py.Atom jsValue={name} />
+                {","}
+                <Hardline />
+                {"{"}
+                <Indent>
+                  <Hardline />
+                  <Members functional />
+                </Indent>
+                <Hardline />
+                {"},"}
+              </Indent>,
+              <Hardline />,
+              ")",
             ]}
           />
         );
@@ -214,10 +326,10 @@ export async function $onEmit({
         <py.ClassDeclaration
           name={exactName(name)}
           refkey={efRefkey(type)}
-          bases={[dictionary.TypedDict]}
+          bases={["TypedDict"]}
           doc={doc ? <py.ClassDoc description={[doc]} /> : undefined}
         >
-          {members}
+          <Members />
         </py.ClassDeclaration>
       );
     }
@@ -231,78 +343,55 @@ export async function $onEmit({
     );
   }
 
-  const output = new Map<string, string>();
   await writeOutput(
-    {
-      ...program,
-      host: {
-        ...program.host,
-        mkdirp: async () => {},
-        writeFile: async (path, text) => {
-          output.set(path, text);
-        },
-      },
-    },
-    <Output program={program} externals={[typingModule, typingExtensions]}>
-      <py.SourceFile
-        path="__init__.py"
-        header={
-          "# Copyright (c) Microsoft. All rights reserved.\n\n# ruff: noqa: UP007\n"
-        }
-        doc={
-          <py.ModuleDoc
-            description={[
-              "Generated wire contracts. Do not edit.",
-              "Regenerate with pnpm generate at the repository root.",
-            ]}
-          />
-        }
-      >
-        <py.VariableDeclaration
-          name={exactName("JsonValue")}
-          initializer={[
-            typing.Union,
-            '[None, bool, int, float, str, list["JsonValue"], dict[str, "JsonValue"]]',
+    program,
+    <Output program={program}>
+      <py.SourceFile path="__init__.py" printWidth={100}>
+        <Group>
+          {() => [
+            "# Copyright (c) Microsoft. All rights reserved.\n\n",
+            <py.ModuleDoc
+              description={[
+                "Generated wire contracts. Do not edit.",
+                "Regenerate with pnpm generate at the repository root.",
+              ]}
+            />,
+            "\n",
+            `from typing import ${[...imports].sort().join(", ")}\n`,
+            dictionaryImports.size
+              ? `\nfrom typing_extensions import ${[...dictionaryImports].sort().join(", ")}\n`
+              : "",
+            "\n",
+            <py.VariableDeclaration
+              name={exactName("JsonValue")}
+              initializer={[
+                "Union[  # noqa: UP007",
+                <Indent>
+                  <Hardline />
+                  {
+                    'None,\nbool,\nint,\nfloat,\nstr,\nlist["JsonValue"],\ndict[str, "JsonValue"],'
+                  }
+                </Indent>,
+                <Hardline />,
+                "]",
+              ]}
+            />,
+            <For each={ordered} joiner="">
+              {(type, index) => [
+                "\n\n",
+                isClass(type) && !(index > 0 && isClass(ordered[index - 1]))
+                  ? "\n"
+                  : "",
+                <ContractDeclaration type={type} />,
+              ]}
+            </For>,
+            "\n",
           ]}
-        />
-        {"\n\n"}
-        <For each={[...declarations]} doubleHardline>
-          {([type, name]) => <ContractDeclaration type={type} name={name} />}
-        </For>
-        {"\n"}
+        </Group>
       </py.SourceFile>
     </Output>,
     emitterOutputDir,
   );
-  if (program.hasError()) return;
-  if (output.size !== 1)
-    throw new Error(`Expected one generated Python file, got ${output.size}`);
-  for (const [path, text] of output) {
-    // Union[...] supports quoted recursive aliases on Python 3.10; X | "Y" does not.
-    const sorted = execFileSync(
-      "ruff",
-      ["check", "--select", "I", "--fix-only", "--stdin-filename", path, "-"],
-      {
-        input: text,
-        encoding: "utf8",
-        stdio: ["pipe", "pipe", "inherit"],
-      },
-    );
-    const formatted = execFileSync(
-      "ruff",
-      ["format", "--stdin-filename", path, "-"],
-      {
-        input: sorted,
-        encoding: "utf8",
-        stdio: ["pipe", "pipe", "inherit"],
-      },
-    );
-    await emitFile(program, { path, content: formatted });
-  }
-  await emitFile(program, {
-    path: join(emitterOutputDir, "py.typed"),
-    content: "",
-  });
 }
 
 function pascalCase(name: string): string {

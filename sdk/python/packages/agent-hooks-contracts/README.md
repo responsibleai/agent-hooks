@@ -13,7 +13,7 @@ Select the specification version explicitly:
 ```python
 import json
 
-from agent_hooks_contract.generated.draft import PreToolHookResponse
+from agent_hooks_contracts.generated.draft import PreToolHookResponse
 
 response: PreToolHookResponse = {
     "verdict": {"decision": "transform", "transform": {"args": {"reviewed": True}}}
@@ -29,7 +29,7 @@ These are plain dictionaries: no constructors, runtime enums, serializer, or
 validation dependency. `NotRequired` means a key may be absent, not that its
 value is nullable. Arbitrary JSON uses a recursive `JsonValue` alias; integers
 use Python's arbitrary-precision `int`. `typing_extensions` supplies
-Python 3.10-compatible key qualifiers.
+Python 3.10-compatible key qualifiers (version 4.3.0 or later).
 
 Static typing does not enforce numeric bounds, patterns, or conditional rules.
 Type checkers may reject additional keys on objects the wire contract leaves
@@ -41,7 +41,7 @@ in the existing runtime is separate work.
 The TypeSpec emitter lives in `emitters/python/`, not in this SDK package.
 `spec/draft/main.tsp` is the shared entry point and `spec/draft/tspconfig.yaml`
 selects emitters and versioned output locations. Edit the TypeSpec source, not
-the committed Python under `src/agent_hooks_contract/generated/draft/`.
+the committed Python under `src/agent_hooks_contracts/generated/draft/`.
 
 From the repository root, with the Python environment activated:
 
@@ -51,14 +51,16 @@ pip install --no-build-isolation --no-deps -e ./sdk/python/packages/agent-hooks-
 pnpm install
 pnpm generate
 pnpm check:generated
-mypy --strict sdk/python/packages/agent-hooks-contracts/src sdk/python/packages/agent-hooks-contracts/tests/typing_contract.py
+mypy --strict sdk/python/packages/agent-hooks-contracts/src sdk/python/packages/agent-hooks-contracts/tests
 pytest sdk/python/packages/agent-hooks-contracts/tests
 ```
 
 `pnpm generate` builds the emitter and runs `tsp compile spec/draft`. Once the
 emitter is built, `pnpm exec tsp compile spec/draft` also regenerates the bundle
-directly. Ruff sorts imports and formats output. The shared drift command
-regenerates and runs `git diff --exit-code`; run it with no unrelated edits.
+directly. Generation requires only Node.js: Alloy writes formatted Python
+without running a formatter. Python CI verifies that output with the same
+Ruff 0.15.21 pin as the native SDK. The shared drift command regenerates and
+rejects tracked or untracked changes; run it with no unrelated edits.
 Build this package's platform-independent wheel with `python -m hatchling build`
 from this directory. No native toolchain is required.
 

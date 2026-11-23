@@ -155,13 +155,15 @@ the mapping to unchanged published URLs.
 The standalone pure-Python contracts distribution lives under
 `sdk/python/packages/agent-hooks-contracts/`, separate from the native SDK.
 Its TypeSpec emitter is the pnpm package under `emitters/python/`. Edit the
-TypeSpec source, not the committed `src/agent_hooks_contract/generated/draft/`
+TypeSpec source, not the committed `src/agent_hooks_contracts/generated/draft/`
 output. Follow the [package development instructions](sdk/python/packages/agent-hooks-contracts/README.md)
-to install Python tooling (Ruff must be on `PATH`) and workspace dependencies.
+to install Python test tooling and workspace dependencies. Generation itself
+requires only Node.js.
 
 `pnpm generate` builds the emitter and runs the shared `tsp compile spec/draft`
 entry point; `spec/draft/tspconfig.yaml` selects emitters and versioned output
-locations. `pnpm check:generated` regenerates and runs `git diff --exit-code`.
+locations. `pnpm check:generated` regenerates and rejects tracked or untracked
+workspace changes.
 Once built, `pnpm exec tsp compile spec/draft` also regenerates directly.
 CI checks drift in the schema workflow and builds and tests the pure-Python
 wheel without Rust in `python-contracts`. JSON Schema generation and SDK
