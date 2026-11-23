@@ -1,5 +1,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Json.Schema;
 
@@ -20,13 +21,20 @@ internal static class Schemas
             .ToDictionary(n => n, n => JsonSchema.FromText(Document(n).ToJsonString()), StringComparer.Ordinal));
 
     /// <summary>True when <paramref name="value"/> satisfies the schema generated for the TypeSpec model <paramref name="schema"/>.</summary>
-    internal static bool IsValid(JsonNode? value, string schema) =>
-        Load(schema).Evaluate(Contract.Element(value), Flag).IsValid;
+    internal static bool IsValid(JsonNode? value, string schema) => IsValid(Contract.Element(value), schema);
+
+    /// <summary>True when <paramref name="value"/> satisfies the schema generated for the TypeSpec model <paramref name="schema"/>.</summary>
+    internal static bool IsValid(JsonElement value, string schema) =>
+        Load(schema).Evaluate(value, Flag).IsValid;
 
     /// <summary>The failing instance locations and messages of <paramref name="value"/>.</summary>
-    internal static IReadOnlyList<(string Pointer, string Message)> Errors(JsonNode? value, string schema)
+    internal static IReadOnlyList<(string Pointer, string Message)> Errors(JsonNode? value, string schema) =>
+        Errors(Contract.Element(value), schema);
+
+    /// <summary>The failing instance locations and messages of <paramref name="value"/>.</summary>
+    internal static IReadOnlyList<(string Pointer, string Message)> Errors(JsonElement value, string schema)
     {
-        var result = Load(schema).Evaluate(Contract.Element(value), List);
+        var result = Load(schema).Evaluate(value, List);
         if (result.IsValid) return [];
         return (result.Details ?? [])
             .Where(d => d.Errors is { Count: > 0 })

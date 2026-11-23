@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Draft = AgentHooks.Contracts.Draft;
 
 namespace AgentHooks;
 
@@ -16,24 +17,10 @@ internal static class Jcs
     private const string MaxSafeInteger = "9007199254740991";
     private const string IntegerDomainDetail = "integer token exceeds 2^53; string-encode 64-bit identifiers, see spec §4.4";
 
-    private static readonly double[] PowersOfTen = Enumerable.Range(0, 309)
-        .Select(e => double.Parse("1e" + e.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture))
-        .ToArray();
-
     // §10.2: the identity preimage is exactly the required members of the point's request schema,
     // keeping only the required subfields of object members, so it follows the generated schemas.
-    private static readonly Lazy<Dictionary<string, (string Key, string[]? Fields)[]>> Projections = new(() =>
-        Points.All.ToDictionary(p => Points.Wire(p), p => Project(Schemas.Document(Points.RequestSchema(p))), StringComparer.Ordinal));
-
-    // Used only for an absent or unknown point: the members every point binds.
-    private static readonly Lazy<(string Key, string[]? Fields)[]> CoreFields = new(() =>
-    {
-        var all = Projections.Value.Values.ToList();
-        return all[0].Where(f => all.All(p => p.Any(g => g.Key == f.Key))).ToArray();
-    });
-
-    private static (string Key, string[]? Fields)[] PointFields(string? point) =>
-        point is not null && Projections.Value.TryGetValue(point, out var fields) ? fields : CoreFields.Value;
+    private static readonly Lazy<Dictionary<Draft.InterceptionPoint, (string Key, string[]? Fields)[]>> Projections = new(() =>
+        Points.All.ToDictionary(p => p, p => Project(Schemas.Document(Points.RequestSchema(p)))));
 
     private static (string Key, string[]? Fields)[] Project(JsonObject schema)
     {
@@ -67,12 +54,21 @@ internal static class Jcs
     {
         var context = ToElement(request);
         var point = context.TryGetProperty("interception_point", out var ip) && ip.ValueKind == JsonValueKind.String
-            ? ip.GetString() : null;
+            ? Contract.Parse<Draft.InterceptionPoint>(ip.GetString())
+            : null;
+        if (point is null)
+            throw Invalid("$.interception_point: missing or unknown interception point (see spec §3)");
         if (!context.TryGetProperty("sequence", out var sequence) || sequence.ValueKind != JsonValueKind.Number ||
-            sequence.GetRawText() == "-0")
+            sequence.GetRawText().StartsWith('-'))
             throw Invalid("$.sequence: missing or not an integer >= 0 (see spec §4)");
+        var schema = Points.RequestSchema(point.Value);
+        if (!Schemas.IsValid(context, schema))
+        {
+            var pointer = Schemas.Errors(context, schema).Select(e => e.Pointer).FirstOrDefault(p => p.Length > 0) ?? "";
+            throw Invalid($"${pointer.Replace('/', '.')}: does not satisfy the {schema} request schema (see spec §4)");
+        }
         var projection = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-        foreach (var (key, keep) in PointFields(point))
+        foreach (var (key, keep) in Projections.Value[point.Value])
         {
             if (!context.TryGetProperty(key, out var value)) continue;
             if (keep is not null && value.ValueKind == JsonValueKind.Object)
@@ -95,7 +91,7 @@ internal static class Jcs
     {
         CheckUnicode(json);
         using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = maxDepth });
-        CheckParsed(document.RootElement, rejectDuplicates: true);
+        CheckParsed(document.RootElement);
         return JsonNode.Parse(document.RootElement.GetRawText(), documentOptions: new() { MaxDepth = maxDepth });
     }
 
@@ -104,16 +100,21 @@ internal static class Jcs
     /// <summary>Truncates to at most <paramref name="bytes"/> UTF-8 bytes on a character boundary, appending <c>…</c>.</summary>
     internal static string? Truncate(string? value, int bytes = 256)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
         if (value is null || Encoding.UTF8.GetByteCount(value) <= bytes) return value;
+        const int ellipsisBytes = 3; // U+2026 ('…') in UTF-8
+        var includeEllipsis = bytes >= ellipsisBytes;
+        var budget = includeEllipsis ? bytes - ellipsisBytes : bytes;
         var count = 0;
         var result = new StringBuilder();
         foreach (var rune in value.EnumerateRunes())
         {
-            if (count + rune.Utf8SequenceLength > bytes) break;
+            if (count + rune.Utf8SequenceLength > budget) break;
             count += rune.Utf8SequenceLength;
             result.Append(rune);
         }
-        return result.Append('\u2026').ToString();
+        if (includeEllipsis) result.Append('\u2026');
+        return result.ToString();
     }
 
     /// <summary>True when every integer token in <paramref name="json"/> lies within ±(2^53−1).</summary>
@@ -128,7 +129,8 @@ internal static class Jcs
         try
         {
             var element = Contract.Element(value);
-            CheckParsed(element, rejectDuplicates: false);
+            CheckParsed(element);
+            Contract.ValidateUnicode(value);
             return element;
         }
         catch (Exception e) when (e is JsonException or InvalidOperationException or ArgumentException)
@@ -137,22 +139,22 @@ internal static class Jcs
         }
     }
 
-    private static void CheckParsed(JsonElement value, bool rejectDuplicates)
+    private static void CheckParsed(JsonElement value)
     {
         switch (value.ValueKind)
         {
             case JsonValueKind.Object:
-                var seen = rejectDuplicates ? new HashSet<string>(StringComparer.Ordinal) : null;
+                var seen = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var property in value.EnumerateObject())
                 {
                     CheckUnicode(property.Name);
-                    if (seen is not null && !seen.Add(property.Name))
+                    if (!seen.Add(property.Name))
                         throw new JsonException($"duplicate member \"{property.Name}\"");
-                    CheckParsed(property.Value, rejectDuplicates);
+                    CheckParsed(property.Value);
                 }
                 break;
             case JsonValueKind.Array:
-                foreach (var item in value.EnumerateArray()) CheckParsed(item, rejectDuplicates);
+                foreach (var item in value.EnumerateArray()) CheckParsed(item);
                 break;
             case JsonValueKind.String:
                 CheckUnicode(value.GetString()!);
@@ -163,7 +165,7 @@ internal static class Jcs
         }
     }
 
-    private static void CheckUnicode(string value)
+    internal static void CheckUnicode(string value)
     {
         for (var i = 0; i < value.Length; i++)
         {
@@ -322,74 +324,12 @@ internal static class Jcs
             "e" + (scientific >= 0 ? "+" : "") + scientific.ToString(CultureInfo.InvariantCulture);
     }
 
-    // Mirrors serde_json's default (non float_roundtrip) decimal parse so identities match the golden
-    // vectors, including RFC 8785's 9.999999999999997e22.
     private static double ParseNumber(string text)
     {
-        var negative = text[0] == '-';
-        var position = negative ? 1 : 0;
-        ulong significand = 0;
-        var exponent = 0;
-        var overflow = false;
-        while (position < text.Length && char.IsAsciiDigit(text[position]))
-        {
-            var digit = (ulong)(text[position++] - '0');
-            if (overflow || significand > (ulong.MaxValue - digit) / 10)
-            {
-                overflow = true;
-                exponent++;
-            }
-            else significand = significand * 10 + digit;
-        }
-        if (position < text.Length && text[position] == '.')
-        {
-            position++;
-            overflow = false;
-            while (position < text.Length && char.IsAsciiDigit(text[position]))
-            {
-                var digit = (ulong)(text[position++] - '0');
-                if (overflow || significand > (ulong.MaxValue - digit) / 10)
-                {
-                    overflow = true;
-                    continue;
-                }
-                significand = significand * 10 + digit;
-                exponent--;
-            }
-        }
-        if (position < text.Length && text[position] is 'e' or 'E')
-        {
-            position++;
-            var negativeExponent = position < text.Length && text[position] == '-';
-            if (position < text.Length && text[position] is '+' or '-') position++;
-            var magnitude = 0;
-            while (position < text.Length)
-            {
-                var digit = text[position++] - '0';
-                if (magnitude > (int.MaxValue - digit) / 10)
-                {
-                    if (negativeExponent || significand == 0) return negative ? -0.0 : 0.0;
-                    throw new JsonException("non-finite number");
-                }
-                magnitude = magnitude * 10 + digit;
-            }
-            exponent = (int)Math.Clamp((long)exponent + (negativeExponent ? -(long)magnitude : magnitude),
-                int.MinValue, int.MaxValue);
-        }
-        var number = (double)significand;
-        while (exponent < -308 && number != 0)
-        {
-            number /= 1e308;
-            exponent += 308;
-        }
-        if (exponent > 308)
-        {
-            if (number != 0) throw new JsonException("non-finite number");
-        }
-        else if (exponent >= 0) number *= PowersOfTen[exponent];
-        else if (number != 0) number /= PowersOfTen[-exponent];
-        if (!double.IsFinite(number)) throw new JsonException("non-finite number");
-        return negative ? -number : number;
+        if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ||
+            !double.IsFinite(number))
+            throw new JsonException("non-finite number");
+        return number;
     }
 
     private static AgentHooksCoreException Invalid(string detail) => new(HostError.ContextInvalid, detail);
