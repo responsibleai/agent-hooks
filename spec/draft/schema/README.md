@@ -78,7 +78,7 @@ drift remains advisory. See [Contributing](../../../CONTRIBUTING.md#schema-sourc
 
 `spec/draft/main.tsp` imports this source and drives the experimental,
 Rust-independent `sdk/csharp/src/AgentHooks.Contracts/` assembly. From the repository root, run
-`pnpm generate` and commit the generated `Generated/Draft/Contracts.g.cs`
+`pnpm generate` and commit the generated `Generated/Draft/Models.g.cs` and `Generated/Draft/Hooks.g.cs`
 alongside source changes. CI runs `pnpm generate && git diff --exit-code` to
 check drift across schemas and contracts. Do not edit the generated C# by hand.
 This targets the draft only, not the frozen 0.1 bundle or the existing Rust-backed .NET SDK.
