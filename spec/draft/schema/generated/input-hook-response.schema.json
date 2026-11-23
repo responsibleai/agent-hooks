@@ -25,7 +25,9 @@
   "required": [
     "verdict"
   ],
-  "additionalProperties": false,
+  "unevaluatedProperties": {
+    "not": {}
+  },
   "$defs": {
     "AllowVerdict": {
       "type": "object",
@@ -64,8 +66,10 @@
       "required": [
         "decision"
       ],
-      "description": "allow: proceed. Absorbs warn through warnings[] (§5.1).",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "allow: proceed. Absorbs warn through warnings[] (§5.1)."
     },
     "DenyVerdict": {
       "type": "object",
@@ -108,8 +112,10 @@
       "required": [
         "decision"
       ],
-      "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1).",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "deny: stop the action. Absorbs escalate through the approval block (§5.1)."
     },
     "TransformVerdictInputHookTransform": {
       "type": "object",
@@ -152,8 +158,10 @@
         "decision",
         "transform"
       ],
-      "description": "transform: proceed with the hook-specific replacement payload.",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "transform: proceed with the hook-specific replacement payload."
     },
     "Extensions": {
       "type": "object",
@@ -176,8 +184,10 @@
           "type": "string"
         }
       },
-      "description": "A recorded concern that does not affect control flow (§5.1).",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "A recorded concern that does not affect control flow (§5.1)."
     },
     "Evidence": {
       "type": "object",
@@ -190,12 +200,15 @@
           "$ref": "#/$defs/VerificationPointers"
         }
       },
-      "description": "Offline-verifiable evidence attached to a verdict (§14).",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "Offline-verifiable evidence attached to a verdict (§14)."
     },
     "JsonObject": {
       "type": "object",
       "properties": {},
+      "unevaluatedProperties": {},
       "description": "An open JSON object, not an arbitrary JSON value."
     },
     "InputHookTransform": {
@@ -208,8 +221,10 @@
       "required": [
         "input"
       ],
-      "description": "Replaces the complete input payload.",
-      "additionalProperties": false
+      "unevaluatedProperties": {
+        "not": {}
+      },
+      "description": "Replaces the complete input payload."
     },
     "VerificationPointers": {
       "type": "object",

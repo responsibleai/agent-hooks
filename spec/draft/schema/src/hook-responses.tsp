@@ -1,47 +1,46 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-using TypeSpec.JsonSchema;
 namespace AgentHooks;
 
 /** Replaces the complete input payload. */
-@extension("additionalProperties", false)
 model InputHookTransform {
+  ...Record<never>;
   input: InputRequest.input;
 }
 
 /** Replaces the complete model-message array. */
-@extension("additionalProperties", false)
 model PreModelHookTransform {
+  ...Record<never>;
   messages: PreModelCallRequest.messages;
 }
 
 /** Replaces the complete model response payload. */
-@extension("additionalProperties", false)
 model PostModelHookTransform {
+  ...Record<never>;
   response: PostModelCallRequest.response;
 }
 
 /** Replaces the complete tool args for the pre-tool hook. */
-@extension("additionalProperties", false)
 model PreToolHookTransform {
+  ...Record<never>;
   args: ToolCall.args;
 }
 
 /** Replaces only the value of the tool result. */
-@extension("additionalProperties", false)
 model PostToolHookTransform {
+  ...Record<never>;
   value: ToolResult.value;
 }
 
 /** Replaces the complete output payload. */
-@extension("additionalProperties", false)
 model OutputHookTransform {
+  ...Record<never>;
   output: OutputRequest.output;
 }
 
 /** Hook response envelope with a hook-specific verdict. */
-@extension("additionalProperties", false)
 model HookResponse<TVerdict> {
+  ...Record<never>;
   verdict: TVerdict;
   extensions?: Extensions;
 }

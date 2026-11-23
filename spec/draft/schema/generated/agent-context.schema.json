@@ -1330,6 +1330,7 @@
     "JsonObject": {
       "type": "object",
       "properties": {},
+      "unevaluatedProperties": {},
       "description": "An open JSON object, not an arbitrary JSON value."
     },
     "ToolCallRequest": {

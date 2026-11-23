@@ -4,12 +4,13 @@ using TypeSpec.JsonSchema;
 namespace AgentHooks;
 
 /** Presence only; members are stripped by the projection. */
-@extension("additionalProperties", false)
-model ApprovalPresence {}
+model ApprovalPresence {
+  ...Record<never>;
+}
 
 /** Warning metadata retained in a payload-free record projection. */
-@extension("additionalProperties", false)
 model WarningProjection {
+  ...Record<never>;
   reason?: string;
   message?: string;
 }
@@ -20,8 +21,8 @@ model WarningProjection {
  * 256 UTF-8 bytes.
  * warnings[].reason may carry host_warning:control_failed (§6.3.1, §11.1).
  */
-@extension("additionalProperties", false)
 model VerdictProjection {
+  ...Record<never>;
   decision: Decision;
   reason?: string;
   message?: string;
@@ -35,8 +36,8 @@ model VerdictProjection {
  * W3C Trace Context identifiers echoed from the context's optional trace block
  * (§4.5, §10.3).
  */
-@extension("additionalProperties", false)
 model Trace {
+  ...Record<never>;
   trace_id?: string;
   span_id?: string;
 }
@@ -49,8 +50,9 @@ enum SubstitutedFor {
 }
 
 /** Payload-free summary of one interceptor's verdict (§10.3). */
-@extension("additionalProperties", false)
 model VerdictSlot {
+  ...Record<never>;
+
   @minValue(0)
   index: integer;
 
@@ -90,7 +92,6 @@ enum ResolvedBy {
  * null when identity_provider is null (§10.3).
  */
 @summary("Agent Hooks — interception record")
-@extension("additionalProperties", false)
 @extension(
   "allOf",
   #[
@@ -126,6 +127,7 @@ enum ResolvedBy {
   ]
 )
 model InterceptionRecord {
+  ...Record<never>;
   interception_point: InterceptionPoint;
   mode: Mode;
   verdict: VerdictProjection;
@@ -171,8 +173,8 @@ model InterceptionRecord {
   decided_by?: integer | null;
 
   /** The composition profile and knobs in effect for this emission (§7.1). */
-  @extension("additionalProperties", false)
   composition: {
+    ...Record<never>;
     profile: CompositionProfile;
     on_approval?: OnApproval;
     on_disagreement?: ConflictResolution;

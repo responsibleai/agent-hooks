@@ -66,8 +66,12 @@ model ToolResult {
 
 Use `integer` for integer-valued fields, `float64` for fractional fields,
 `JsonObject` for an open object and `unknown` for arbitrary JSON.
-`@extension("additionalProperties", false)` closes only the objects the
-contract closes; do not globally seal context metadata or payloads.
+Spread `...Record<never>` into only the objects the contract closes; do not
+globally seal context metadata or payloads. The emitter represents this with
+`unevaluatedProperties: { "not": {} }`. `JsonObject` uses `Record<unknown>`
+to explicitly allow arbitrary members. Use native optional-property defaults
+such as `mode?: Mode = Mode.Enforce` for schema default annotations; validators
+do not insert those defaults unless configured to do so.
 `@extension` also carries the record's conditional `allOf` rules and the
 extension-key `propertyNames` rule.
 
