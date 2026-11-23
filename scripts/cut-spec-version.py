@@ -103,8 +103,10 @@ def cut(root: Path, version: str, date: str) -> list[str]:
                 path.write_text(updated, encoding="utf-8")
     return [
         f"stage the copy and confirm its schemas match their source under schema/v{version}/: "
-        f"git add spec/{version} && pnpm exec tsp compile spec/{version} --emit @typespec/json-schema "
-        f"&& git diff --exit-code spec/{version}",
+        f"git add spec/{version} && rm -rf spec/{version}/schema/generated "
+        f"&& pnpm exec tsp compile spec/{version} --emit @typespec/json-schema "
+        f"&& git diff --exit-code spec/{version} "
+        f'&& test -z "$(git ls-files --others --exclude-standard spec/{version})"',
         f"point the draft banner in spec/draft/AGENT-HOOKS-DRAFT.md at {version}",
         f"add the spec/README.md row for {version} and set the previous version to Superseded",
         f"move the CHANGELOG.md bullets under 'Unreleased specification' to 'Specification {version} — {date}'",

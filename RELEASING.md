@@ -29,7 +29,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
 
 2. Regenerate the copy's schemas under their own id path,
    `https://responsibleai.github.io/agent-hooks/schema/vX.Y/`. The
-   version cut sets the TypeSpec `@baseUri`; `--spec` selects the copied bundle.
+   version cut sets the TypeSpec `@baseUri`.
    A published path is
    immutable, so the staging of the site fails when two bundles bring
    different bytes to one path.
@@ -86,7 +86,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    cd spec/scripts
    node check-schema-examples.mjs
    cd ../..
-   git add spec/X.Y && pnpm exec tsp compile spec/X.Y --emit @typespec/json-schema && git diff --exit-code spec/X.Y
+   git add spec/X.Y && rm -rf spec/X.Y/schema/generated && pnpm exec tsp compile spec/X.Y --emit @typespec/json-schema && git diff --exit-code spec/X.Y && test -z "$(git ls-files --others --exclude-standard spec/X.Y)"
    ```
 
    Each suite validates only against its matching schema bundle. SDK

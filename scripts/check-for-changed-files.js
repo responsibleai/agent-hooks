@@ -6,6 +6,7 @@
 import { spawnSync } from "node:child_process";
 
 const status = spawnSync("git", ["status", "--porcelain"], { encoding: "utf-8" });
+if (status.error) throw status.error;
 if (status.stderr) console.error(status.stderr);
 if (status.status !== 0) process.exit(status.status ?? 1);
 
