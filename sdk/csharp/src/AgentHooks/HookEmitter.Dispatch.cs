@@ -197,8 +197,10 @@ public sealed partial class HookEmitter
     /// </summary>
     private JsonObject? Fold(Draft.InterceptionPoint point, JsonObject state, JsonObject verdict)
     {
-        if (Points.TransformTarget(point) is not var (member, path) || verdict["transform"]?[member] is not { } value)
+        if (Points.TransformTarget(point) is not { } target || verdict["transform"] is not JsonObject transform ||
+            !transform.TryGetPropertyValue(target.Member, out var value))
             return Verdicts.HostError(HostErrors.TransformInvalid, "transforms are forbidden at this point (see spec §5)");
+        var path = target.Path;
         var candidate = (JsonObject)state.DeepClone();
         var parent = candidate;
         foreach (var step in path[..^1])
@@ -207,7 +209,7 @@ public sealed partial class HookEmitter
                 return Verdicts.HostError(HostErrors.TransformInvalid, "the transform target is absent (see spec §5)");
             parent = next;
         }
-        parent[path[^1]] = value.DeepClone();
+        parent[path[^1]] = value?.DeepClone();
         if (!Schemas.IsValid(candidate, Points.RequestSchema(point)))
             return Verdicts.HostError(HostErrors.TransformInvalid, $"the transformed request does not satisfy the {Points.RequestSchema(point)} schema (see spec §5)");
         if (Mode == Draft.Mode.Enforce)

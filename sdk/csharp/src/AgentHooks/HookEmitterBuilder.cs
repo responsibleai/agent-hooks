@@ -161,8 +161,11 @@ public sealed partial class HookEmitterBuilder
 
     private HookEmitterBuilder Typed<TRequest, TResponse>(
         Draft.InterceptionPoint point, Func<TRequest, CancellationToken, Task<TResponse>> handler, BindingOptions? options)
-        where TResponse : notnull =>
-        Use(async (call, ct) => ContractSerializer.Serialize(await handler(ContractSerializer.Deserialize<TRequest>(call.Request), ct)), options, point);
+        where TResponse : notnull
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return Use(async (call, ct) => ContractSerializer.Serialize(await handler(ContractSerializer.Deserialize<TRequest>(call.Request), ct)), options, point);
+    }
 
     private static void CheckTimeout(TimeSpan value, string name)
     {
