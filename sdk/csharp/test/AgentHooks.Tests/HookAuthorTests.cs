@@ -44,7 +44,7 @@ public sealed class HookAuthorTests
     [InlineData("post-tool-call", "value")]
     [InlineData("output", "output")]
     [InlineData("agent-shutdown", null)]
-    public async Task NamedDelegatesEnforceWholeTargetTransforms(string example, string? target)
+    public async Task DelegatesEnforceWholeTargetTransforms(string example, string? target)
     {
         var content = JsonSerializer.SerializeToElement("redacted");
         var input = new Draft.Input { Content = content, Role = Draft.InputRole.User };
@@ -53,31 +53,32 @@ public sealed class HookAuthorTests
         var args = new Draft.JsonObject { ["query"] = content };
         var output = new Draft.Output { Content = content };
         var builder = HookEmitter.CreateBuilder();
+        var named = new BindingOptions { Name = "rewrite" };
         switch (example)
         {
             case "agent-startup":
-                builder.OnAgentStartup("rewrite", (_, _) => Task.FromResult(AgentStartupResponses.Allow()));
+                builder.OnAgentStartup((_, _) => Task.FromResult(Draft.AgentStartupHookResponse.Allow()), named);
                 break;
             case "input":
-                builder.OnInput("rewrite", (_, _) => Task.FromResult(InputResponses.TransformInput(input)));
+                builder.OnInput((_, _) => Task.FromResult(Draft.InputHookResponse.TransformInput(input)), named);
                 break;
             case "pre-model-call":
-                builder.OnPreModelCall("rewrite", (_, _) => Task.FromResult(PreModelResponses.TransformMessages(messages)));
+                builder.OnPreModelCall((_, _) => Task.FromResult(Draft.PreModelHookResponse.TransformMessages(messages)), named);
                 break;
             case "post-model-call":
-                builder.OnPostModelCall("rewrite", (_, _) => Task.FromResult(PostModelResponses.TransformResponse(response)));
+                builder.OnPostModelCall((_, _) => Task.FromResult(Draft.PostModelHookResponse.TransformResponse(response)), named);
                 break;
             case "pre-tool-call":
-                builder.OnPreToolCall("rewrite", (_, _) => Task.FromResult(PreToolResponses.TransformArgs(args)));
+                builder.OnPreToolCall((_, _) => Task.FromResult(Draft.PreToolHookResponse.TransformArgs(args)), named);
                 break;
             case "post-tool-call":
-                builder.OnPostToolCall("rewrite", (_, _) => Task.FromResult(PostToolResponses.TransformValue(content)));
+                builder.OnPostToolCall((_, _) => Task.FromResult(Draft.PostToolHookResponse.TransformValue(content)), named);
                 break;
             case "output":
-                builder.OnOutput("rewrite", (_, _) => Task.FromResult(OutputResponses.TransformOutput(output)));
+                builder.OnOutput((_, _) => Task.FromResult(Draft.OutputHookResponse.TransformOutput(output)), named);
                 break;
             case "agent-shutdown":
-                builder.OnAgentShutdown("rewrite", (_, _) => Task.FromResult(AgentShutdownResponses.Allow()));
+                builder.OnAgentShutdown((_, _) => Task.FromResult(Draft.AgentShutdownHookResponse.Allow()), named);
                 break;
         }
 
@@ -139,17 +140,17 @@ public sealed class HookAuthorTests
     }
 
     [Fact]
-    public async Task NamedDelegateOverridesOnlyTheNameAndReceivesACancellableToken()
+    public async Task DelegateReceivesACancellableToken()
     {
         CancellationToken seen = default;
         var notices = new List<ControlFailureNotice>();
-        var options = new BindingOptions { Name = "old-name", OnError = Draft.OnError.Continue, Timeout = TimeSpan.FromMilliseconds(20) };
+        var options = new BindingOptions { Name = "guard", OnError = Draft.OnError.Continue, Timeout = TimeSpan.FromMilliseconds(20) };
         var emitter = HookEmitter.CreateBuilder()
-            .OnPreToolCall("new-name", async (_, ct) =>
+            .OnPreToolCall(async (_, ct) =>
             {
                 seen = ct;
                 await Task.Delay(Timeout.Infinite, ct);
-                return PreToolResponses.Allow();
+                return Draft.PreToolHookResponse.Allow();
             }, options)
             .OnControlFailure(notices.Add)
             .Build();
@@ -158,8 +159,7 @@ public sealed class HookAuthorTests
 
         Assert.True(result.Proceeds);
         Assert.True(seen.IsCancellationRequested);
-        Assert.Equal(("new-name", HostErrors.InterceptorTimeout), (Assert.Single(notices).Binding, notices[0].Reason));
-        Assert.Equal("old-name", options.Name);
+        Assert.Equal(("guard", HostErrors.InterceptorTimeout), (Assert.Single(notices).Binding, notices[0].Reason));
     }
 
     [Fact]
@@ -167,9 +167,9 @@ public sealed class HookAuthorTests
     {
         Draft.PostToolHookResponse response;
         using (var document = JsonDocument.Parse("null"))
-            response = PostToolResponses.TransformValue(document.RootElement);
+            response = Draft.PostToolHookResponse.TransformValue(document.RootElement);
         var emitter = HookEmitter.CreateBuilder()
-            .OnPostToolCall("redact-result", (_, _) => Task.FromResult(response))
+            .OnPostToolCall((_, _) => Task.FromResult(response))
             .Build();
         var request = ContractSerializer.Deserialize<Draft.PostToolCallRequest>(Request("post-tool-call"));
 
@@ -189,8 +189,8 @@ public sealed class HookAuthorTests
         Assert.Throws<ArgumentException>(() => builder.AddHook(new object()));
         Assert.Throws<ArgumentException>(() => builder.AddHook(new PolicyHook(), new BindingOptions { Name = "" }));
         Assert.Throws<ArgumentOutOfRangeException>(() => builder.AddHook(new PolicyHook(), new BindingOptions { Timeout = TimeSpan.Zero }));
-        Assert.Throws<ArgumentNullException>(() => builder.OnPreToolCall("guard", null!));
-        Assert.Throws<ArgumentNullException>(() => builder.OnPreToolCall(null!, (_, _) => Task.FromResult(PreToolResponses.Allow())));
+        Assert.Throws<ArgumentNullException>(() => builder.OnPreToolCall(null!));
+        Assert.Throws<ArgumentNullException>(() => Draft.PreToolHookResponse.Deny(null!));
 
         var result = await builder.Build().EmitAsync(HookEmitterTests.PreToolCall());
         Assert.Equal(HostErrors.NoInterceptor, (string?)result.Verdict["reason"]);
@@ -199,10 +199,10 @@ public sealed class HookAuthorTests
     [Fact]
     public async Task FactoryDenyStillUsesTheRuntimeVerdictGate()
     {
-        var response = PreToolResponses.Deny("policy_blocked");
+        var response = Draft.PreToolHookResponse.Deny("policy_blocked");
         response.Extensions = new Draft.Extensions { ["acme"] = JsonSerializer.SerializeToElement(new string('x', 65536)) };
         var emitter = HookEmitter.CreateBuilder()
-            .OnPreToolCall("oversized-metadata", (_, _) => Task.FromResult(response))
+            .OnPreToolCall((_, _) => Task.FromResult(response))
             .Build();
 
         var result = await emitter.EmitAsync(HookEmitterTests.PreToolCall());
@@ -214,20 +214,19 @@ public sealed class HookAuthorTests
     private static JsonObject Request(string example) =>
         JsonNode.Parse(File.ReadAllText(HookEmitterTests.Example($"AgentContext/{example}.json")))!.AsObject();
 
-    private sealed class FailingToolHook : IPreToolCallHook, IPostToolCallHook
+    private sealed class FailingToolHook : Draft.IPreToolCallHook, Draft.IPostToolCallHook
     {
         public async Task<Draft.PreToolHookResponse> OnPreToolCallAsync(Draft.PreToolCallRequest request, CancellationToken cancellationToken)
         {
             await Task.Delay(Timeout.Infinite, cancellationToken);
-            return PreToolResponses.Allow();
+            return Draft.PreToolHookResponse.Allow();
         }
 
         public Task<Draft.PostToolHookResponse> OnPostToolCallAsync(Draft.PostToolCallRequest request, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("policy unavailable");
     }
 
-    private sealed class PolicyHook : IAgentStartupHook, IInputHook, IPreModelCallHook, IPostModelCallHook,
-        IPreToolCallHook, IPostToolCallHook, IOutputHook, IAgentShutdownHook
+    private sealed class PolicyHook : Draft.IInterceptor
     {
         public List<Draft.InterceptionPoint> Calls { get; } = [];
 
@@ -238,20 +237,20 @@ public sealed class HookAuthorTests
         }
 
         public Task<Draft.AgentStartupHookResponse> OnAgentStartupAsync(Draft.AgentStartupRequest request, CancellationToken cancellationToken) =>
-            Denied(Draft.InterceptionPoint.AgentStartup, AgentStartupResponses.Deny("policy_blocked"));
+            Denied(Draft.InterceptionPoint.AgentStartup, Draft.AgentStartupHookResponse.Deny("policy_blocked"));
         public Task<Draft.InputHookResponse> OnInputAsync(Draft.InputRequest request, CancellationToken cancellationToken) =>
-            Denied(Draft.InterceptionPoint.Input, InputResponses.Deny("policy_blocked"));
+            Denied(Draft.InterceptionPoint.Input, Draft.InputHookResponse.Deny("policy_blocked"));
         public Task<Draft.PreModelHookResponse> OnPreModelCallAsync(Draft.PreModelCallRequest request, CancellationToken cancellationToken) =>
-            Denied(Draft.InterceptionPoint.PreModelCall, PreModelResponses.Deny("policy_blocked"));
+            Denied(Draft.InterceptionPoint.PreModelCall, Draft.PreModelHookResponse.Deny("policy_blocked"));
         public Task<Draft.PostModelHookResponse> OnPostModelCallAsync(Draft.PostModelCallRequest request, CancellationToken cancellationToken) =>
-            Denied(Draft.InterceptionPoint.PostModelCall, PostModelResponses.Deny("policy_blocked"));
+            Denied(Draft.InterceptionPoint.PostModelCall, Draft.PostModelHookResponse.Deny("policy_blocked"));
         public Task<Draft.PreToolHookResponse> OnPreToolCallAsync(Draft.PreToolCallRequest request, CancellationToken cancellationToken) =>
-            Denied(Draft.InterceptionPoint.PreToolCall, PreToolResponses.Deny("policy_blocked"));
+            Denied(Draft.InterceptionPoint.PreToolCall, Draft.PreToolHookResponse.Deny("policy_blocked"));
         public Task<Draft.PostToolHookResponse> OnPostToolCallAsync(Draft.PostToolCallRequest request, CancellationToken cancellationToken) =>
-            Denied(Draft.InterceptionPoint.PostToolCall, PostToolResponses.Deny("policy_blocked"));
+            Denied(Draft.InterceptionPoint.PostToolCall, Draft.PostToolHookResponse.Deny("policy_blocked"));
         public Task<Draft.OutputHookResponse> OnOutputAsync(Draft.OutputRequest request, CancellationToken cancellationToken) =>
-            Denied(Draft.InterceptionPoint.Output, OutputResponses.Deny("policy_blocked"));
+            Denied(Draft.InterceptionPoint.Output, Draft.OutputHookResponse.Deny("policy_blocked"));
         public Task<Draft.AgentShutdownHookResponse> OnAgentShutdownAsync(Draft.AgentShutdownRequest request, CancellationToken cancellationToken) =>
-            Denied(Draft.InterceptionPoint.AgentShutdown, AgentShutdownResponses.Deny("policy_blocked"));
+            Denied(Draft.InterceptionPoint.AgentShutdown, Draft.AgentShutdownHookResponse.Deny("policy_blocked"));
     }
 }

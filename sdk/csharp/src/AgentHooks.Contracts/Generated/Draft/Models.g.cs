@@ -905,7 +905,7 @@ public sealed class Summary
 /// agent_startup response: transforms are forbidden.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class AgentStartupHookResponse
+public sealed partial class AgentStartupHookResponse
 {
     [JsonPropertyName("verdict")]
     public required NonTransformVerdict Verdict { get; set; }
@@ -1089,7 +1089,7 @@ public sealed class DenyVerdict : NonTransformVerdict, InputHookResponseVerdict,
 /// input response.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class InputHookResponse
+public sealed partial class InputHookResponse
 {
     [JsonPropertyName("verdict")]
     public required InputHookResponseVerdict Verdict { get; set; }
@@ -1184,7 +1184,7 @@ public sealed class InputHookTransform
 /// pre_model_call response.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class PreModelHookResponse
+public sealed partial class PreModelHookResponse
 {
     [JsonPropertyName("verdict")]
     public required PreModelHookResponseVerdict Verdict { get; set; }
@@ -1279,7 +1279,7 @@ public sealed class PreModelHookTransform
 /// post_model_call response.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class PostModelHookResponse
+public sealed partial class PostModelHookResponse
 {
     [JsonPropertyName("verdict")]
     public required PostModelHookResponseVerdict Verdict { get; set; }
@@ -1374,7 +1374,7 @@ public sealed class PostModelHookTransform
 /// pre_tool_call response.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class PreToolHookResponse
+public sealed partial class PreToolHookResponse
 {
     [JsonPropertyName("verdict")]
     public required PreToolHookResponseVerdict Verdict { get; set; }
@@ -1469,7 +1469,7 @@ public sealed class PreToolHookTransform
 /// post_tool_call response.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class PostToolHookResponse
+public sealed partial class PostToolHookResponse
 {
     [JsonPropertyName("verdict")]
     public required PostToolHookResponseVerdict Verdict { get; set; }
@@ -1564,7 +1564,7 @@ public sealed class PostToolHookTransform
 /// output response.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class OutputHookResponse
+public sealed partial class OutputHookResponse
 {
     [JsonPropertyName("verdict")]
     public required OutputHookResponseVerdict Verdict { get; set; }
@@ -1659,7 +1659,7 @@ public sealed class OutputHookTransform
 /// agent_shutdown response: transforms are forbidden.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-public sealed class AgentShutdownHookResponse
+public sealed partial class AgentShutdownHookResponse
 {
     [JsonPropertyName("verdict")]
     public required NonTransformVerdict Verdict { get; set; }

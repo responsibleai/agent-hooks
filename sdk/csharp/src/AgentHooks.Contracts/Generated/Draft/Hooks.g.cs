@@ -10,7 +10,7 @@ namespace AgentHooks.Contracts.Draft;
 
 #nullable enable
 
-public interface IInterceptor
+public interface IAgentStartupHook
 {
     /// <summary>
     /// Evaluate agent_startup before the session's first input (§3, §4.2).
@@ -19,12 +19,18 @@ public interface IInterceptor
         AgentStartupRequest request,
         CancellationToken cancellationToken = default
     );
+}
 
+public interface IInputHook
+{
     /// <summary>
     /// Evaluate input before it enters the agent loop (§3, §4.2).
     /// </summary>
     Task<InputHookResponse> OnInputAsync(InputRequest request, CancellationToken cancellationToken = default);
+}
 
+public interface IPreModelCallHook
+{
     /// <summary>
     /// Evaluate pre_model_call before invoking the model (§3, §4.2).
     /// </summary>
@@ -32,7 +38,10 @@ public interface IInterceptor
         PreModelCallRequest request,
         CancellationToken cancellationToken = default
     );
+}
 
+public interface IPostModelCallHook
+{
     /// <summary>
     /// Evaluate post_model_call before consuming the model response (§3, §4.2).
     /// </summary>
@@ -40,7 +49,10 @@ public interface IInterceptor
         PostModelCallRequest request,
         CancellationToken cancellationToken = default
     );
+}
 
+public interface IPreToolCallHook
+{
     /// <summary>
     /// Evaluate pre_tool_call before invoking the tool (§3, §4.2).
     /// </summary>
@@ -48,7 +60,10 @@ public interface IInterceptor
         PreToolCallRequest request,
         CancellationToken cancellationToken = default
     );
+}
 
+public interface IPostToolCallHook
+{
     /// <summary>
     /// Evaluate post_tool_call before consuming the tool result (§3, §4.2).
     /// </summary>
@@ -56,12 +71,18 @@ public interface IInterceptor
         PostToolCallRequest request,
         CancellationToken cancellationToken = default
     );
+}
 
+public interface IOutputHook
+{
     /// <summary>
     /// Evaluate output before delivering it to the caller (§3, §4.2).
     /// </summary>
     Task<OutputHookResponse> OnOutputAsync(OutputRequest request, CancellationToken cancellationToken = default);
+}
 
+public interface IAgentShutdownHook
+{
     /// <summary>
     /// Evaluate agent_shutdown after the last output or on abnormal termination (§3, §4.2).
     /// </summary>
@@ -70,6 +91,8 @@ public interface IInterceptor
         CancellationToken cancellationToken = default
     );
 }
+
+public interface IInterceptor : IAgentStartupHook, IInputHook, IPreModelCallHook, IPostModelCallHook, IPreToolCallHook, IPostToolCallHook, IOutputHook, IAgentShutdownHook;
 
 public interface IApprovalResolver
 {
