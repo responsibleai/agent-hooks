@@ -2,13 +2,15 @@
 # Changes to any of these paths alter the wire contract or the
 # conformance definition and MUST NOT merge without review.
 
-/spec/                          @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
-/conformance/                   @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
-/SECURITY.md                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
-/ARCHITECTURE.md                @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
-/VERSIONING.md                  @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/spec/                          @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
+/spec/draft                     @MohammadHaroonAbuomar @CaitieM20
+/conformance/                   @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
+/SECURITY.md                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
+/ARCHITECTURE.md                @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
+/VERSIONING.md                  @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
 
-# The Rust core is the single implementation every SDK binds to.
+/emitters/*                     @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
+
 /sdk/rust/core/                 @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
 /sdk/rust/ffi/                  @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
 
@@ -18,8 +20,8 @@
 /sdk/csharp/                    @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
 /sdk/go/                        @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
 
-/.github/                       @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+/.github/                       @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
 
 # Catch-all: everything not matched above.
-*                               @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
-/scripts/                       @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin
+*                               @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
+/scripts/                       @MohammadHaroonAbuomar @CaitieM20 @timotheeguerin @conniey
