@@ -58,8 +58,10 @@ internal static class Jcs
     public static string ContextIdentity(JsonObject request)
     {
         var context = ToElement(request);
-        var point = context.TryGetProperty("interception_point", out var ip) && ip.ValueKind == JsonValueKind.String
-            ? Contract.Parse<Draft.InterceptionPoint>(ip.GetString())
+        Draft.InterceptionPoint? point = context.TryGetProperty("interception_point", out var ip) &&
+            ip.ValueKind == JsonValueKind.String &&
+            Draft.InterceptionPointExtensions.TryParseWire(ip.GetString(), out var parsedPoint)
+            ? parsedPoint
             : null;
         if (point is null)
             throw Invalid("$.interception_point: missing or unknown interception point (see spec §3)");
@@ -111,7 +113,7 @@ internal static class Jcs
     /// <summary>Parses untrusted JSON text: rejects duplicate members, lone surrogates, non-finite numbers and excess depth.</summary>
     internal static JsonNode? Parse(string json, int maxDepth = DefaultMaxDepth)
     {
-        CheckUnicode(json);
+        UnicodeValidation.CheckString(json);
         try
         {
             using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = maxDepth });
@@ -165,8 +167,8 @@ internal static class Jcs
     {
         try
         {
-            Contract.ValidateUnicode(value, DefaultMaxDepth);
-            var element = Contract.Element(value);
+            UnicodeValidation.CheckObjectGraph(value, DefaultMaxDepth);
+            var element = ContractSerializer.Element(value);
             CheckParsed(element, DefaultMaxDepth);
             return element;
         }
@@ -208,16 +210,6 @@ internal static class Jcs
                     _ = ParseNumber(entry.Value.GetRawText());
                     break;
             }
-        }
-    }
-
-    internal static void CheckUnicode(string value)
-    {
-        for (var i = 0; i < value.Length; i++)
-        {
-            if (!char.IsSurrogate(value[i])) continue;
-            if (!char.IsHighSurrogate(value[i]) || i + 1 == value.Length || !char.IsLowSurrogate(value[++i]))
-                throw new JsonException("lone surrogate");
         }
     }
 

@@ -24,7 +24,7 @@ internal static class Schemas
     });
 
     /// <summary>True when <paramref name="value"/> satisfies the schema generated for the TypeSpec model <paramref name="schema"/>.</summary>
-    internal static bool IsValid(JsonNode? value, string schema) => IsValid(Contract.Element(value), schema);
+    internal static bool IsValid(JsonNode? value, string schema) => IsValid(ContractSerializer.Element(value), schema);
 
     /// <summary>True when <paramref name="value"/> satisfies the schema generated for the TypeSpec model <paramref name="schema"/>.</summary>
     internal static bool IsValid(JsonElement value, string schema) =>
@@ -32,7 +32,7 @@ internal static class Schemas
 
     /// <summary>The failing instance locations and messages of <paramref name="value"/>.</summary>
     internal static IReadOnlyList<(string Pointer, string Message)> Errors(JsonNode? value, string schema) =>
-        Errors(Contract.Element(value), schema);
+        Errors(ContractSerializer.Element(value), schema);
 
     /// <summary>The failing instance locations and messages of <paramref name="value"/>.</summary>
     internal static IReadOnlyList<(string Pointer, string Message)> Errors(JsonElement value, string schema)

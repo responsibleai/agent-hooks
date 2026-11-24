@@ -10,47 +10,24 @@ using AgentHooks.Contracts;
 
 namespace AgentHooks;
 
-/// <summary>Bridges the generated contract types and their wire JSON.</summary>
-internal static class Contract
+/// <summary>Rejects lone UTF-16 surrogates in strings, JSON elements, and object graphs before UTF-8 serialization replaces them with U+FFFD.</summary>
+internal static class UnicodeValidation
 {
-    internal static readonly JsonSerializerOptions Options = new() { MaxDepth = 256 };
-
-    /// <summary>Serializes a generated contract value to its wire object.</summary>
-    public static JsonObject ToJson<T>(T value) where T : notnull
+    internal static void CheckString(string value)
     {
-        ValidateUnicode(value, Options.MaxDepth);
-        return JsonSerializer.SerializeToNode(value, value.GetType(), Options) is JsonObject obj
-            ? obj
-            : throw new JsonException("Contract values serialize to JSON objects.");
+        for (var i = 0; i < value.Length; i++)
+        {
+            if (!char.IsSurrogate(value[i])) continue;
+            if (!char.IsHighSurrogate(value[i]) || i + 1 == value.Length || !char.IsLowSurrogate(value[++i]))
+                throw new JsonException("lone surrogate");
+        }
     }
 
-    /// <summary>Reads a generated contract value from its wire JSON.</summary>
-    public static T FromJson<T>(JsonNode? node)
-    {
-        ValidateUnicode(node, Options.MaxDepth);
-        return node.Deserialize<T>(Options) ?? throw new JsonException($"Expected {typeof(T).Name}, found null.");
-    }
-
-    /// <summary>The wire string of a generated enum value.</summary>
-    public static string Wire<TEnum>(TEnum value) where TEnum : struct, Enum =>
-        JsonSerializer.SerializeToNode(value)!.GetValue<string>();
-
-    /// <summary>Parses a generated enum from its wire string; null when unknown.</summary>
-    public static TEnum? Parse<TEnum>(string? wire) where TEnum : struct, Enum
-    {
-        if (wire is null) return null;
-        try { return JsonSerializer.Deserialize<TEnum>(JsonValue.Create(wire)); }
-        catch (JsonException) { return null; }
-    }
-
-    internal static JsonElement Element(JsonNode? node) => JsonSerializer.SerializeToElement(node, Options);
-
-    /// <summary>Rejects lone UTF-16 surrogates in strings, keys, nodes and extension data before UTF-8 serialization replaces them with U+FFFD.</summary>
-    internal static void ValidateUnicode(object? value, int maxDepth = 256)
+    internal static void CheckObjectGraph(object? value, int maxDepth = 256)
     {
         try
         {
-            ValidateUnicodeCore(value, maxDepth);
+            CheckObjectGraphCore(value, maxDepth);
         }
         catch (InvalidOperationException e)
         {
@@ -58,7 +35,37 @@ internal static class Contract
         }
     }
 
-    private static void ValidateUnicodeCore(object? value, int maxDepth)
+    internal static void CheckElement(JsonElement root, int startDepth, int maxDepth)
+    {
+        var stack = new Stack<(JsonElement Element, int Depth)>();
+        stack.Push((root, startDepth));
+        while (stack.TryPop(out var entry))
+        {
+            switch (entry.Element.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    if (entry.Depth + 1 > maxDepth)
+                        throw new JsonException($"nesting depth exceeds {maxDepth} levels");
+                    foreach (var property in entry.Element.EnumerateObject())
+                    {
+                        CheckString(property.Name);
+                        stack.Push((property.Value, entry.Depth + 1));
+                    }
+                    break;
+                case JsonValueKind.Array:
+                    if (entry.Depth + 1 > maxDepth)
+                        throw new JsonException($"nesting depth exceeds {maxDepth} levels");
+                    foreach (var item in entry.Element.EnumerateArray())
+                        stack.Push((item, entry.Depth + 1));
+                    break;
+                case JsonValueKind.String:
+                    CheckString(entry.Element.GetString()!);
+                    break;
+            }
+        }
+    }
+
+    private static void CheckObjectGraphCore(object? value, int maxDepth)
     {
         var visited = new HashSet<object>(ReferenceEqualityComparer.Instance);
         var stack = new Stack<(object? Value, int Depth)>();
@@ -72,16 +79,16 @@ internal static class Contract
                 case null:
                     continue;
                 case string text:
-                    Jcs.CheckUnicode(text);
+                    CheckString(text);
                     continue;
                 case char ch:
                     if (char.IsSurrogate(ch)) throw new JsonException("lone surrogate");
                     continue;
                 case Uri uri:
-                    Jcs.CheckUnicode(uri.OriginalString);
+                    CheckString(uri.OriginalString);
                     continue;
                 case JsonElement element:
-                    ValidateElementUnicode(element, depth, maxDepth);
+                    CheckElement(element, depth, maxDepth);
                     continue;
                 case JsonObject obj:
                     if (depth + 1 > maxDepth)
@@ -89,7 +96,7 @@ internal static class Contract
                     if (!visited.Add(obj)) continue;
                     foreach (var (key, child) in obj)
                     {
-                        Jcs.CheckUnicode(key);
+                        CheckString(key);
                         stack.Push((child, depth + 1));
                     }
                     continue;
@@ -100,12 +107,12 @@ internal static class Contract
                     foreach (var item in array) stack.Push((item, depth + 1));
                     continue;
                 case JsonValue jsonValue:
-                    if (jsonValue.TryGetValue(out string? str)) Jcs.CheckUnicode(str);
+                    if (jsonValue.TryGetValue(out string? str)) CheckString(str);
                     else if (jsonValue.TryGetValue(out char c))
                     {
                         if (char.IsSurrogate(c)) throw new JsonException("lone surrogate");
                     }
-                    else if (jsonValue.TryGetValue(out JsonElement el)) ValidateElementUnicode(el, depth, maxDepth);
+                    else if (jsonValue.TryGetValue(out JsonElement el)) CheckElement(el, depth, maxDepth);
                     else if (jsonValue.TryGetValue(out object? raw) && raw is not JsonValue) stack.Push((raw, depth));
                     continue;
             }
@@ -148,36 +155,6 @@ internal static class Contract
                 if (!property.CanRead || property.GetIndexParameters().Length > 0) continue;
                 if (property.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition == JsonIgnoreCondition.Always) continue;
                 stack.Push((property.GetValue(current), depth + 1));
-            }
-        }
-    }
-
-    private static void ValidateElementUnicode(JsonElement root, int startDepth, int maxDepth)
-    {
-        var stack = new Stack<(JsonElement Element, int Depth)>();
-        stack.Push((root, startDepth));
-        while (stack.TryPop(out var entry))
-        {
-            switch (entry.Element.ValueKind)
-            {
-                case JsonValueKind.Object:
-                    if (entry.Depth + 1 > maxDepth)
-                        throw new JsonException($"nesting depth exceeds {maxDepth} levels");
-                    foreach (var property in entry.Element.EnumerateObject())
-                    {
-                        Jcs.CheckUnicode(property.Name);
-                        stack.Push((property.Value, entry.Depth + 1));
-                    }
-                    break;
-                case JsonValueKind.Array:
-                    if (entry.Depth + 1 > maxDepth)
-                        throw new JsonException($"nesting depth exceeds {maxDepth} levels");
-                    foreach (var item in entry.Element.EnumerateArray())
-                        stack.Push((item, entry.Depth + 1));
-                    break;
-                case JsonValueKind.String:
-                    Jcs.CheckUnicode(entry.Element.GetString()!);
-                    break;
             }
         }
     }

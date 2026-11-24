@@ -10,7 +10,7 @@ namespace AgentHooks.Tests;
 [Trait("Category", "draft")]
 public sealed class SchemasTests
 {
-    private static JsonObject ValidPreToolCallRequest() => Contract.ToJson(new Draft.PreToolCallRequest
+    private static JsonObject ValidPreToolCallRequest() => ContractSerializer.Serialize(new Draft.PreToolCallRequest
     {
         Timestamp = "2026-01-01T00:00:00Z",
         Sequence = 0,
@@ -31,7 +31,7 @@ public sealed class SchemasTests
         Assert.True(Schemas.IsValid(request, nameof(Draft.PreToolCallRequest)));
         Assert.Empty(Schemas.Errors(request, nameof(Draft.PreToolCallRequest)));
 
-        var response = Contract.ToJson(new Draft.PreToolHookResponse
+        var response = ContractSerializer.Serialize(new Draft.PreToolHookResponse
         {
             Verdict = new Draft.AllowVerdict { Reason = "ok" },
         });

@@ -53,8 +53,8 @@ public sealed class JcsTests
         };
 
         Assert.NotEqual(
-            Jcs.ContextIdentity(Contract.ToJson(Make(0.9999999999999999))),
-            Jcs.ContextIdentity(Contract.ToJson(Make(1.0))));
+            Jcs.ContextIdentity(ContractSerializer.Serialize(Make(0.9999999999999999))),
+            Jcs.ContextIdentity(ContractSerializer.Serialize(Make(1.0))));
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class JcsTests
         };
         Assert.Equal("{\"dt\":\"2026-01-01T00:00:00Z\",\"dto\":\"2026-01-01T00:00:00+00:00\"}", Jcs.Canonicalize(withDates));
 
-        Assert.Throws<JsonException>(() => Contract.ToJson("not-an-object"));
+        Assert.Throws<JsonException>(() => ContractSerializer.Serialize("not-an-object"));
         Assert.Throws<ArgumentOutOfRangeException>(() => Points.RequestSchema((Draft.InterceptionPoint)99));
         Assert.Throws<ArgumentOutOfRangeException>(() => Points.ResponseSchema((Draft.InterceptionPoint)99));
     }
@@ -118,7 +118,7 @@ public sealed class JcsTests
             Session = new Draft.ContextMetadataSession { Id = "s" },
             ToolCall = new Draft.ToolCall { Id = "tc", Name = "t", Args = new Draft.JsonObject() },
         };
-        Assert.Throws<JsonException>(() => Contract.ToJson(typed));
+        Assert.Throws<JsonException>(() => ContractSerializer.Serialize(typed));
 
         var badKey = new Draft.PreToolCallRequest
         {
@@ -129,7 +129,7 @@ public sealed class JcsTests
             ToolCall = new Draft.ToolCall { Id = "tc", Name = "t", Args = new Draft.JsonObject() },
             Extensions = new Draft.Extensions { ["\uD800"] = JsonSerializer.SerializeToElement(1) },
         };
-        Assert.Throws<JsonException>(() => Contract.ToJson(badKey));
+        Assert.Throws<JsonException>(() => ContractSerializer.Serialize(badKey));
 
         var badExtensionData = new Draft.PreToolCallRequest
         {
@@ -140,10 +140,10 @@ public sealed class JcsTests
             ToolCall = new Draft.ToolCall { Id = "tc", Name = "t", Args = new Draft.JsonObject() },
             AdditionalProperties = new Dictionary<string, JsonElement> { ["\uDC00"] = JsonSerializer.SerializeToElement(1) },
         };
-        Assert.Throws<JsonException>(() => Contract.ToJson(badExtensionData));
+        Assert.Throws<JsonException>(() => ContractSerializer.Serialize(badExtensionData));
 
         var badOptional = new Draft.ApprovalConfig { Resolver = new Optional<string?>("\uD800") };
-        Assert.Throws<JsonException>(() => Contract.ToJson(badOptional));
+        Assert.Throws<JsonException>(() => ContractSerializer.Serialize(badOptional));
 
         var badNodeValue = new JsonObject { ["k"] = "\uD800" };
         Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(badNodeValue)).Code);
@@ -155,14 +155,14 @@ public sealed class JcsTests
         Assert.Equal(HostError.ContextInvalid, Assert.Throws<AgentHooksCoreException>(() => Jcs.Canonicalize(badCharValue)).Code);
 
         var badFromJson = new JsonObject { ["id"] = "\uD800", ["framework"] = "x" };
-        Assert.Throws<JsonException>(() => Contract.FromJson<Draft.ContextMetadataAgent>(badFromJson));
+        Assert.Throws<JsonException>(() => ContractSerializer.Deserialize<Draft.ContextMetadataAgent>(badFromJson));
     }
 
     [Fact]
     [Trait("Category", "draft")]
     public void InvalidEnvelopesFailClosedInContextIdentity()
     {
-        static JsonObject ValidBase() => Contract.ToJson(new Draft.PreToolCallRequest
+        static JsonObject ValidBase() => ContractSerializer.Serialize(new Draft.PreToolCallRequest
         {
             Timestamp = "2026-01-01T00:00:00Z",
             Sequence = 0,
@@ -237,7 +237,7 @@ public sealed class JcsTests
         // An independently computed SHA-256 over the §10.1 required-member preimage.
         Assert.Equal(
             "sha256:8016f23f96d960d3df8db5c868d52536238435af56c29e403eba660c5f3713c5",
-            Jcs.ContextIdentity(Contract.ToJson(request)));
+            Jcs.ContextIdentity(ContractSerializer.Serialize(request)));
     }
 
     private static readonly JsonArray Golden = LoadGolden();
