@@ -95,6 +95,11 @@ function contracts(program: Program) {
     );
     if (usedNames.has(name)) throw new Error(`Duplicate C# contract name: ${name}`);
     usedNames.add(name);
+    if (type.kind === "Enum") {
+      const extensionsName = `${name}Extensions`;
+      if (usedNames.has(extensionsName)) throw new Error(`Duplicate C# contract name: ${extensionsName}`);
+      usedNames.add(extensionsName);
+    }
     names.set(type, name);
     if (type.kind === "Model") {
       for (const property of type.properties.values()) {
@@ -216,19 +221,67 @@ function ContractProperty(props: { type: ModelProperty }): Children {
 
 function EnumContract(props: { type: Enum; name: string }): Children {
   const reference = <ef.TypeExpression type={props.type} />;
-  const name = `${props.name}JsonConverter`;
+  const extensionsName = `${props.name}Extensions`;
+  const converterName = `${props.name}JsonConverter`;
   const policy = cs.useCSharpNamePolicy();
+  const entries = [...props.type.members.values()].map((member) => ({
+    member: code`${reference}.${policy.getName(member.name, "enum-member")}`,
+    wire: JSON.stringify(member.value ?? member.name),
+  }));
   return <>
     <ef.EnumDeclaration public type={props.type}
-      attributes={[<JsonConverterAttribute name={name} />]} />
+      attributes={[<JsonConverterAttribute name={converterName} />]} />
     <hbr /><hbr />
-    <JsonConverterDeclaration name={name}
+    <cs.ClassDeclaration public static name={extensionsName}>
+      <cs.Method
+        public
+        static
+        name="ToWire"
+        returns="string"
+        parameters={[{ name: "value", type: code`this ${reference}` }]}
+      >
+        {code`
+          return value switch
+          {
+              ${<For each={entries} comma hardline enderPunctuation>
+                {(entry) => code`${entry.member} => ${entry.wire}`}
+              </For>}
+              _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+          };
+        `}
+      </cs.Method>
+      <hbr /><hbr />
+      <cs.Method
+        public
+        static
+        name="TryParseWire"
+        returns="bool"
+        parameters={[
+          { name: "wire", type: "string?" },
+          { name: "value", type: reference, out: true },
+        ]}
+      >
+        {code`
+          switch (wire)
+          {
+              ${<For each={entries} hardline>
+                {(entry) => code`
+                  case ${entry.wire}:
+                      value = ${entry.member};
+                      return true;
+                `}
+              </For>}
+              default:
+                  value = default;
+                  return false;
+          }
+        `}
+      </cs.Method>
+    </cs.ClassDeclaration>
+    <hbr /><hbr />
+    <JsonConverterDeclaration name={converterName}
       baseType={code`StringEnumJsonConverter<${reference}>`}
-      baseArguments={[<DictionaryInitializer keyType={reference} valueType="string"
-        entries={[...props.type.members.values()].map((member) => ({
-          key: code`${reference}.${policy.getName(member.name, "enum-member")}`,
-          value: JSON.stringify(member.value ?? member.name),
-        }))} />]} />
+      baseArguments={[`${extensionsName}.ToWire`, `${extensionsName}.TryParseWire`]} />
   </>;
 }
 

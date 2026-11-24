@@ -30,20 +30,64 @@ public enum InterceptionPoint
     AgentShutdown
 }
 
+public static class InterceptionPointExtensions
+{
+    public static string ToWire(this InterceptionPoint value)
+    {
+        return value switch
+        {
+            InterceptionPoint.AgentStartup => "agent_startup",
+            InterceptionPoint.Input => "input",
+            InterceptionPoint.PreModelCall => "pre_model_call",
+            InterceptionPoint.PostModelCall => "post_model_call",
+            InterceptionPoint.PreToolCall => "pre_tool_call",
+            InterceptionPoint.PostToolCall => "post_tool_call",
+            InterceptionPoint.Output => "output",
+            InterceptionPoint.AgentShutdown => "agent_shutdown",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out InterceptionPoint value)
+    {
+        switch (wire)
+        {
+            case "agent_startup":
+                value = InterceptionPoint.AgentStartup;
+                return true;
+            case "input":
+                value = InterceptionPoint.Input;
+                return true;
+            case "pre_model_call":
+                value = InterceptionPoint.PreModelCall;
+                return true;
+            case "post_model_call":
+                value = InterceptionPoint.PostModelCall;
+                return true;
+            case "pre_tool_call":
+                value = InterceptionPoint.PreToolCall;
+                return true;
+            case "post_tool_call":
+                value = InterceptionPoint.PostToolCall;
+                return true;
+            case "output":
+                value = InterceptionPoint.Output;
+                return true;
+            case "agent_shutdown":
+                value = InterceptionPoint.AgentShutdown;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class InterceptionPointJsonConverter : StringEnumJsonConverter<InterceptionPoint>
 {
     public InterceptionPointJsonConverter() : base(
-        new Dictionary<InterceptionPoint, string>
-        {
-            [InterceptionPoint.AgentStartup] = "agent_startup",
-            [InterceptionPoint.Input] = "input",
-            [InterceptionPoint.PreModelCall] = "pre_model_call",
-            [InterceptionPoint.PostModelCall] = "post_model_call",
-            [InterceptionPoint.PreToolCall] = "pre_tool_call",
-            [InterceptionPoint.PostToolCall] = "post_tool_call",
-            [InterceptionPoint.Output] = "output",
-            [InterceptionPoint.AgentShutdown] = "agent_shutdown",
-        }
+        InterceptionPointExtensions.ToWire,
+        InterceptionPointExtensions.TryParseWire
     ) {}
 }
 
@@ -205,16 +249,42 @@ public enum ActorKind
     Agent
 }
 
+public static class ActorKindExtensions
+{
+    public static string ToWire(this ActorKind value)
+    {
+        return value switch
+        {
+            ActorKind.Human => "human",
+            ActorKind.Service => "service",
+            ActorKind.Agent => "agent",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out ActorKind value)
+    {
+        switch (wire)
+        {
+            case "human":
+                value = ActorKind.Human;
+                return true;
+            case "service":
+                value = ActorKind.Service;
+                return true;
+            case "agent":
+                value = ActorKind.Agent;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class ActorKindJsonConverter : StringEnumJsonConverter<ActorKind>
 {
-    public ActorKindJsonConverter() : base(
-        new Dictionary<ActorKind, string>
-        {
-            [ActorKind.Human] = "human",
-            [ActorKind.Service] = "service",
-            [ActorKind.Agent] = "agent",
-        }
-    ) {}
+    public ActorKindJsonConverter() : base(ActorKindExtensions.ToWire, ActorKindExtensions.TryParseWire) {}
 }
 
 public sealed class ContextMetadataBudgets
@@ -348,16 +418,42 @@ public enum InputRole
     External
 }
 
+public static class InputRoleExtensions
+{
+    public static string ToWire(this InputRole value)
+    {
+        return value switch
+        {
+            InputRole.User => "user",
+            InputRole.System => "system",
+            InputRole.External => "external",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out InputRole value)
+    {
+        switch (wire)
+        {
+            case "user":
+                value = InputRole.User;
+                return true;
+            case "system":
+                value = InputRole.System;
+                return true;
+            case "external":
+                value = InputRole.External;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class InputRoleJsonConverter : StringEnumJsonConverter<InputRole>
 {
-    public InputRoleJsonConverter() : base(
-        new Dictionary<InputRole, string>
-        {
-            [InputRole.User] = "user",
-            [InputRole.System] = "system",
-            [InputRole.External] = "external",
-        }
-    ) {}
+    public InputRoleJsonConverter() : base(InputRoleExtensions.ToWire, InputRoleExtensions.TryParseWire) {}
 }
 
 /// <summary>
@@ -991,16 +1087,42 @@ public enum SummaryReason
     Cancelled
 }
 
+public static class SummaryReasonExtensions
+{
+    public static string ToWire(this SummaryReason value)
+    {
+        return value switch
+        {
+            SummaryReason.Completed => "completed",
+            SummaryReason.Error => "error",
+            SummaryReason.Cancelled => "cancelled",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out SummaryReason value)
+    {
+        switch (wire)
+        {
+            case "completed":
+                value = SummaryReason.Completed;
+                return true;
+            case "error":
+                value = SummaryReason.Error;
+                return true;
+            case "cancelled":
+                value = SummaryReason.Cancelled;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class SummaryReasonJsonConverter : StringEnumJsonConverter<SummaryReason>
 {
-    public SummaryReasonJsonConverter() : base(
-        new Dictionary<SummaryReason, string>
-        {
-            [SummaryReason.Completed] = "completed",
-            [SummaryReason.Error] = "error",
-            [SummaryReason.Cancelled] = "cancelled",
-        }
-    ) {}
+    public SummaryReasonJsonConverter() : base(SummaryReasonExtensions.ToWire, SummaryReasonExtensions.TryParseWire) {}
 }
 
 /// <summary>
@@ -1139,16 +1261,42 @@ public enum Decision
     Transform
 }
 
+public static class DecisionExtensions
+{
+    public static string ToWire(this Decision value)
+    {
+        return value switch
+        {
+            Decision.Allow => "allow",
+            Decision.Deny => "deny",
+            Decision.Transform => "transform",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out Decision value)
+    {
+        switch (wire)
+        {
+            case "allow":
+                value = Decision.Allow;
+                return true;
+            case "deny":
+                value = Decision.Deny;
+                return true;
+            case "transform":
+                value = Decision.Transform;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class DecisionJsonConverter : StringEnumJsonConverter<Decision>
 {
-    public DecisionJsonConverter() : base(
-        new Dictionary<Decision, string>
-        {
-            [Decision.Allow] = "allow",
-            [Decision.Deny] = "deny",
-            [Decision.Transform] = "transform",
-        }
-    ) {}
+    public DecisionJsonConverter() : base(DecisionExtensions.ToWire, DecisionExtensions.TryParseWire) {}
 }
 
 /// <summary>
@@ -2550,15 +2698,38 @@ public enum Mode
     EvaluateOnly
 }
 
+public static class ModeExtensions
+{
+    public static string ToWire(this Mode value)
+    {
+        return value switch
+        {
+            Mode.Enforce => "enforce",
+            Mode.EvaluateOnly => "evaluate_only",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out Mode value)
+    {
+        switch (wire)
+        {
+            case "enforce":
+                value = Mode.Enforce;
+                return true;
+            case "evaluate_only":
+                value = Mode.EvaluateOnly;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class ModeJsonConverter : StringEnumJsonConverter<Mode>
 {
-    public ModeJsonConverter() : base(
-        new Dictionary<Mode, string>
-        {
-            [Mode.Enforce] = "enforce",
-            [Mode.EvaluateOnly] = "evaluate_only",
-        }
-    ) {}
+    public ModeJsonConverter() : base(ModeExtensions.ToWire, ModeExtensions.TryParseWire) {}
 }
 
 /// <summary>
@@ -2666,16 +2837,48 @@ public enum CompositionProfile
     ParallelUnanimous
 }
 
+public static class CompositionProfileExtensions
+{
+    public static string ToWire(this CompositionProfile value)
+    {
+        return value switch
+        {
+            CompositionProfile.SequentialFirstDeny => "sequential/first_deny",
+            CompositionProfile.SequentialRunAll => "sequential/run_all",
+            CompositionProfile.ParallelStrictest => "parallel/strictest",
+            CompositionProfile.ParallelUnanimous => "parallel/unanimous",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out CompositionProfile value)
+    {
+        switch (wire)
+        {
+            case "sequential/first_deny":
+                value = CompositionProfile.SequentialFirstDeny;
+                return true;
+            case "sequential/run_all":
+                value = CompositionProfile.SequentialRunAll;
+                return true;
+            case "parallel/strictest":
+                value = CompositionProfile.ParallelStrictest;
+                return true;
+            case "parallel/unanimous":
+                value = CompositionProfile.ParallelUnanimous;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class CompositionProfileJsonConverter : StringEnumJsonConverter<CompositionProfile>
 {
     public CompositionProfileJsonConverter() : base(
-        new Dictionary<CompositionProfile, string>
-        {
-            [CompositionProfile.SequentialFirstDeny] = "sequential/first_deny",
-            [CompositionProfile.SequentialRunAll] = "sequential/run_all",
-            [CompositionProfile.ParallelStrictest] = "parallel/strictest",
-            [CompositionProfile.ParallelUnanimous] = "parallel/unanimous",
-        }
+        CompositionProfileExtensions.ToWire,
+        CompositionProfileExtensions.TryParseWire
     ) {}
 }
 
@@ -2689,15 +2892,38 @@ public enum OnApproval
     Resume
 }
 
+public static class OnApprovalExtensions
+{
+    public static string ToWire(this OnApproval value)
+    {
+        return value switch
+        {
+            OnApproval.Stop => "stop",
+            OnApproval.Resume => "resume",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out OnApproval value)
+    {
+        switch (wire)
+        {
+            case "stop":
+                value = OnApproval.Stop;
+                return true;
+            case "resume":
+                value = OnApproval.Resume;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class OnApprovalJsonConverter : StringEnumJsonConverter<OnApproval>
 {
-    public OnApprovalJsonConverter() : base(
-        new Dictionary<OnApproval, string>
-        {
-            [OnApproval.Stop] = "stop",
-            [OnApproval.Resume] = "resume",
-        }
-    ) {}
+    public OnApprovalJsonConverter() : base(OnApprovalExtensions.ToWire, OnApprovalExtensions.TryParseWire) {}
 }
 
 /// <summary>
@@ -2710,14 +2936,40 @@ public enum ConflictResolution
     Approval
 }
 
+public static class ConflictResolutionExtensions
+{
+    public static string ToWire(this ConflictResolution value)
+    {
+        return value switch
+        {
+            ConflictResolution.Deny => "deny",
+            ConflictResolution.Approval => "approval",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out ConflictResolution value)
+    {
+        switch (wire)
+        {
+            case "deny":
+                value = ConflictResolution.Deny;
+                return true;
+            case "approval":
+                value = ConflictResolution.Approval;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class ConflictResolutionJsonConverter : StringEnumJsonConverter<ConflictResolution>
 {
     public ConflictResolutionJsonConverter() : base(
-        new Dictionary<ConflictResolution, string>
-        {
-            [ConflictResolution.Deny] = "deny",
-            [ConflictResolution.Approval] = "approval",
-        }
+        ConflictResolutionExtensions.ToWire,
+        ConflictResolutionExtensions.TryParseWire
     ) {}
 }
 
@@ -2766,15 +3018,44 @@ public enum SubstitutedFor
     VerdictInvalid
 }
 
+public static class SubstitutedForExtensions
+{
+    public static string ToWire(this SubstitutedFor value)
+    {
+        return value switch
+        {
+            SubstitutedFor.InterceptorFailed => "host_error:interceptor_failed",
+            SubstitutedFor.InterceptorTimeout => "host_error:interceptor_timeout",
+            SubstitutedFor.VerdictInvalid => "host_error:verdict_invalid",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out SubstitutedFor value)
+    {
+        switch (wire)
+        {
+            case "host_error:interceptor_failed":
+                value = SubstitutedFor.InterceptorFailed;
+                return true;
+            case "host_error:interceptor_timeout":
+                value = SubstitutedFor.InterceptorTimeout;
+                return true;
+            case "host_error:verdict_invalid":
+                value = SubstitutedFor.VerdictInvalid;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class SubstitutedForJsonConverter : StringEnumJsonConverter<SubstitutedFor>
 {
     public SubstitutedForJsonConverter() : base(
-        new Dictionary<SubstitutedFor, string>
-        {
-            [SubstitutedFor.InterceptorFailed] = "host_error:interceptor_failed",
-            [SubstitutedFor.InterceptorTimeout] = "host_error:interceptor_timeout",
-            [SubstitutedFor.VerdictInvalid] = "host_error:verdict_invalid",
-        }
+        SubstitutedForExtensions.ToWire,
+        SubstitutedForExtensions.TryParseWire
     ) {}
 }
 
@@ -2788,15 +3069,38 @@ public enum ResolvedBy
     Rejection
 }
 
+public static class ResolvedByExtensions
+{
+    public static string ToWire(this ResolvedBy value)
+    {
+        return value switch
+        {
+            ResolvedBy.Approval => "approval",
+            ResolvedBy.Rejection => "rejection",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out ResolvedBy value)
+    {
+        switch (wire)
+        {
+            case "approval":
+                value = ResolvedBy.Approval;
+                return true;
+            case "rejection":
+                value = ResolvedBy.Rejection;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class ResolvedByJsonConverter : StringEnumJsonConverter<ResolvedBy>
 {
-    public ResolvedByJsonConverter() : base(
-        new Dictionary<ResolvedBy, string>
-        {
-            [ResolvedBy.Approval] = "approval",
-            [ResolvedBy.Rejection] = "rejection",
-        }
-    ) {}
+    public ResolvedByJsonConverter() : base(ResolvedByExtensions.ToWire, ResolvedByExtensions.TryParseWire) {}
 }
 
 /// <summary>
@@ -2995,14 +3299,40 @@ public enum ToolSeamHostError
     Terminate
 }
 
+public static class ToolSeamHostErrorExtensions
+{
+    public static string ToWire(this ToolSeamHostError value)
+    {
+        return value switch
+        {
+            ToolSeamHostError.Continue => "continue",
+            ToolSeamHostError.Terminate => "terminate",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out ToolSeamHostError value)
+    {
+        switch (wire)
+        {
+            case "continue":
+                value = ToolSeamHostError.Continue;
+                return true;
+            case "terminate":
+                value = ToolSeamHostError.Terminate;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class ToolSeamHostErrorJsonConverter : StringEnumJsonConverter<ToolSeamHostError>
 {
     public ToolSeamHostErrorJsonConverter() : base(
-        new Dictionary<ToolSeamHostError, string>
-        {
-            [ToolSeamHostError.Continue] = "continue",
-            [ToolSeamHostError.Terminate] = "terminate",
-        }
+        ToolSeamHostErrorExtensions.ToWire,
+        ToolSeamHostErrorExtensions.TryParseWire
     ) {}
 }
 
@@ -3059,15 +3389,38 @@ public enum OnError
     Continue
 }
 
+public static class OnErrorExtensions
+{
+    public static string ToWire(this OnError value)
+    {
+        return value switch
+        {
+            OnError.Deny => "deny",
+            OnError.Continue => "continue",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out OnError value)
+    {
+        switch (wire)
+        {
+            case "deny":
+                value = OnError.Deny;
+                return true;
+            case "continue":
+                value = OnError.Continue;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class OnErrorJsonConverter : StringEnumJsonConverter<OnError>
 {
-    public OnErrorJsonConverter() : base(
-        new Dictionary<OnError, string>
-        {
-            [OnError.Deny] = "deny",
-            [OnError.Continue] = "continue",
-        }
-    ) {}
+    public OnErrorJsonConverter() : base(OnErrorExtensions.ToWire, OnErrorExtensions.TryParseWire) {}
 }
 
 /// <summary>
@@ -3216,22 +3569,66 @@ public enum Capability
     HostDeclaration
 }
 
+public static class CapabilityExtensions
+{
+    public static string ToWire(this Capability value)
+    {
+        return value switch
+        {
+            Capability.ModelCalls => "model_calls",
+            Capability.ToolCalls => "tool_calls",
+            Capability.ParallelToolCalls => "parallel_tool_calls",
+            Capability.Streaming => "streaming",
+            Capability.MultiTurn => "multi_turn",
+            Capability.Int64Json => "int64_json",
+            Capability.BigintJson => "bigint_json",
+            Capability.IncrementalOutput => "incremental_output",
+            Capability.HostDeclaration => "host_declaration",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out Capability value)
+    {
+        switch (wire)
+        {
+            case "model_calls":
+                value = Capability.ModelCalls;
+                return true;
+            case "tool_calls":
+                value = Capability.ToolCalls;
+                return true;
+            case "parallel_tool_calls":
+                value = Capability.ParallelToolCalls;
+                return true;
+            case "streaming":
+                value = Capability.Streaming;
+                return true;
+            case "multi_turn":
+                value = Capability.MultiTurn;
+                return true;
+            case "int64_json":
+                value = Capability.Int64Json;
+                return true;
+            case "bigint_json":
+                value = Capability.BigintJson;
+                return true;
+            case "incremental_output":
+                value = Capability.IncrementalOutput;
+                return true;
+            case "host_declaration":
+                value = Capability.HostDeclaration;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class CapabilityJsonConverter : StringEnumJsonConverter<Capability>
 {
-    public CapabilityJsonConverter() : base(
-        new Dictionary<Capability, string>
-        {
-            [Capability.ModelCalls] = "model_calls",
-            [Capability.ToolCalls] = "tool_calls",
-            [Capability.ParallelToolCalls] = "parallel_tool_calls",
-            [Capability.Streaming] = "streaming",
-            [Capability.MultiTurn] = "multi_turn",
-            [Capability.Int64Json] = "int64_json",
-            [Capability.BigintJson] = "bigint_json",
-            [Capability.IncrementalOutput] = "incremental_output",
-            [Capability.HostDeclaration] = "host_declaration",
-        }
-    ) {}
+    public CapabilityJsonConverter() : base(CapabilityExtensions.ToWire, CapabilityExtensions.TryParseWire) {}
 }
 
 /// <summary>
@@ -3380,16 +3777,42 @@ public enum Outcome
     Unresolved
 }
 
+public static class OutcomeExtensions
+{
+    public static string ToWire(this Outcome value)
+    {
+        return value switch
+        {
+            Outcome.Approve => "approve",
+            Outcome.Reject => "reject",
+            Outcome.Unresolved => "unresolved",
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
+        };
+    }
+
+    public static bool TryParseWire(string? wire, out Outcome value)
+    {
+        switch (wire)
+        {
+            case "approve":
+                value = Outcome.Approve;
+                return true;
+            case "reject":
+                value = Outcome.Reject;
+                return true;
+            case "unresolved":
+                value = Outcome.Unresolved;
+                return true;
+            default:
+                value = default;
+                return false;
+        }
+    }
+}
+
 internal sealed class OutcomeJsonConverter : StringEnumJsonConverter<Outcome>
 {
-    public OutcomeJsonConverter() : base(
-        new Dictionary<Outcome, string>
-        {
-            [Outcome.Approve] = "approve",
-            [Outcome.Reject] = "reject",
-            [Outcome.Unresolved] = "unresolved",
-        }
-    ) {}
+    public OutcomeJsonConverter() : base(OutcomeExtensions.ToWire, OutcomeExtensions.TryParseWire) {}
 }
 
 /// <summary>

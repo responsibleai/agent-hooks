@@ -5,7 +5,9 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AgentHooks.Contracts;
+using AgentHooks.Contracts.Draft;
 using Draft = AgentHooks.Contracts.Draft;
+using JsonObject = System.Text.Json.Nodes.JsonObject;
 using Xunit;
 
 namespace AgentHooks.Tests;
@@ -264,6 +266,32 @@ public sealed class GeneratedContractTests
             Assert.False(Draft.InterceptionPoints.TryGetByWireName(wire, out var missingByWire));
             Assert.Null(missingByWire);
             Assert.False(Draft.InterceptionPoints.TryParse(wire, out _));
+        }
+    }
+
+    [Fact]
+    public void GeneratedEnumExtensionsRoundTripAndRejectInvalidValues()
+    {
+        Assert.Equal("pre_tool_call", Draft.InterceptionPoint.PreToolCall.ToWire());
+        Assert.True(Draft.InterceptionPointExtensions.TryParseWire("pre_tool_call", out var point));
+        Assert.Equal(Draft.InterceptionPoint.PreToolCall, point);
+        Assert.False(Draft.InterceptionPointExtensions.TryParseWire(null, out _));
+        Assert.False(Draft.InterceptionPointExtensions.TryParseWire("PreToolCall", out _));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ((Draft.InterceptionPoint)99).ToWire());
+        Assert.Throws<JsonException>(() => JsonSerializer.Serialize((Draft.InterceptionPoint)99));
+
+        Assert.Equal("sequential/first_deny", Draft.CompositionProfile.SequentialFirstDeny.ToWire());
+        Assert.True(Draft.CompositionProfileExtensions.TryParseWire("sequential/first_deny", out var profile));
+        Assert.Equal(Draft.CompositionProfile.SequentialFirstDeny, profile);
+        Assert.False(Draft.CompositionProfileExtensions.TryParseWire("unknown", out _));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ((Draft.CompositionProfile)99).ToWire());
+
+        foreach (var mode in Enum.GetValues<Draft.Mode>())
+        {
+            var wire = mode.ToWire();
+            Assert.Equal(JsonSerializer.Serialize(mode), JsonSerializer.Serialize(wire));
+            Assert.True(Draft.ModeExtensions.TryParseWire(wire, out var parsed));
+            Assert.Equal(mode, parsed);
         }
     }
 }
