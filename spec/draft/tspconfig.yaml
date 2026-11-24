@@ -1,0 +1,7 @@
+# Copyright (c) Microsoft. All rights reserved.
+
+emit:
+  - "@agent-hooks/emitter-csharp"
+options:
+  "@agent-hooks/emitter-csharp":
+    emitter-output-dir: "{project-root}/../../sdk/csharp/src/AgentHooks.Contracts/Generated/Draft"

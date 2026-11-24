@@ -1,7 +1,21 @@
 packages:
+  - emitters/*
   - docs-site
   - spec/scripts
   - sdk/typescript
+
+catalog:
+  "@alloy-js/babel-preset": "0.4.0"
+  "@alloy-js/core": "0.25.0"
+  "@alloy-js/csharp": "0.25.0"
+  "@babel/cli": "^7.29.7"
+  "@babel/core": "^7.29.13"
+  "@babel/preset-typescript": "^7.29.7"
+  "@types/node": "^26.6.6"
+  "@typespec/compiler": "1.18.0"
+  "@typespec/emitter-framework": "0.22.0"
+  "@typespec/json-schema": "1.18.0"
+  typescript: "7.0.2"
 
 overrides:
   minimatch: ^11.0.9

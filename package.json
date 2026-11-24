@@ -7,10 +7,15 @@
     "node": ">=22"
   },
   "devDependencies": {
+    "@agent-hooks/emitter-csharp": "workspace:*",
+    "@typespec/compiler": "catalog:",
+    "@typespec/json-schema": "catalog:",
     "ajv-cli": "5.0.0",
     "ajv-formats": "3.0.1"
   },
   "scripts": {
+    "build:emitters": "pnpm --filter './emitters/*' run build",
+    "generate": "pnpm run build:emitters && pnpm run generate:schema && tsp compile spec/draft",
     "generate:schema": "pnpm --dir spec/scripts run generate:schema",
     "check:schema": "pnpm --dir spec/scripts run check:schema",
     "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"

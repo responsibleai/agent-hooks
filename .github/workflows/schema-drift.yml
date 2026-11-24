@@ -1,7 +1,7 @@
 name: schema-drift
 
 # Checks:
-# - spec-draft-generated-schema-check: ensure generated draft schemas match their TypeSpec source.
+# - spec-draft-generated-schema-check: regenerate schemas and contracts, then fail on drift.
 # - python-released-schema-mirror: refresh released Python schema mirrors, then fail on drift.
 # - python-ctk-vector-mirror: refresh the Python CTK vector mirror, then fail on drift.
 # - python-draft-schema-mirror: report experimental draft mirror drift as a warning.
@@ -23,9 +23,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
-      - name: Check generated draft schemas
-        run: pnpm run check:schema
-        working-directory: spec/scripts
+      - name: Clean generated schemas and contracts
+        run: rm -rf spec/draft/schema/generated sdk/csharp/src/AgentHooks.Contracts/Generated/Draft
+      - name: Generate schemas and contracts
+        run: pnpm generate
+      - name: Check generated drift
+        run: |
+          status="$(git status --porcelain)"
+          if [[ -n "$status" ]]; then
+            echo "::error::Generated schemas and contracts differ from committed output:"
+            printf '%s\n' "$status"
+            git diff
+            exit 1
+          fi
 
   python-released-schema-mirror:
     runs-on: ubuntu-latest
