@@ -2,6 +2,10 @@
 
 using System.Text.Json.Nodes;
 using Draft = AgentHooks.Contracts.Draft;
+using static AgentHooks.Contracts.Draft.CompositionProfileExtensions;
+using static AgentHooks.Contracts.Draft.ConflictResolutionExtensions;
+using static AgentHooks.Contracts.Draft.ModeExtensions;
+using static AgentHooks.Contracts.Draft.OnApprovalExtensions;
 
 namespace AgentHooks;
 

@@ -3,6 +3,7 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using Draft = AgentHooks.Contracts.Draft;
+using static AgentHooks.Contracts.Draft.InterceptionPointExtensions;
 
 namespace AgentHooks.Conformance;
 

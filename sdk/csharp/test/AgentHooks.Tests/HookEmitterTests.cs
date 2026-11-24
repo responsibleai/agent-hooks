@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
 using Draft = AgentHooks.Contracts.Draft;
+using static AgentHooks.Contracts.Draft.SubstitutedForExtensions;
 
 namespace AgentHooks.Tests;
 

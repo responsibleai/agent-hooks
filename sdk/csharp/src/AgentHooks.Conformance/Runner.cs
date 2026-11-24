@@ -3,6 +3,9 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Draft = AgentHooks.Contracts.Draft;
+using static AgentHooks.Contracts.Draft.CapabilityExtensions;
+using static AgentHooks.Contracts.Draft.OnErrorExtensions;
+using static AgentHooks.Contracts.Draft.ToolSeamHostErrorExtensions;
 
 namespace AgentHooks.Conformance;
 
@@ -103,15 +106,15 @@ public static class Runner
     private static HookEmitterBuilder FromFields(JsonObject vector, Scripts scripts, HostSurface surface)
     {
         var builder = HookEmitter.CreateBuilder()
-            .WithMode(WireEnum.Parse((string?)vector["mode"], Draft.ModeExtensions.TryParseWire) ?? Draft.Mode.Enforce)
+            .WithMode(WireEnum.Parse<Draft.Mode>((string?)vector["mode"], Draft.ModeExtensions.TryParseWire) ?? Draft.Mode.Enforce)
             .WithToolSeamPosture(surface.ToolSeamPosture);
         if (vector["composition"] is JsonObject c)
         {
             builder.WithComposition(
-                WireEnum.Parse((string?)c["profile"], Draft.CompositionProfileExtensions.TryParseWire) ?? Draft.CompositionProfile.SequentialFirstDeny,
-                WireEnum.Parse((string?)c["on_approval"], Draft.OnApprovalExtensions.TryParseWire) ?? Draft.OnApproval.Stop,
-                WireEnum.Parse((string?)c["on_transform_conflict"], Draft.ConflictResolutionExtensions.TryParseWire) ?? Draft.ConflictResolution.Deny,
-                WireEnum.Parse((string?)c["on_disagreement"], Draft.ConflictResolutionExtensions.TryParseWire) ?? Draft.ConflictResolution.Deny);
+                WireEnum.Parse<Draft.CompositionProfile>((string?)c["profile"], Draft.CompositionProfileExtensions.TryParseWire) ?? Draft.CompositionProfile.SequentialFirstDeny,
+                WireEnum.Parse<Draft.OnApproval>((string?)c["on_approval"], Draft.OnApprovalExtensions.TryParseWire) ?? Draft.OnApproval.Stop,
+                WireEnum.Parse<Draft.ConflictResolution>((string?)c["on_transform_conflict"], Draft.ConflictResolutionExtensions.TryParseWire) ?? Draft.ConflictResolution.Deny,
+                WireEnum.Parse<Draft.ConflictResolution>((string?)c["on_disagreement"], Draft.ConflictResolutionExtensions.TryParseWire) ?? Draft.ConflictResolution.Deny);
         }
         // §10.1: absent selects the default provider; an explicit null leaves records unbound.
         if (vector.TryGetPropertyValue("identity_provider", out var provider))

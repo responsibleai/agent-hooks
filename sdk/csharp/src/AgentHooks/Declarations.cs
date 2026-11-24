@@ -3,6 +3,13 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using Draft = AgentHooks.Contracts.Draft;
+using static AgentHooks.Contracts.Draft.CapabilityExtensions;
+using static AgentHooks.Contracts.Draft.CompositionProfileExtensions;
+using static AgentHooks.Contracts.Draft.ConflictResolutionExtensions;
+using static AgentHooks.Contracts.Draft.ModeExtensions;
+using static AgentHooks.Contracts.Draft.OnApprovalExtensions;
+using static AgentHooks.Contracts.Draft.OnErrorExtensions;
+using static AgentHooks.Contracts.Draft.ToolSeamHostErrorExtensions;
 
 namespace AgentHooks;
 
@@ -165,13 +172,13 @@ internal static class Declarations
 
         var host = registry.Surface;
         var surface = doc["surface"] as JsonObject;
-        var points = Set(surface?["interception_points"], Draft.InterceptionPointExtensions.TryParseWire) ?? host.InterceptionPoints.ToHashSet();
-        var caps = Set(surface?["capabilities"], Draft.CapabilityExtensions.TryParseWire) ?? host.Capabilities.ToHashSet();
+        var points = Set<Draft.InterceptionPoint>(surface?["interception_points"], Draft.InterceptionPointExtensions.TryParseWire) ?? host.InterceptionPoints.ToHashSet();
+        var caps = Set<Draft.Capability>(surface?["capabilities"], Draft.CapabilityExtensions.TryParseWire) ?? host.Capabilities.ToHashSet();
         var buffered = surface?["buffered_output"] is not JsonValue b || b.GetValue<bool>();
         var profiles = surface?["profiles"] as JsonObject;
         var cfg = doc["configuration"] as JsonObject;
         var composition = cfg?["composition"] as JsonObject;
-        var profile = WireEnum.Parse(Str(composition?["profile"]), Draft.CompositionProfileExtensions.TryParseWire) ?? Draft.CompositionProfile.SequentialFirstDeny;
+        var profile = WireEnum.Parse<Draft.CompositionProfile>(Str(composition?["profile"]), Draft.CompositionProfileExtensions.TryParseWire) ?? Draft.CompositionProfile.SequentialFirstDeny;
         var profileWire = profile.ToWire();
         var knob = Knob(profile);
         CheckConsistency(doc, points, caps, buffered, profiles, composition, profileWire, knob, f);
@@ -183,21 +190,21 @@ internal static class Declarations
             f.Bad("/surface/capabilities", $"the host does not have capability {cap}");
         if (!buffered && !host.Capabilities.Contains(Draft.Capability.Streaming))
             f.Bad("/surface/buffered_output", "the host buffers caller-bound output and cannot declare false");
-        var posture = WireEnum.Parse(Str(cfg?["posture"]?["tool_seam_host_error"]), Draft.ToolSeamHostErrorExtensions.TryParseWire) ?? Draft.ToolSeamHostError.Continue;
+        var posture = WireEnum.Parse<Draft.ToolSeamHostError>(Str(cfg?["posture"]?["tool_seam_host_error"]), Draft.ToolSeamHostErrorExtensions.TryParseWire) ?? Draft.ToolSeamHostError.Continue;
         if (posture != host.ToolSeamPosture)
             f.Bad("/configuration/posture/tool_seam_host_error", $"the host implements {host.ToolSeamPosture.ToWire()}");
         f.Refuse("surface_unsupported");
 
         var builder = new HookEmitterBuilder()
-            .WithMode(WireEnum.Parse(Str(cfg?["mode"]), Draft.ModeExtensions.TryParseWire) ?? Draft.Mode.Enforce)
+            .WithMode(WireEnum.Parse<Draft.Mode>(Str(cfg?["mode"]), Draft.ModeExtensions.TryParseWire) ?? Draft.Mode.Enforce)
             .WithToolSeamPosture(posture)
-            .WithDefaultOnError(WireEnum.Parse(Str(cfg?["failure"]?["on_error"]), Draft.OnErrorExtensions.TryParseWire) ?? Draft.OnError.Deny);
+            .WithDefaultOnError(WireEnum.Parse<Draft.OnError>(Str(cfg?["failure"]?["on_error"]), Draft.OnErrorExtensions.TryParseWire) ?? Draft.OnError.Deny);
         var knobValue = knob is null ? null : Str(composition?[knob]);
         builder.WithComposition(
             profile,
-            WireEnum.Parse(knob == "on_approval" ? knobValue : null, Draft.OnApprovalExtensions.TryParseWire) ?? Draft.OnApproval.Stop,
-            WireEnum.Parse(knob == "on_transform_conflict" ? knobValue : null, Draft.ConflictResolutionExtensions.TryParseWire) ?? Draft.ConflictResolution.Deny,
-            WireEnum.Parse(knob == "on_disagreement" ? knobValue : null, Draft.ConflictResolutionExtensions.TryParseWire) ?? Draft.ConflictResolution.Deny);
+            WireEnum.Parse<Draft.OnApproval>(knob == "on_approval" ? knobValue : null, Draft.OnApprovalExtensions.TryParseWire) ?? Draft.OnApproval.Stop,
+            WireEnum.Parse<Draft.ConflictResolution>(knob == "on_transform_conflict" ? knobValue : null, Draft.ConflictResolutionExtensions.TryParseWire) ?? Draft.ConflictResolution.Deny,
+            WireEnum.Parse<Draft.ConflictResolution>(knob == "on_disagreement" ? knobValue : null, Draft.ConflictResolutionExtensions.TryParseWire) ?? Draft.ConflictResolution.Deny);
         var interceptorTimeout = Timeout(cfg?["timeouts"] as JsonObject, "interceptor_ms", TimeSpan.FromMilliseconds(5000));
         builder.WithTimeouts(interceptorTimeout, Timeout(cfg?["timeouts"] as JsonObject, "approval_resolver_ms", interceptorTimeout));
 
@@ -236,11 +243,11 @@ internal static class Declarations
                 f.Bad($"/bindings/{i}", $"the {definition.Kind} factory rejected the binding: {e.GetType().Name}");
                 continue;
             }
-            var at = Set(binding["at"], Draft.InterceptionPointExtensions.TryParseWire) ?? points;
+            var at = Set<Draft.InterceptionPoint>(binding["at"], Draft.InterceptionPointExtensions.TryParseWire) ?? points;
             builder.Use(interceptor, new BindingOptions
             {
                 Name = definition.Id,
-                OnError = WireEnum.Parse(Str(binding["on_error"]), Draft.OnErrorExtensions.TryParseWire),
+                OnError = WireEnum.Parse<Draft.OnError>(Str(binding["on_error"]), Draft.OnErrorExtensions.TryParseWire),
                 Timeout = binding.ContainsKey("timeout_ms") ? Timeout(binding, "timeout_ms", interceptorTimeout) : null,
             }, [.. Points.All.Where(at.Contains)]);
         }
@@ -338,7 +345,7 @@ internal static class Declarations
         for (var i = 0; i < bindings.Count; i++)
         {
             if (!ids.Add(Str(bindings[i]!["id"])!)) f.Bad($"/bindings/{i}/id", "binding ids are unique");
-            foreach (var point in Set(bindings[i]!["at"], Draft.InterceptionPointExtensions.TryParseWire)?.Where(p => !points.Contains(p)) ?? [])
+            foreach (var point in Set<Draft.InterceptionPoint>(bindings[i]!["at"], Draft.InterceptionPointExtensions.TryParseWire)?.Where(p => !points.Contains(p)) ?? [])
                 f.Bad($"/bindings/{i}/at", $"{Points.Wire(point)} is not in surface.interception_points");
         }
 
