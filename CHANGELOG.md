@@ -7,9 +7,10 @@ release (one per root tag). Versioning rules: [VERSIONING.md](VERSIONING.md).
 ## Unreleased SDK (next tag v0.1.0-beta.4)
 
 - Breaking (C#): the .NET SDK is rebuilt as a draft-only, managed SDK on the
-  generated `ResponsibleAI.AgentHooks.Contracts` package; no Rust/FFI or
-  native assets remain. `HookEmitter.CreateBuilder()` binds typed per-point
-  handlers (`OnPreToolCall`, ...) or `IHookInterceptor`s with per-binding
+  generated `AgentHooks.Contracts` assembly, shipped inside the single
+  `ResponsibleAI.AgentHooks` package; no Rust/FFI or native assets remain.
+  `HookEmitter.CreateBuilder()` binds typed per-point handlers
+  (`OnPreToolCall`, ...) or `IHookInterceptor`s with per-binding
   `BindingOptions` (name, `on_error`, timeout); `HookEmitter.FromDeclaration`
   loads draft host declarations against a `HostRegistry`. `EmitAsync<TRequest>`
   returns the effective typed request, wire verdict and generated

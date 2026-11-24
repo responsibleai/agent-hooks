@@ -470,19 +470,19 @@ jobs:
         with: { dotnet-version: "8.0.x" }
       - run: |
           dotnet restore --locked-mode
-          dotnet pack src/AgentHooks.Contracts --no-restore -c Release -o dist
           dotnet pack src/AgentHooks --no-restore -c Release -o dist
         working-directory: sdk/csharp
-      - name: Assert both NuGet packages are managed-only
+      - name: Assert the single NuGet package is managed-only and bundles the contracts
         shell: bash
         run: |
-          test "$(find dist -name '*.nupkg' | wc -l)" -eq 2
-          for pkg in dist/*.nupkg; do
-            if unzip -Z1 "$pkg" | grep -q '^runtimes/'; then
-              echo "::error::unexpected native runtime in $pkg"
-              exit 1
-            fi
-          done
+          test "$(find dist -name '*.nupkg' | wc -l)" -eq 1
+          pkg=$(find dist -name '*.nupkg')
+          if unzip -Z1 "$pkg" | grep -q '^runtimes/'; then
+            echo "::error::unexpected native runtime in $pkg"
+            exit 1
+          fi
+          unzip -Z1 "$pkg" | grep -qx 'lib/net8.0/AgentHooks.Contracts.dll' ||
+            { echo "::error::$pkg does not bundle AgentHooks.Contracts.dll"; exit 1; }
         working-directory: sdk/csharp
       - name: SBOM
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
@@ -503,7 +503,6 @@ jobs:
       - name: Publish to NuGet
         if: env.DRY_RUN != 'true' && github.ref_type == 'tag'
         run: |
-          dotnet nuget push dist/ResponsibleAI.AgentHooks.Contracts.*.nupkg --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
           dotnet nuget push dist/ResponsibleAI.AgentHooks.[0-9]*.nupkg --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
         working-directory: sdk/csharp
 

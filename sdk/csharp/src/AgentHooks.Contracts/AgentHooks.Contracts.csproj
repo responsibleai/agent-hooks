@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <PackageId>ResponsibleAI.AgentHooks.Contracts</PackageId>
+    <IsPackable>false</IsPackable>
     <Description>Generated, Rust-independent C# contracts for the Agent Hooks draft specification.</Description>
     <RootNamespace>AgentHooks.Contracts</RootNamespace>
   </PropertyGroup>

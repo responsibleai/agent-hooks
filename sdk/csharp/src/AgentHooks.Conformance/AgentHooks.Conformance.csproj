@@ -1,10 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <PackageId>ResponsibleAI.AgentHooks.Conformance</PackageId>
+    <IsPackable>false</IsPackable>
     <Description>Conformance Test Kit runner and reference harness for the Agent Hooks draft specification.</Description>
     <RootNamespace>AgentHooks.Conformance</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../AgentHooks/AgentHooks.csproj" />
+    <ProjectReference Include="../AgentHooks.Contracts/AgentHooks.Contracts.csproj" />
   </ItemGroup>
 </Project>

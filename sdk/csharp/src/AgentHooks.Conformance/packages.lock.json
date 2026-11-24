@@ -29,15 +29,14 @@
           "JsonPointer.Net": "7.1.0"
         }
       },
+      "agenthooks.contracts": {
+        "type": "Project"
+      },
       "ResponsibleAI.AgentHooks": {
         "type": "Project",
         "dependencies": {
-          "JsonSchema.Net": "[9.7.0, )",
-          "ResponsibleAI.AgentHooks.Contracts": "[0.1.0-beta.4, )"
+          "JsonSchema.Net": "[9.7.0, )"
         }
-      },
-      "ResponsibleAI.AgentHooks.Contracts": {
-        "type": "Project"
       }
     }
   }

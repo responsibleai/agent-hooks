@@ -12,11 +12,15 @@ the conformance (CTK) runner. No native libraries or platform-specific assets.
 > [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
 > before relying on it.
 
-| Package | Contents |
+The SDK ships as one NuGet package, `ResponsibleAI.AgentHooks`, which carries
+two assemblies:
+
+| Assembly | Contents |
 | --- | --- |
-| `ResponsibleAI.AgentHooks.Contracts` | Types generated from `spec/draft` TypeSpec: per-point requests, responses and transforms, verdicts, approval requests/resolutions, `InterceptionRecord`, `HostDeclaration`, and the `IInterceptor`/`IApprovalResolver` hook interfaces. Usable on its own. |
-| `ResponsibleAI.AgentHooks` | The runtime: `HookEmitter`, its builder, declarations, and RFC 8785 identity (`Jcs`). |
-| `AgentHooks.Conformance` | The draft CTK runner and reference harness (not packaged). |
+| `AgentHooks.Contracts` | Types generated from `spec/draft` TypeSpec: per-point requests, responses and transforms, verdicts, approval requests/resolutions, `InterceptionRecord`, `HostDeclaration`, and the `IInterceptor`/`IApprovalResolver` hook interfaces. |
+| `AgentHooks` | The runtime: `HookEmitter`, its builder, declarations, and RFC 8785 identity (`Jcs`). |
+
+`AgentHooks.Conformance`, the draft CTK runner and reference harness, is not packaged.
 
 ## Emitting
 

@@ -114,21 +114,21 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "ResponsibleAI.AgentHooks": {
+      "agenthooks.conformance": {
         "type": "Project",
         "dependencies": {
-          "JsonSchema.Net": "[9.7.0, )",
-          "ResponsibleAI.AgentHooks.Contracts": "[0.1.0-beta.4, )"
-        }
-      },
-      "ResponsibleAI.AgentHooks.Conformance": {
-        "type": "Project",
-        "dependencies": {
+          "AgentHooks.Contracts": "[0.1.0-beta.4, )",
           "ResponsibleAI.AgentHooks": "[0.1.0-beta.4, )"
         }
       },
-      "ResponsibleAI.AgentHooks.Contracts": {
+      "agenthooks.contracts": {
         "type": "Project"
+      },
+      "ResponsibleAI.AgentHooks": {
+        "type": "Project",
+        "dependencies": {
+          "JsonSchema.Net": "[9.7.0, )"
+        }
       }
     }
   }

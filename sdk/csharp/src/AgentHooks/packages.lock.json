@@ -30,7 +30,7 @@
           "Json.More.Net": "3.1.0"
         }
       },
-      "ResponsibleAI.AgentHooks.Contracts": {
+      "agenthooks.contracts": {
         "type": "Project"
       }
     }
