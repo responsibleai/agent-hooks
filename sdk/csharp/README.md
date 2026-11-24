@@ -14,7 +14,7 @@ the conformance (CTK) runner. No native libraries or platform-specific assets.
 
 | Package | Contents |
 | --- | --- |
-| `ResponsibleAI.AgentHooks.Contracts` | Types generated from `spec/draft` TypeSpec: per-point requests, responses and transforms, verdicts, approval requests/resolutions, `InterceptionRecord`, `HostDeclaration`, and the hook/approval delegates. Usable on its own. |
+| `ResponsibleAI.AgentHooks.Contracts` | Types generated from `spec/draft` TypeSpec: per-point requests, responses and transforms, verdicts, approval requests/resolutions, `InterceptionRecord`, `HostDeclaration`, and the `IInterceptor`/`IApprovalResolver` hook interfaces. Usable on its own. |
 | `ResponsibleAI.AgentHooks` | The runtime: `HookEmitter`, its builder, declarations, and RFC 8785 identity (`Jcs`). |
 | `AgentHooks.Conformance` | The draft CTK runner and reference harness (not packaged). |
 
@@ -50,8 +50,9 @@ if (!result.Proceeds) Console.WriteLine($"denied: {result.Verdict["reason"]}");
   enforced transform applied — act on this, not the original), the wire
   `Verdict`, and the generated `InterceptionRecord`. `EmitAsync(JsonObject)`
   is the same at the wire level.
-- Typed handlers (`OnAgentStartup` … `OnAgentShutdown`) take the generated
-  delegates. For untyped or multi-point interceptors implement
+- Typed handlers (`OnAgentStartup` … `OnAgentShutdown`) take a
+  `(request, cancellationToken) => Task<response>` lambda over the generated
+  request and response types. For untyped or multi-point interceptors implement
   `IHookInterceptor` (or pass a delegate to `Use`): it receives a `HookCall`
   (point, isolated request copy, effective timeout) and returns a
   `HookOutcome` — a response body, `TimedOut`, `Cancelled` or `Failed`.

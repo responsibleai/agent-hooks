@@ -49,29 +49,29 @@ public sealed partial class HookEmitterBuilder
         return Use(new DelegateInterceptor(interceptor), options, points);
     }
 
-    public HookEmitterBuilder OnAgentStartup(Draft.AgentStartupHookHandler handler, BindingOptions? options = null) =>
-        Typed<Draft.AgentStartupRequest, Draft.AgentStartupHookResponse>(Draft.InterceptionPoint.AgentStartup, handler.Invoke, options);
+    public HookEmitterBuilder OnAgentStartup(Func<Draft.AgentStartupRequest, CancellationToken, Task<Draft.AgentStartupHookResponse>> handler, BindingOptions? options = null) =>
+        Typed(Draft.InterceptionPoint.AgentStartup, handler, options);
 
-    public HookEmitterBuilder OnInput(Draft.InputHookHandler handler, BindingOptions? options = null) =>
-        Typed<Draft.InputRequest, Draft.InputHookResponse>(Draft.InterceptionPoint.Input, handler.Invoke, options);
+    public HookEmitterBuilder OnInput(Func<Draft.InputRequest, CancellationToken, Task<Draft.InputHookResponse>> handler, BindingOptions? options = null) =>
+        Typed(Draft.InterceptionPoint.Input, handler, options);
 
-    public HookEmitterBuilder OnPreModelCall(Draft.PreModelHookHandler handler, BindingOptions? options = null) =>
-        Typed<Draft.PreModelCallRequest, Draft.PreModelHookResponse>(Draft.InterceptionPoint.PreModelCall, handler.Invoke, options);
+    public HookEmitterBuilder OnPreModelCall(Func<Draft.PreModelCallRequest, CancellationToken, Task<Draft.PreModelHookResponse>> handler, BindingOptions? options = null) =>
+        Typed(Draft.InterceptionPoint.PreModelCall, handler, options);
 
-    public HookEmitterBuilder OnPostModelCall(Draft.PostModelHookHandler handler, BindingOptions? options = null) =>
-        Typed<Draft.PostModelCallRequest, Draft.PostModelHookResponse>(Draft.InterceptionPoint.PostModelCall, handler.Invoke, options);
+    public HookEmitterBuilder OnPostModelCall(Func<Draft.PostModelCallRequest, CancellationToken, Task<Draft.PostModelHookResponse>> handler, BindingOptions? options = null) =>
+        Typed(Draft.InterceptionPoint.PostModelCall, handler, options);
 
-    public HookEmitterBuilder OnPreToolCall(Draft.PreToolHookHandler handler, BindingOptions? options = null) =>
-        Typed<Draft.PreToolCallRequest, Draft.PreToolHookResponse>(Draft.InterceptionPoint.PreToolCall, handler.Invoke, options);
+    public HookEmitterBuilder OnPreToolCall(Func<Draft.PreToolCallRequest, CancellationToken, Task<Draft.PreToolHookResponse>> handler, BindingOptions? options = null) =>
+        Typed(Draft.InterceptionPoint.PreToolCall, handler, options);
 
-    public HookEmitterBuilder OnPostToolCall(Draft.PostToolHookHandler handler, BindingOptions? options = null) =>
-        Typed<Draft.PostToolCallRequest, Draft.PostToolHookResponse>(Draft.InterceptionPoint.PostToolCall, handler.Invoke, options);
+    public HookEmitterBuilder OnPostToolCall(Func<Draft.PostToolCallRequest, CancellationToken, Task<Draft.PostToolHookResponse>> handler, BindingOptions? options = null) =>
+        Typed(Draft.InterceptionPoint.PostToolCall, handler, options);
 
-    public HookEmitterBuilder OnOutput(Draft.OutputHookHandler handler, BindingOptions? options = null) =>
-        Typed<Draft.OutputRequest, Draft.OutputHookResponse>(Draft.InterceptionPoint.Output, handler.Invoke, options);
+    public HookEmitterBuilder OnOutput(Func<Draft.OutputRequest, CancellationToken, Task<Draft.OutputHookResponse>> handler, BindingOptions? options = null) =>
+        Typed(Draft.InterceptionPoint.Output, handler, options);
 
-    public HookEmitterBuilder OnAgentShutdown(Draft.AgentShutdownHookHandler handler, BindingOptions? options = null) =>
-        Typed<Draft.AgentShutdownRequest, Draft.AgentShutdownHookResponse>(Draft.InterceptionPoint.AgentShutdown, handler.Invoke, options);
+    public HookEmitterBuilder OnAgentShutdown(Func<Draft.AgentShutdownRequest, CancellationToken, Task<Draft.AgentShutdownHookResponse>> handler, BindingOptions? options = null) =>
+        Typed(Draft.InterceptionPoint.AgentShutdown, handler, options);
 
     /// <summary>Enforce verdicts, or record them only (§8).</summary>
     public HookEmitterBuilder WithMode(Draft.Mode mode)
@@ -107,7 +107,7 @@ public sealed partial class HookEmitterBuilder
         return this;
     }
 
-    public HookEmitterBuilder WithApprovalResolver(Draft.ApprovalResolverHandler resolver)
+    public HookEmitterBuilder WithApprovalResolver(Func<Draft.ApprovalRequest, CancellationToken, Task<Draft.ApprovalResolution>> resolver)
     {
         ArgumentNullException.ThrowIfNull(resolver);
         return WithApprovalResolver(new TypedResolver(resolver));
@@ -178,7 +178,7 @@ public sealed partial class HookEmitterBuilder
         public Task<HookOutcome> InterceptAsync(HookCall call, CancellationToken cancellationToken) => fn(call, cancellationToken);
     }
 
-    private sealed class TypedResolver(Draft.ApprovalResolverHandler handler) : IApprovalResolver
+    private sealed class TypedResolver(Func<Draft.ApprovalRequest, CancellationToken, Task<Draft.ApprovalResolution>> handler) : IApprovalResolver
     {
         public async Task<JsonObject> ResolveAsync(JsonObject request, CancellationToken cancellationToken) =>
             ContractSerializer.Serialize(await handler(ContractSerializer.Deserialize<Draft.ApprovalRequest>(request), cancellationToken));
