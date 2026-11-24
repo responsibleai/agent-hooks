@@ -74,9 +74,9 @@ drift remains advisory. See [Contributing](../../../CONTRIBUTING.md#schema-sourc
 `spec/draft/main.tsp` imports this source and drives the experimental,
 Rust-independent `sdk/csharp/src/AgentHooks.Contracts/` assembly. From the repository root, run
 `pnpm generate` and commit the generated `Generated/Draft/Models.g.cs`, `Generated/Draft/Hooks.g.cs`,
-and `Generated/Draft/Points.g.cs` alongside source changes. CI cleans both output directories, runs
-`pnpm generate`, and requires a clean `git status --porcelain`, catching missing, stale and
-untracked generated files. Do not edit the generated C# by hand.
+and `Generated/Draft/Points.g.cs` alongside source changes. The emitter clears its output directory
+before writing, and CI runs `pnpm generate && pnpm check-for-changed-files` to catch missing, stale,
+and untracked generated files. Do not edit the generated C# by hand.
 This targets the draft only, not the frozen 0.1 bundle or the existing Rust-backed .NET SDK.
 
 `spec/draft/tspconfig.yaml` loads the `@agent-hooks/emitter-csharp` workspace
