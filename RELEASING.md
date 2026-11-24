@@ -211,7 +211,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
 
 3. Dry run: Actions, `release`, Run workflow with `dry_run: true` on
    `main`. This builds every artifact (five Python wheels and the
-   sdist, the crate package, five napi bindings, the two nupkgs, and the Go
+   sdist, the crate package, five napi bindings, the nupkg, and the Go
    build and tests). It uploads the build
    artifacts to the run, publishes nothing and attests nothing.
 
@@ -281,9 +281,8 @@ on tags, including dry runs; manual branch dry runs do not require a tag.
   channel tag from its label: `alpha` for `-alpha.N`, `beta` for
   `-beta.N`, `rc` for `-rc.N`, `next` for any other label. Stable
   versions carry only `latest`.
-- NuGet `ResponsibleAI.AgentHooks.Contracts` and `ResponsibleAI.AgentHooks`,
-  both managed-only. Configure trusted publishing for both package IDs before
-  the first release; the runtime depends on the matching contracts package.
+- NuGet `ResponsibleAI.AgentHooks`, managed-only. It bundles the generated
+  `AgentHooks.Contracts` assembly, so there is no separate contracts package.
 - Go: nothing. The `go` job builds and tests `sdk/go` as a consumer
   would see it. See the next section.
 

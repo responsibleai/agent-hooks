@@ -24,9 +24,10 @@ Rust-native hosts these live in the core crate itself
 behind the `ctk` feature); the other languages implement them over the
 FFI, except C#, whose callbacks and primitives are all managed.
 
-The C# SDK is draft-only and built on `AgentHooks.Contracts`, generated from
+The C# SDK is draft-only and built on `AgentHooks.Contracts` (bundled in the
+single `ResponsibleAI.AgentHooks` package), generated from
 TypeSpec using emitter-framework and Alloy. Requests and verdicts flow through
-the engine as wire JSON (`JsonObject`); the generated records, delegates and
+the engine as wire JSON (`JsonObject`); the generated records, interfaces and
 request types are the typed edge (`HookEmitterBuilder.OnPreToolCall(...)`,
 `HookEmitter.EmitAsync<TRequest>`). Request, response, approval and declaration
 validation use the embedded generated JSON Schemas with JsonSchema.Net;

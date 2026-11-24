@@ -3,11 +3,18 @@
     <PackageId>ResponsibleAI.AgentHooks</PackageId>
     <Description>Native C# Agent Hooks SDK (draft spec): typed hooks over the generated contracts, composition, approval, declarations and interception records. Cooperative contract, not a security boundary: the host is fully trusted (see SECURITY.md).</Description>
     <RootNamespace>AgentHooks</RootNamespace>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);PackContracts</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../AgentHooks.Contracts/AgentHooks.Contracts.csproj" />
+    <!-- Ship the generated contracts inside this package: it is the SDK's only nupkg. -->
+    <ProjectReference Include="../AgentHooks.Contracts/AgentHooks.Contracts.csproj" PrivateAssets="all" />
     <PackageReference Include="JsonSchema.Net" />
     <EmbeddedResource Include="../../../../spec/draft/schema/generated/*.json"
                       LogicalName="AgentHooks.Schemas.%(Filename)%(Extension)" />
   </ItemGroup>
+  <Target Name="PackContracts">
+    <ItemGroup>
+      <BuildOutputInPackage Include="$(OutDir)AgentHooks.Contracts.dll" />
+    </ItemGroup>
+  </Target>
 </Project>
