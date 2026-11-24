@@ -251,7 +251,7 @@ public sealed class GeneratedContractTests
     public void InterceptionPointsCoverAllEnumValuesAndRejectInvalidLookups()
     {
         var expected = Enum.GetValues<Draft.InterceptionPoint>();
-        Assert.Equal(expected.Length, Draft.InterceptionPoints.All.Count);
+        Assert.Equal(expected.Length, Draft.InterceptionPoints.All.Length);
         Assert.Equal(expected, Draft.InterceptionPoints.All.Select(m => m.Point));
 
         var invalid = (Draft.InterceptionPoint)99;

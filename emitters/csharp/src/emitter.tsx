@@ -336,7 +336,7 @@ function GeneratedContracts(): Children {
         </For>
       </cs.SourceFile>
       <cs.SourceFile path="Points.g.cs" header={header}
-        using={["System", "System.Collections.Generic", "System.Diagnostics.CodeAnalysis"]}>
+        using={["System", "System.Collections.Immutable", "System.Diagnostics.CodeAnalysis"]}>
         <List doubleHardline>
           <>#nullable enable</>
           <PointMetadataDeclarations info={points} />

@@ -293,7 +293,7 @@ function TransformTargetExpression(props: TransformTargetExpressionProps): Child
         {(segment) => JSON.stringify(segment)}
       </For>
     );
-    return code`new ${props.typeRef}(${JSON.stringify(props.target.member)}, Array.AsReadOnly(new[] { ${path} }))`;
+    return code`new ${props.typeRef}(${JSON.stringify(props.target.member)}, [${path}])`;
   });
 }
 
@@ -343,17 +343,14 @@ function InterceptionPointsClass(props: InterceptionPointsClassProps): Children 
           public
           static
           name="All"
-          type={code`IReadOnlyList<${metadataTypeKey(props.pointEnum)}>`}
+          type={code`ImmutableArray<${metadataTypeKey(props.pointEnum)}>`}
           get
           initializer={code`
-            Array.AsReadOnly(
-                new[]
-                {
-                    ${<For each={props.entries} comma hardline enderPunctuation>
-                      {(entry) => fieldKey(entry.member)}
-                    </For>}
-                }
-            )
+            [
+                ${<For each={props.entries} comma hardline enderPunctuation>
+                  {(entry) => fieldKey(entry.member)}
+                </For>}
+            ]
           `}
         />
         <cs.Method
@@ -441,7 +438,7 @@ export function PointMetadataDeclarations(props: PointMetadataDeclarationsProps)
         doc="The hook transform property name and the request JSON path it replaces."
         members={[
           { param: "member", prop: "Member", type: "string" },
-          { param: "path", prop: "Path", type: "IReadOnlyList<string>" },
+          { param: "path", prop: "Path", type: "ImmutableArray<string>" },
         ]}
       />
       <ImmutableModelClass

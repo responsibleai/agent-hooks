@@ -4,7 +4,7 @@
 // Generated from spec/draft/schema/src/. Do not edit by hand.
 
 using System;
-using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
 namespace AgentHooks.Contracts.Draft;
@@ -16,7 +16,7 @@ namespace AgentHooks.Contracts.Draft;
 /// </summary>
 public sealed class TransformTarget
 {
-    internal TransformTarget(string member, IReadOnlyList<string> path)
+    internal TransformTarget(string member, ImmutableArray<string> path)
     {
         Member = member;
         Path = path;
@@ -24,7 +24,7 @@ public sealed class TransformTarget
 
     public string Member { get; }
 
-    public IReadOnlyList<string> Path { get; }
+    public ImmutableArray<string> Path { get; }
 }
 
 /// <summary>
@@ -88,7 +88,7 @@ public static class InterceptionPoints
         "InputHookResponse",
         typeof(InputRequest),
         typeof(InputHookResponse),
-        new TransformTarget("input", Array.AsReadOnly(new[] { "input" }))
+        new TransformTarget("input", ["input"])
     );
 
     private static readonly InterceptionPointMetadata _preModelCall = new(
@@ -98,7 +98,7 @@ public static class InterceptionPoints
         "PreModelHookResponse",
         typeof(PreModelCallRequest),
         typeof(PreModelHookResponse),
-        new TransformTarget("messages", Array.AsReadOnly(new[] { "messages" }))
+        new TransformTarget("messages", ["messages"])
     );
 
     private static readonly InterceptionPointMetadata _postModelCall = new(
@@ -108,7 +108,7 @@ public static class InterceptionPoints
         "PostModelHookResponse",
         typeof(PostModelCallRequest),
         typeof(PostModelHookResponse),
-        new TransformTarget("response", Array.AsReadOnly(new[] { "response" }))
+        new TransformTarget("response", ["response"])
     );
 
     private static readonly InterceptionPointMetadata _preToolCall = new(
@@ -118,7 +118,7 @@ public static class InterceptionPoints
         "PreToolHookResponse",
         typeof(PreToolCallRequest),
         typeof(PreToolHookResponse),
-        new TransformTarget("args", Array.AsReadOnly(new[] { "tool_call", "args" }))
+        new TransformTarget("args", ["tool_call", "args"])
     );
 
     private static readonly InterceptionPointMetadata _postToolCall = new(
@@ -128,7 +128,7 @@ public static class InterceptionPoints
         "PostToolHookResponse",
         typeof(PostToolCallRequest),
         typeof(PostToolHookResponse),
-        new TransformTarget("value", Array.AsReadOnly(new[] { "tool_result", "value" }))
+        new TransformTarget("value", ["tool_result", "value"])
     );
 
     private static readonly InterceptionPointMetadata _output = new(
@@ -138,7 +138,7 @@ public static class InterceptionPoints
         "OutputHookResponse",
         typeof(OutputRequest),
         typeof(OutputHookResponse),
-        new TransformTarget("output", Array.AsReadOnly(new[] { "output" }))
+        new TransformTarget("output", ["output"])
     );
 
     private static readonly InterceptionPointMetadata _agentShutdown = new(
@@ -151,20 +151,17 @@ public static class InterceptionPoints
         null
     );
 
-    public static IReadOnlyList<InterceptionPointMetadata> All { get; } =
-        Array.AsReadOnly(
-            new[]
-            {
-                _agentStartup,
-                _input,
-                _preModelCall,
-                _postModelCall,
-                _preToolCall,
-                _postToolCall,
-                _output,
-                _agentShutdown,
-            }
-        );
+    public static ImmutableArray<InterceptionPointMetadata> All { get; } =
+        [
+            _agentStartup,
+            _input,
+            _preModelCall,
+            _postModelCall,
+            _preToolCall,
+            _postToolCall,
+            _output,
+            _agentShutdown,
+        ];
 
     public static InterceptionPointMetadata Get(InterceptionPoint point) =>
         TryGet(point, out var metadata) ? metadata : throw new ArgumentOutOfRangeException(nameof(point), point, null);
