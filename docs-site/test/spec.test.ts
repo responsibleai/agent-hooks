@@ -94,6 +94,13 @@ describe("specification bundles", () => {
     });
   });
 
+  it("skips the draft package's installed dependencies", () => {
+    const before = published();
+    write("spec/draft/package.json", JSON.stringify({ name: "@agent-hooks/spec-draft" }));
+    write("spec/draft/node_modules/dependency/tsconfig.json", "{ // not JSON\n}\n");
+    assert.deepEqual(published(), before);
+  });
+
   it("lets bundles share a published path only with identical bytes", () => {
     bundle("0.3", "v0.2", "0.2");
     assert.ok(schemaFiles(root).has("v0.2/verdict.schema.json"));

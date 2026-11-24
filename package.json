@@ -7,12 +7,15 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "ajv-cli": "5.0.0",
-    "ajv-formats": "3.0.1"
+    "@typespec/compiler": "catalog:",
+    "@typespec/json-schema": "catalog:",
+    "ajv-cli": "catalog:",
+    "ajv-formats": "catalog:"
   },
   "scripts": {
-    "generate:schema": "pnpm --dir spec/scripts run generate:schema",
-    "check:schema": "pnpm --dir spec/scripts run check:schema",
+    "build": "pnpm -r build",
+    "generate": "pnpm --filter \"@agent-hooks/spec-draft...\" run build",
+    "check-for-changed-files": "node scripts/check-for-changed-files.js",
     "check:schema:equivalence": "pnpm --dir spec/scripts run check:schema:equivalence"
   }
 }

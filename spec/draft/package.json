@@ -1,0 +1,16 @@
+{
+  "name": "@agent-hooks/spec-draft",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rimraf schema/generated && tsp compile ."
+  },
+  "devDependencies": {
+    "@typespec/compiler": "catalog:",
+    "@typespec/json-schema": "catalog:",
+    "rimraf": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

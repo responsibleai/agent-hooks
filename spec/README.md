@@ -49,7 +49,7 @@ check; a symbolic link under `examples/` fails.
 
 Make normative changes in `draft/`. Edit schema shapes in
 `draft/schema/src/` and regenerate `draft/schema/generated/` with
-`pnpm run generate:schema` at the repository root; the generator and its
+`pnpm generate` at the repository root; the generator and its
 drift check target `draft/` by default.
 
 Released folders are immutable records of a release. The `change-class`

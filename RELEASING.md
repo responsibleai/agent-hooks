@@ -29,14 +29,20 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
 
 2. Regenerate the copy's schemas under their own id path,
    `https://responsibleai.github.io/agent-hooks/schema/vX.Y/`. The
-   version cut sets the TypeSpec `@baseUri`; `--spec` selects the copied bundle.
+   version cut sets the TypeSpec `@baseUri`.
    A published path is
    immutable, so the staging of the site fails when two bundles bring
    different bytes to one path.
 
    ```bash
-   pnpm install && pnpm run generate:schema --spec X.Y
+   pnpm install && pnpm exec tsp compile spec/X.Y --emit @typespec/json-schema
    ```
+
+   Only the JSON Schema emitter runs for a released bundle. Whether language
+   emitters also generate contracts for released versions is still open
+   (#225); the copy's `tspconfig.yaml` is the draft's, unchanged. The cut
+   leaves out the draft's `package.json`: a released bundle is not a
+   workspace package and compiles with the repository root's TypeSpec.
 
 3. In `spec/draft/AGENT-HOOKS-DRAFT.md`, point the banner at the new
    version: `The latest released version is [X.Y](../X.Y/AGENT-HOOKS-X.Y.md).`
@@ -79,7 +85,8 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    done
    cd spec/scripts
    node check-schema-examples.mjs
-   pnpm exec tsx generate-schemas.ts --check --spec X.Y
+   cd ../..
+   git add spec/X.Y && rm -rf spec/X.Y/schema/generated && pnpm exec tsp compile spec/X.Y --emit @typespec/json-schema && git diff --exit-code spec/X.Y && test -z "$(git ls-files --others --exclude-standard spec/X.Y)"
    ```
 
    Each suite validates only against its matching schema bundle. SDK
@@ -97,7 +104,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    ```bash
    git worktree add /tmp/cut-check origin/main
    (cd /tmp/cut-check && python3 scripts/cut-spec-version.py X.Y --date YYYY-MM-DD \
-     && pnpm install && pnpm run generate:schema --spec X.Y)
+     && pnpm install && pnpm exec tsp compile spec/X.Y --emit @typespec/json-schema)
    diff -r /tmp/cut-check/spec/X.Y spec/X.Y && echo reproducible
    ```
 

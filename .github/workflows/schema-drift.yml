@@ -1,7 +1,8 @@
 name: schema-drift
 
 # Checks:
-# - spec-draft-generated-schema-check: ensure generated draft schemas match their TypeSpec source.
+# - spec-draft-generated-schema-check: regenerate every draft output (pnpm generate: the
+#   JSON Schemas and every language emitter's output), then fail on drift.
 # - python-released-schema-mirror: refresh released Python schema mirrors, then fail on drift.
 # - python-ctk-vector-mirror: refresh the Python CTK vector mirror, then fail on drift.
 # - python-draft-schema-mirror: report experimental draft mirror drift as a warning.
@@ -23,9 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
-      - name: Check generated draft schemas
-        run: pnpm run check:schema
-        working-directory: spec/scripts
+      - name: Regenerate every draft output
+        run: pnpm generate
+      - name: Check for changed files
+        run: pnpm check-for-changed-files
 
   python-released-schema-mirror:
     runs-on: ubuntu-latest
@@ -46,9 +48,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
-      - name: Regenerate draft schemas for comparison
-        run: pnpm run generate:schema
-        working-directory: spec/scripts
+      - name: Regenerate draft outputs for comparison
+        run: pnpm generate
       - name: Report experimental draft mirror drift
         run: python3 sdk/python/scripts/check-draft-schema-mirror.py
 

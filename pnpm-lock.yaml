@@ -171,6 +171,51 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@astrojs/markdown-remark':
+      specifier: 7.3.10
+      version: 7.3.10
+    '@astrojs/starlight':
+      specifier: 0.43.1
+      version: 0.43.1
+    '@typespec/compiler':
+      specifier: 1.18.0
+      version: 1.18.0
+    '@typespec/json-schema':
+      specifier: 1.18.0
+      version: 1.18.0
+    ajv:
+      specifier: 8.20.0
+      version: 8.20.0
+    ajv-cli:
+      specifier: 5.0.0
+      version: 5.0.0
+    ajv-formats:
+      specifier: 3.0.1
+      version: 3.0.1
+    astro:
+      specifier: 7.4.13
+      version: 7.4.13
+    astro-mermaid:
+      specifier: 2.2.0
+      version: 2.2.0
+    astro-rehype-relative-markdown-links:
+      specifier: 0.19.2
+      version: 0.19.2
+    mermaid:
+      specifier: 12.3.0
+      version: 12.3.0
+    rimraf:
+      specifier: 6.1.4
+      version: 6.1.4
+    tsx:
+      specifier: 4.23.15
+      version: 4.23.15
+    typescript:
+      specifier: 7.0.2
+      version: 7.0.2
+
 overrides:
   minimatch: ^11.0.9
   glob: ^14.0.6
@@ -179,33 +224,43 @@ importers:
 
   .:
     devDependencies:
+      '@typespec/compiler':
+        specifier: 'catalog:'
+        version: 1.18.0(@types/node@26.6.6)
+      '@typespec/json-schema':
+        specifier: 'catalog:'
+        version: 1.18.0(@typespec/compiler@1.18.0(@types/node@26.6.6))
       ajv-cli:
-        specifier: 5.0.0
+        specifier: 'catalog:'
         version: 5.0.0(ts-node@10.9.2(@types/node@26.6.6)(typescript@7.0.2))
       ajv-formats:
-        specifier: 3.0.1
+        specifier: 'catalog:'
         version: 3.0.1
 
   docs-site:
     dependencies:
       '@astrojs/markdown-remark':
-        specifier: 7.3.10
+        specifier: 'catalog:'
         version: 7.3.10
       '@astrojs/starlight':
-        specifier: 0.43.1
+        specifier: 'catalog:'
         version: 0.43.1(@astrojs/markdown-remark@7.3.10)(astro@7.4.13(@astrojs/markdown-remark@7.3.10)(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))(typescript@7.0.2)
       astro:
-        specifier: 7.4.13
+        specifier: 'catalog:'
         version: 7.4.13(@astrojs/markdown-remark@7.3.10)(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
       astro-mermaid:
-        specifier: 2.2.0
+        specifier: 'catalog:'
         version: 2.2.0(astro@7.4.13(@astrojs/markdown-remark@7.3.10)(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))(mermaid@12.3.0)
       astro-rehype-relative-markdown-links:
-        specifier: 0.19.2
+        specifier: 'catalog:'
         version: 0.19.2(astro@7.4.13(@astrojs/markdown-remark@7.3.10)(@types/node@26.6.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
       mermaid:
-        specifier: 12.3.0
+        specifier: 'catalog:'
         version: 12.3.0
+    devDependencies:
+      '@agent-hooks/spec-draft':
+        specifier: workspace:*
+        version: link:../spec/draft
 
   sdk/typescript:
     devDependencies:
@@ -228,25 +283,31 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
 
-  spec/scripts:
+  spec/draft:
     devDependencies:
       '@typespec/compiler':
-        specifier: 1.18.0
+        specifier: 'catalog:'
         version: 1.18.0(@types/node@26.6.6)
       '@typespec/json-schema':
-        specifier: 1.18.0
+        specifier: 'catalog:'
         version: 1.18.0(@typespec/compiler@1.18.0(@types/node@26.6.6))
+      rimraf:
+        specifier: 'catalog:'
+        version: 6.1.4
+
+  spec/scripts:
+    devDependencies:
       ajv:
-        specifier: 8.20.0
+        specifier: 'catalog:'
         version: 8.20.0
       ajv-formats:
-        specifier: 3.0.1
+        specifier: 'catalog:'
         version: 3.0.1
       tsx:
-        specifier: 4.23.15
+        specifier: 'catalog:'
         version: 4.23.15
       typescript:
-        specifier: 7.0.2
+        specifier: 'catalog:'
         version: 7.0.2
 
 packages:
@@ -3265,6 +3326,9 @@ packages:
     resolution: {integrity: sha512-P2wrCri3bhGLPo3kX7qYVXbo/5GvaVATU0DpO24CbeT53Y4z35t8JUWku04ERpXHUYB5rPMi3TkWE3fmJgx5rA==}
     engines: {node: '>=22'}
 
+  package-json-from-dist@1.0.1:
+    resolution: {integrity: sha512-UEZIS3/by4OC8vL3P2dTXRETpebLI2NiI5vIrjaD/5UtrkFX/tNbwjTSRAGC/+7CAo2pIcBaRgWmcBBHcsaCIw==}
+
   package-manager-detector@1.9.0:
     resolution: {integrity: sha512-zAMfbta9nPA8AKkA4WdmNAT8R8s6Dk0/xwPsqNnRidMFcLo1YkLuPDTgs2f64XdzS8vbLNnoJ+uUIkgbz7oRHA==}
 
@@ -3420,6 +3484,11 @@ packages:
 
   retext@9.0.0:
     resolution: {integrity: sha512-sbMDcpHCNjvlheSgMfEcVrZko3cDzdbe1x/e7G66dFp0Ff7Mldvi2uv6JkJQzdRcvLYE8CA8Oe8siQx8ZOgTcA==}
+
+  rimraf@6.1.4:
+    resolution: {integrity: sha512-Fk3reQDVPZUMbEm7Zwxz03BWQMW3V5buSk9aU8OckTrO8A1nQtbqvYsAantGNermwsIsXcuOBqcoJ3HuMELctw==}
+    engines: {node: 20 || >=22}
+    hasBin: true
 
   robust-predicates@3.0.3:
     resolution: {integrity: sha512-NS3levdsRIUOmiJ8FZWCP7LG3QpJyrs/TE0Zpf1yvZu8cAJJ6QMW92H1c7kWpdIHo8RvmLxN/o2JXTKHp74lUA==}
@@ -7081,6 +7150,8 @@ snapshots:
 
   p-queue@10.0.0: {}
 
+  package-json-from-dist@1.0.1: {}
+
   package-manager-detector@1.9.0: {}
 
   pagefind@1.6.0:
@@ -7313,6 +7384,11 @@ snapshots:
       retext-latin: 4.0.0
       retext-stringify: 4.0.0
       unified: 11.0.5
+
+  rimraf@6.1.4:
+    dependencies:
+      glob: 14.0.6
+      package-json-from-dist: 1.0.1
 
   robust-predicates@3.0.3: {}
 

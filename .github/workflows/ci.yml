@@ -476,31 +476,31 @@ jobs:
         run: python3 scripts/check-spec-versions.py
       - name: Repository script regression tests
         run: python3 -m unittest discover -s scripts -p "test_*.py" -v
-      - name: Committed JSON Schemas match their TypeSpec source
-        # Compiles spec/draft/schema/src into a temporary directory and compares
-        # with the committed files (spec/scripts/generate-schemas.ts).
-        run: pnpm run check:schema
-        working-directory: spec/scripts
       - name: Released TypeSpec schema bundles match their source
+        # The draft's outputs are checked by schema-drift.yml.
         # Legacy 0.1 schemas stay committed and are never regenerated.
-        # Future TypeSpec releases must reproduce their frozen output.
+        # Future TypeSpec releases must reproduce their frozen schemas. Only the
+        # JSON Schema emitter runs; whether language emitters generate released
+        # versions is open (#225).
         run: |
           set -eu
           version_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
-          checked=0
-          for dir in ../*/; do
+          for dir in spec/*/; do
             version=$(basename "$dir")
             [[ $version =~ $version_pattern ]] || continue
-            if [ ! -f "${dir}schema/src/main.tsp" ]; then
+            if [ ! -f "${dir}main.tsp" ]; then
               echo "Keeping frozen spec/$version/schema artifacts; no TypeSpec source"
               continue
             fi
-            echo "Checking spec/$version/schema"
-            pnpm exec tsx generate-schemas.ts --check --spec "$version"
-            checked=$((checked + 1))
+            rm -rf "${dir}schema/generated"
+            pnpm exec tsp compile "$dir" --emit @typespec/json-schema
           done
-          echo "checked $checked released TypeSpec bundle(s)"
-        working-directory: spec/scripts
+          if [ -n "$(git status --porcelain -- spec)" ]; then
+            git status -- spec
+            git --no-pager diff -- spec
+            echo "::error::a released TypeSpec bundle no longer reproduces its committed schemas"
+            exit 1
+          fi
       - name: Source files carry the standard file header
         run: python3 scripts/check-file-headers.py
 

@@ -3,17 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate:schema": "tsx generate-schemas.ts",
-    "check:schema": "tsx generate-schemas.ts --check",
     "check:schema:equivalence": "tsx schema-equivalence.ts"
   },
   "devDependencies": {
-    "@typespec/compiler": "1.18.0",
-    "@typespec/json-schema": "1.18.0",
-    "ajv": "8.20.0",
-    "ajv-formats": "3.0.1",
-    "tsx": "4.23.15",
-    "typescript": "7.0.2"
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
   },
   "engines": {
     "node": ">=22"

@@ -1,7 +1,0 @@
-emit:
-  - "@typespec/json-schema"
-output-dir: "{project-root}/generated"
-options:
-  "@typespec/json-schema":
-    emitter-output-dir: "{output-dir}"
-    file-type: json
