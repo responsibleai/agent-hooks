@@ -13,6 +13,9 @@ import * as ef from "@typespec/emitter-framework/csharp";
 import { getJsonSchema } from "@typespec/json-schema";
 import { DictionaryInitializer, JsonConverterAttribute, JsonConverterDeclaration } from "./json-components.js";
 import { OperationHandler } from "./operation-handler.js";
+import {
+  POINT_METADATA_TYPE_NAMES, PointMetadataDeclarations, resolvePointMetadata,
+} from "./point-metadata.js";
 
 export const $lib = createTypeSpecLibrary({
   name: "@agent-hooks/emitter-csharp",
@@ -62,7 +65,7 @@ function contracts(program: Program) {
   if (!namespace) throw new Error("Missing AgentHooks namespace.");
   const names = new Map<Declaration, string>();
   const aliases = new Map<Model, Model>();
-  const usedNames = new Set<string>();
+  const usedNames = new Set<string>(POINT_METADATA_TYPE_NAMES);
   const policy = cs.createCSharpNamePolicy();
   function visit(source: Type, hint: string): void {
     const type = unwrap(source);
@@ -290,6 +293,7 @@ const header = "// Copyright (c) Microsoft. All rights reserved.\n\n// <auto-gen
 function GeneratedContracts(): Children {
   const { program } = useTsp();
   const { names, aliases, handlers } = contracts(program);
+  const points = resolvePointMetadata(program);
   const unions = [...names.keys()].filter((type): type is Union => type.kind === "Union").map(unionInfo);
   const unionByType = new Map(unions.map((info) => [info.type, info]));
   const overrides = new Experimental_ComponentOverridesConfig()
@@ -330,6 +334,11 @@ function GeneratedContracts(): Children {
             </For>
           </cs.InterfaceDeclaration>}
         </For>
+      </cs.SourceFile>
+      <cs.SourceFile path="Points.g.cs" header={header}
+        using={["System", "System.Collections.Generic", "System.Diagnostics.CodeAnalysis"]}>
+        {"#nullable enable"}<hbr /><hbr />
+        <PointMetadataDeclarations info={points} />
       </cs.SourceFile>
     </cs.Namespace>
   </Experimental_ComponentOverrides>;

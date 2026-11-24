@@ -73,9 +73,9 @@ drift remains advisory. See [Contributing](../../../CONTRIBUTING.md#schema-sourc
 
 `spec/draft/main.tsp` imports this source and drives the experimental,
 Rust-independent `sdk/csharp/src/AgentHooks.Contracts/` assembly. From the repository root, run
-`pnpm generate` and commit the generated `Generated/Draft/Models.g.cs` and `Generated/Draft/Hooks.g.cs`
-alongside source changes. CI cleans both output directories, runs `pnpm generate`,
-and requires a clean `git status --porcelain`, catching missing, stale and
+`pnpm generate` and commit the generated `Generated/Draft/Models.g.cs`, `Generated/Draft/Hooks.g.cs`,
+and `Generated/Draft/Points.g.cs` alongside source changes. CI cleans both output directories, runs
+`pnpm generate`, and requires a clean `git status --porcelain`, catching missing, stale and
 untracked generated files. Do not edit the generated C# by hand.
 This targets the draft only, not the frozen 0.1 bundle or the existing Rust-backed .NET SDK.
 
@@ -99,6 +99,12 @@ dictionary initializers between enum and union emission.
 `OnPreToolCallAsync` and `OnResolveAsync`). Each accepts its typed request and
 an optional cancellation token and returns a `Task` of the declared response.
 The pairings come from TypeSpec operations; no runtime dispatcher is generated.
+`point-metadata.tsx` derives per-point metadata (`InterceptionPoints`,
+`InterceptionPointMetadata`, and `TransformTarget` in `Points.g.cs`) from
+`InterceptionPoint`, `Interceptor`, and each hook's request and response models
+by convention—mapping each point to its wire name, request/response schemas and
+contract types, and transform target path, failing generation on missing,
+duplicate, or ambiguous mappings.
 These types preserve wire shapes; they do not replace JSON Schema validation
 of specification constraints.
 
