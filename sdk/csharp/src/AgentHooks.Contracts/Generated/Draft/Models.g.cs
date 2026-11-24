@@ -15,39 +15,6 @@ namespace AgentHooks.Contracts.Draft;
 #nullable enable
 
 /// <summary>
-/// The closed set of agent lifecycle interception points (AGENT-HOOKS-0.1 §3).
-/// </summary>
-[JsonConverter(typeof(InterceptionPointJsonConverter))]
-public enum InterceptionPoint
-{
-    AgentStartup,
-    Input,
-    PreModelCall,
-    PostModelCall,
-    PreToolCall,
-    PostToolCall,
-    Output,
-    AgentShutdown
-}
-
-internal sealed class InterceptionPointJsonConverter : StringEnumJsonConverter<InterceptionPoint>
-{
-    public InterceptionPointJsonConverter() : base(
-        new Dictionary<InterceptionPoint, string>
-        {
-            [InterceptionPoint.AgentStartup] = "agent_startup",
-            [InterceptionPoint.Input] = "input",
-            [InterceptionPoint.PreModelCall] = "pre_model_call",
-            [InterceptionPoint.PostModelCall] = "post_model_call",
-            [InterceptionPoint.PreToolCall] = "pre_tool_call",
-            [InterceptionPoint.PostToolCall] = "post_tool_call",
-            [InterceptionPoint.Output] = "output",
-            [InterceptionPoint.AgentShutdown] = "agent_shutdown",
-        }
-    ) {}
-}
-
-/// <summary>
 /// Candidate request at agent_startup, with a closed required payload.
 /// </summary>
 public sealed class AgentStartupRequest
@@ -194,29 +161,6 @@ public sealed class ContextMetadataActor
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
 
-/// <summary>
-/// Who acts (§4.5).
-/// </summary>
-[JsonConverter(typeof(ActorKindJsonConverter))]
-public enum ActorKind
-{
-    Human,
-    Service,
-    Agent
-}
-
-internal sealed class ActorKindJsonConverter : StringEnumJsonConverter<ActorKind>
-{
-    public ActorKindJsonConverter() : base(
-        new Dictionary<ActorKind, string>
-        {
-            [ActorKind.Human] = "human",
-            [ActorKind.Service] = "service",
-            [ActorKind.Agent] = "agent",
-        }
-    ) {}
-}
-
 public sealed class ContextMetadataBudgets
 {
     [JsonPropertyName("tool_call_count")]
@@ -335,29 +279,6 @@ public sealed class Input
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
-}
-
-/// <summary>
-/// Who produced an input (§4.2).
-/// </summary>
-[JsonConverter(typeof(InputRoleJsonConverter))]
-public enum InputRole
-{
-    User,
-    System,
-    External
-}
-
-internal sealed class InputRoleJsonConverter : StringEnumJsonConverter<InputRole>
-{
-    public InputRoleJsonConverter() : base(
-        new Dictionary<InputRole, string>
-        {
-            [InputRole.User] = "user",
-            [InputRole.System] = "system",
-            [InputRole.External] = "external",
-        }
-    ) {}
 }
 
 /// <summary>
@@ -981,29 +902,6 @@ public sealed class Summary
 }
 
 /// <summary>
-/// Why the agent stopped (§4.2).
-/// </summary>
-[JsonConverter(typeof(SummaryReasonJsonConverter))]
-public enum SummaryReason
-{
-    Completed,
-    Error,
-    Cancelled
-}
-
-internal sealed class SummaryReasonJsonConverter : StringEnumJsonConverter<SummaryReason>
-{
-    public SummaryReasonJsonConverter() : base(
-        new Dictionary<SummaryReason, string>
-        {
-            [SummaryReason.Completed] = "completed",
-            [SummaryReason.Error] = "error",
-            [SummaryReason.Cancelled] = "cancelled",
-        }
-    ) {}
-}
-
-/// <summary>
 /// agent_startup response: transforms are forbidden.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -1127,29 +1025,6 @@ public sealed class Evidence
 /// Named URIs an auditor MAY consult. Hosts MUST NOT dereference automatically (§14).
 /// </summary>
 public sealed class VerificationPointers : Dictionary<string, string> {}
-
-/// <summary>
-/// The three decisions (§5).
-/// </summary>
-[JsonConverter(typeof(DecisionJsonConverter))]
-public enum Decision
-{
-    Allow,
-    Deny,
-    Transform
-}
-
-internal sealed class DecisionJsonConverter : StringEnumJsonConverter<Decision>
-{
-    public DecisionJsonConverter() : base(
-        new Dictionary<Decision, string>
-        {
-            [Decision.Allow] = "allow",
-            [Decision.Deny] = "deny",
-            [Decision.Transform] = "transform",
-        }
-    ) {}
-}
 
 /// <summary>
 /// deny: stop the action. Absorbs escalate through the approval block (§5.1).
@@ -2541,27 +2416,6 @@ public sealed class InterceptionRecord
 }
 
 /// <summary>
-/// Enforcement modes (§8).
-/// </summary>
-[JsonConverter(typeof(ModeJsonConverter))]
-public enum Mode
-{
-    Enforce,
-    EvaluateOnly
-}
-
-internal sealed class ModeJsonConverter : StringEnumJsonConverter<Mode>
-{
-    public ModeJsonConverter() : base(
-        new Dictionary<Mode, string>
-        {
-            [Mode.Enforce] = "enforce",
-            [Mode.EvaluateOnly] = "evaluate_only",
-        }
-    ) {}
-}
-
-/// <summary>
 /// A payload-free projection of the combined verdict (§10.3): transform
 /// details are omitted, approval members stripped, messages truncated to
 /// 256 UTF-8 bytes.
@@ -2655,73 +2509,6 @@ public sealed class InterceptionRecordComposition
 }
 
 /// <summary>
-/// Composition profiles (§7.1), in §7.2 table order.
-/// </summary>
-[JsonConverter(typeof(CompositionProfileJsonConverter))]
-public enum CompositionProfile
-{
-    SequentialFirstDeny,
-    SequentialRunAll,
-    ParallelStrictest,
-    ParallelUnanimous
-}
-
-internal sealed class CompositionProfileJsonConverter : StringEnumJsonConverter<CompositionProfile>
-{
-    public CompositionProfileJsonConverter() : base(
-        new Dictionary<CompositionProfile, string>
-        {
-            [CompositionProfile.SequentialFirstDeny] = "sequential/first_deny",
-            [CompositionProfile.SequentialRunAll] = "sequential/run_all",
-            [CompositionProfile.ParallelStrictest] = "parallel/strictest",
-            [CompositionProfile.ParallelUnanimous] = "parallel/unanimous",
-        }
-    ) {}
-}
-
-/// <summary>
-/// Values of the on_approval knob (§7.2).
-/// </summary>
-[JsonConverter(typeof(OnApprovalJsonConverter))]
-public enum OnApproval
-{
-    Stop,
-    Resume
-}
-
-internal sealed class OnApprovalJsonConverter : StringEnumJsonConverter<OnApproval>
-{
-    public OnApprovalJsonConverter() : base(
-        new Dictionary<OnApproval, string>
-        {
-            [OnApproval.Stop] = "stop",
-            [OnApproval.Resume] = "resume",
-        }
-    ) {}
-}
-
-/// <summary>
-/// Values of the on_disagreement and on_transform_conflict knobs (§7.2).
-/// </summary>
-[JsonConverter(typeof(ConflictResolutionJsonConverter))]
-public enum ConflictResolution
-{
-    Deny,
-    Approval
-}
-
-internal sealed class ConflictResolutionJsonConverter : StringEnumJsonConverter<ConflictResolution>
-{
-    public ConflictResolutionJsonConverter() : base(
-        new Dictionary<ConflictResolution, string>
-        {
-            [ConflictResolution.Deny] = "deny",
-            [ConflictResolution.Approval] = "approval",
-        }
-    ) {}
-}
-
-/// <summary>
 /// Payload-free summary of one interceptor's verdict (§10.3).
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -2753,50 +2540,6 @@ public sealed class VerdictSlot
     [JsonPropertyName("substituted_for")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public SubstitutedFor? SubstitutedFor { get; set; }
-}
-
-/// <summary>
-/// The host_error reasons a continue posture may substitute for (§6.3.1).
-/// </summary>
-[JsonConverter(typeof(SubstitutedForJsonConverter))]
-public enum SubstitutedFor
-{
-    InterceptorFailed,
-    InterceptorTimeout,
-    VerdictInvalid
-}
-
-internal sealed class SubstitutedForJsonConverter : StringEnumJsonConverter<SubstitutedFor>
-{
-    public SubstitutedForJsonConverter() : base(
-        new Dictionary<SubstitutedFor, string>
-        {
-            [SubstitutedFor.InterceptorFailed] = "host_error:interceptor_failed",
-            [SubstitutedFor.InterceptorTimeout] = "host_error:interceptor_timeout",
-            [SubstitutedFor.VerdictInvalid] = "host_error:verdict_invalid",
-        }
-    ) {}
-}
-
-/// <summary>
-/// Consultation outcomes a record names (§7.6).
-/// </summary>
-[JsonConverter(typeof(ResolvedByJsonConverter))]
-public enum ResolvedBy
-{
-    Approval,
-    Rejection
-}
-
-internal sealed class ResolvedByJsonConverter : StringEnumJsonConverter<ResolvedBy>
-{
-    public ResolvedByJsonConverter() : base(
-        new Dictionary<ResolvedBy, string>
-        {
-            [ResolvedBy.Approval] = "approval",
-            [ResolvedBy.Rejection] = "rejection",
-        }
-    ) {}
 }
 
 /// <summary>
@@ -2985,27 +2728,6 @@ public sealed class PostureConfig
     public ToolSeamHostError? ToolSeamHostError { get; set; }
 }
 
-/// <summary>
-/// The tool-seam posture a host implements (§13.1).
-/// </summary>
-[JsonConverter(typeof(ToolSeamHostErrorJsonConverter))]
-public enum ToolSeamHostError
-{
-    Continue,
-    Terminate
-}
-
-internal sealed class ToolSeamHostErrorJsonConverter : StringEnumJsonConverter<ToolSeamHostError>
-{
-    public ToolSeamHostErrorJsonConverter() : base(
-        new Dictionary<ToolSeamHostError, string>
-        {
-            [ToolSeamHostError.Continue] = "continue",
-            [ToolSeamHostError.Terminate] = "terminate",
-        }
-    ) {}
-}
-
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class TimeoutsConfig
 {
@@ -3047,27 +2769,6 @@ public sealed class FailureConfig
     [JsonPropertyName("on_error")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public OnError? OnError { get; set; }
-}
-
-/// <summary>
-/// The failure posture (§6.3.1).
-/// </summary>
-[JsonConverter(typeof(OnErrorJsonConverter))]
-public enum OnError
-{
-    Deny,
-    Continue
-}
-
-internal sealed class OnErrorJsonConverter : StringEnumJsonConverter<OnError>
-{
-    public OnErrorJsonConverter() : base(
-        new Dictionary<OnError, string>
-        {
-            [OnError.Deny] = "deny",
-            [OnError.Continue] = "continue",
-        }
-    ) {}
 }
 
 /// <summary>
@@ -3195,43 +2896,6 @@ public sealed class BufferedSurface : Surface
             if (value is not null && value != true) throw new JsonException("Expected buffered_output = true."); _bufferedOutput = value;
         }
     }
-}
-
-/// <summary>
-/// The conformance capability vocabulary (§13.1, conformance/draft/vectors.schema.json)
-/// less buffered_output, which is the boolean surface member, plus
-/// host_declaration.
-/// </summary>
-[JsonConverter(typeof(CapabilityJsonConverter))]
-public enum Capability
-{
-    ModelCalls,
-    ToolCalls,
-    ParallelToolCalls,
-    Streaming,
-    MultiTurn,
-    Int64Json,
-    BigintJson,
-    IncrementalOutput,
-    HostDeclaration
-}
-
-internal sealed class CapabilityJsonConverter : StringEnumJsonConverter<Capability>
-{
-    public CapabilityJsonConverter() : base(
-        new Dictionary<Capability, string>
-        {
-            [Capability.ModelCalls] = "model_calls",
-            [Capability.ToolCalls] = "tool_calls",
-            [Capability.ParallelToolCalls] = "parallel_tool_calls",
-            [Capability.Streaming] = "streaming",
-            [Capability.MultiTurn] = "multi_turn",
-            [Capability.Int64Json] = "int64_json",
-            [Capability.BigintJson] = "bigint_json",
-            [Capability.IncrementalOutput] = "incremental_output",
-            [Capability.HostDeclaration] = "host_declaration",
-        }
-    ) {}
 }
 
 /// <summary>
@@ -3367,29 +3031,6 @@ public sealed class ApproveResolution : ApprovalResolution
 
     [JsonPropertyName("verdict")]
     public required AllowVerdict Verdict { get; set; }
-}
-
-/// <summary>
-/// How a consultation ended (§9).
-/// </summary>
-[JsonConverter(typeof(OutcomeJsonConverter))]
-public enum Outcome
-{
-    Approve,
-    Reject,
-    Unresolved
-}
-
-internal sealed class OutcomeJsonConverter : StringEnumJsonConverter<Outcome>
-{
-    public OutcomeJsonConverter() : base(
-        new Dictionary<Outcome, string>
-        {
-            [Outcome.Approve] = "approve",
-            [Outcome.Reject] = "reject",
-            [Outcome.Unresolved] = "unresolved",
-        }
-    ) {}
 }
 
 /// <summary>

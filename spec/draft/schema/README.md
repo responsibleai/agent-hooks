@@ -73,8 +73,8 @@ drift remains advisory. See [Contributing](../../../CONTRIBUTING.md#schema-sourc
 
 `spec/draft/main.tsp` imports this source and drives the experimental,
 Rust-independent `sdk/csharp/src/AgentHooks.Contracts/` assembly. From the repository root, run
-`pnpm generate` and commit the generated `Generated/Draft/Models.g.cs`, `Generated/Draft/Hooks.g.cs`,
-and `Generated/Draft/Points.g.cs` alongside source changes. The emitter clears its output directory
+`pnpm generate` and commit the generated `Generated/Draft/Enums.g.cs`, `Generated/Draft/Models.g.cs`,
+`Generated/Draft/Hooks.g.cs`, and `Generated/Draft/Points.g.cs` alongside source changes. The emitter clears its output directory
 before writing, and CI runs `pnpm generate && pnpm check-for-changed-files` to catch missing, stale,
 and untracked generated files. Do not edit the generated C# by hand.
 This targets the draft only, not the frozen 0.1 bundle or the existing Rust-backed .NET SDK.
@@ -92,6 +92,9 @@ their value when present while remaining omittable. Component overrides also
 preserve literal wire values, arbitrary JSON, and unbounded integers. Raw
 `@alloy-js/csharp` components supply discriminated-union interfaces/converters,
 dictionary models and extension-data members not covered by the framework.
+`enum-contract.tsx` emits all contract enums, their `{Enum}Extensions` wire helpers
+(`ToWire` / `TryParseWire`), and their `{Enum}JsonConverter` types into `Enums.g.cs`,
+keeping `Models.g.cs` focused on models and discriminated unions.
 `json-components.tsx` shares converter declarations, converter attributes and
 dictionary initializers between enum and union emission.
 `operation-handler.tsx` maps the logical operations below to methods on

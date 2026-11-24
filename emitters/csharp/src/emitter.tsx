@@ -11,6 +11,7 @@ import {
 } from "@typespec/emitter-framework";
 import * as ef from "@typespec/emitter-framework/csharp";
 import { getJsonSchema } from "@typespec/json-schema";
+import { EnumContract, enumExtensionsName } from "./enum-contract.js";
 import { DictionaryInitializer, JsonConverterAttribute, JsonConverterDeclaration } from "./json-components.js";
 import { OperationHandler } from "./operation-handler.js";
 import {
@@ -95,6 +96,11 @@ function contracts(program: Program) {
     );
     if (usedNames.has(name)) throw new Error(`Duplicate C# contract name: ${name}`);
     usedNames.add(name);
+    if (type.kind === "Enum") {
+      const extensionsName = enumExtensionsName(name);
+      if (usedNames.has(extensionsName)) throw new Error(`Duplicate C# contract name: ${extensionsName}`);
+      usedNames.add(extensionsName);
+    }
     names.set(type, name);
     if (type.kind === "Model") {
       for (const property of type.properties.values()) {
@@ -214,24 +220,6 @@ function ContractProperty(props: { type: ModelProperty }): Children {
   </>;
 }
 
-function EnumContract(props: { type: Enum; name: string }): Children {
-  const reference = <ef.TypeExpression type={props.type} />;
-  const name = `${props.name}JsonConverter`;
-  const policy = cs.useCSharpNamePolicy();
-  return <>
-    <ef.EnumDeclaration public type={props.type}
-      attributes={[<JsonConverterAttribute name={name} />]} />
-    <hbr /><hbr />
-    <JsonConverterDeclaration name={name}
-      baseType={code`StringEnumJsonConverter<${reference}>`}
-      baseArguments={[<DictionaryInitializer keyType={reference} valueType="string"
-        entries={[...props.type.members.values()].map((member) => ({
-          key: code`${reference}.${policy.getName(member.name, "enum-member")}`,
-          value: JSON.stringify(member.value ?? member.name),
-        }))} />]} />
-  </>;
-}
-
 function UnionContract(props: { type: Union; name: string; info: UnionContractInfo }): Children {
   const { models, discriminator } = props.info;
   const name = `${props.name}JsonConverter`;
@@ -313,14 +301,27 @@ function GeneratedContracts(): Children {
   for (const [type, source] of aliases) {
     overrides.forType(type, { reference: () => <cs.Reference refkey={ef.efRefkey(source)} /> });
   }
+  const enumContracts = [...names.entries()].filter((entry): entry is [Enum, string] => entry[0].kind === "Enum");
+  const modelAndUnionContracts = [...names.entries()].filter(
+    (entry): entry is [Model | Union, string] => entry[0].kind !== "Enum",
+  );
   return <Experimental_ComponentOverrides overrides={overrides}>
     <cs.Namespace name="AgentHooks.Contracts.Draft">
+      <cs.SourceFile path="Enums.g.cs" header={header}
+        using={["System", "System.Text.Json.Serialization", "AgentHooks.Contracts.Serialization"]}>
+        <List doubleHardline>
+          <>#nullable enable</>
+          <For each={enumContracts} doubleHardline>
+            {([type, name]) => <EnumContract type={type} name={name} />}
+          </For>
+        </List>
+      </cs.SourceFile>
       <cs.SourceFile path="Models.g.cs" header={header}
         using={["System", "System.Collections.Generic", "System.Numerics", "System.Text.Json", "System.Text.Json.Serialization", "AgentHooks.Contracts.Serialization"]}>
         {"#nullable enable"}<hbr /><hbr />
-        <For each={[...names.entries()]} doubleHardline>
-          {([type, name]) => type.kind === "Enum" ? <EnumContract type={type} name={name} />
-            : type.kind === "Union" ? <UnionContract type={type} name={name} info={unionByType.get(type)!} />
+        <For each={modelAndUnionContracts} doubleHardline>
+          {([type, name]) => type.kind === "Union"
+            ? <UnionContract type={type} name={name} info={unionByType.get(type)!} />
             : <ModelContract type={type} name={name} unions={unions} />}
         </For>
       </cs.SourceFile>

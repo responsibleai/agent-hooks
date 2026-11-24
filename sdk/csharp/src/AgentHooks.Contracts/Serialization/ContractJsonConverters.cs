@@ -82,23 +82,28 @@ internal sealed class OptionalJsonConverterFactory : JsonConverterFactory
     }
 }
 
-internal abstract class StringEnumJsonConverter<T>(IReadOnlyDictionary<T, string> values) : JsonConverter<T>
+internal delegate bool TryParseEnumWire<T>(string? wire, out T value) where T : struct, Enum;
+
+internal abstract class StringEnumJsonConverter<T>(Func<T, string> toWire, TryParseEnumWire<T> tryParse) : JsonConverter<T>
     where T : struct, Enum
 {
-    private readonly Dictionary<string, T> _fromWire = values.ToDictionary(pair => pair.Value, pair => pair.Key);
-
     public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        if (reader.TokenType != JsonTokenType.String || !_fromWire.TryGetValue(reader.GetString()!, out var value))
+        if (reader.TokenType != JsonTokenType.String || !tryParse(reader.GetString(), out var value))
             throw new JsonException($"Unknown {typeof(T).Name} wire value.");
         return value;
     }
 
     public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
     {
-        if (!values.TryGetValue(value, out var wire))
-            throw new JsonException($"Unknown {typeof(T).Name} value.");
-        writer.WriteStringValue(wire);
+        try
+        {
+            writer.WriteStringValue(toWire(value));
+        }
+        catch (ArgumentOutOfRangeException e)
+        {
+            throw new JsonException($"Unknown {typeof(T).Name} value.", e);
+        }
     }
 }
 
