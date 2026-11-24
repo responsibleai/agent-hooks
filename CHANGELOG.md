@@ -6,16 +6,14 @@ release (one per root tag). Versioning rules: [VERSIONING.md](VERSIONING.md).
 
 ## Unreleased SDK (next tag v0.1.0-beta.4)
 
-- C#: delegate-first hook authoring at all eight points, with name-first
-  `On*` overloads and optional per-point interfaces registered by
-  `HookEmitterBuilder.AddHook`. Response factories return the generated Draft
-  types: for example,
-  `builder.OnPreToolCall("guard", (req, ct) => Task.FromResult(PreToolResponses.Deny("egress_blocked")))`.
-  `PreToolResponses.TransformArgs(args)` and
-  `PostToolResponses.TransformValue(value)` replace whole targets; the other
-  transformable points have matching typed helpers. Adapted from #202 with
-  `Task<T>` handlers and constructible generated requests, not public test
-  factories.
+- C#: hook authoring at all eight points generated from the spec. Each
+  generated response type has `Allow()`, `Deny(reason, message?)` and, where
+  the point transforms, a whole-target `Transform<Member>` factory, e.g.
+  `Draft.PreToolHookResponse.TransformArgs(args)`. `Draft.IInterceptor` now
+  composes generated per-point interfaces (`Draft.IPreToolCallHook`, …), and
+  `HookEmitterBuilder.AddHook(hook, options)` binds each one a class
+  implements. Adapted from #202 with `Task<T>` handlers and constructible
+  generated requests instead of public test factories.
 
 - Breaking (C#): the .NET SDK is rebuilt as a draft-only, managed SDK on the
   generated `AgentHooks.Contracts` assembly, shipped inside the single

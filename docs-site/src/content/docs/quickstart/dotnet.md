@@ -15,10 +15,11 @@ using AgentHooks;
 using Draft = AgentHooks.Contracts.Draft;
 
 var emitter = HookEmitter.CreateBuilder()
-    .OnPreToolCall("egress-guard", (call, _) => Task.FromResult(
+    .OnPreToolCall((call, _) => Task.FromResult(
         call.ToolCall.Name == "send_email"
-            ? PreToolResponses.Deny("egress_blocked")
-            : PreToolResponses.Allow()))
+            ? Draft.PreToolHookResponse.Deny("egress_blocked")
+            : Draft.PreToolHookResponse.Allow()),
+        new BindingOptions { Name = "egress-guard" })
     .WithRecordSink(record => Console.WriteLine($"{record.InterceptionPoint}: {record.Verdict.Decision}"))
     .Build();
 
@@ -51,18 +52,18 @@ Things to notice:
 
 ## Returning a transform
 
-Response factories are available at all eight points. Transformable points
+Every generated response type has `Allow()` and `Deny(reason)` factories. Transformable points
 also expose whole-target helpers, for example:
 
 ```csharp
 var emitter = HookEmitter.CreateBuilder()
-    .OnPreToolCall("redact-query", (request, ct) => Task.FromResult(
-        PreToolResponses.TransformArgs(new Draft.JsonObject
+    .OnPreToolCall((request, ct) => Task.FromResult(
+        Draft.PreToolHookResponse.TransformArgs(new Draft.JsonObject
         {
             ["query"] = JsonSerializer.SerializeToElement("redacted"),
         })))
-    .OnPostToolCall("redact-result", (request, ct) => Task.FromResult(
-        PostToolResponses.TransformValue(JsonSerializer.SerializeToElement("redacted"))))
+    .OnPostToolCall((request, ct) => Task.FromResult(
+        Draft.PostToolHookResponse.TransformValue(JsonSerializer.SerializeToElement("redacted"))))
     .Build();
 ```
 
@@ -70,9 +71,9 @@ var emitter = HookEmitter.CreateBuilder()
 replaces the entire result, including JSON null. Always consume the effective
 `result.Request` after checking `Proceeds`.
 
-Reusable policies can implement any of `IAgentStartupHook`, `IInputHook`,
-`IPreModelCallHook`, `IPostModelCallHook`, `IPreToolCallHook`, `IPostToolCallHook`,
-`IOutputHook`, and `IAgentShutdownHook`. Register an instance with
+Reusable policies can implement any of the generated per-point interfaces,
+`Draft.IAgentStartupHook` through `Draft.IAgentShutdownHook` (for example
+`Draft.IPreToolCallHook`). Register an instance with
 `builder.AddHook(hook, new BindingOptions { Name = "policy" })`; each implemented
 point is bound automatically. These optional interfaces use `Task<TResponse>`
 and the same constructible generated requests as delegates, so policies can

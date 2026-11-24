@@ -13,6 +13,7 @@ import * as ef from "@typespec/emitter-framework/csharp";
 import { getJsonSchema } from "@typespec/json-schema";
 import { EnumContract, enumExtensionsName } from "./enum-contract.js";
 import { DictionaryInitializer, JsonConverterAttribute, JsonConverterDeclaration } from "./json-components.js";
+import { hookInterfaceName, PointHookInterfaces, ResponseFactories } from "./hook-authoring.js";
 import { OperationHandler } from "./operation-handler.js";
 import {
   POINT_METADATA_TYPE_NAMES, PointMetadataDeclarations, resolvePointMetadata,
@@ -133,6 +134,11 @@ function contracts(program: Program) {
     const methodNames = new Set<string>();
     for (const operation of iface.operations.values()) {
       if (isTemplateDeclaration(operation)) continue;
+      if (iface.name === "Interceptor") {
+        const hookName = hookInterfaceName(operation);
+        if (usedNames.has(hookName)) throw new Error(`Duplicate C# contract name: ${hookName}`);
+        usedNames.add(hookName);
+      }
       const name = `On${policy.getName(operation.name, "class")}Async`;
       if (methodNames.has(name)) throw new Error(`Duplicate C# hook method: ${interfaceName}.${name}`);
       methodNames.add(name);
@@ -249,14 +255,14 @@ function UnionContract(props: { type: Union; name: string; info: UnionContractIn
   </>;
 }
 
-function ModelContract(props: { type: Model; name: string; unions: UnionContractInfo[] }): Children {
+function ModelContract(props: { type: Model; name: string; unions: UnionContractInfo[]; partial?: boolean }): Children {
   const { $ } = useTsp();
   const interfaces = props.unions.filter((union) => union.models.includes(props.type))
     .map((union) => <cs.Reference refkey={ef.efRefkey(union.type)} />);
   // The framework owns ordinary model declarations. Alloy supplies dictionaries
   // and extension-data members, which the C# framework does not yet expose.
   if (closed(props.type)) {
-    return <ef.ClassDeclaration public sealed type={props.type} name={props.name}
+    return <ef.ClassDeclaration public sealed partial={props.partial} type={props.type} name={props.name}
       jsonAttributes interfaceTypes={interfaces}
       attributes={[<cs.Attribute name="JsonUnmappedMemberHandling" args={["JsonUnmappedMemberHandling.Disallow"]} />]} />;
   }
@@ -284,6 +290,7 @@ function GeneratedContracts(): Children {
   const points = resolvePointMetadata(program);
   const unions = [...names.keys()].filter((type): type is Union => type.kind === "Union").map(unionInfo);
   const unionByType = new Map(unions.map((info) => [info.type, info]));
+  const responses = new Set<Type>(points.entries.map((entry) => entry.responseModel));
   const overrides = new Experimental_ComponentOverridesConfig()
     .forTypeKind("ModelProperty", { declaration: ({ type }) => <ContractProperty type={type} /> })
     .forTypeKind("Intrinsic", {
@@ -322,19 +329,24 @@ function GeneratedContracts(): Children {
         <For each={modelAndUnionContracts} doubleHardline>
           {([type, name]) => type.kind === "Union"
             ? <UnionContract type={type} name={name} info={unionByType.get(type)!} />
-            : <ModelContract type={type} name={name} unions={unions} />}
+            : <ModelContract type={type} name={name} unions={unions} partial={responses.has(type)} />}
         </For>
       </cs.SourceFile>
       <cs.SourceFile path="Hooks.g.cs" header={header}
         using={["System.Threading", "System.Threading.Tasks"]}>
         {"#nullable enable"}<hbr /><hbr />
         <For each={[...handlers.entries()]} doubleHardline>
-          {([name, operations]) => <cs.InterfaceDeclaration public name={name}>
+          {([name, operations]) => name === "IInterceptor" ? <PointHookInterfaces name={name} operations={operations} />
+            : <cs.InterfaceDeclaration public name={name}>
             <For each={operations} doubleHardline>
               {([type, methodName]) => <OperationHandler type={type} name={methodName} />}
             </For>
           </cs.InterfaceDeclaration>}
         </For>
+      </cs.SourceFile>
+      <cs.SourceFile path="Responses.g.cs" header={header} using={["System", "System.Text.Json"]}>
+        {"#nullable enable"}<hbr /><hbr />
+        <ResponseFactories entries={points.entries} />
       </cs.SourceFile>
       <cs.SourceFile path="Points.g.cs" header={header}
         using={["System", "System.Collections.Immutable", "System.Diagnostics.CodeAnalysis"]}>
