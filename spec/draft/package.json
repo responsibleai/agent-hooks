@@ -6,6 +6,7 @@
     "build": "rimraf schema/generated && tsp compile ."
   },
   "devDependencies": {
+    "@agent-hooks/emitter-csharp": "workspace:*",
     "@typespec/compiler": "catalog:",
     "@typespec/json-schema": "catalog:",
     "rimraf": "catalog:"

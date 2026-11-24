@@ -4,7 +4,10 @@
 # Each emitter-output-dir holds only that emitter's generated files.
 emit:
   - "@typespec/json-schema"
+  - "@agent-hooks/emitter-csharp"
 options:
   "@typespec/json-schema":
     emitter-output-dir: "{project-root}/schema/generated"
     file-type: json
+  "@agent-hooks/emitter-csharp":
+    emitter-output-dir: "{project-root}/../../sdk/csharp/src/AgentHooks.Contracts/Generated/Draft"
