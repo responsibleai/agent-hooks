@@ -160,8 +160,7 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    - `sdk/typescript/Cargo.toml`, `sdk/typescript/Cargo.lock`,
      `sdk/typescript/package.json`,
      `sdk/typescript/npm/*/package.json`
-   - `sdk/csharp/Directory.Build.props` and
-     `sdk/csharp/test/AgentHooks.Tests/packages.lock.json`
+   - `sdk/csharp/Directory.Build.props`
    - install pins in `README.md` and the per-SDK READMEs
 
    Run `pnpm install` from the repository root to refresh `pnpm-lock.yaml`
