@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-import { code, For, type Children } from "@alloy-js/core";
+import { code, For, List, type Children } from "@alloy-js/core";
 import * as cs from "@alloy-js/csharp";
 import {
   type EmitContext, type Enum, type Model, type ModelProperty, type Operation, type Program, type Type,
@@ -337,8 +337,10 @@ function GeneratedContracts(): Children {
       </cs.SourceFile>
       <cs.SourceFile path="Points.g.cs" header={header}
         using={["System", "System.Collections.Generic", "System.Diagnostics.CodeAnalysis"]}>
-        {"#nullable enable"}<hbr /><hbr />
-        <PointMetadataDeclarations info={points} />
+        <List doubleHardline>
+          <>#nullable enable</>
+          <PointMetadataDeclarations info={points} />
+        </List>
       </cs.SourceFile>
     </cs.Namespace>
   </Experimental_ComponentOverrides>;

@@ -1,10 +1,13 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-import { code, For, type Children } from "@alloy-js/core";
+import {
+  code, Declaration, For, List, memo, Name, refkey,
+  type Children, type Refkey,
+} from "@alloy-js/core";
 import * as cs from "@alloy-js/csharp";
 import {
   type Enum, type EnumMember, type Model, type Operation, type Program, type Type,
-  isTemplateDeclaration,
+  isArrayModelType, isTemplateDeclaration,
 } from "@typespec/compiler";
 import * as ef from "@typespec/emitter-framework/csharp";
 import { getJsonSchema } from "@typespec/json-schema";
@@ -27,11 +30,17 @@ export interface InterceptionPointsInfo {
   readonly entries: readonly PointMetadataEntry[];
 }
 
-export const POINT_METADATA_TYPE_NAMES = [
-  "TransformTarget",
-  "InterceptionPointMetadata",
-  "InterceptionPoints",
-] as const;
+const POINT_METADATA_NAMES = {
+  transformTarget: "TransformTarget",
+  metadata: "InterceptionPointMetadata",
+  lookup: "InterceptionPoints",
+} as const;
+
+export const POINT_METADATA_TYPE_NAMES = Object.values(POINT_METADATA_NAMES);
+
+function invariant(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(message);
+}
 
 function unwrap(type: Type): Type {
   return type.kind === "ModelProperty" || type.kind === "UnionVariant" ? unwrap(type.type) : type;
@@ -45,59 +54,62 @@ function literalValue(type: Type | undefined): string | number | boolean | undef
   return undefined;
 }
 
-function resolveTransformTarget(
-  pointName: string,
-  requestModel: Model,
-  responseModel: Model,
-): PointTransformTarget | undefined {
+function requireSchemaModel(program: Program, type: Type, label: string): Model {
+  const model = unwrap(type);
+  invariant(model.kind === "Model" && model.name, `${label} must be a named model.`);
+  invariant(getJsonSchema(program, model), `${label} ${model.name} is missing @jsonSchema.`);
+  return model;
+}
+
+function findTransformModel(pointName: string, responseModel: Model): Model | undefined {
   const verdictProp = responseModel.properties.get("verdict");
-  if (!verdictProp) {
-    throw new Error(`Response model ${responseModel.name} for ${pointName} is missing a verdict property.`);
-  }
+  invariant(verdictProp, `Response model ${responseModel.name} for ${pointName} is missing a verdict property.`);
+
   const verdictType = unwrap(verdictProp.type);
-  if (verdictType.kind !== "Union") {
-    throw new Error(`Response model ${responseModel.name}.verdict for ${pointName} must be a union.`);
-  }
+  invariant(verdictType.kind === "Union", `Response model ${responseModel.name}.verdict for ${pointName} must be a union.`);
+
   const variants = [...verdictType.variants.values()].map((variant) => unwrap(variant.type));
-  if (variants.length === 0 || !variants.every((variant): variant is Model => variant.kind === "Model")) {
-    throw new Error(`Response model ${responseModel.name}.verdict for ${pointName} must be a non-empty union of models.`);
-  }
+  invariant(
+    variants.length > 0 && variants.every((variant): variant is Model => variant.kind === "Model"),
+    `Response model ${responseModel.name}.verdict for ${pointName} must be a non-empty union of models.`,
+  );
 
   const transformVariants: Model[] = [];
   for (const variant of variants) {
     const decision = literalValue(variant.properties.get("decision")?.type);
     const hasTransform = variant.properties.has("transform");
     if (decision === "transform") {
-      if (!hasTransform) {
-        throw new Error(`Transform verdict in ${responseModel.name} for ${pointName} is missing a transform property.`);
-      }
+      invariant(hasTransform, `Transform verdict in ${responseModel.name} for ${pointName} is missing a transform property.`);
       transformVariants.push(variant);
-    } else if (hasTransform) {
-      throw new Error(
+    } else {
+      invariant(
+        !hasTransform,
         `Non-transform verdict in ${responseModel.name} for ${pointName} unexpectedly declares a transform property.`,
       );
     }
   }
 
-  if (transformVariants.length === 0) {
-    return undefined;
-  }
-  if (transformVariants.length > 1) {
-    throw new Error(`Response model ${responseModel.name} for ${pointName} declares multiple transform verdict variants.`);
-  }
+  if (transformVariants.length === 0) return undefined;
+  invariant(
+    transformVariants.length === 1,
+    `Response model ${responseModel.name} for ${pointName} declares multiple transform verdict variants.`,
+  );
 
   const transformModel = unwrap(transformVariants[0].properties.get("transform")!.type);
-  if (transformModel.kind !== "Model") {
-    throw new Error(`Transform payload in ${responseModel.name} for ${pointName} must be a model.`);
-  }
-  if (transformModel.properties.size !== 1) {
-    throw new Error(
-      `Transform model ${transformModel.name || responseModel.name} for ${pointName} must declare exactly one property, found ${transformModel.properties.size}.`,
-    );
-  }
+  invariant(transformModel.kind === "Model", `Transform payload in ${responseModel.name} for ${pointName} must be a model.`);
+  invariant(
+    transformModel.properties.size === 1,
+    `Transform model ${transformModel.name || responseModel.name} for ${pointName} must declare exactly one property, found ${transformModel.properties.size}.`,
+  );
+  return transformModel;
+}
 
-  const [transformMember] = transformModel.properties.values();
-  const member = transformMember.name;
+function findUniqueRequestPath(
+  program: Program,
+  member: string,
+  requestModel: Model,
+  ownerName: string,
+): readonly string[] {
   const paths: string[][] = [];
   if (requestModel.properties.has(member)) {
     paths.push([member]);
@@ -105,19 +117,29 @@ function resolveTransformTarget(
   for (const property of requestModel.properties.values()) {
     if (property.optional) continue;
     const propertyType = unwrap(property.type);
-    if (propertyType.kind !== "Model" || propertyType.name === "Array") continue;
+    if (propertyType.kind !== "Model" || isArrayModelType(program, propertyType)) continue;
     if (propertyType.properties.has(member)) {
       paths.push([property.name, member]);
     }
   }
-  if (paths.length !== 1) {
-    const found = paths.length === 0 ? "none" : paths.map((path) => path.join(".")).join(", ");
-    throw new Error(
-      `Transform member "${member}" on ${transformModel.name || responseModel.name} must resolve to a unique path in ${requestModel.name}, found ${paths.length} (${found}).`,
-    );
-  }
+  invariant(
+    paths.length === 1,
+    `Transform member "${member}" on ${ownerName} must resolve to a unique path in ${requestModel.name}, found ${paths.length} (${paths.length === 0 ? "none" : paths.map((p) => p.join(".")).join(", ")}).`,
+  );
+  return paths[0];
+}
 
-  return { member, path: paths[0] };
+function resolveTransformTarget(
+  program: Program,
+  pointName: string,
+  requestModel: Model,
+  responseModel: Model,
+): PointTransformTarget | undefined {
+  const transformModel = findTransformModel(pointName, responseModel);
+  if (!transformModel) return undefined;
+  const [transformMember] = transformModel.properties.values();
+  const path = findUniqueRequestPath(program, transformMember.name, requestModel, transformModel.name || responseModel.name);
+  return { member: transformMember.name, path };
 }
 
 /**
@@ -126,61 +148,40 @@ function resolveTransformTarget(
  */
 export function resolvePointMetadata(program: Program): InterceptionPointsInfo {
   const namespace = program.getGlobalNamespaceType().namespaces.get("AgentHooks");
-  if (!namespace) throw new Error("Missing AgentHooks namespace.");
+  invariant(namespace, "Missing AgentHooks namespace.");
 
   const pointEnum = namespace.enums.get("InterceptionPoint");
-  if (!pointEnum || pointEnum.members.size === 0) {
-    throw new Error("Missing or empty InterceptionPoint enum in AgentHooks namespace.");
-  }
+  invariant(pointEnum && pointEnum.members.size > 0, "Missing or empty InterceptionPoint enum in AgentHooks namespace.");
 
   const interceptor = namespace.interfaces.get("Interceptor");
-  if (!interceptor) {
-    throw new Error("Missing Interceptor interface in AgentHooks namespace.");
-  }
+  invariant(interceptor, "Missing Interceptor interface in AgentHooks namespace.");
 
   const operationsByPoint = new Map<EnumMember, { operation: Operation; requestModel: Model; responseModel: Model }>();
   for (const operation of interceptor.operations.values()) {
     if (isTemplateDeclaration(operation)) continue;
     const parameters = [...operation.parameters.properties.values()];
-    if (parameters.length !== 1) {
-      throw new Error(
-        `Interceptor.${operation.name} must declare exactly one request parameter, found ${parameters.length}.`,
-      );
-    }
-    const requestModel = unwrap(parameters[0].type);
-    if (requestModel.kind !== "Model" || !requestModel.name) {
-      throw new Error(`Interceptor.${operation.name} request parameter must be a named model.`);
-    }
-    if (!getJsonSchema(program, requestModel)) {
-      throw new Error(`Interceptor.${operation.name} request model ${requestModel.name} is missing @jsonSchema.`);
-    }
+    invariant(
+      parameters.length === 1,
+      `Interceptor.${operation.name} must declare exactly one request parameter, found ${parameters.length}.`,
+    );
 
+    const requestModel = requireSchemaModel(program, parameters[0].type, `Interceptor.${operation.name} request parameter`);
     const pointProperty = requestModel.properties.get("interception_point");
-    if (!pointProperty) {
-      throw new Error(`Request model ${requestModel.name} is missing an interception_point property.`);
-    }
+    invariant(pointProperty, `Request model ${requestModel.name} is missing an interception_point property.`);
+
     const pointType = unwrap(pointProperty.type);
-    if (pointType.kind !== "EnumMember" || pointType.enum !== pointEnum) {
-      throw new Error(
-        `Request model ${requestModel.name}.interception_point must be a literal InterceptionPoint enum member.`,
-      );
-    }
+    invariant(
+      pointType.kind === "EnumMember" && pointType.enum === pointEnum,
+      `Request model ${requestModel.name}.interception_point must be a literal InterceptionPoint enum member.`,
+    );
 
     const existing = operationsByPoint.get(pointType);
-    if (existing) {
-      throw new Error(
-        `Duplicate Interceptor operation for InterceptionPoint.${pointType.name}: ${existing.operation.name} and ${operation.name}.`,
-      );
-    }
+    invariant(
+      !existing,
+      `Duplicate Interceptor operation for InterceptionPoint.${pointType.name}: ${existing?.operation.name} and ${operation.name}.`,
+    );
 
-    const responseModel = unwrap(operation.returnType);
-    if (responseModel.kind !== "Model" || !responseModel.name) {
-      throw new Error(`Interceptor.${operation.name} return type must be a named model.`);
-    }
-    if (!getJsonSchema(program, responseModel)) {
-      throw new Error(`Interceptor.${operation.name} response model ${responseModel.name} is missing @jsonSchema.`);
-    }
-
+    const responseModel = requireSchemaModel(program, operation.returnType, `Interceptor.${operation.name} return type`);
     operationsByPoint.set(pointType, { operation, requestModel, responseModel });
   }
 
@@ -188,238 +189,276 @@ export function resolvePointMetadata(program: Program): InterceptionPointsInfo {
   const entries: PointMetadataEntry[] = [];
   for (const member of pointEnum.members.values()) {
     const wireName = member.value ?? member.name;
-    if (typeof wireName !== "string" || wireName.length === 0) {
-      throw new Error(`InterceptionPoint.${member.name} must have a non-empty string wire name.`);
-    }
-    if (seenWireNames.has(wireName)) {
-      throw new Error(`Duplicate InterceptionPoint wire name: "${wireName}".`);
-    }
+    invariant(
+      typeof wireName === "string" && wireName.length > 0,
+      `InterceptionPoint.${member.name} must have a non-empty string wire name.`,
+    );
+    invariant(!seenWireNames.has(wireName), `Duplicate InterceptionPoint wire name: "${wireName}".`);
     seenWireNames.add(wireName);
 
     const paired = operationsByPoint.get(member);
-    if (!paired) {
-      throw new Error(`Missing Interceptor operation for InterceptionPoint.${member.name}.`);
-    }
+    invariant(paired, `Missing Interceptor operation for InterceptionPoint.${member.name}.`);
 
-    const transformTarget = resolveTransformTarget(member.name, paired.requestModel, paired.responseModel);
     entries.push({
       member,
       wireName,
       requestModel: paired.requestModel,
       responseModel: paired.responseModel,
-      transformTarget,
+      transformTarget: resolveTransformTarget(program, member.name, paired.requestModel, paired.responseModel),
     });
   }
 
   return { pointEnum, entries };
 }
 
-function fieldNameFor(member: EnumMember, policy: ReturnType<typeof cs.useCSharpNamePolicy>): string {
-  const pascal = policy.getName(member.name, "enum-member");
-  return `_${pascal[0].toLowerCase()}${pascal.slice(1)}`;
+const transformTargetKey = (pointEnum: Enum) => refkey(pointEnum, POINT_METADATA_NAMES.transformTarget);
+const metadataTypeKey = (pointEnum: Enum) => refkey(pointEnum, POINT_METADATA_NAMES.metadata);
+const lookupTypeKey = (pointEnum: Enum) => refkey(pointEnum, POINT_METADATA_NAMES.lookup);
+const fieldKey = (member: EnumMember) => refkey(member, "metadata-field");
+
+interface PropertySpec {
+  readonly param: string;
+  readonly prop: string;
+  readonly type: Children;
+  readonly nullable?: boolean;
 }
 
-export function PointMetadataDeclarations(props: { info: InterceptionPointsInfo }): Children {
-  const { pointEnum, entries } = props.info;
-  const policy = cs.useCSharpNamePolicy();
-  const enumReference = <ef.TypeExpression type={pointEnum} />;
+interface ImmutableModelClassProps {
+  name: string;
+  refkey: Refkey;
+  doc: string;
+  members: readonly PropertySpec[];
+}
 
-  return <>
+function ImmutableModelClass(props: ImmutableModelClassProps): Children {
+  return (
     <cs.ClassDeclaration
       public
       sealed
-      name="TransformTarget"
-      doc={<cs.DocSummary>The hook transform property name and the request JSON path it replaces.</cs.DocSummary>}
+      name={props.name}
+      refkey={props.refkey}
+      doc={<cs.DocSummary>{props.doc}</cs.DocSummary>}
     >
-      <cs.Constructor
-        internal
-        parameters={[
-          { name: "member", type: "string" },
-          { name: "path", type: "IReadOnlyList<string>" },
-        ]}
-      >
-        {"Member = member;"}<hbr />
-        {"Path = path;"}
-      </cs.Constructor>
-      <hbr /><hbr />
-      <cs.Property public name="Member" type="string" get />
-      <hbr /><hbr />
-      <cs.Property public name="Path" type="IReadOnlyList<string>" get />
+      <List doubleHardline>
+        <cs.Constructor
+          internal
+          parameters={props.members.map((m) => ({
+            name: m.param,
+            type: m.nullable ? code`${m.type}?` : m.type,
+          }))}
+        >
+          <For each={props.members} semicolon hardline enderPunctuation>
+            {(m) => code`${m.prop} = ${m.param}`}
+          </For>
+        </cs.Constructor>
+        <For each={props.members} doubleHardline>
+          {(m) => <cs.Property public name={m.prop} type={m.type} nullable={m.nullable} get />}
+        </For>
+      </List>
     </cs.ClassDeclaration>
-    <hbr /><hbr />
-    <cs.ClassDeclaration
-      public
-      sealed
-      name="InterceptionPointMetadata"
-      doc={<cs.DocSummary>Metadata describing an interception point's wire name, schemas, contract types, and transform target.</cs.DocSummary>}
-    >
-      <cs.Constructor
-        internal
-        parameters={[
-          { name: "point", type: enumReference },
-          { name: "wireName", type: "string" },
-          { name: "requestSchema", type: "string" },
-          { name: "responseSchema", type: "string" },
-          { name: "requestType", type: "Type" },
-          { name: "responseType", type: "Type" },
-          { name: "transformTarget", type: "TransformTarget?" },
-        ]}
-      >
-        {"Point = point;"}<hbr />
-        {"WireName = wireName;"}<hbr />
-        {"RequestSchema = requestSchema;"}<hbr />
-        {"ResponseSchema = responseSchema;"}<hbr />
-        {"RequestType = requestType;"}<hbr />
-        {"ResponseType = responseType;"}<hbr />
-        {"TransformTarget = transformTarget;"}
-      </cs.Constructor>
-      <hbr /><hbr />
-      <cs.Property public name="Point" type={enumReference} get />
-      <hbr /><hbr />
-      <cs.Property public name="WireName" type="string" get />
-      <hbr /><hbr />
-      <cs.Property public name="RequestSchema" type="string" get />
-      <hbr /><hbr />
-      <cs.Property public name="ResponseSchema" type="string" get />
-      <hbr /><hbr />
-      <cs.Property public name="RequestType" type="Type" get />
-      <hbr /><hbr />
-      <cs.Property public name="ResponseType" type="Type" get />
-      <hbr /><hbr />
-      <cs.Property public name="TransformTarget" type="TransformTarget?" get />
-    </cs.ClassDeclaration>
-    <hbr /><hbr />
+  );
+}
+
+interface StaticReadonlyFieldProps {
+  name: string;
+  type: Children;
+  refkey: Refkey;
+  initializer: Children;
+}
+
+function StaticReadonlyField(props: StaticReadonlyFieldProps): Children {
+  const symbol = cs.createFieldSymbol(props.name, {
+    accessibility: "private",
+    isStatic: true,
+    isReadOnly: true,
+    refkeys: props.refkey,
+  });
+  return (
+    <Declaration symbol={symbol}>
+      {code`private static readonly ${props.type} ${<Name />} = ${props.initializer};`}
+    </Declaration>
+  );
+}
+
+interface TransformTargetExpressionProps {
+  target?: PointTransformTarget;
+  typeRef: Refkey;
+}
+
+function TransformTargetExpression(props: TransformTargetExpressionProps): Children {
+  return memo(() => {
+    if (!props.target) return "null";
+    const path = (
+      <For each={props.target.path} comma space>
+        {(segment) => JSON.stringify(segment)}
+      </For>
+    );
+    return code`new ${props.typeRef}(${JSON.stringify(props.target.member)}, Array.AsReadOnly(new[] { ${path} }))`;
+  });
+}
+
+interface InterceptionPointsClassProps {
+  pointEnum: Enum;
+  entries: readonly PointMetadataEntry[];
+}
+
+function InterceptionPointsClass(props: InterceptionPointsClassProps): Children {
+  const outMetadataParam = (): cs.ParameterProps => ({
+    name: "metadata",
+    type: code`${metadataTypeKey(props.pointEnum)}?`,
+    out: true,
+    attributes: [<cs.Attribute name="NotNullWhen" args={["true"]} />],
+  });
+
+  return (
     <cs.ClassDeclaration
       public
       static
-      name="InterceptionPoints"
+      name={POINT_METADATA_NAMES.lookup}
+      refkey={lookupTypeKey(props.pointEnum)}
       doc={<cs.DocSummary>Metadata lookup for every InterceptionPoint declared in the specification.</cs.DocSummary>}
     >
-      <For each={[...entries]} doubleHardline>
-        {(entry) => {
-          const field = fieldNameFor(entry.member, policy);
-          const enumMember = code`${enumReference}.${policy.getName(entry.member.name, "enum-member")}`;
-          const target = entry.transformTarget
-            ? code`new TransformTarget(${JSON.stringify(entry.transformTarget.member)}, Array.AsReadOnly(new[] { ${entry.transformTarget.path.map((segment) => JSON.stringify(segment)).join(", ")} }))`
-            : "null";
-          return code`
-            private static readonly InterceptionPointMetadata ${field} = new(
-                ${enumMember},
-                ${JSON.stringify(entry.wireName)},
-                ${JSON.stringify(entry.requestModel.name)},
-                ${JSON.stringify(entry.responseModel.name)},
-                typeof(${<ef.TypeExpression type={entry.requestModel} />}),
-                typeof(${<ef.TypeExpression type={entry.responseModel} />}),
-                ${target}
-            );
-          `;
-        }}
-      </For>
-      <hbr /><hbr />
-      <cs.Property
-        public
-        static
-        name="All"
-        type="IReadOnlyList<InterceptionPointMetadata>"
-        get
-        initializer={code`
-          Array.AsReadOnly(
-              new[]
-              {
-                  ${<For each={[...entries]} hardline>
-                    {(entry) => code`${fieldNameFor(entry.member, policy)},`}
-                  </For>}
-              }
-          )
-        `}
-      />
-      <hbr /><hbr />
-      <cs.Method
-        public
-        static
-        name="Get"
-        returns="InterceptionPointMetadata"
-        parameters={[{ name: "point", type: enumReference }]}
-        expression
-      >
-        {"TryGet(point, out var metadata) ? metadata : throw new ArgumentOutOfRangeException(nameof(point), point, null)"}
-      </cs.Method>
-      <hbr /><hbr />
-      <cs.Method
-        public
-        static
-        name="TryGet"
-        returns="bool"
-        parameters={[
-          { name: "point", type: enumReference },
-          {
-            name: "metadata",
-            type: "InterceptionPointMetadata?",
-            out: true,
-            attributes: [<cs.Attribute name="NotNullWhen" args={["true"]} />],
-          },
-        ]}
-      >
-        {code`
-          metadata = point switch
-          {
-              ${<For each={[...entries]} hardline>
-                {(entry) => code`${enumReference}.${policy.getName(entry.member.name, "enum-member")} => ${fieldNameFor(entry.member, policy)},`}
-              </For>}
-              _ => null,
-          };
-          return metadata is not null;
-        `}
-      </cs.Method>
-      <hbr /><hbr />
-      <cs.Method
-        public
-        static
-        name="TryGetByWireName"
-        returns="bool"
-        parameters={[
-          { name: "wireName", type: "string?" },
-          {
-            name: "metadata",
-            type: "InterceptionPointMetadata?",
-            out: true,
-            attributes: [<cs.Attribute name="NotNullWhen" args={["true"]} />],
-          },
-        ]}
-      >
-        {code`
-          metadata = wireName switch
-          {
-              ${<For each={[...entries]} hardline>
-                {(entry) => code`${JSON.stringify(entry.wireName)} => ${fieldNameFor(entry.member, policy)},`}
-              </For>}
-              _ => null,
-          };
-          return metadata is not null;
-        `}
-      </cs.Method>
-      <hbr /><hbr />
-      <cs.Method
-        public
-        static
-        name="TryParse"
-        returns="bool"
-        parameters={[
-          { name: "wireName", type: "string?" },
-          { name: "point", type: enumReference, out: true },
-        ]}
-      >
-        {code`
-          if (TryGetByWireName(wireName, out var metadata))
-          {
-              point = metadata.Point;
-              return true;
-          }
+      <List doubleHardline>
+        <For each={props.entries} doubleHardline>
+          {(entry) => (
+            <StaticReadonlyField
+              name={entry.member.name}
+              type={metadataTypeKey(props.pointEnum)}
+              refkey={fieldKey(entry.member)}
+              initializer={code`
+                new(
+                    ${ef.efRefkey(entry.member)},
+                    ${JSON.stringify(entry.wireName)},
+                    ${JSON.stringify(entry.requestModel.name)},
+                    ${JSON.stringify(entry.responseModel.name)},
+                    typeof(${ef.efRefkey(entry.requestModel)}),
+                    typeof(${ef.efRefkey(entry.responseModel)}),
+                    ${<TransformTargetExpression target={entry.transformTarget} typeRef={transformTargetKey(props.pointEnum)} />}
+                )
+              `}
+            />
+          )}
+        </For>
+        <cs.Property
+          public
+          static
+          name="All"
+          type={code`IReadOnlyList<${metadataTypeKey(props.pointEnum)}>`}
+          get
+          initializer={code`
+            Array.AsReadOnly(
+                new[]
+                {
+                    ${<For each={props.entries} comma hardline enderPunctuation>
+                      {(entry) => fieldKey(entry.member)}
+                    </For>}
+                }
+            )
+          `}
+        />
+        <cs.Method
+          public
+          static
+          name="Get"
+          returns={metadataTypeKey(props.pointEnum)}
+          parameters={[{ name: "point", type: ef.efRefkey(props.pointEnum) }]}
+          expression
+        >
+          TryGet(point, out var metadata) ? metadata : throw new ArgumentOutOfRangeException(nameof(point), point, null)
+        </cs.Method>
+        <cs.Method
+          public
+          static
+          name="TryGet"
+          returns="bool"
+          parameters={[{ name: "point", type: ef.efRefkey(props.pointEnum) }, outMetadataParam()]}
+        >
+          {code`
+            metadata = point switch
+            {
+                ${<For each={props.entries} comma hardline enderPunctuation>
+                  {(entry) => code`${ef.efRefkey(entry.member)} => ${fieldKey(entry.member)}`}
+                </For>}
+                _ => null,
+            };
+            return metadata is not null;
+          `}
+        </cs.Method>
+        <cs.Method
+          public
+          static
+          name="TryGetByWireName"
+          returns="bool"
+          parameters={[{ name: "wireName", type: "string?" }, outMetadataParam()]}
+        >
+          {code`
+            metadata = wireName switch
+            {
+                ${<For each={props.entries} comma hardline enderPunctuation>
+                  {(entry) => code`${JSON.stringify(entry.wireName)} => ${fieldKey(entry.member)}`}
+                </For>}
+                _ => null,
+            };
+            return metadata is not null;
+          `}
+        </cs.Method>
+        <cs.Method
+          public
+          static
+          name="TryParse"
+          returns="bool"
+          parameters={[
+            { name: "wireName", type: "string?" },
+            { name: "point", type: ef.efRefkey(props.pointEnum), out: true },
+          ]}
+        >
+          {code`
+            if (TryGetByWireName(wireName, out var metadata))
+            {
+                point = metadata.Point;
+                return true;
+            }
 
-          point = default;
-          return false;
-        `}
-      </cs.Method>
+            point = default;
+            return false;
+          `}
+        </cs.Method>
+      </List>
     </cs.ClassDeclaration>
-  </>;
+  );
+}
+
+export interface PointMetadataDeclarationsProps {
+  info: InterceptionPointsInfo;
+}
+
+export function PointMetadataDeclarations(props: PointMetadataDeclarationsProps): Children {
+  return (
+    <List doubleHardline>
+      <ImmutableModelClass
+        name={POINT_METADATA_NAMES.transformTarget}
+        refkey={transformTargetKey(props.info.pointEnum)}
+        doc="The hook transform property name and the request JSON path it replaces."
+        members={[
+          { param: "member", prop: "Member", type: "string" },
+          { param: "path", prop: "Path", type: "IReadOnlyList<string>" },
+        ]}
+      />
+      <ImmutableModelClass
+        name={POINT_METADATA_NAMES.metadata}
+        refkey={metadataTypeKey(props.info.pointEnum)}
+        doc="Metadata describing an interception point's wire name, schemas, contract types, and transform target."
+        members={[
+          { param: "point", prop: "Point", type: ef.efRefkey(props.info.pointEnum) },
+          { param: "wireName", prop: "WireName", type: "string" },
+          { param: "requestSchema", prop: "RequestSchema", type: "string" },
+          { param: "responseSchema", prop: "ResponseSchema", type: "string" },
+          { param: "requestType", prop: "RequestType", type: "Type" },
+          { param: "responseType", prop: "ResponseType", type: "Type" },
+          { param: "transformTarget", prop: "TransformTarget", type: transformTargetKey(props.info.pointEnum), nullable: true },
+        ]}
+      />
+      <InterceptionPointsClass pointEnum={props.info.pointEnum} entries={props.info.entries} />
+    </List>
+  );
 }
