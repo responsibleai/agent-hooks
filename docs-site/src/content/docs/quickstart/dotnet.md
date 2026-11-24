@@ -3,8 +3,15 @@ title: .NET quickstart
 ---
 
 ```sh
+dotnet nuget add source \
+  https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-net/nuget/v3/index.json \
+  --name azure-sdk-for-net
 dotnet add package ResponsibleAI.AgentHooks --prerelease
 ```
+
+New releases are published to the public `azure-sdk-for-net` Azure
+Artifacts feed, not nuget.org. Restores do not require a token while
+the feed's hosting project remains public.
 
 The package bundles the native core library (`libagent_hooks_ffi`)
 for linux-x64, osx-x64, osx-arm64, and win-x64 under the standard

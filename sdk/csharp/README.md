@@ -14,8 +14,27 @@ composition profiles, the identity-provider seam, and the CTK runner.
 > and [spec §1.4](https://github.com/responsibleai/agent-hooks/blob/main/spec/0.1/AGENT-HOOKS-0.1.md#14-trust-model-and-non-goals)
 > before relying on it.
 
+## Install
+
+After the first Azure Artifacts release, install from the public
+`azure-sdk-for-net` feed, not nuget.org:
+
 ```bash
-# Or build from source on Linux/macOS (needs a Rust toolchain):
+dotnet nuget add source \
+  https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-net/nuget/v3/index.json \
+  --name azure-sdk-for-net
+dotnet add package ResponsibleAI.AgentHooks --version 0.1.0-beta.4
+```
+
+The public feed allows anonymous restores; no Azure DevOps account or
+token is needed while the hosting project remains public. Publishing
+runs separately in `azure-sdk/internal`; see
+[the one-time pipeline setup](../../RELEASING.md#net-azure-pipeline-setup).
+
+## Build from source
+
+```bash
+# Linux/macOS (needs a Rust toolchain):
 git clone https://github.com/responsibleai/agent-hooks && cd agent-hooks
 cargo build --release --manifest-path sdk/rust/Cargo.toml -p agent-hooks-ffi
 dotnet build sdk/csharp
@@ -183,8 +202,11 @@ Python, TypeScript, GNU cgo and non-Windows builds retain their existing toolcha
 The compiler rejects partial stack protection rather than allowing unprotected
 runtime dependencies. No public API or wire format changes.
 
-CI and release use the same
-[Windows FFI action](../../.github/actions/windows-ffi/action.yml), including
+GitHub CI and release use the same
+[Windows FFI action](../../.github/actions/windows-ffi/action.yml). It and
+the .NET Azure Pipeline share
+[the protected Windows build](../../scripts/build-windows-ffi.ps1) and
+[scan script](../../scripts/scan-windows-ffi.ps1), including
 a hash-pinned, signature-verified Microsoft.CodeAnalysis.BinSkim 4.4.9 package.
 They retain the DLL, matching PDB and full scan report as
 `windows-ffi-hardening` build artifacts. The gate requires a completed analysis,

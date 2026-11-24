@@ -4,10 +4,12 @@ Two trains release from this repository on their own schedules
 ([VERSIONING.md](VERSIONING.md)): the specification, as a frozen
 `spec/<MAJOR.MINOR>/` folder marked by a `spec/<MAJOR.MINOR>` tag, and
 the five SDKs together, from one root tag `vX.Y.Z[-pre.N]` that the
-release workflow (`.github/workflows/release.yml`) publishes. The
-workflow's header describes the one-time trusted-publisher setup per
-registry; all registries use OIDC, no tokens. Publish jobs run in the
-`release` environment.
+GitHub release workflow (`.github/workflows/release.yml`) and the .NET
+Azure Pipeline (`eng/pipelines/publish-dotnet.yml`) consume. The GitHub
+workflow's header describes the one-time trusted-publisher setup for
+PyPI, crates.io and npm; those publish jobs use OIDC and run in the
+`release` environment. .NET publishes to Azure Artifacts using the
+Azure Pipelines build identity, not to nuget.org.
 
 ## Release a specification version
 
@@ -214,18 +216,67 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    the nupkg, and the Go build and tests). It uploads the build
    artifacts to the run, publishes nothing and attests nothing.
 
-#### Windows FFI hardening
+### .NET Azure Pipeline setup
 
-The Windows x64 FFI leg uses
-[the shared Windows build action](.github/actions/windows-ffi/action.yml):
-pinned nightly Rust `nightly-2026-10-21`, rebuilt `std`/`panic_unwind`,
+The .NET publisher runs in the **internal** project of the **azure-sdk**
+Azure DevOps organization. Its destination is the existing
+[`public/azure-sdk-for-net` feed](https://dev.azure.com/azure-sdk/public/_artifacts/feed/azure-sdk-for-net).
+The pipeline project is private; the destination feed's visibility is
+independent. No PAT, NuGet.org key, service connection for NuGet, ESRP or
+package-signing setup is used.
+
+One-time setup:
+
+1. In `azure-sdk/internal`, create a pipeline connected to the
+   `responsibleai/agent-hooks` GitHub repository, selecting the existing
+   YAML file `eng/pipelines/publish-dotnet.yml`. Authorize the GitHub
+   connection and the hosted Linux, macOS and Windows agent pools.
+   Set the pipeline's default branch to `main` and retain the YAML tag
+   trigger (`v*`); PR and branch pushes do not trigger it.
+2. Keep job authorization scoped to the current project. In the
+   **public** project, grant `internal Build Service (azure-sdk)`
+   **View project-level information** (for example through the Readers
+   group). In the `azure-sdk-for-net` feed's permissions, grant that
+   same identity **Feed Publisher (Contributor)**. Both permissions
+   are needed because the pipeline and feed are in different projects
+   of the same organization. `NuGetAuthenticate@1` then authenticates
+   with the job's built-in identity; do not add a PAT.
+3. Restrict permission to edit and queue the publishing pipeline to
+   release maintainers, and retain the GitHub `v*` tag restrictions.
+   For a rehearsal, run it manually with `dryRun: true`. Branch runs
+   always build only, even when `dryRun` is false. To publish, run on a
+   matching `v<version>` tag with `dryRun: false` (the default for tag
+   triggers).
+
+The pipeline checks the shared SDK version and specification tags,
+builds the four native runtimes, runs the .NET tests, and checks the
+packed Windows DLL against the hardened build before publishing. The
+`nuget` and `windows-ffi-hardening` pipeline artifacts retain the package
+and native scan evidence. Duplicate versions are skipped; other push
+errors fail the pipeline. Feed versions are immutable, including after
+deletion.
+
+GitHub Actions still builds and checks the .NET package, retaining it
+as `dotnet-package`, but no longer publishes to nuget.org. Its
+`NUGET_USER` secret and nuget.org trusted-publisher policy are no longer
+needed. The Azure Pipeline builds independently; a GitHub dry run does
+not rehearse the Azure publishing stage.
+
+### Windows FFI hardening
+
+The Windows x64 FFI legs use pinned nightly Rust
+`nightly-2026-10-21`, rebuilt `std`/`panic_unwind`,
 strong stack protection and CFG. Other release legs keep their existing
 toolchains. Do not replace this leg with a plain stable Cargo build.
+GitHub Actions uses [the shared Windows build action](.github/actions/windows-ffi/action.yml);
+both CI systems use [the same protected build](scripts/build-windows-ffi.ps1)
+and [scan script](scripts/scan-windows-ffi.ps1).
 
 Before native upload, the full matching-PDB BinSkim scan must complete,
 match the DLL hash, pass BA2014 and BA2008 without suppression, and have
 no error findings. The `windows-ffi-hardening` artifact retains the DLL,
-PDB, SARIF and scanner log for 14 days. Existing warnings remain reported,
+PDB, SARIF and scanner log (14 days in GitHub Actions, the run's artifact
+retention in Azure Pipelines). Existing warnings remain reported,
 not waived. The NuGet job then verifies exact identity between the scanned
 Windows DLL and the bundled payload. These checks do not establish a
 downstream consumer's security-policy acceptance.
@@ -239,7 +290,8 @@ Rust tests, .NET tests, package-consumer smoke and latency comparison.
 
 Tag the merged version-bump commit on `main` and push the tag. Only
 repository admins and maintainers can create `v*` tags (ruleset
-`release-tags-restricted`). The push starts the release workflow.
+`release-tags-restricted`). The push starts the GitHub release workflow
+and, once registered, the .NET Azure Pipeline.
 
 ```bash
 git tag -s v<version> -m "agent-hooks <version>"
@@ -262,14 +314,18 @@ on tags, including dry runs; manual branch dry runs do not require a tag.
   channel tag from its label: `alpha` for `-alpha.N`, `beta` for
   `-beta.N`, `rc` for `-rc.N`, `next` for any other label. Stable
   versions carry only `latest`.
-- NuGet `ResponsibleAI.AgentHooks`, bundling four native runtimes
+- Azure Artifacts `ResponsibleAI.AgentHooks`, bundling four native
+  runtimes, through the .NET Azure Pipeline (not nuget.org)
 - Go: nothing. The `go` job builds and tests `sdk/go` as a consumer
   would see it. See the next section.
 
-Each package gets a provenance attestation and an SBOM. Every leg
-skips versions and files that already exist, so a rerun after a
-partial failure is safe, and a non-dry dispatch on the tag ref appends
-missing artifacts. The workflow creates no GitHub Release object.
+GitHub-published packages get a provenance attestation and an SBOM. The
+.NET package published by Azure Pipelines is built separately and
+retains its native hardening evidence, but has no ESRP signing or
+provenance attestation in that pipeline yet. Every publishing leg skips
+versions and files that already exist, so a rerun after a partial failure
+is safe. Rerun the corresponding CI system on the tag to publish missing
+packages. Neither pipeline creates a GitHub Release object.
 
 ### Go module tag
 
@@ -304,7 +360,7 @@ curl -sf https://index.crates.io/ag/en/agent-hooks-sdk | grep -c '"vers":"<versi
 curl -sf https://pypi.org/pypi/agent-hooks-sdk/json | python3 -c 'import json,sys; print(sorted(json.load(sys.stdin)["releases"]))'
 npm view @responsibleai/agent-hooks versions
 npm dist-tag ls @responsibleai/agent-hooks
-curl -sf https://api.nuget.org/v3-flatcontainer/responsibleai.agenthooks/index.json
+curl -sf https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-net/nuget/v3/flat2/responsibleai.agenthooks/index.json
 go list -m -versions github.com/responsibleai/agent-hooks/sdk/go
 ```
 

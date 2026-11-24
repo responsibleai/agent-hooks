@@ -52,6 +52,8 @@ state.
 
 ## Install
 
+For .NET, first [configure the public Azure Artifacts feed](quickstart/dotnet.md).
+
 ```sh
 pip install --pre agent-hooks-sdk              # Python  (import agent_hooks)
 npm install @responsibleai/agent-hooks         # TypeScript / Node

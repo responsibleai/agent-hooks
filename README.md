@@ -227,7 +227,7 @@ Binding tests to a draft revision is #188.
 | Rust | `cargo add agent-hooks-sdk` |
 | Python | `pip install --pre agent-hooks-sdk` |
 | TypeScript | `npm install @responsibleai/agent-hooks` |
-| .NET | `dotnet add package ResponsibleAI.AgentHooks --prerelease` |
+| .NET | [Configure the Azure Artifacts feed](sdk/csharp/README.md#install), then `dotnet add package ResponsibleAI.AgentHooks --prerelease` |
 | Go | `go get github.com/responsibleai/agent-hooks/sdk/go/agenthooks` |
 
 A plain `npm install` gets the newest release, pre-releases included.
