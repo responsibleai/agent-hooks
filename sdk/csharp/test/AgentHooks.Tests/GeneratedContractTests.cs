@@ -199,4 +199,71 @@ public sealed class GeneratedContractTests
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Draft.CompositionConfig>(
             """{"profile":"SequentialFirstDeny"}"""));
     }
+
+    [Theory]
+    [InlineData(Draft.InterceptionPoint.AgentStartup, "agent_startup", "AgentStartupRequest", "AgentStartupHookResponse", typeof(Draft.AgentStartupRequest), typeof(Draft.AgentStartupHookResponse), null, null)]
+    [InlineData(Draft.InterceptionPoint.Input, "input", "InputRequest", "InputHookResponse", typeof(Draft.InputRequest), typeof(Draft.InputHookResponse), "input", new[] { "input" })]
+    [InlineData(Draft.InterceptionPoint.PreModelCall, "pre_model_call", "PreModelCallRequest", "PreModelHookResponse", typeof(Draft.PreModelCallRequest), typeof(Draft.PreModelHookResponse), "messages", new[] { "messages" })]
+    [InlineData(Draft.InterceptionPoint.PostModelCall, "post_model_call", "PostModelCallRequest", "PostModelHookResponse", typeof(Draft.PostModelCallRequest), typeof(Draft.PostModelHookResponse), "response", new[] { "response" })]
+    [InlineData(Draft.InterceptionPoint.PreToolCall, "pre_tool_call", "PreToolCallRequest", "PreToolHookResponse", typeof(Draft.PreToolCallRequest), typeof(Draft.PreToolHookResponse), "args", new[] { "tool_call", "args" })]
+    [InlineData(Draft.InterceptionPoint.PostToolCall, "post_tool_call", "PostToolCallRequest", "PostToolHookResponse", typeof(Draft.PostToolCallRequest), typeof(Draft.PostToolHookResponse), "value", new[] { "tool_result", "value" })]
+    [InlineData(Draft.InterceptionPoint.Output, "output", "OutputRequest", "OutputHookResponse", typeof(Draft.OutputRequest), typeof(Draft.OutputHookResponse), "output", new[] { "output" })]
+    [InlineData(Draft.InterceptionPoint.AgentShutdown, "agent_shutdown", "AgentShutdownRequest", "AgentShutdownHookResponse", typeof(Draft.AgentShutdownRequest), typeof(Draft.AgentShutdownHookResponse), null, null)]
+    public void InterceptionPointsExposeExpectedMetadata(
+        Draft.InterceptionPoint point,
+        string wireName,
+        string requestSchema,
+        string responseSchema,
+        Type requestType,
+        Type responseType,
+        string? transformMember,
+        string[]? transformPath)
+    {
+        var metadata = Draft.InterceptionPoints.Get(point);
+        Assert.Equal(point, metadata.Point);
+        Assert.Equal(wireName, metadata.WireName);
+        Assert.Equal(JsonSerializer.Serialize(point), JsonSerializer.Serialize(metadata.WireName));
+        Assert.Equal(requestSchema, metadata.RequestSchema);
+        Assert.Equal(responseSchema, metadata.ResponseSchema);
+        Assert.Equal(requestType, metadata.RequestType);
+        Assert.Equal(responseType, metadata.ResponseType);
+
+        if (transformMember is null)
+        {
+            Assert.Null(metadata.TransformTarget);
+        }
+        else
+        {
+            Assert.NotNull(metadata.TransformTarget);
+            Assert.Equal(transformMember, metadata.TransformTarget.Member);
+            Assert.Equal(transformPath, metadata.TransformTarget.Path);
+        }
+
+        Assert.True(Draft.InterceptionPoints.TryGet(point, out var byPoint));
+        Assert.Same(metadata, byPoint);
+        Assert.True(Draft.InterceptionPoints.TryGetByWireName(wireName, out var byWire));
+        Assert.Same(metadata, byWire);
+        Assert.True(Draft.InterceptionPoints.TryParse(wireName, out var parsed));
+        Assert.Equal(point, parsed);
+    }
+
+    [Fact]
+    public void InterceptionPointsCoverAllEnumValuesAndRejectInvalidLookups()
+    {
+        var expected = Enum.GetValues<Draft.InterceptionPoint>();
+        Assert.Equal(expected.Length, Draft.InterceptionPoints.All.Length);
+        Assert.Equal(expected, Draft.InterceptionPoints.All.Select(m => m.Point));
+
+        var invalid = (Draft.InterceptionPoint)99;
+        Assert.Throws<ArgumentOutOfRangeException>(() => Draft.InterceptionPoints.Get(invalid));
+        Assert.False(Draft.InterceptionPoints.TryGet(invalid, out var missingByPoint));
+        Assert.Null(missingByPoint);
+
+        foreach (var wire in new[] { null, "", "Input", "unknown_point" })
+        {
+            Assert.False(Draft.InterceptionPoints.TryGetByWireName(wire, out var missingByWire));
+            Assert.Null(missingByWire);
+            Assert.False(Draft.InterceptionPoints.TryParse(wire, out _));
+        }
+    }
 }

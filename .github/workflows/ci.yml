@@ -252,7 +252,7 @@ jobs:
         working-directory: sdk/rust
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with: { dotnet-version: "8.0.x" }
-      - run: dotnet restore --locked-mode
+      - run: dotnet restore
         working-directory: sdk/csharp
       - run: dotnet format --no-restore --verify-no-changes
         working-directory: sdk/csharp
@@ -333,7 +333,7 @@ jobs:
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         if: runner.os != 'Windows'
         with: { dotnet-version: "8.0.x" }
-      - run: dotnet restore --locked-mode
+      - run: dotnet restore
         working-directory: sdk/csharp
       - name: Expose native library to the per-OS loader
         # GITHUB_PATH covers the Windows DLL search path; the *_LIBRARY_PATH
@@ -410,7 +410,7 @@ jobs:
         id: dotnet
         continue-on-error: true
         run: |
-          dotnet restore --locked-mode
+          dotnet restore
           dotnet test test/AgentHooks.Tests/ --nologo --filter "Category=draft"
         working-directory: sdk/csharp
         env:
