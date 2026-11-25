@@ -25,22 +25,27 @@ public abstract record HookOutcome
     /// <summary>The interceptor failed; <paramref name="Detail"/> must be payload-free.</summary>
     public sealed record Failed(string? Detail) : HookOutcome;
 
+    /// <summary>Shared singleton <see cref="TimedOut"/> outcome.</summary>
     public static HookOutcome Timeout { get; } = new TimedOut();
 
+    /// <summary>Shared singleton <see cref="Cancelled"/> outcome.</summary>
     public static HookOutcome Cancellation { get; } = new Cancelled();
 
+    /// <summary>Wraps a JSON hook response body as a <see cref="Responded"/> outcome.</summary>
     public static implicit operator HookOutcome(JsonObject body) => new Responded(body);
 }
 
 /// <summary>The single interceptor abstraction every binding adapts to.</summary>
 public interface IHookInterceptor
 {
+    /// <summary>Evaluates <paramref name="call"/> and returns a hook response or failure outcome.</summary>
     Task<HookOutcome> InterceptAsync(HookCall call, CancellationToken cancellationToken);
 }
 
 /// <summary>The JSON-level approval resolver (§9): approval request in, resolution out.</summary>
 public interface IApprovalResolver
 {
+    /// <summary>Resolves a wire approval request and returns the wire approval resolution.</summary>
     Task<JsonObject> ResolveAsync(JsonObject request, CancellationToken cancellationToken);
 }
 
@@ -60,6 +65,7 @@ public sealed record BindingOptions
 /// <summary>A context identity provider (§10.1).</summary>
 public sealed record IdentityProvider(string Name, Func<JsonObject, string> Compute)
 {
+    /// <summary>The built-in RFC 8785 / SHA-256 identity provider (<c>jcs-sha256</c>).</summary>
     public static IdentityProvider JcsSha256 { get; } = new(Jcs.ProviderName, Jcs.ContextIdentity);
 }
 

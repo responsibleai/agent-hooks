@@ -21,7 +21,7 @@ public sealed class AgentStartupRequest
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -208,7 +208,7 @@ public sealed class InputRequest
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -288,7 +288,7 @@ public sealed class PreModelCallRequest
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -426,7 +426,7 @@ public sealed class PostModelCallRequest
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -560,7 +560,7 @@ public sealed class PreToolCallRequest
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -649,7 +649,7 @@ public sealed class PostToolCallRequest
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -738,7 +738,7 @@ public sealed class OutputRequest
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -815,7 +815,7 @@ public sealed class AgentShutdownRequest
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -1010,7 +1010,7 @@ public sealed class Warning
 public sealed class Evidence
 {
     /// <summary>
-    /// Content address (sha256:<hex>) or URI of an offline-verifiable proof.
+    /// Content address (sha256:&lt;hex&gt;) or URI of an offline-verifiable proof.
     /// </summary>
     [JsonPropertyName("artefact")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -1742,7 +1742,7 @@ public sealed class AgentStartupContext : AgentContext
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -1809,7 +1809,7 @@ public sealed class InputContext : AgentContext
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -1874,7 +1874,7 @@ public sealed class PreModelCallContext : AgentContext
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -1952,7 +1952,7 @@ public sealed class PostModelCallContext : AgentContext
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -2030,7 +2030,7 @@ public sealed class PreToolCallContext : AgentContext
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -2097,7 +2097,7 @@ public sealed class PostToolCallContext : AgentContext
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -2167,7 +2167,7 @@ public sealed class OutputContext : AgentContext
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]
@@ -2232,7 +2232,7 @@ public sealed class AgentShutdownContext : AgentContext
 {
     /// <summary>
     /// This version's wire string (§4.1). A released version's contexts
-    /// carry that version's own string, agent-hooks/<major>.<minor>.
+    /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
     [JsonPropertyName("spec")]
     [JsonRequired]

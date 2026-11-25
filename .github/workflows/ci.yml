@@ -257,6 +257,24 @@ jobs:
         # The required set: the Category=draft tests run in draft-tests.
         run: dotnet test test/AgentHooks.Tests/ --nologo --filter "Category!=draft"
         working-directory: sdk/csharp
+      - name: Verify NuGet package shape
+        shell: bash
+        run: |
+          dotnet pack src/AgentHooks --no-restore -c Release -o dist -warnaserror
+          test "$(find dist -name '*.nupkg' | wc -l)" -eq 1
+          pkg=$(find dist -name '*.nupkg')
+          if unzip -Z1 "$pkg" | grep -q '^runtimes/'; then
+            echo "::error::unexpected native runtime in $pkg"
+            exit 1
+          fi
+          for required in README.md lib/net8.0/AgentHooks.xml lib/net8.0/AgentHooks.Contracts.dll lib/net8.0/AgentHooks.Contracts.xml; do
+            unzip -Z1 "$pkg" | grep -qx "$required" ||
+              { echo "::error::$pkg is missing $required"; exit 1; }
+          done
+          unzip -p "$pkg" '*.nuspec' | grep -q '<readme>README.md</readme>' ||
+            { echo "::error::$pkg nuspec does not declare <readme>README.md</readme>"; exit 1; }
+          rm -rf dist
+        working-directory: sdk/csharp
 
   go:
     runs-on: ubuntu-latest

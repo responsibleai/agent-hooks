@@ -161,6 +161,17 @@ function unionInfo(type: Union) {
   return { type, models, discriminator };
 }
 
+function escapeXmlDoc(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function xmlDocComments(type: Type): Children | undefined {
+  const { $ } = useTsp();
+  const doc = $.type.getDoc(type);
+  if (!doc) return undefined;
+  return <cs.DocSummary><cs.DocFromMarkdown markdown={escapeXmlDoc(doc)} /></cs.DocSummary>;
+}
+
 function ContractProperty(props: { type: ModelProperty }): Children {
   const { $ } = useTsp();
   const property = props.type;
@@ -215,7 +226,7 @@ function ContractProperty(props: { type: ModelProperty }): Children {
         : constant ? code`return ${initializer};` : true}
       set={setter}
       attributes={attributes}
-      doc={ef.getDocComments($, property)}
+      doc={xmlDocComments(property)}
     />
   </>;
 }
@@ -250,7 +261,6 @@ function UnionContract(props: { type: Union; name: string; info: UnionContractIn
 }
 
 function ModelContract(props: { type: Model; name: string; unions: UnionContractInfo[] }): Children {
-  const { $ } = useTsp();
   const interfaces = props.unions.filter((union) => union.models.includes(props.type))
     .map((union) => <cs.Reference refkey={ef.efRefkey(union.type)} />);
   // The framework owns ordinary model declarations. Alloy supplies dictionaries
@@ -264,7 +274,7 @@ function ModelContract(props: { type: Model; name: string; unions: UnionContract
   return <cs.ClassDeclaration public sealed name={props.name} refkey={ef.efRefkey(props.type)}
     interfaceTypes={interfaces}
     baseType={dictionary ? code`Dictionary<string, ${props.type.indexer ? <ef.TypeExpression type={props.type.indexer.value} /> : "JsonElement"}>` : undefined}
-    doc={ef.getDocComments($, props.type)}>
+    doc={xmlDocComments(props.type)}>
     <For each={[...props.type.properties.values()]} doubleHardline>
       {(property) => <ef.Property type={property} jsonAttributes />}
     </For>

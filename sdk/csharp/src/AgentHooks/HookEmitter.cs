@@ -57,8 +57,10 @@ public sealed partial class HookEmitter
         Declaration = (JsonObject?)builder.Declaration?.DeepClone();
     }
 
+    /// <summary>Creates a new builder for configuring a <see cref="HookEmitter"/>.</summary>
     public static HookEmitterBuilder CreateBuilder() => new();
 
+    /// <summary>The emitter's enforcement mode (§8).</summary>
     public Draft.Mode Mode { get; }
 
     /// <summary>The host's posture when a tool seam yields a host error (§7.7.3).</summary>

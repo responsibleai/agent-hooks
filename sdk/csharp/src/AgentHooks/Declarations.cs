@@ -48,22 +48,29 @@ public sealed class HostRegistry(HostSurface? surface = null)
     internal Action<ControlFailureNotice>? Notifier;
     internal Action<Draft.InterceptionRecord>? Sink;
 
+    /// <summary>The surface the host code can honour.</summary>
     public HostSurface Surface { get; } = surface ?? HostSurface.Default;
 
+    /// <summary>Registers a factory for bindings of <paramref name="kind"/>.</summary>
     public HostRegistry AddKind(string kind, Func<BindingDefinition, IHookInterceptor> factory) => Add(Kinds, kind, factory);
 
+    /// <summary>Registers a named context identity provider.</summary>
     public HostRegistry AddIdentityProvider(IdentityProvider provider) => Add(IdentityProviders, provider.Name, provider);
 
+    /// <summary>Registers a named approval resolver.</summary>
     public HostRegistry AddApprovalResolver(string name, IApprovalResolver resolver) => Add(Resolvers, name, resolver);
 
+    /// <summary>Registers a named approval redactor.</summary>
     public HostRegistry AddApprovalRedactor(string name, Func<JsonObject, JsonObject> redactor) => Add(Redactors, name, redactor);
 
+    /// <summary>Sets the notifier invoked before an <c>on_error: continue</c> substitution.</summary>
     public HostRegistry OnControlFailure(Action<ControlFailureNotice> notifier)
     {
         Notifier = notifier;
         return this;
     }
 
+    /// <summary>Sets the sink that receives every emitted interception record.</summary>
     public HostRegistry WithRecordSink(Action<Draft.InterceptionRecord> sink)
     {
         Sink = sink;
@@ -85,8 +92,10 @@ public sealed record DeclarationFinding(string Pointer, string Detail);
 public sealed class DeclarationException(string code, IReadOnlyList<DeclarationFinding> findings)
     : Exception($"{code}: {string.Join("; ", findings.Select(f => $"{(f.Pointer.Length == 0 ? "/" : f.Pointer)} {f.Detail}"))}")
 {
+    /// <summary>The <c>declaration_error:*</c> refusal class (§7.7.6).</summary>
     public string Code { get; } = code;
 
+    /// <summary>Payload-free findings explaining why the declaration was refused.</summary>
     public IReadOnlyList<DeclarationFinding> Findings { get; } = findings;
 }
 

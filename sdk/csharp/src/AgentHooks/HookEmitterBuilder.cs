@@ -49,27 +49,35 @@ public sealed partial class HookEmitterBuilder
         return Use(new DelegateInterceptor(interceptor), options, points);
     }
 
+    /// <summary>Binds a typed handler at <see cref="Draft.InterceptionPoint.AgentStartup"/>.</summary>
     public HookEmitterBuilder OnAgentStartup(Func<Draft.AgentStartupRequest, CancellationToken, Task<Draft.AgentStartupHookResponse>> handler, BindingOptions? options = null) =>
         Typed(Draft.InterceptionPoint.AgentStartup, handler, options);
 
+    /// <summary>Binds a typed handler at <see cref="Draft.InterceptionPoint.Input"/>.</summary>
     public HookEmitterBuilder OnInput(Func<Draft.InputRequest, CancellationToken, Task<Draft.InputHookResponse>> handler, BindingOptions? options = null) =>
         Typed(Draft.InterceptionPoint.Input, handler, options);
 
+    /// <summary>Binds a typed handler at <see cref="Draft.InterceptionPoint.PreModelCall"/>.</summary>
     public HookEmitterBuilder OnPreModelCall(Func<Draft.PreModelCallRequest, CancellationToken, Task<Draft.PreModelHookResponse>> handler, BindingOptions? options = null) =>
         Typed(Draft.InterceptionPoint.PreModelCall, handler, options);
 
+    /// <summary>Binds a typed handler at <see cref="Draft.InterceptionPoint.PostModelCall"/>.</summary>
     public HookEmitterBuilder OnPostModelCall(Func<Draft.PostModelCallRequest, CancellationToken, Task<Draft.PostModelHookResponse>> handler, BindingOptions? options = null) =>
         Typed(Draft.InterceptionPoint.PostModelCall, handler, options);
 
+    /// <summary>Binds a typed handler at <see cref="Draft.InterceptionPoint.PreToolCall"/>.</summary>
     public HookEmitterBuilder OnPreToolCall(Func<Draft.PreToolCallRequest, CancellationToken, Task<Draft.PreToolHookResponse>> handler, BindingOptions? options = null) =>
         Typed(Draft.InterceptionPoint.PreToolCall, handler, options);
 
+    /// <summary>Binds a typed handler at <see cref="Draft.InterceptionPoint.PostToolCall"/>.</summary>
     public HookEmitterBuilder OnPostToolCall(Func<Draft.PostToolCallRequest, CancellationToken, Task<Draft.PostToolHookResponse>> handler, BindingOptions? options = null) =>
         Typed(Draft.InterceptionPoint.PostToolCall, handler, options);
 
+    /// <summary>Binds a typed handler at <see cref="Draft.InterceptionPoint.Output"/>.</summary>
     public HookEmitterBuilder OnOutput(Func<Draft.OutputRequest, CancellationToken, Task<Draft.OutputHookResponse>> handler, BindingOptions? options = null) =>
         Typed(Draft.InterceptionPoint.Output, handler, options);
 
+    /// <summary>Binds a typed handler at <see cref="Draft.InterceptionPoint.AgentShutdown"/>.</summary>
     public HookEmitterBuilder OnAgentShutdown(Func<Draft.AgentShutdownRequest, CancellationToken, Task<Draft.AgentShutdownHookResponse>> handler, BindingOptions? options = null) =>
         Typed(Draft.InterceptionPoint.AgentShutdown, handler, options);
 
@@ -101,12 +109,14 @@ public sealed partial class HookEmitterBuilder
         return this;
     }
 
+    /// <summary>Sets the approval resolver consulted when an interceptor requires approval (§9).</summary>
     public HookEmitterBuilder WithApprovalResolver(IApprovalResolver resolver)
     {
         Resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         return this;
     }
 
+    /// <summary>Sets a typed approval resolver delegate (§9).</summary>
     public HookEmitterBuilder WithApprovalResolver(Func<Draft.ApprovalRequest, CancellationToken, Task<Draft.ApprovalResolution>> resolver)
     {
         ArgumentNullException.ThrowIfNull(resolver);
@@ -157,6 +167,7 @@ public sealed partial class HookEmitterBuilder
         return this;
     }
 
+    /// <summary>Builds an immutable <see cref="HookEmitter"/> from the current configuration.</summary>
     public HookEmitter Build() => new(this);
 
     private HookEmitterBuilder Typed<TRequest, TResponse>(

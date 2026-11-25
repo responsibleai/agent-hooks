@@ -472,7 +472,7 @@ jobs:
           dotnet restore
           dotnet pack src/AgentHooks --no-restore -c Release -o dist
         working-directory: sdk/csharp
-      - name: Assert the single NuGet package is managed-only and bundles the contracts
+      - name: Assert the single NuGet package is managed-only and bundles contracts, README, and XML docs
         shell: bash
         run: |
           test "$(find dist -name '*.nupkg' | wc -l)" -eq 1
@@ -481,8 +481,12 @@ jobs:
             echo "::error::unexpected native runtime in $pkg"
             exit 1
           fi
-          unzip -Z1 "$pkg" | grep -qx 'lib/net8.0/AgentHooks.Contracts.dll' ||
-            { echo "::error::$pkg does not bundle AgentHooks.Contracts.dll"; exit 1; }
+          for required in README.md lib/net8.0/AgentHooks.xml lib/net8.0/AgentHooks.Contracts.dll lib/net8.0/AgentHooks.Contracts.xml; do
+            unzip -Z1 "$pkg" | grep -qx "$required" ||
+              { echo "::error::$pkg is missing $required"; exit 1; }
+          done
+          unzip -p "$pkg" '*.nuspec' | grep -q '<readme>README.md</readme>' ||
+            { echo "::error::$pkg nuspec does not declare <readme>README.md</readme>"; exit 1; }
         working-directory: sdk/csharp
       - name: SBOM
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3

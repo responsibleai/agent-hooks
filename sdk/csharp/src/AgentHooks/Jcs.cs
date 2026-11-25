@@ -12,6 +12,7 @@ namespace AgentHooks;
 /// <summary>RFC 8785 canonical JSON and the §10 <c>jcs-sha256</c> context identity.</summary>
 public static class Jcs
 {
+    /// <summary>The wire identifier of the built-in canonical JSON SHA-256 identity provider.</summary>
     public const string ProviderName = "jcs-sha256";
 
     private const int DefaultMaxDepth = 128;

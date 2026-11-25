@@ -2,6 +2,9 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <Description>Generated, Rust-independent C# contracts for the Agent Hooks draft specification.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Generated contract members without TypeSpec doc comments omit XML docs. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
     <RootNamespace>AgentHooks.Contracts</RootNamespace>
   </PropertyGroup>
 </Project>
