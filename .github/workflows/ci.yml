@@ -297,18 +297,6 @@ jobs:
       - run: cargo test --locked --workspace --all-features -- --skip draft_
         working-directory: sdk/rust
 
-  ffi-windows:
-    timeout-minutes: 25
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Build and scan protected Windows FFI
-        timeout-minutes: 15
-        uses: ./.github/actions/windows-ffi
-      - name: Check Windows release DLL CFG and regression gate
-        shell: pwsh
-        run: ./scripts/test-windows-cfg.ps1 -Dll sdk/rust/target/x86_64-pc-windows-msvc/release/agent_hooks_ffi.dll
-
   dotnet-xplat:
     timeout-minutes: 25
     strategy:

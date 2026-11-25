@@ -203,11 +203,6 @@ cd sdk/csharp && dotnet test
 cd sdk/go && CGO_ENABLED=1 go test ./...
 ```
 
-For the protected Windows x64 FFI release, follow the
-[Windows build instructions](RELEASING.md#windows-ffi-hardening).
-That artifact needs a pinned nightly compiler and a rebuilt, stack-protected
-standard library; a plain stable FFI build is not equivalent.
-
 ## Style
 
 - Fail closed; never normalize values (§4.4 — reject with an

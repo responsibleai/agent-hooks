@@ -121,7 +121,9 @@ bench suite before release tags ([RELEASING.md](RELEASING.md)).
 `scripts/gen-golden-identity.py` and asserted by every SDK's test suite
 (`sdk/rust/core/tests/golden_identity.rs`,
 `sdk/python/tests/test_golden_identity.py`, and equivalents). A binding
-that fails this test is not calling into the core.
+that fails this test is not calling into the core; the managed C# SDK
+implements the primitives independently and asserts the same fixtures in
+`JcsTests`.
 
 ## Trade-offs
 

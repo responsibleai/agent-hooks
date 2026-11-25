@@ -215,45 +215,6 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    build and tests). It uploads the build
    artifacts to the run, publishes nothing and attests nothing.
 
-#### Windows FFI hardening
-
-The Windows x64 FFI leg uses
-[the shared Windows build action](.github/actions/windows-ffi/action.yml):
-pinned nightly Rust `nightly-2026-10-21`, rebuilt `std`/`panic_unwind`,
-strong stack protection and CFG. Other release legs keep their existing
-toolchains. Do not replace this leg with a plain stable Cargo build.
-
-Before native upload, the full matching-PDB BinSkim scan must complete,
-match the DLL hash, pass BA2014 and BA2008 without suppression, and have
-no error findings. The `windows-ffi-hardening` artifact retains the DLL,
-PDB, SARIF and scanner log for 14 days. Existing warnings remain reported,
-not waived. The release workflow no longer ships FFI libraries; the
-managed-only NuGet packages carry no native code. These checks do not establish a
-downstream consumer's security-policy acceptance.
-
-For a local equivalent, use a Windows x64 MSVC developer shell with PowerShell
-7.4 or later and run from the repository root:
-
-```powershell
-rustup toolchain install nightly-2026-10-21 --profile minimal --component rust-src --target x86_64-pc-windows-msvc
-$env:RUSTFLAGS = '-C control-flow-guard=checks -Z stack-protector=strong -D partial-stack-protector'
-$env:CARGO_ENCODED_RUSTFLAGS = $null
-Push-Location sdk\rust
-try {
-    cargo +nightly-2026-10-21 -Z build-std=std,panic_unwind build --locked --release `
-        -p agent-hooks-ffi --target x86_64-pc-windows-msvc
-    if ($LASTEXITCODE -ne 0) { throw 'Protected Windows FFI build failed.' }
-} finally { Pop-Location }
-$env:RUSTFLAGS = $null
-.\scripts\check-windows-cfg.ps1 -Dll sdk\rust\target\x86_64-pc-windows-msvc\release\agent_hooks_ffi.dll
-```
-
-Use a dedicated shell and short checkout path. For a full local BinSkim scan
-produced with `--hashes true --trace PdbLoad`, also run
-`scripts/check-windows-stack-protection.ps1 -Dll <dll> -Report <full-binskim.sarif>`.
-Changing the nightly pin requires rerunning the native scan, gate regressions,
-Rust tests, package-consumer smoke and latency comparison.
-
 ### Tag
 
 Tag the merged version-bump commit on `main` and push the tag. Only
