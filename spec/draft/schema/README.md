@@ -77,7 +77,7 @@ Rust-independent `sdk/csharp/src/AgentHooks.Contracts/` assembly. From the repos
 `Generated/Draft/Hooks.g.cs`, and `Generated/Draft/Points.g.cs` alongside source changes. The emitter clears its output directory
 before writing, and CI runs `pnpm generate && pnpm check-for-changed-files` to catch missing, stale,
 and untracked generated files. Do not edit the generated C# by hand.
-This targets the draft only, not the frozen 0.1 bundle or the existing Rust-backed .NET SDK.
+This targets the draft only, not the frozen 0.1 bundle; the managed .NET SDK in `sdk/csharp` builds on these contracts.
 
 `spec/draft/tspconfig.yaml` loads the `@agent-hooks/emitter-csharp` workspace
 package. Its `emitters/csharp/src/emitter.tsx` uses `@typespec/emitter-framework` for
