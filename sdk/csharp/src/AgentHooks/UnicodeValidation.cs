@@ -13,14 +13,21 @@ namespace AgentHooks;
 /// <summary>Rejects lone UTF-16 surrogates in strings, JSON elements, and object graphs before UTF-8 serialization replaces them with U+FFFD.</summary>
 internal static class UnicodeValidation
 {
-    internal static void CheckString(string value)
+    internal static bool IsValidString(string value)
     {
         for (var i = 0; i < value.Length; i++)
         {
             if (!char.IsSurrogate(value[i])) continue;
             if (!char.IsHighSurrogate(value[i]) || i + 1 == value.Length || !char.IsLowSurrogate(value[++i]))
-                throw new JsonException("lone surrogate");
+                return false;
         }
+        return true;
+    }
+
+    internal static void CheckString(string value)
+    {
+        if (!IsValidString(value))
+            throw new JsonException("lone surrogate");
     }
 
     internal static void CheckObjectGraph(object? value, int maxDepth = 256)

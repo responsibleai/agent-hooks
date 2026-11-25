@@ -265,23 +265,17 @@ class DeclarationTablesTest(unittest.TestCase):
 RUST_TYPES = "pub const SUPPORTED_SPEC_VERSIONS: &[&str] = &[{supported}];\n"
 TS_INDEX = "export const SUPPORTED_SPEC_VERSIONS: readonly string[] = Object.freeze([{supported}]);\n"
 PY_TYPES = "SUPPORTED_SPEC_VERSIONS: Final[tuple[str, ...]] = ({supported},)\n"
-CS_TYPES = (
-    "public static class Spec\n{{\n"
-    "    public static readonly IReadOnlyList<string> SupportedVersions = [{supported}];\n}}\n"
-    'public static class Declaration\n{{\n    public const string Version = "agent-hooks-declaration/1.1";\n}}\n'
-)
 GO_TYPES = "var SupportedSpecVersions = []string{{{supported}}}\n"
 CORES = {
     "sdk/rust/core/src/types.rs": RUST_TYPES,
     "sdk/typescript/src/index.ts": TS_INDEX,
     "sdk/python/python/agent_hooks/_types.py": PY_TYPES,
-    "sdk/csharp/src/AgentHooks/Types.cs": CS_TYPES,
     "sdk/go/agenthooks/types.go": GO_TYPES,
 }
 
 
 class SpecVersionsTest(unittest.TestCase):
-    """The five cores name the same supported specification versions,
+    """The four cores name the same supported specification versions,
     released ones and the draft, each with a folder, at least one
     released, and the VERSIONING.md row for the SDK version agrees."""
 

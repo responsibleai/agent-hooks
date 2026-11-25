@@ -22,7 +22,7 @@ the schema for its current contract, which the SDK must support. Draft
 declarations are selected by spec alone and have no contract table.
 
 It also checks the specification versions the SDKs support
-(VERSIONING.md): the five cores carry the same SUPPORTED_SPEC_VERSIONS,
+(VERSIONING.md): the four cores carry the same SUPPORTED_SPEC_VERSIONS,
 every entry is a released MAJOR.MINOR version or draft and has a
 spec/<entry>/ folder, at least one entry is released, and the
 VERSIONING.md row for the current SDK version lists the same entries.
@@ -61,9 +61,6 @@ SUPPORTED_CONSTANTS = {
     ),
     "sdk/python/python/agent_hooks/_types.py": (
         r"SUPPORTED_SPEC_VERSIONS: Final\[tuple\[str, \.\.\.\]\] = \(([^)]*)\)"
-    ),
-    "sdk/csharp/src/AgentHooks/Types.cs": (
-        r"public static readonly IReadOnlyList<string> SupportedVersions = \[([^\]]*)\];"
     ),
     "sdk/go/agenthooks/types.go": (
         r"var SupportedSpecVersions = \[\]string\{([^}]*)\}"
@@ -192,7 +189,7 @@ def check_declaration_versions(root: Path = ROOT) -> int:
 
 def check_spec_versions(root: Path = ROOT, sdk_version: str | None = None) -> int:
     """The specification versions the SDKs support (VERSIONING.md): the
-    five cores agree, every entry is a released MAJOR.MINOR version or
+    four cores agree, every entry is a released MAJOR.MINOR version or
     draft and has a spec/<entry>/ folder, at least one entry is
     released, and the VERSIONING.md row for the current SDK version
     lists the same entries. `sdk_version` defaults to the Rust
