@@ -10,7 +10,7 @@ using Draft = AgentHooks.Contracts.Draft;
 namespace AgentHooks;
 
 /// <summary>RFC 8785 canonical JSON and the §10 <c>jcs-sha256</c> context identity.</summary>
-internal static class Jcs
+public static class Jcs
 {
     public const string ProviderName = "jcs-sha256";
 
@@ -157,7 +157,7 @@ internal static class Jcs
             CheckIntegerDomain(document.RootElement);
             return true;
         }
-        catch (Exception e) when (e is AgentHooksCoreException or JsonException)
+        catch (Exception e) when (e is HookException or JsonException)
         {
             return false;
         }
@@ -351,5 +351,5 @@ internal static class Jcs
         return number;
     }
 
-    private static AgentHooksCoreException Invalid(string detail) => new(HostError.ContextInvalid, detail);
+    private static HookException Invalid(string detail) => new(HostErrors.ContextInvalid, detail);
 }

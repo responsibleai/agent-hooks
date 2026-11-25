@@ -1,12 +1,16 @@
 // Copyright (c) Microsoft. All rights reserved.
 
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+
+[assembly: InternalsVisibleTo("AgentHooks.Conformance")]
+[assembly: InternalsVisibleTo("AgentHooks.Tests")]
 
 namespace AgentHooks;
 
 /// <summary>Strict wire-JSON serializer bridging the generated contract types and JSON nodes.</summary>
-internal static class ContractSerializer
+public static class ContractSerializer
 {
     internal static readonly JsonSerializerOptions Options = new() { MaxDepth = 256 };
 

@@ -11,9 +11,6 @@ internal static class Points
     internal static readonly Draft.InterceptionPoint[] All =
         Draft.InterceptionPoints.All.Select(m => m.Point).ToArray();
 
-    internal static readonly string[] Wires =
-        Draft.InterceptionPoints.All.Select(m => m.WireName).ToArray();
-
     internal static string Wire(Draft.InterceptionPoint point) =>
         Draft.InterceptionPoints.Get(point).WireName;
 

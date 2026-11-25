@@ -6,9 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\AgentHooks\AgentHooks.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- The reference harness's own host declaration (spec section 7.7.9). -->
-    <EmbeddedResource Include="reference.declaration.json" LogicalName="reference.declaration.json" />
+    <ProjectReference Include="..\AgentHooks.Contracts\AgentHooks.Contracts.csproj" />
   </ItemGroup>
 </Project>
