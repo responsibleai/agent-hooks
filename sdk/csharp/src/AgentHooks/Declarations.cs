@@ -267,13 +267,14 @@ internal static class Declarations
             var binding = bindings[i];
             var config = binding.ContainsKey("config") ? binding["config"]?.DeepClone() : new JsonObject();
             var definition = new BindingDefinition(Str(binding["id"])!, Str(binding["kind"])!, config);
-            IHookInterceptor interceptor;
+            IHookInterceptor? interceptor;
             try { interceptor = registry.Kinds[definition.Kind](definition); }
             catch (Exception e)
             {
-                f.Bad($"/bindings/{i}", $"the {definition.Kind} factory rejected the binding: {e.GetType().Name}");
-                continue;
+                throw new DeclarationException("declaration_error:binding_rejected", [new($"/bindings/{i}", $"the {definition.Kind} factory rejected the binding: {e.GetType().Name}")]);
             }
+            if (interceptor is null)
+                throw new DeclarationException("declaration_error:binding_rejected", [new($"/bindings/{i}", $"the {definition.Kind} factory returned no interceptor")]);
             var at = Set<Draft.InterceptionPoint>(binding["at"], Draft.InterceptionPointExtensions.TryParseWire) ?? points;
             builder.Use(interceptor, new BindingOptions
             {
@@ -282,7 +283,6 @@ internal static class Declarations
                 Timeout = binding.ContainsKey("timeout_ms") ? Timeout(binding, "timeout_ms", interceptorTimeout) : null,
             }, [.. Points.All.Where(at.Contains)]);
         }
-        f.Refuse("binding_rejected");
 
         if (registry.Notifier is { } notifier) builder.OnControlFailure(notifier);
         if (registry.Sink is { } sink) builder.WithRecordSink(sink);

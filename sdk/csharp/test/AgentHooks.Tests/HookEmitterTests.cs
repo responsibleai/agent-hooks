@@ -376,6 +376,58 @@ public sealed class HookEmitterTests
         Assert.Equal(HostErrors.VerdictInvalid, (string?)badResolution.Verdict["reason"]);
     }
 
+    [Fact]
+    public async Task NullRedactorFailsClosedAndExplicitNullTransformValueIsPreserved()
+    {
+        var resolverCalled = false;
+        var redactorEmitter = HookEmitter.CreateBuilder()
+            .Use((_, _) => Task.FromResult<HookOutcome>(LiftableDeny()))
+            .WithApprovalRedactor(_ => null!)
+            .WithApprovalResolver(new Resolver(_ => { resolverCalled = true; return new JsonObject(); }))
+            .Build();
+        var redactorResult = await redactorEmitter.EmitAsync(PreToolCall());
+        Assert.False(redactorResult.Proceeds);
+        Assert.Equal(HostErrors.ApprovalResolverFailed, (string?)redactorResult.Verdict["reason"]);
+        Assert.False(resolverCalled);
+
+        var postTool = JsonNode.Parse(File.ReadAllText(Example("AgentContext/post-tool-call.json")))!.AsObject();
+        var transformEmitter = HookEmitter.CreateBuilder()
+            .Use((_, _) => Task.FromResult<HookOutcome>(new JsonObject
+            {
+                ["verdict"] = new JsonObject
+                {
+                    ["decision"] = "transform",
+                    ["transform"] = new JsonObject { ["value"] = null },
+                },
+            }))
+            .Build();
+        var transformResult = await transformEmitter.EmitAsync(postTool);
+        Assert.True(transformResult.Proceeds);
+        Assert.True(transformResult.Request["tool_result"]!.AsObject().ContainsKey("value"));
+        Assert.Null(transformResult.Request["tool_result"]!["value"]);
+    }
+
+    [Fact]
+    public async Task RawWireEnvelopeHandlesNonObjectSessionAndIntSequence()
+    {
+        var emitter = HookEmitter.CreateBuilder()
+            .Use((_, _) => Task.FromResult<HookOutcome>(Allow()))
+            .Build();
+
+        var validIntSeq = ContractSerializer.Serialize(PreToolCall());
+        validIntSeq["sequence"] = 7;
+        var ok = await emitter.EmitAsync(validIntSeq);
+        Assert.True(ok.Proceeds);
+        Assert.Equal(7, (int)ok.Record.Sequence);
+
+        var badSession = ContractSerializer.Serialize(PreToolCall());
+        badSession["session"] = "not-an-object";
+        var bad = await emitter.EmitAsync(badSession);
+        Assert.False(bad.Proceeds);
+        Assert.Equal(HostErrors.ContextInvalid, (string?)bad.Verdict["reason"]);
+        Assert.Equal("", bad.Record.SessionId);
+    }
+
     internal static Draft.PreToolCallRequest PreToolCall() =>
         ContractSerializer.Deserialize<Draft.PreToolCallRequest>(JsonNode.Parse(File.ReadAllText(Example("AgentContext/pre-tool-call.json"))));
 

@@ -237,6 +237,34 @@ public sealed class DeclarationTests
         Assert.Equal("declaration_error:malformed", error.Code);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void FailingOrNullBindingFactoryRefusesImmediatelyWithoutInvokingLaterFactories(bool returnNull)
+    {
+        var calls = 0;
+        var json = """
+        {
+          "spec": "agent-hooks/draft",
+          "bindings": [
+            { "id": "first", "kind": "example.bad" },
+            { "id": "second", "kind": "example.bad" }
+          ]
+        }
+        """;
+        var registry = new HostRegistry().AddKind("example.bad", _ =>
+        {
+            calls++;
+            return returnNull ? null! : throw new InvalidOperationException("bad");
+        });
+
+        var error = Assert.Throws<DeclarationException>(() => HookEmitter.FromDeclaration(json, registry));
+
+        Assert.Equal("declaration_error:binding_rejected", error.Code);
+        Assert.Equal("/bindings/0", Assert.Single(error.Findings).Pointer);
+        Assert.Equal(1, calls);
+    }
+
     private sealed class Deny : IHookInterceptor
     {
         public Task<HookOutcome> InterceptAsync(HookCall call, CancellationToken cancellationToken) =>

@@ -198,7 +198,9 @@ public sealed partial class HookEmitter
     /// </summary>
     private JsonObject? Fold(Draft.InterceptionPoint point, JsonObject state, JsonObject verdict)
     {
-        if (Points.TransformTarget(point) is not var (member, path) || verdict["transform"]?[member] is not { } value)
+        if (Points.TransformTarget(point) is not var (member, path)
+            || verdict["transform"] is not JsonObject transform
+            || !transform.TryGetPropertyValue(member, out var value))
             return Verdicts.HostError(HostErrors.TransformInvalid, "transforms are forbidden at this point (see spec §5)");
         var candidate = (JsonObject)state.DeepClone();
         var parent = candidate;
@@ -208,7 +210,7 @@ public sealed partial class HookEmitter
                 return Verdicts.HostError(HostErrors.TransformInvalid, "the transform target is absent (see spec §5)");
             parent = next;
         }
-        parent[path[^1]] = value.DeepClone();
+        parent[path[^1]] = value?.DeepClone();
         if (!Schemas.IsValid(candidate, Points.RequestSchema(point)))
             return Verdicts.HostError(HostErrors.TransformInvalid, $"the transformed request does not satisfy the {Points.RequestSchema(point)} schema (see spec §5)");
         if (Mode == Draft.Mode.Enforce)
@@ -232,8 +234,16 @@ public sealed partial class HookEmitter
         static Consultation Fail(string reason, string? detail = null) => new(Verdicts.HostError(reason, detail), false);
 
         JsonObject presented;
-        try { presented = _redactor?.Invoke((JsonObject)state.DeepClone()) ?? (JsonObject)state.DeepClone(); }
-        catch (Exception e) { return Fail(HostErrors.ApprovalResolverFailed, e.GetType().Name); }
+        if (_redactor is null)
+        {
+            presented = (JsonObject)state.DeepClone();
+        }
+        else
+        {
+            try { presented = _redactor((JsonObject)state.DeepClone()); }
+            catch (Exception e) { return Fail(HostErrors.ApprovalResolverFailed, e.GetType().Name); }
+            if (presented is null) return Fail(HostErrors.ApprovalResolverFailed, "the approval redactor returned no context (see spec §9)");
+        }
 
         string? identity;
         try { identity = _identity?.Compute(presented); }

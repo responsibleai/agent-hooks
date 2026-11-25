@@ -148,6 +148,12 @@ public sealed partial class HookEmitter
         static string? SafeString(JsonNode? node) =>
             node is JsonValue v && v.TryGetValue(out string? text) && UnicodeValidation.IsValidString(text) ? text : null;
 
+        static JsonNode SafeSequence(JsonNode? node, bool isValid) =>
+            isValid && node is not null ? node.DeepClone()
+            : node is JsonValue v && v.TryGetValue(out long l) && l >= 0 ? l
+            : node is JsonValue vi && vi.TryGetValue(out int i) && i >= 0 ? i
+            : -1;
+
         var record = new JsonObject
         {
             ["interception_point"] = point is { } p ? Points.Wire(p) : Points.Wire(Draft.InterceptionPoint.AgentStartup),
@@ -156,8 +162,8 @@ public sealed partial class HookEmitter
             ["input_identity"] = inputIdentity,
             ["enforced_identity"] = enforcedIdentity,
             ["identity_provider"] = _identity?.Name,
-            ["session_id"] = SafeString(request["session"]?["id"]) ?? "",
-            ["sequence"] = request["sequence"] is JsonValue seq && seq.TryGetValue(out long sequence) && sequence >= 0 ? sequence : -1,
+            ["session_id"] = SafeString((request["session"] as JsonObject)?["id"]) ?? "",
+            ["sequence"] = SafeSequence(request["sequence"], valid),
             ["decided_by"] = decidedBy,
             ["composition"] = Composition(),
             ["interceptors_registered"] = registered,
