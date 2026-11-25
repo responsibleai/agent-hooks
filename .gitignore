@@ -461,7 +461,3 @@ sdk/go/**/*.test
 .DS_Store
 .claude/
 docs-site/.astro/
-
-# Native pack staging (release pipeline / local pack verification)
-sdk/csharp/src/AgentHooks/runtimes/
-sdk/csharp/ffi-artifacts/

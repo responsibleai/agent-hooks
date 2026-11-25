@@ -456,56 +456,8 @@ jobs:
           fi
         working-directory: sdk/typescript
 
-  ffi-build:
-    timeout-minutes: 25
-    needs: spec-gate
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu, rid: linux-x64, lib: libagent_hooks_ffi.so }
-          - { os: macos-latest,   target: aarch64-apple-darwin,     rid: osx-arm64, lib: libagent_hooks_ffi.dylib }
-          - { os: macos-latest,   target: x86_64-apple-darwin,      rid: osx-x64,   lib: libagent_hooks_ffi.dylib }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc,   rid: win-x64,   lib: agent_hooks_ffi.dll }
-    runs-on: ${{ matrix.os }}
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master; toolchain pinned via sdk/rust/rust-toolchain.toml
-        if: runner.os != 'Windows'
-        with:
-          toolchain: stable
-          targets: ${{ matrix.target }}
-      - name: Install ${{ matrix.target }} for the pinned toolchain
-        if: runner.os != 'Windows'
-        # rust-toolchain.toml pins the toolchain inside sdk/rust; the
-        # setup action installs targets for `stable` only, so cross
-        # targets must be added in the pinned context.
-        shell: bash
-        run: rustup target add ${{ matrix.target }}
-        working-directory: sdk/rust
-      - name: Build FFI cdylib for ${{ matrix.target }}
-        if: runner.os != 'Windows'
-        shell: bash
-        run: cargo build --locked --release -p agent-hooks-ffi --target ${{ matrix.target }}
-        working-directory: sdk/rust
-      - name: Build and scan protected Windows FFI
-        if: runner.os == 'Windows'
-        timeout-minutes: 15
-        uses: ./.github/actions/windows-ffi
-      - name: Check Windows release DLL CFG
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./scripts/check-windows-cfg.ps1 -Dll sdk/rust/target/${{ matrix.target }}/release/${{ matrix.lib }}
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ffi-${{ matrix.rid }}
-          path: sdk/rust/target/${{ matrix.target }}/release/${{ matrix.lib }}
-          if-no-files-found: error
-
   dotnet:
-    needs: ffi-build
+    needs: spec-gate
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -514,39 +466,24 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: ffi-*
-          path: sdk/csharp/ffi-artifacts
-      - name: Stage native runtimes into the pack layout
-        shell: bash
-        run: |
-          for rid in linux-x64 osx-x64 osx-arm64 win-x64; do
-            mkdir -p "src/AgentHooks/runtimes/$rid/native"
-            cp ffi-artifacts/ffi-"$rid"/* "src/AgentHooks/runtimes/$rid/native/"
-          done
-          find src/AgentHooks/runtimes -type f | sort
-          test "$(find src/AgentHooks/runtimes -type f | wc -l)" -eq 4
-        working-directory: sdk/csharp
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with: { dotnet-version: "8.0.x" }
-      - run: dotnet restore && dotnet pack src/AgentHooks -c Release -o dist
+      - run: |
+          dotnet restore
+          dotnet pack src/AgentHooks --no-restore -c Release -o dist
         working-directory: sdk/csharp
-      - name: Assert the nupkg bundles all four native runtimes
+      - name: Assert the single NuGet package is managed-only and bundles the contracts
         shell: bash
         run: |
-          pkg=$(ls dist/*.nupkg)
-          for rid in linux-x64 osx-x64 osx-arm64 win-x64; do
-            unzip -l "$pkg" | grep -q "runtimes/$rid/native/" || { echo "::error::$rid native library missing from $pkg"; exit 1; }
-          done
+          test "$(find dist -name '*.nupkg' | wc -l)" -eq 1
+          pkg=$(find dist -name '*.nupkg')
+          if unzip -Z1 "$pkg" | grep -q '^runtimes/'; then
+            echo "::error::unexpected native runtime in $pkg"
+            exit 1
+          fi
+          unzip -Z1 "$pkg" | grep -qx 'lib/net8.0/AgentHooks.Contracts.dll' ||
+            { echo "::error::$pkg does not bundle AgentHooks.Contracts.dll"; exit 1; }
         working-directory: sdk/csharp
-      - name: Check bundled Windows DLL CFG and release-asset identity
-        shell: pwsh
-        run: |
-          $packages = @(Get-ChildItem sdk/csharp/dist/*.nupkg)
-          if ($packages.Count -ne 1) { throw 'Expected exactly one NuGet package.' }
-          ./scripts/check-windows-cfg.ps1 -Package $packages[0].FullName `
-            -ExpectedDll sdk/csharp/src/AgentHooks/runtimes/win-x64/native/agent_hooks_ffi.dll
       - name: SBOM
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
@@ -565,7 +502,8 @@ jobs:
           user: ${{ secrets.NUGET_USER }}
       - name: Publish to NuGet
         if: env.DRY_RUN != 'true' && github.ref_type == 'tag'
-        run: dotnet nuget push dist/*.nupkg --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          dotnet nuget push dist/ResponsibleAI.AgentHooks.[0-9]*.nupkg --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
         working-directory: sdk/csharp
 
   # Go has no upload: the module proxy serves the tag. This job proves
