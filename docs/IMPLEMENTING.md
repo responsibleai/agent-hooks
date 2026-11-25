@@ -28,8 +28,9 @@ Implementing Agent Hooks means three things:
 
 The SDKs do the normative work for you. The Rust core validates
 contexts and verdicts, applies transforms, composes verdicts,
-computes identities and writes records; the Python, TypeScript, .NET
-and Go SDKs bind it. What you write is the code between your loop and
+computes identities and writes records; the Python, TypeScript and Go
+SDKs bind it, and the managed .NET SDK implements the same work in C#,
+checked against the same golden fixtures and conformance vectors. What you write is the code between your loop and
 the emitter: building contexts from your loop, calling the emitter at
 the right moments, and obeying the result.
 

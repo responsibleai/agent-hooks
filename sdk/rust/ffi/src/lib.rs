@@ -1,6 +1,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 
-//! C-ABI over `agent_hooks::ffi_surface` for Go (cgo) and .NET (P/Invoke).
+//! C-ABI over `agent_hooks::ffi_surface` for Go (cgo).
 //!
 //! Every function takes NUL-terminated UTF-8 C strings and returns a
 //! heap-allocated `AhResult*` that the caller MUST free with

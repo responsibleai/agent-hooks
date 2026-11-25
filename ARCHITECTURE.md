@@ -1,10 +1,11 @@
 # Architecture
 
-## Rust core, per-language wrappers
+## Rust core and native C# runtime
 
 `sdk/rust/core` (`agent-hooks-sdk` crate, lib name `agent_hooks`) is the single canonical
-implementation of AGENT-HOOKS-0.1. Every other SDK binds to it so that
-the security-relevant primitives have exactly one implementation:
+implementation used by the Rust, Python, TypeScript, and Go SDKs.
+C# implements the same primitives directly in managed .NET 8, pinned
+against the shared golden fixtures and conformance suites:
 
 | §    | Primitive | Core symbol |
 | ---- | --------- | ----------- |
@@ -21,12 +22,23 @@ CTK `Harness` glue — anything that calls back into user code. For
 Rust-native hosts these live in the core crate itself
 (`InterceptionEmitter`, `AgentContextBuilder`, `ctk::ReferenceHarness`
 behind the `ctk` feature); the other languages implement them over the
-FFI.
+FFI, except C#, whose callbacks and primitives are all managed.
+
+The C# SDK is draft-only and built on `AgentHooks.Contracts` (bundled in the
+single `ResponsibleAI.AgentHooks` package), generated from
+TypeSpec using emitter-framework and Alloy. Requests and verdicts flow through
+the engine as wire JSON (`JsonObject`); the generated records, interfaces and
+request types are the typed edge (`HookEmitterBuilder.OnPreToolCall(...)`,
+`HookEmitter.EmitAsync<TRequest>`). Request, response, approval and declaration
+validation use the embedded generated JSON Schemas with JsonSchema.Net;
+RFC 8785/identity (`Jcs`), composition (`HookEmitter.Dispatch`), verdict
+checks (`Verdicts`) and declaration staging (`Declarations`) are handwritten.
+No Rust bridge remains.
 
 ## FFI surface
 
-`sdk/rust/core/src/ffi_surface.rs` defines the shared surface every
-binding wraps. All functions take and return UTF-8 JSON strings, because
+`sdk/rust/core/src/ffi_surface.rs` defines the surface the Rust-backed
+bindings wrap. All functions take and return UTF-8 JSON strings, because
 `AgentContext` and `Verdict` are already wire-shaped JSON. Errors return
 `(host_error_code, detail)` where `host_error_code` is the §11 wire
 string; bindings raise a native exception carrying both.
@@ -36,7 +48,7 @@ string; bindings raise a native exception carrying both.
 | Python | `sdk/python/{Cargo.toml,src/lib.rs}` | PyO3 abi3-py310, built by maturin as `agent_hooks._core` |
 | TypeScript | `sdk/typescript/{Cargo.toml,src/native.rs}` | napi-rs, built by `@napi-rs/cli` as `agent-hooks.<platform>.node` |
 | C ABI | `sdk/rust/ffi/` | `libagent_hooks_ffi` cdylib + `include/agent_hooks.h` |
-| .NET | `sdk/csharp/src/AgentHooks/Native.cs` | `[DllImport("agent_hooks_ffi")]` over the C ABI |
+| C# (independent) | `sdk/csharp/src/AgentHooks/` | Native C#, no C ABI or native assets |
 | Go | `sdk/go/agenthooks/native.go` | cgo over the C ABI |
 
 The C ABI returns a heap-allocated `AhResult{ok, value, error_code}` the
@@ -62,22 +74,24 @@ raise/return InterceptionRecord
 
 ## TCB surface (what is single-implementation and what is not)
 
-The security primitives that are implemented **once** in the Rust core
-and inherited by every binding: canonical JSON + context identity
+The security primitives implemented in Rust and independently in C#:
+canonical JSON + context identity
 (§10), the §5 verdict gate (`validate_verdict`/`from_wire`), severity
 aggregation (`compose_aggregate`), transform application (§5.2), record
 assembly and the payload-free projection (`finalize`, §10.3), and the
 CTK engine.
 
-Duplicated per language, by necessity (they call back into user code):
+Implemented per language, by necessity (they call back into user code):
 the per-profile dispatch loops (§7.4–§7.5 fold, short-circuit, snapshot
 isolation), approval-seam consultation and substitution (§7.6, §9),
 timeout enforcement, and the §7.3 union application on substitution
 paths. These five implementations CAN drift; the pin is the CTK — the
 composition vectors assert wire-shaped records (combined verdict,
 `decided_by`, `verdicts[]`, `fold_truncated`, `resolved_by`) that are
-byte-comparable across SDKs, so a divergence in any duplicated surface
-fails that SDK's self-test. (AH-CTK-104's `verdicts[]` assertions
+comparable across SDKs for the same specification version, so a divergence
+fails that SDK's self-test. Identity golden vectors additionally pin canonical
+bytes and hashes across the Rust and managed implementations.
+(AH-CTK-104's `verdicts[]` assertions
 caught exactly such a drift during development.)
 
 ## Latency budget
@@ -107,7 +121,9 @@ bench suite before release tags ([RELEASING.md](RELEASING.md)).
 `scripts/gen-golden-identity.py` and asserted by every SDK's test suite
 (`sdk/rust/core/tests/golden_identity.rs`,
 `sdk/python/tests/test_golden_identity.py`, and equivalents). A binding
-that fails this test is not calling into the core.
+that fails this test is not calling into the core; the managed C# SDK
+implements the primitives independently and asserts the same fixtures in
+`JcsTests`.
 
 ## Trade-offs
 

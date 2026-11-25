@@ -11,9 +11,10 @@ a policy engine, approval flow, or audit pipeline plugs in once as an
 interceptor and works on every conformant host.
 
 One Rust core implements everything normative. Python, TypeScript,
-.NET, and Go bind to it over a C ABI, and Rust hosts use the crate
-directly, so the same context produces the same canonical bytes and the
-same decisions in all five languages.
+and Go bind to it, and Rust hosts use the crate directly. .NET is a
+managed implementation checked against the same golden identity vectors
+and conformance suite, so the same context produces the same canonical
+bytes and the same decisions in all five languages.
 
 :::caution[Trust model]
 Agent Hooks is a cooperative contract, not a security boundary.
@@ -60,8 +61,8 @@ dotnet add package ResponsibleAI.AgentHooks --prerelease
 go get github.com/responsibleai/agent-hooks/sdk/go/agenthooks
 ```
 
-The .NET and Go bindings load the native core library at run time; see
-their quickstarts for the one build step this adds today.
+The Go binding loads the native core library at run time; see its
+quickstart for the one build step this adds today.
 
 ## Where to start
 

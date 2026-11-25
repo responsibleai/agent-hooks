@@ -7,7 +7,7 @@ The `core/` crate (`agent-hooks-sdk` on crates.io, lib name
 context identity, verdict validation, transform application,
 composition aggregation — and is also a full Rust host SDK. The
 `ffi/` crate exposes the C ABI (`libagent_hooks_ffi`) that the
-Python, TypeScript, .NET, and Go wrappers bind.
+Python, TypeScript, and Go wrappers bind.
 
 > **Trust model.** agent-hooks is a *cooperative contract*, not a security
 > boundary: the host framework is fully trusted, interceptors run in-process
@@ -139,8 +139,9 @@ let emitter = InterceptionEmitter::from_declaration(decl, &registry)?;
 A refusal is a `DeclarationError` with `class`, `findings` (JSON pointer
 and detail) and, for an unsupported version, `accepted`; `code()` gives
 the namespaced class (`declaration_error:unknown_field`). The same
-checks run for every SDK, since Python and TypeScript bind this crate
-in-process and .NET and Go call it through the C ABI.
+checks run for Python, TypeScript and Go, since Python and TypeScript bind
+this crate in-process and Go calls it through the C ABI; the managed C# SDK
+implements them independently.
 
 An emitter built from a declaration is sealed: `register`,
 `register_at` and the setters panic. `declaration()` returns the
@@ -159,9 +160,9 @@ is on, because the core cannot bound execution without it.
 
 Rust hosts consume the `agent-hooks-sdk` crate directly — no dynamic
 library involved. The `ffi/` crate (cdylib `libagent_hooks_ffi`) exists
-for the other four SDKs; build it with
+for the other native-backed SDKs; build it with
 `cargo build --release -p agent-hooks-ffi` when developing against
-Python/TypeScript/.NET/Go locally (their READMEs cover per-OS
+Python/TypeScript/Go locally (their READMEs cover per-OS
 placement).
 
 Windows MSVC builds use the repository's `.cargo/config.toml` to enable
@@ -170,14 +171,3 @@ Control Flow Guard (CFG) instrumentation and linking with
 its subdirectories so that Cargo discovers the configuration. Do not
 replace it with `nochecks`, which emits metadata without runtime checks.
 The setting does not change non-Windows targets or the GNU cgo build.
-Windows release FFI assets are checked by
-`scripts/check-windows-cfg.ps1` before upload.
-
-The Windows x64 FFI/NuGet release route additionally uses the pinned
-`nightly-2026-10-21` compiler to rebuild `std` and `panic_unwind` with
-`-Z stack-protector=strong`, retaining CFG. Its matching-PDB BinSkim
-gate rejects BA2014 failures, skipped checks and stale binary reports.
-Follow the [.NET Windows build instructions](../csharp/README.md#windows-x64-source-builds-and-release-checks)
-for this protected artifact. A plain stable Cargo build still uses the
-precompiled standard library and is not equivalent. Direct Rust, Python,
-TypeScript, GNU cgo and non-Windows build toolchains are unchanged.
