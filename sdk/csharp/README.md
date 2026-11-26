@@ -17,7 +17,7 @@ two assemblies:
 
 | Assembly | Contents |
 | --- | --- |
-| `AgentHooks.Contracts` | Types generated from `spec/draft` TypeSpec: per-point requests, responses and transforms, verdicts, approval requests/resolutions, `InterceptionRecord`, `HostDeclaration`, and the `IInterceptor`/`IApprovalResolver` hook interfaces. |
+| `AgentHooks.Contracts` | Types generated from `spec/draft` TypeSpec: per-point requests, responses (with `Allow`/`Deny`/`Transform*` factories) and transforms, verdicts, approval requests/resolutions, `InterceptionRecord`, `HostDeclaration`, the per-point hook interfaces (`IPreToolCallHook`, …) composed by `IInterceptor`, and `IApprovalResolver`. |
 | `AgentHooks` | The runtime: `HookEmitter`, its builder, declarations, and RFC 8785 identity (`Jcs`). |
 
 `AgentHooks.Conformance`, the draft CTK runner and reference harness, is not packaged.
@@ -30,12 +30,11 @@ using AgentHooks;
 using Draft = AgentHooks.Contracts.Draft;
 
 var emitter = HookEmitter.CreateBuilder()
-    .OnPreToolCall((call, _) => Task.FromResult(new Draft.PreToolHookResponse
-    {
-        Verdict = call.ToolCall.Name == "send_email"
-            ? new Draft.DenyVerdict { Reason = "egress_blocked" }
-            : new Draft.AllowVerdict(),
-    }), new BindingOptions { Name = "egress-guard", Timeout = TimeSpan.FromSeconds(2) })
+    .OnPreToolCall((call, _) => Task.FromResult(
+        call.ToolCall.Name == "send_email"
+            ? Draft.PreToolHookResponse.Deny("egress_blocked")
+            : Draft.PreToolHookResponse.Allow()),
+        new BindingOptions { Name = "egress-guard", Timeout = TimeSpan.FromSeconds(2) })
     .WithRecordSink(record => Console.WriteLine($"{record.InterceptionPoint}: {record.Verdict.Decision}"))
     .Build();
 
@@ -56,7 +55,8 @@ if (!result.Proceeds) Console.WriteLine($"denied: {result.Verdict["reason"]}");
   is the same at the wire level.
 - Typed handlers (`OnAgentStartup` … `OnAgentShutdown`) take a
   `(request, cancellationToken) => Task<response>` lambda over the generated
-  request and response types. For untyped or multi-point interceptors implement
+  request and response types; `BindingOptions` sets the recorded name,
+  timeout and error posture. For untyped or multi-point interceptors implement
   `IHookInterceptor` (or pass a delegate to `Use`): it receives a `HookCall`
   (point, isolated request copy, effective timeout) and returns a
   `HookOutcome` — a response body, `TimedOut`, `Cancelled` or `Failed`.
@@ -69,6 +69,74 @@ if (!result.Proceeds) Console.WriteLine($"denied: {result.Verdict["reason"]}");
   `WithApprovalResolver`/`WithApprovalRedactor`, `WithTimeouts` and
   `WithToolSeamPosture` configure the remaining draft knobs. Emitters are
   immutable and thread-safe.
+
+## Authoring hooks
+
+Prefer the delegates above for inline policies. Each generated response type
+has static factories, generated from the spec's verdict unions and transform
+targets, so no verdict hierarchy or JSON request wrapper is needed:
+
+| Point | Factories |
+| --- | --- |
+| Agent startup | `Draft.AgentStartupHookResponse.Allow()`, `.Deny(reason, message?)` |
+| Input | `Draft.InputHookResponse.Allow()`, `.Deny(reason, message?)`, `.TransformInput(input)` |
+| Pre-model call | `Draft.PreModelHookResponse.Allow()`, `.Deny(reason, message?)`, `.TransformMessages(messages)` |
+| Post-model call | `Draft.PostModelHookResponse.Allow()`, `.Deny(reason, message?)`, `.TransformResponse(response)` |
+| Pre-tool call | `Draft.PreToolHookResponse.Allow()`, `.Deny(reason, message?)`, `.TransformArgs(args)` |
+| Post-tool call | `Draft.PostToolHookResponse.Allow()`, `.Deny(reason, message?)`, `.TransformValue(value)` |
+| Output | `Draft.OutputHookResponse.Allow()`, `.Deny(reason, message?)`, `.TransformOutput(output)` |
+| Agent shutdown | `Draft.AgentShutdownHookResponse.Allow()`, `.Deny(reason, message?)` |
+
+Transforms replace the **whole target member**, not individual keys or paths.
+Arguments are the generated target types (`Draft.Input`, `Draft.Message[]`,
+`Draft.Response`, `Draft.JsonObject`, `JsonElement`, `Draft.Output`). Mutable
+targets are retained by the response; do not mutate them while a handler is
+returning it. `TransformValue` clones its `JsonElement`, including JSON null,
+so a source `JsonDocument` may be disposed. Runtime schema and semantic gates
+still apply. Use the generated initializers for advanced verdict metadata
+(warnings, evidence, approval, or result labels).
+
+```csharp
+var emitter = HookEmitter.CreateBuilder()
+    .OnPreToolCall((request, ct) => Task.FromResult(
+        Draft.PreToolHookResponse.TransformArgs(new Draft.JsonObject
+        {
+            ["query"] = JsonSerializer.SerializeToElement("redacted"),
+        })))
+    .OnPostToolCall((request, ct) => Task.FromResult(
+        Draft.PostToolHookResponse.TransformValue(JsonSerializer.SerializeToElement("redacted"))))
+    .Build();
+```
+
+For reusable classes, implement only the per-point interfaces you need.
+`AddHook` binds **every implemented interface** in specification order, with
+the same `BindingOptions` at each point; it throws for null or unsupported
+objects. There are eight generated interfaces, from `Draft.IAgentStartupHook` to
+`Draft.IAgentShutdownHook`; all methods return `Task<TResponse>`.
+
+```csharp
+var emitter = HookEmitter.CreateBuilder()
+    .AddHook(new EgressGuard(), new BindingOptions { Name = "egress-guard" })
+    .Build();
+
+sealed class EgressGuard : Draft.IPreToolCallHook, Draft.IPostToolCallHook
+{
+    public Task<Draft.PreToolHookResponse> OnPreToolCallAsync(
+        Draft.PreToolCallRequest request, CancellationToken ct) =>
+        Task.FromResult(request.ToolCall.Name == "send_email"
+            ? Draft.PreToolHookResponse.Deny("egress_blocked")
+            : Draft.PreToolHookResponse.Allow());
+
+    public Task<Draft.PostToolHookResponse> OnPostToolCallAsync(
+        Draft.PostToolCallRequest request, CancellationToken ct) =>
+        Task.FromResult(Draft.PostToolHookResponse.Allow());
+}
+```
+
+Hook implementations can be tested directly with constructible generated
+requests, or mocked through these interfaces. No public `ForTest` factories
+are required. `Draft.IInterceptor` composes all eight interfaces, so an
+all-point interceptor can be passed to `AddHook` as well.
 
 ## Host declarations
 

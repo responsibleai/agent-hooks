@@ -6,6 +6,15 @@ release (one per root tag). Versioning rules: [VERSIONING.md](VERSIONING.md).
 
 ## Unreleased SDK (next tag v0.1.0-beta.4)
 
+- C#: hook authoring at all eight points generated from the spec. Each
+  generated response type has `Allow()`, `Deny(reason, message?)` and, where
+  the point transforms, a whole-target `Transform<Member>` factory, e.g.
+  `Draft.PreToolHookResponse.TransformArgs(args)`. `Draft.IInterceptor` now
+  composes generated per-point interfaces (`Draft.IPreToolCallHook`, …), and
+  `HookEmitterBuilder.AddHook(hook, options)` binds each one a class
+  implements. Adapted from #202 with `Task<T>` handlers and constructible
+  generated requests instead of public test factories.
+
 - Breaking (C#): the .NET SDK is rebuilt as a draft-only, managed SDK on the
   generated `AgentHooks.Contracts` assembly, shipped inside the single
   `ResponsibleAI.AgentHooks` package; no Rust/FFI or native assets remain.
