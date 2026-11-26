@@ -12,10 +12,14 @@ namespace AgentHooks.Contracts.Draft;
 
 public sealed partial class AgentStartupHookResponse
 {
-    /// <summary>Creates a response that allows the action.</summary>
+    /// <summary>
+    /// Creates a response that allows the action.
+    /// </summary>
     public static AgentStartupHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
-    /// <summary>Creates a response that denies the action.</summary>
+    /// <summary>
+    /// Creates a response that denies the action.
+    /// </summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
     public static AgentStartupHookResponse Deny(string reason, string? message = null)
@@ -27,10 +31,14 @@ public sealed partial class AgentStartupHookResponse
 
 public sealed partial class InputHookResponse
 {
-    /// <summary>Creates a response that allows the action.</summary>
+    /// <summary>
+    /// Creates a response that allows the action.
+    /// </summary>
     public static InputHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
-    /// <summary>Creates a response that denies the action.</summary>
+    /// <summary>
+    /// Creates a response that denies the action.
+    /// </summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
     public static InputHookResponse Deny(string reason, string? message = null)
@@ -39,7 +47,9 @@ public sealed partial class InputHookResponse
         return new() { Verdict = new DenyVerdict { Reason = reason, Message = message } };
     }
 
-    /// <summary>Creates a response that proceeds with <paramref name="input"/> replacing the whole input target.</summary>
+    /// <summary>
+    /// Creates a response that proceeds with <paramref name="input" /> replacing the whole input target.
+    /// </summary>
     public static InputHookResponse TransformInput(Input input)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -49,10 +59,14 @@ public sealed partial class InputHookResponse
 
 public sealed partial class PreModelHookResponse
 {
-    /// <summary>Creates a response that allows the action.</summary>
+    /// <summary>
+    /// Creates a response that allows the action.
+    /// </summary>
     public static PreModelHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
-    /// <summary>Creates a response that denies the action.</summary>
+    /// <summary>
+    /// Creates a response that denies the action.
+    /// </summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
     public static PreModelHookResponse Deny(string reason, string? message = null)
@@ -61,7 +75,9 @@ public sealed partial class PreModelHookResponse
         return new() { Verdict = new DenyVerdict { Reason = reason, Message = message } };
     }
 
-    /// <summary>Creates a response that proceeds with <paramref name="messages"/> replacing the whole messages target.</summary>
+    /// <summary>
+    /// Creates a response that proceeds with <paramref name="messages" /> replacing the whole messages target.
+    /// </summary>
     public static PreModelHookResponse TransformMessages(Message[] messages)
     {
         ArgumentNullException.ThrowIfNull(messages);
@@ -71,10 +87,14 @@ public sealed partial class PreModelHookResponse
 
 public sealed partial class PostModelHookResponse
 {
-    /// <summary>Creates a response that allows the action.</summary>
+    /// <summary>
+    /// Creates a response that allows the action.
+    /// </summary>
     public static PostModelHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
-    /// <summary>Creates a response that denies the action.</summary>
+    /// <summary>
+    /// Creates a response that denies the action.
+    /// </summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
     public static PostModelHookResponse Deny(string reason, string? message = null)
@@ -83,7 +103,9 @@ public sealed partial class PostModelHookResponse
         return new() { Verdict = new DenyVerdict { Reason = reason, Message = message } };
     }
 
-    /// <summary>Creates a response that proceeds with <paramref name="response"/> replacing the whole response target.</summary>
+    /// <summary>
+    /// Creates a response that proceeds with <paramref name="response" /> replacing the whole response target.
+    /// </summary>
     public static PostModelHookResponse TransformResponse(Response response)
     {
         ArgumentNullException.ThrowIfNull(response);
@@ -93,10 +115,14 @@ public sealed partial class PostModelHookResponse
 
 public sealed partial class PreToolHookResponse
 {
-    /// <summary>Creates a response that allows the action.</summary>
+    /// <summary>
+    /// Creates a response that allows the action.
+    /// </summary>
     public static PreToolHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
-    /// <summary>Creates a response that denies the action.</summary>
+    /// <summary>
+    /// Creates a response that denies the action.
+    /// </summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
     public static PreToolHookResponse Deny(string reason, string? message = null)
@@ -105,7 +131,9 @@ public sealed partial class PreToolHookResponse
         return new() { Verdict = new DenyVerdict { Reason = reason, Message = message } };
     }
 
-    /// <summary>Creates a response that proceeds with <paramref name="args"/> replacing the whole args target.</summary>
+    /// <summary>
+    /// Creates a response that proceeds with <paramref name="args" /> replacing the whole args target.
+    /// </summary>
     public static PreToolHookResponse TransformArgs(JsonObject args)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -115,10 +143,14 @@ public sealed partial class PreToolHookResponse
 
 public sealed partial class PostToolHookResponse
 {
-    /// <summary>Creates a response that allows the action.</summary>
+    /// <summary>
+    /// Creates a response that allows the action.
+    /// </summary>
     public static PostToolHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
-    /// <summary>Creates a response that denies the action.</summary>
+    /// <summary>
+    /// Creates a response that denies the action.
+    /// </summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
     public static PostToolHookResponse Deny(string reason, string? message = null)
@@ -127,17 +159,23 @@ public sealed partial class PostToolHookResponse
         return new() { Verdict = new DenyVerdict { Reason = reason, Message = message } };
     }
 
-    /// <summary>Creates a response that proceeds with <paramref name="value"/> replacing the whole value target.</summary>
+    /// <summary>
+    /// Creates a response that proceeds with <paramref name="value" /> replacing the whole value target.
+    /// </summary>
     public static PostToolHookResponse TransformValue(JsonElement value) =>
         new() { Verdict = new TransformVerdictPostToolHookTransform { Transform = new() { Value = value.Clone() } } };
 }
 
 public sealed partial class OutputHookResponse
 {
-    /// <summary>Creates a response that allows the action.</summary>
+    /// <summary>
+    /// Creates a response that allows the action.
+    /// </summary>
     public static OutputHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
-    /// <summary>Creates a response that denies the action.</summary>
+    /// <summary>
+    /// Creates a response that denies the action.
+    /// </summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
     public static OutputHookResponse Deny(string reason, string? message = null)
@@ -146,7 +184,9 @@ public sealed partial class OutputHookResponse
         return new() { Verdict = new DenyVerdict { Reason = reason, Message = message } };
     }
 
-    /// <summary>Creates a response that proceeds with <paramref name="output"/> replacing the whole output target.</summary>
+    /// <summary>
+    /// Creates a response that proceeds with <paramref name="output" /> replacing the whole output target.
+    /// </summary>
     public static OutputHookResponse TransformOutput(Output output)
     {
         ArgumentNullException.ThrowIfNull(output);
@@ -156,10 +196,14 @@ public sealed partial class OutputHookResponse
 
 public sealed partial class AgentShutdownHookResponse
 {
-    /// <summary>Creates a response that allows the action.</summary>
+    /// <summary>
+    /// Creates a response that allows the action.
+    /// </summary>
     public static AgentShutdownHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
-    /// <summary>Creates a response that denies the action.</summary>
+    /// <summary>
+    /// Creates a response that denies the action.
+    /// </summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
     public static AgentShutdownHookResponse Deny(string reason, string? message = null)

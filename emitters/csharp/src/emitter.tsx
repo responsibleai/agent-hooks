@@ -135,7 +135,7 @@ function contracts(program: Program) {
     for (const operation of iface.operations.values()) {
       if (isTemplateDeclaration(operation)) continue;
       if (iface.name === "Interceptor") {
-        const hookName = hookInterfaceName(operation);
+        const hookName = hookInterfaceName(operation, policy);
         if (usedNames.has(hookName)) throw new Error(`Duplicate C# contract name: ${hookName}`);
         usedNames.add(hookName);
       }
@@ -344,19 +344,23 @@ function GeneratedContracts(): Children {
       </cs.SourceFile>
       <cs.SourceFile path="Hooks.g.cs" header={header}
         using={["System.Threading", "System.Threading.Tasks"]}>
-        {"#nullable enable"}<hbr /><hbr />
-        <For each={[...handlers.entries()]} doubleHardline>
-          {([name, operations]) => name === "IInterceptor" ? <PointHookInterfaces name={name} operations={operations} />
-            : <cs.InterfaceDeclaration public name={name}>
-            <For each={operations} doubleHardline>
-              {([type, methodName]) => <OperationHandler type={type} name={methodName} />}
-            </For>
-          </cs.InterfaceDeclaration>}
-        </For>
+        <List doubleHardline>
+          <>#nullable enable</>
+          <For each={[...handlers.entries()]} doubleHardline>
+            {([name, operations]) => name === "IInterceptor" ? <PointHookInterfaces name={name} operations={operations} />
+              : <cs.InterfaceDeclaration public name={name}>
+              <For each={operations} doubleHardline>
+                {([type, methodName]) => <OperationHandler type={type} name={methodName} />}
+              </For>
+            </cs.InterfaceDeclaration>}
+          </For>
+        </List>
       </cs.SourceFile>
       <cs.SourceFile path="Responses.g.cs" header={header} using={["System", "System.Text.Json"]}>
-        {"#nullable enable"}<hbr /><hbr />
-        <ResponseFactories entries={points.entries} />
+        <List doubleHardline>
+          <>#nullable enable</>
+          <ResponseFactories entries={points.entries} names={names} />
+        </List>
       </cs.SourceFile>
       <cs.SourceFile path="Points.g.cs" header={header}
         using={["System", "System.Collections.Immutable", "System.Diagnostics.CodeAnalysis"]}>
