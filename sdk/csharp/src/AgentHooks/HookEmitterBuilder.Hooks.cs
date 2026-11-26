@@ -7,10 +7,25 @@ namespace AgentHooks;
 public sealed partial class HookEmitterBuilder
 {
     /// <summary>
-    /// Registers a hook at each generated per-point interface it implements (for example
-    /// <see cref="Draft.IPreToolCallHook"/>), in specification order.
+    /// Registers a hook object at each generated per-point interface it implements (for example,
+    /// <see cref="Draft.IPreToolCallHook" /> or <see cref="Draft.IInterceptor" />), in specification order.
     /// </summary>
-    /// <exception cref="ArgumentException">The hook implements no per-point hook interface.</exception>
+    /// <param name="hook">An object implementing one or more generated per-point hook interfaces.</param>
+    /// <param name="options">Optional per-binding settings applied to every point registered from <paramref name="hook" />.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="hook" /> is <see langword="null" />.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="hook" /> implements no per-point hook interface, or <see cref="BindingOptions.Name" /> is
+    /// empty or exceeds 128 UTF-8 bytes.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException"><see cref="BindingOptions.Timeout" /> is neither positive nor <see cref="Timeout.InfiniteTimeSpan" />.</exception>
+    /// <remarks>
+    /// One typed binding is added per implemented interface in specification order:
+    /// <see cref="Draft.InterceptionPoint.AgentStartup" />, <see cref="Draft.InterceptionPoint.Input" />,
+    /// <see cref="Draft.InterceptionPoint.PreModelCall" />, <see cref="Draft.InterceptionPoint.PostModelCall" />,
+    /// <see cref="Draft.InterceptionPoint.PreToolCall" />, <see cref="Draft.InterceptionPoint.PostToolCall" />,
+    /// <see cref="Draft.InterceptionPoint.Output" />, and <see cref="Draft.InterceptionPoint.AgentShutdown" />.
+    /// </remarks>
     public HookEmitterBuilder AddHook(object hook, BindingOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(hook);

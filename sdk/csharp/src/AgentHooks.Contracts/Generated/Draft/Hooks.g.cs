@@ -10,90 +10,160 @@ namespace AgentHooks.Contracts.Draft;
 
 #nullable enable
 
+/// <summary>
+/// Typed hook interface for the <see cref="InterceptionPoint.AgentStartup" /> (<c>agent_startup</c>) interception point.
+/// </summary>
 public interface IAgentStartupHook
 {
     /// <summary>
     /// Evaluate agent_startup before the session's first input (§3, §4.2).
     /// </summary>
+    /// <param name="request">The candidate request for this interception point.</param>
+    /// <param name="cancellationToken">A token that signals the operation should be canceled.</param>
+    /// <returns>
+    /// A task that resolves to the <see cref="AgentStartupHookResponse" />.
+    /// </returns>
     Task<AgentStartupHookResponse> OnAgentStartupAsync(
         AgentStartupRequest request,
         CancellationToken cancellationToken = default
     );
 }
 
+/// <summary>
+/// Typed hook interface for the <see cref="InterceptionPoint.Input" /> (<c>input</c>) interception point.
+/// </summary>
 public interface IInputHook
 {
     /// <summary>
     /// Evaluate input before it enters the agent loop (§3, §4.2).
     /// </summary>
+    /// <param name="request">The candidate request for this interception point.</param>
+    /// <param name="cancellationToken">A token that signals the operation should be canceled.</param>
+    /// <returns>
+    /// A task that resolves to the <see cref="InputHookResponse" />.
+    /// </returns>
     Task<InputHookResponse> OnInputAsync(InputRequest request, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Typed hook interface for the <see cref="InterceptionPoint.PreModelCall" /> (<c>pre_model_call</c>) interception point.
+/// </summary>
 public interface IPreModelCallHook
 {
     /// <summary>
     /// Evaluate pre_model_call before invoking the model (§3, §4.2).
     /// </summary>
+    /// <param name="request">The candidate request for this interception point.</param>
+    /// <param name="cancellationToken">A token that signals the operation should be canceled.</param>
+    /// <returns>
+    /// A task that resolves to the <see cref="PreModelHookResponse" />.
+    /// </returns>
     Task<PreModelHookResponse> OnPreModelCallAsync(
         PreModelCallRequest request,
         CancellationToken cancellationToken = default
     );
 }
 
+/// <summary>
+/// Typed hook interface for the <see cref="InterceptionPoint.PostModelCall" /> (<c>post_model_call</c>) interception point.
+/// </summary>
 public interface IPostModelCallHook
 {
     /// <summary>
     /// Evaluate post_model_call before consuming the model response (§3, §4.2).
     /// </summary>
+    /// <param name="request">The candidate request for this interception point.</param>
+    /// <param name="cancellationToken">A token that signals the operation should be canceled.</param>
+    /// <returns>
+    /// A task that resolves to the <see cref="PostModelHookResponse" />.
+    /// </returns>
     Task<PostModelHookResponse> OnPostModelCallAsync(
         PostModelCallRequest request,
         CancellationToken cancellationToken = default
     );
 }
 
+/// <summary>
+/// Typed hook interface for the <see cref="InterceptionPoint.PreToolCall" /> (<c>pre_tool_call</c>) interception point.
+/// </summary>
 public interface IPreToolCallHook
 {
     /// <summary>
     /// Evaluate pre_tool_call before invoking the tool (§3, §4.2).
     /// </summary>
+    /// <param name="request">The candidate request for this interception point.</param>
+    /// <param name="cancellationToken">A token that signals the operation should be canceled.</param>
+    /// <returns>
+    /// A task that resolves to the <see cref="PreToolHookResponse" />.
+    /// </returns>
     Task<PreToolHookResponse> OnPreToolCallAsync(
         PreToolCallRequest request,
         CancellationToken cancellationToken = default
     );
 }
 
+/// <summary>
+/// Typed hook interface for the <see cref="InterceptionPoint.PostToolCall" /> (<c>post_tool_call</c>) interception point.
+/// </summary>
 public interface IPostToolCallHook
 {
     /// <summary>
     /// Evaluate post_tool_call before consuming the tool result (§3, §4.2).
     /// </summary>
+    /// <param name="request">The candidate request for this interception point.</param>
+    /// <param name="cancellationToken">A token that signals the operation should be canceled.</param>
+    /// <returns>
+    /// A task that resolves to the <see cref="PostToolHookResponse" />.
+    /// </returns>
     Task<PostToolHookResponse> OnPostToolCallAsync(
         PostToolCallRequest request,
         CancellationToken cancellationToken = default
     );
 }
 
+/// <summary>
+/// Typed hook interface for the <see cref="InterceptionPoint.Output" /> (<c>output</c>) interception point.
+/// </summary>
 public interface IOutputHook
 {
     /// <summary>
     /// Evaluate output before delivering it to the caller (§3, §4.2).
     /// </summary>
+    /// <param name="request">The candidate request for this interception point.</param>
+    /// <param name="cancellationToken">A token that signals the operation should be canceled.</param>
+    /// <returns>
+    /// A task that resolves to the <see cref="OutputHookResponse" />.
+    /// </returns>
     Task<OutputHookResponse> OnOutputAsync(OutputRequest request, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Typed hook interface for the <see cref="InterceptionPoint.AgentShutdown" /> (<c>agent_shutdown</c>) interception point.
+/// </summary>
 public interface IAgentShutdownHook
 {
     /// <summary>
     /// Evaluate agent_shutdown after the last output or on abnormal termination (§3, §4.2).
     /// </summary>
+    /// <param name="request">The candidate request for this interception point.</param>
+    /// <param name="cancellationToken">A token that signals the operation should be canceled.</param>
+    /// <returns>
+    /// A task that resolves to the <see cref="AgentShutdownHookResponse" />.
+    /// </returns>
     Task<AgentShutdownHookResponse> OnAgentShutdownAsync(
         AgentShutdownRequest request,
         CancellationToken cancellationToken = default
     );
 }
 
+/// <summary>
+/// Composite hook interface combining all per-point hook interfaces for interceptors that handle every interception point.
+/// </summary>
 public interface IInterceptor : IAgentStartupHook, IInputHook, IPreModelCallHook, IPostModelCallHook, IPreToolCallHook, IPostToolCallHook, IOutputHook, IAgentShutdownHook;
 
+/// <summary>
+/// Host-to-resolver consultation for a liftable deny (§9).
+/// </summary>
 public interface IApprovalResolver
 {
     /// <summary>
@@ -101,5 +171,10 @@ public interface IApprovalResolver
     /// The host consults this seam only as prescribed by §7.4–§7.6 and §9,
     /// never at agent_shutdown or in evaluate_only mode.
     /// </summary>
+    /// <param name="request">The approval request describing the liftable deny and presented context.</param>
+    /// <param name="cancellationToken">A token that signals the operation should be canceled.</param>
+    /// <returns>
+    /// A task that resolves to the <see cref="ApprovalResolution" />.
+    /// </returns>
     Task<ApprovalResolution> OnResolveAsync(ApprovalRequest request, CancellationToken cancellationToken = default);
 }

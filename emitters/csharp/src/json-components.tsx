@@ -11,9 +11,13 @@ export function JsonConverterDeclaration(props: {
   name: string;
   baseType: Children;
   baseArguments: Children[];
+  doc?: Children;
 }): Children {
-  return <cs.ClassDeclaration internal sealed name={props.name} baseType={props.baseType}>
-    <cs.Constructor public baseConstructor={props.baseArguments} />
+  return <cs.ClassDeclaration internal sealed name={props.name} baseType={props.baseType} doc={props.doc}>
+    <cs.Constructor public baseConstructor={props.baseArguments}
+      doc={props.doc
+        ? <cs.DocSummary>{code`Initializes a new instance of the <see cref="${props.name}" /> class.`}</cs.DocSummary>
+        : undefined} />
   </cs.ClassDeclaration>;
 }
 

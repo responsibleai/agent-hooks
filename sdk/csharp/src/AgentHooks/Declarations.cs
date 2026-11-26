@@ -14,17 +14,19 @@ using static AgentHooks.Contracts.Draft.ToolSeamHostErrorExtensions;
 
 namespace AgentHooks;
 
-/// <summary>What the host's code can do (§13.1); a declaration's surface must be a subset of it.</summary>
+/// <summary>Describes what the host runtime can honor (§13.1); a declaration's surface must be a subset of it.</summary>
+/// <param name="Capabilities">The set of specification capabilities implemented by the host.</param>
+/// <param name="ToolSeamPosture">The tool-seam host-error posture implemented by the host.</param>
 public sealed record HostSurface(IReadOnlySet<Draft.Capability> Capabilities, Draft.ToolSeamHostError ToolSeamPosture = Draft.ToolSeamHostError.Continue)
 {
-    /// <summary>Model and tool calls with 64-bit and big-integer JSON, a buffered <c>continue</c> host.</summary>
+    /// <summary>Gets the default surface: model and tool calls with 64-bit and big-integer JSON, buffered output, and <see cref="Draft.ToolSeamHostError.Continue" />.</summary>
     public static HostSurface Default { get; } = new(new HashSet<Draft.Capability>
     {
         Draft.Capability.HostDeclaration, Draft.Capability.ModelCalls, Draft.Capability.ToolCalls, Draft.Capability.ParallelToolCalls,
         Draft.Capability.MultiTurn, Draft.Capability.Int64Json, Draft.Capability.BigintJson,
     });
 
-    /// <summary>The §3.2 floor plus the model and tool point pairs the capabilities imply.</summary>
+    /// <summary>Gets the §3.2 floor interception points plus the model and tool point pairs implied by <see cref="Capabilities" />.</summary>
     public IReadOnlySet<Draft.InterceptionPoint> InterceptionPoints => Points.All
         .Where(p => p switch
         {
@@ -35,10 +37,14 @@ public sealed record HostSurface(IReadOnlySet<Draft.Capability> Capabilities, Dr
         .ToHashSet();
 }
 
-/// <summary>One declared binding, handed to its kind's factory.</summary>
+/// <summary>One declared interceptor binding passed to the factory registered for its <see cref="Kind" />.</summary>
+/// <param name="Id">The unique binding identifier from the declaration (also used as its verdict-slot label).</param>
+/// <param name="Kind">The registered binding kind name.</param>
+/// <param name="Config">A deep clone of the binding's <c>config</c> JSON value, defaulting to an empty JSON object when omitted.</param>
 public sealed record BindingDefinition(string Id, string Kind, JsonNode? Config);
 
-/// <summary>The named components a host declaration may reference (§7.7).</summary>
+/// <summary>The named runtime components a host declaration may reference (§7.7).</summary>
+/// <param name="surface">The surface the host runtime can honor; defaults to <see cref="HostSurface.Default" /> when <see langword="null" />.</param>
 public sealed class HostRegistry(HostSurface? surface = null)
 {
     internal readonly Dictionary<string, Func<BindingDefinition, IHookInterceptor>> Kinds = new(StringComparer.Ordinal);
@@ -48,29 +54,48 @@ public sealed class HostRegistry(HostSurface? surface = null)
     internal Action<ControlFailureNotice>? Notifier;
     internal Action<Draft.InterceptionRecord>? Sink;
 
-    /// <summary>The surface the host code can honour.</summary>
+    /// <summary>Gets the surface the host runtime can honor.</summary>
     public HostSurface Surface { get; } = surface ?? HostSurface.Default;
 
-    /// <summary>Registers a factory for bindings of <paramref name="kind"/>.</summary>
+    /// <summary>Registers a factory that instantiates interceptors for bindings of <paramref name="kind" />.</summary>
+    /// <param name="kind">The binding kind identifier referenced by <c>bindings[].kind</c>.</param>
+    /// <param name="factory">Factory creating an <see cref="IHookInterceptor" /> from a <see cref="BindingDefinition" />.</param>
+    /// <returns>This registry instance for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="factory" /> is <see langword="null" />.</exception>
     public HostRegistry AddKind(string kind, Func<BindingDefinition, IHookInterceptor> factory) => Add(Kinds, kind, factory);
 
-    /// <summary>Registers a named context identity provider.</summary>
+    /// <summary>Registers a named custom context identity provider.</summary>
+    /// <param name="provider">The identity provider, indexed by <see cref="IdentityProvider.Name" />.</param>
+    /// <returns>This registry instance for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="provider" /> is <see langword="null" />.</exception>
     public HostRegistry AddIdentityProvider(IdentityProvider provider) => Add(IdentityProviders, provider.Name, provider);
 
-    /// <summary>Registers a named approval resolver.</summary>
+    /// <summary>Registers a named approval resolver referenced by <c>configuration.approval.resolver</c>.</summary>
+    /// <param name="name">The resolver name referenced in the declaration.</param>
+    /// <param name="resolver">The approval resolver implementation.</param>
+    /// <returns>This registry instance for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="resolver" /> is <see langword="null" />.</exception>
     public HostRegistry AddApprovalResolver(string name, IApprovalResolver resolver) => Add(Resolvers, name, resolver);
 
-    /// <summary>Registers a named approval redactor.</summary>
+    /// <summary>Registers a named approval redactor referenced by <c>configuration.approval.redactor</c>.</summary>
+    /// <param name="name">The redactor name referenced in the declaration.</param>
+    /// <param name="redactor">Function producing the redacted request presented to the approval resolver.</param>
+    /// <returns>This registry instance for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="redactor" /> is <see langword="null" />.</exception>
     public HostRegistry AddApprovalRedactor(string name, Func<JsonObject, JsonObject> redactor) => Add(Redactors, name, redactor);
 
-    /// <summary>Sets the notifier invoked before an <c>on_error: continue</c> substitution.</summary>
+    /// <summary>Sets the notifier invoked before an <c>on_error: continue</c> substitution takes effect.</summary>
+    /// <param name="notifier">Callback invoked with each <see cref="ControlFailureNotice" />.</param>
+    /// <returns>This registry instance for fluent chaining.</returns>
     public HostRegistry OnControlFailure(Action<ControlFailureNotice> notifier)
     {
         Notifier = notifier;
         return this;
     }
 
-    /// <summary>Sets the sink that receives every emitted interception record.</summary>
+    /// <summary>Sets the sink that receives every emitted <see cref="Draft.InterceptionRecord" />.</summary>
+    /// <param name="sink">Callback invoked once per emission.</param>
+    /// <returns>This registry instance for fluent chaining.</returns>
     public HostRegistry WithRecordSink(Action<Draft.InterceptionRecord> sink)
     {
         Sink = sink;
@@ -85,31 +110,59 @@ public sealed class HostRegistry(HostSurface? surface = null)
     }
 }
 
-/// <summary>A payload-free reason a declaration was refused: a JSON pointer into the document and a detail.</summary>
+/// <summary>A payload-free finding explaining why a host declaration was refused.</summary>
+/// <param name="Pointer">An RFC 6901 JSON Pointer into the declaration document, or empty string for document-level findings.</param>
+/// <param name="Detail">Payload-free description of the refusal reason.</param>
 public sealed record DeclarationFinding(string Pointer, string Detail);
 
-/// <summary>A refused host declaration (§7.7.6); <see cref="Code"/> is <c>declaration_error:&lt;class&gt;</c>.</summary>
+/// <summary>Thrown when a host declaration is refused during staged validation (§7.7.6).</summary>
+/// <param name="code">The <c>declaration_error:&lt;class&gt;</c> refusal class.</param>
+/// <param name="findings">Payload-free findings produced by the refusing validation stage.</param>
 public sealed class DeclarationException(string code, IReadOnlyList<DeclarationFinding> findings)
     : Exception($"{code}: {string.Join("; ", findings.Select(f => $"{(f.Pointer.Length == 0 ? "/" : f.Pointer)} {f.Detail}"))}")
 {
-    /// <summary>The <c>declaration_error:*</c> refusal class (§7.7.6).</summary>
+    /// <summary>Gets the <c>declaration_error:*</c> refusal class (§7.7.6).</summary>
     public string Code { get; } = code;
 
-    /// <summary>Payload-free findings explaining why the declaration was refused.</summary>
+    /// <summary>Gets the payload-free findings explaining why the declaration was refused.</summary>
     public IReadOnlyList<DeclarationFinding> Findings { get; } = findings;
 }
 
 public sealed partial class HookEmitter
 {
-    /// <summary>Builds an emitter from a draft host declaration document (§7.7).</summary>
-    /// <exception cref="DeclarationException">The document is refused.</exception>
+    /// <summary>Builds a <see cref="HookEmitter" /> from a draft host declaration JSON document (§7.7).</summary>
+    /// <param name="json">The declaration JSON text (at most 1 MiB, valid I-JSON with nesting depth at most 32).</param>
+    /// <param name="registry">The registry supplying the host surface and named components referenced by the declaration.</param>
+    /// <returns>An immutable, thread-safe <see cref="HookEmitter" /> configured according to the declaration.</returns>
+    /// <exception cref="DeclarationException">The declaration is refused by one of the §7.7.6 validation stages.</exception>
+    /// <remarks>
+    /// Validation runs strictly in §7.7.6 stage order, refusing at the first failing stage:
+    /// <c>declaration_error:malformed</c>, <c>spec_unsupported</c>, <c>unknown_field</c>, <c>invalid_field</c>,
+    /// <c>inconsistent</c>, <c>surface_unsupported</c>, <c>reference_unresolved</c>, <c>kind_unknown</c>, and
+    /// <c>binding_rejected</c>.
+    /// </remarks>
     public static HookEmitter FromDeclaration(string json, HostRegistry registry) => Declarations.Load(json, registry).Build();
 
-    /// <inheritdoc cref="FromDeclaration(string, HostRegistry)"/>
+    /// <summary>Builds a <see cref="HookEmitter" /> from a draft host declaration file on disk (§7.7).</summary>
+    /// <param name="path">Path to a regular UTF-8 declaration file without a byte order mark and at most 1 MiB in size.</param>
+    /// <param name="registry">The registry supplying the host surface and named components referenced by the declaration.</param>
+    /// <returns>An immutable, thread-safe <see cref="HookEmitter" /> configured according to the declaration.</returns>
+    /// <exception cref="DeclarationException">
+    /// The file cannot be read, exceeds 1 MiB, starts with a UTF-8 BOM, or is invalid UTF-8
+    /// (<c>declaration_error:unreadable</c>), or the document fails a subsequent §7.7.6 validation stage.
+    /// </exception>
     public static HookEmitter FromDeclarationFile(string path, HostRegistry registry) =>
         FromDeclaration(Declarations.ReadDocument(path), registry);
 
-    /// <inheritdoc cref="FromDeclaration(string, HostRegistry)"/>
+    /// <summary>Builds a <see cref="HookEmitter" /> from a typed draft <see cref="Draft.HostDeclaration" /> (§7.7).</summary>
+    /// <param name="declaration">The typed host declaration contract instance.</param>
+    /// <param name="registry">The registry supplying the host surface and named components referenced by the declaration.</param>
+    /// <returns>An immutable, thread-safe <see cref="HookEmitter" /> configured according to the declaration.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="declaration" /> is <see langword="null" />.</exception>
+    /// <exception cref="DeclarationException">
+    /// <paramref name="declaration" /> cannot be serialized to valid I-JSON (<c>declaration_error:malformed</c>) or
+    /// fails a subsequent §7.7.6 validation stage.
+    /// </exception>
     public static HookEmitter FromDeclaration(Draft.HostDeclaration declaration, HostRegistry registry)
     {
         ArgumentNullException.ThrowIfNull(declaration);

@@ -11,9 +11,26 @@ using static AgentHooks.Contracts.Draft.OnApprovalExtensions;
 namespace AgentHooks;
 
 /// <summary>
-/// Emits interception points through the bound interceptors under one composition profile and delivers
-/// an <see cref="Draft.InterceptionRecord"/> per emission. Immutable and thread-safe.
+/// Emits interception points through bound interceptors under one composition profile and delivers
+/// an <see cref="Draft.InterceptionRecord" /> per emission.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Instances are immutable and safe for concurrent use across threads. Each interceptor invocation receives an
+/// isolated deep clone of the request so mutations never leak to the caller or other bindings.
+/// </para>
+/// <para>
+/// The emitter fails closed: invalid requests, missing bindings, timeouts, unhandled exceptions, cancellation,
+/// invalid verdicts, invalid whole-target transforms, and identity-provider failures on permitting verdicts all
+/// synthesize a reserved <c>host_error:*</c> deny verdict (unless an eligible interceptor failure is substituted
+/// under <c>on_error: continue</c> with a configured control-failure notifier).
+/// </para>
+/// <para>
+/// Whole-target transforms are validated in both modes and applied to the effective request only in
+/// <see cref="Draft.Mode.Enforce" /> mode. Exceptions thrown by the configured record sink are swallowed so
+/// audit delivery never disrupts emission.
+/// </para>
+/// </remarks>
 public sealed partial class HookEmitter
 {
     private sealed record Binding(
@@ -57,16 +74,29 @@ public sealed partial class HookEmitter
         Declaration = (JsonObject?)builder.Declaration?.DeepClone();
     }
 
-    /// <summary>Creates a new builder for configuring a <see cref="HookEmitter"/>.</summary>
+    /// <summary>Creates a new builder for configuring a <see cref="HookEmitter" />.</summary>
+    /// <returns>A new <see cref="HookEmitterBuilder" /> initialized with specification defaults.</returns>
     public static HookEmitterBuilder CreateBuilder() => new();
 
-    /// <summary>The emitter's enforcement mode (§8).</summary>
+    /// <summary>Gets the emitter's enforcement mode (§8).</summary>
     public Draft.Mode Mode { get; }
 
-    /// <summary>The host's posture when a tool seam yields a host error (§7.7.3).</summary>
+    /// <summary>Gets the host's posture when a tool seam yields a host error (§7.7.3).</summary>
     public Draft.ToolSeamHostError ToolSeamPosture { get; }
 
-    /// <summary>Emits a generated draft request; <see cref="EmitResult{TRequest}.Request"/> carries any enforced transform.</summary>
+    /// <summary>
+    /// Emits a generated draft request through the bound interceptors.
+    /// </summary>
+    /// <typeparam name="TRequest">The generated draft request contract type.</typeparam>
+    /// <param name="request">The typed candidate request to evaluate.</param>
+    /// <param name="cancellationToken">A token that cancels active interceptor or approval-resolver invocations.</param>
+    /// <returns>
+    /// A task resolving to an <see cref="EmitResult{TRequest}" /> whose <see cref="EmitResult{TRequest}.Request" />
+    /// carries any enforced whole-target transform (or the original <paramref name="request" /> instance when
+    /// unchanged).
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="request" /> is <see langword="null" />.</exception>
+    /// <exception cref="JsonException"><paramref name="request" /> fails strict wire-JSON serialization (for example, lone UTF-16 surrogates).</exception>
     public async Task<EmitResult<TRequest>> EmitAsync<TRequest>(TRequest request, CancellationToken cancellationToken = default)
         where TRequest : class
     {
@@ -77,7 +107,19 @@ public sealed partial class HookEmitter
         return new(result.Proceeds, effective, result.Verdict, result.Record);
     }
 
-    /// <summary>Emits a wire request. Invalid requests are denied with <c>host_error:context_invalid</c> before dispatch.</summary>
+    /// <summary>
+    /// Emits a wire JSON request through the bound interceptors and delivers an <see cref="Draft.InterceptionRecord" />.
+    /// </summary>
+    /// <param name="request">The wire request object; never mutated in place.</param>
+    /// <param name="cancellationToken">A token that cancels active interceptor or approval-resolver invocations.</param>
+    /// <returns>A task resolving to the emission outcome, effective request, combined verdict, and projected record.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="request" /> is <see langword="null" />.</exception>
+    /// <remarks>
+    /// Invalid requests and identity-provider failures fail closed with <see cref="HostErrors.ContextInvalid" />
+    /// before any interceptor is invoked. If <paramref name="cancellationToken" /> is canceled during dispatch, the
+    /// emission does not throw; it fails closed with a non-continuable <see cref="HostErrors.InterceptorFailed" />
+    /// deny and still emits an interception record.
+    /// </remarks>
     public async Task<EmitResult> EmitAsync(JsonObject request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -102,9 +144,17 @@ public sealed partial class HookEmitter
     }
 
     /// <summary>
-    /// Records an emission the host could not even construct (§10.3, §11): a <c>context_invalid</c> deny with a
-    /// payload-free <paramref name="detail"/> and null identities. The host must still fail the action closed.
+    /// Records an emission the host could not construct (§10.3, §11) and delivers it to the configured record sink.
     /// </summary>
+    /// <param name="point">The interception point at which request construction failed.</param>
+    /// <param name="detail">Optional payload-free diagnostic detail attached to the synthesized deny message.</param>
+    /// <param name="sessionId">Optional session identifier, if known.</param>
+    /// <param name="sequence">Optional non-negative sequence number; omitted or negative values are recorded as <c>-1</c>.</param>
+    /// <param name="timestamp">Optional RFC 3339 timestamp string, if known.</param>
+    /// <returns>The projected <see cref="Draft.InterceptionRecord" /> carrying a <see cref="HostErrors.ContextInvalid" /> deny and <see langword="null" /> identities.</returns>
+    /// <remarks>
+    /// This method records the failure only; the host must still fail the guarded action closed.
+    /// </remarks>
     public Draft.InterceptionRecord RecordHostFailure(
         Draft.InterceptionPoint point, string? detail = null, string? sessionId = null, long? sequence = null, string? timestamp = null)
     {

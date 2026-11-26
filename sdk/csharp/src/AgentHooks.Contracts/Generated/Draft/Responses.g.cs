@@ -13,11 +13,14 @@ namespace AgentHooks.Contracts.Draft;
 public sealed partial class AgentStartupHookResponse
 {
     /// <summary>Creates a response that allows the action.</summary>
+    /// <returns>A new <see cref="AgentStartupHookResponse" /> carrying an <see cref="AllowVerdict" />.</returns>
     public static AgentStartupHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
     /// <summary>Creates a response that denies the action.</summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
+    /// <returns>A new <see cref="AgentStartupHookResponse" /> carrying a <see cref="DenyVerdict" />.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reason" /> is <see langword="null" />.</exception>
     public static AgentStartupHookResponse Deny(string reason, string? message = null)
     {
         ArgumentNullException.ThrowIfNull(reason);
@@ -28,18 +31,24 @@ public sealed partial class AgentStartupHookResponse
 public sealed partial class InputHookResponse
 {
     /// <summary>Creates a response that allows the action.</summary>
+    /// <returns>A new <see cref="InputHookResponse" /> carrying an <see cref="AllowVerdict" />.</returns>
     public static InputHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
     /// <summary>Creates a response that denies the action.</summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
+    /// <returns>A new <see cref="InputHookResponse" /> carrying a <see cref="DenyVerdict" />.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reason" /> is <see langword="null" />.</exception>
     public static InputHookResponse Deny(string reason, string? message = null)
     {
         ArgumentNullException.ThrowIfNull(reason);
         return new() { Verdict = new DenyVerdict { Reason = reason, Message = message } };
     }
 
-    /// <summary>Creates a response that proceeds with <paramref name="input"/> replacing the whole input target.</summary>
+    /// <summary>Creates a response that proceeds with <paramref name="input" /> replacing the whole <c>input</c> target.</summary>
+    /// <param name="input">The replacement value for the <c>input</c> target.</param>
+    /// <returns>A new <see cref="InputHookResponse" /> carrying a transform verdict.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="input" /> is <see langword="null" />.</exception>
     public static InputHookResponse TransformInput(Input input)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -50,18 +59,24 @@ public sealed partial class InputHookResponse
 public sealed partial class PreModelHookResponse
 {
     /// <summary>Creates a response that allows the action.</summary>
+    /// <returns>A new <see cref="PreModelHookResponse" /> carrying an <see cref="AllowVerdict" />.</returns>
     public static PreModelHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
     /// <summary>Creates a response that denies the action.</summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
+    /// <returns>A new <see cref="PreModelHookResponse" /> carrying a <see cref="DenyVerdict" />.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reason" /> is <see langword="null" />.</exception>
     public static PreModelHookResponse Deny(string reason, string? message = null)
     {
         ArgumentNullException.ThrowIfNull(reason);
         return new() { Verdict = new DenyVerdict { Reason = reason, Message = message } };
     }
 
-    /// <summary>Creates a response that proceeds with <paramref name="messages"/> replacing the whole messages target.</summary>
+    /// <summary>Creates a response that proceeds with <paramref name="messages" /> replacing the whole <c>messages</c> target.</summary>
+    /// <param name="messages">The replacement value for the <c>messages</c> target.</param>
+    /// <returns>A new <see cref="PreModelHookResponse" /> carrying a transform verdict.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="messages" /> is <see langword="null" />.</exception>
     public static PreModelHookResponse TransformMessages(Message[] messages)
     {
         ArgumentNullException.ThrowIfNull(messages);
@@ -72,18 +87,24 @@ public sealed partial class PreModelHookResponse
 public sealed partial class PostModelHookResponse
 {
     /// <summary>Creates a response that allows the action.</summary>
+    /// <returns>A new <see cref="PostModelHookResponse" /> carrying an <see cref="AllowVerdict" />.</returns>
     public static PostModelHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
     /// <summary>Creates a response that denies the action.</summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
+    /// <returns>A new <see cref="PostModelHookResponse" /> carrying a <see cref="DenyVerdict" />.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reason" /> is <see langword="null" />.</exception>
     public static PostModelHookResponse Deny(string reason, string? message = null)
     {
         ArgumentNullException.ThrowIfNull(reason);
         return new() { Verdict = new DenyVerdict { Reason = reason, Message = message } };
     }
 
-    /// <summary>Creates a response that proceeds with <paramref name="response"/> replacing the whole response target.</summary>
+    /// <summary>Creates a response that proceeds with <paramref name="response" /> replacing the whole <c>response</c> target.</summary>
+    /// <param name="response">The replacement value for the <c>response</c> target.</param>
+    /// <returns>A new <see cref="PostModelHookResponse" /> carrying a transform verdict.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="response" /> is <see langword="null" />.</exception>
     public static PostModelHookResponse TransformResponse(Response response)
     {
         ArgumentNullException.ThrowIfNull(response);
@@ -94,18 +115,24 @@ public sealed partial class PostModelHookResponse
 public sealed partial class PreToolHookResponse
 {
     /// <summary>Creates a response that allows the action.</summary>
+    /// <returns>A new <see cref="PreToolHookResponse" /> carrying an <see cref="AllowVerdict" />.</returns>
     public static PreToolHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
     /// <summary>Creates a response that denies the action.</summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
+    /// <returns>A new <see cref="PreToolHookResponse" /> carrying a <see cref="DenyVerdict" />.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reason" /> is <see langword="null" />.</exception>
     public static PreToolHookResponse Deny(string reason, string? message = null)
     {
         ArgumentNullException.ThrowIfNull(reason);
         return new() { Verdict = new DenyVerdict { Reason = reason, Message = message } };
     }
 
-    /// <summary>Creates a response that proceeds with <paramref name="args"/> replacing the whole args target.</summary>
+    /// <summary>Creates a response that proceeds with <paramref name="args" /> replacing the whole <c>args</c> target.</summary>
+    /// <param name="args">The replacement value for the <c>args</c> target.</param>
+    /// <returns>A new <see cref="PreToolHookResponse" /> carrying a transform verdict.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="args" /> is <see langword="null" />.</exception>
     public static PreToolHookResponse TransformArgs(JsonObject args)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -116,18 +143,23 @@ public sealed partial class PreToolHookResponse
 public sealed partial class PostToolHookResponse
 {
     /// <summary>Creates a response that allows the action.</summary>
+    /// <returns>A new <see cref="PostToolHookResponse" /> carrying an <see cref="AllowVerdict" />.</returns>
     public static PostToolHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
     /// <summary>Creates a response that denies the action.</summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
+    /// <returns>A new <see cref="PostToolHookResponse" /> carrying a <see cref="DenyVerdict" />.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reason" /> is <see langword="null" />.</exception>
     public static PostToolHookResponse Deny(string reason, string? message = null)
     {
         ArgumentNullException.ThrowIfNull(reason);
         return new() { Verdict = new DenyVerdict { Reason = reason, Message = message } };
     }
 
-    /// <summary>Creates a response that proceeds with <paramref name="value"/> replacing the whole value target.</summary>
+    /// <summary>Creates a response that proceeds with <paramref name="value" /> replacing the whole <c>value</c> target.</summary>
+    /// <param name="value">The replacement value for the <c>value</c> target.</param>
+    /// <returns>A new <see cref="PostToolHookResponse" /> carrying a transform verdict.</returns>
     public static PostToolHookResponse TransformValue(JsonElement value) =>
         new() { Verdict = new TransformVerdictPostToolHookTransform { Transform = new() { Value = value.Clone() } } };
 }
@@ -135,18 +167,24 @@ public sealed partial class PostToolHookResponse
 public sealed partial class OutputHookResponse
 {
     /// <summary>Creates a response that allows the action.</summary>
+    /// <returns>A new <see cref="OutputHookResponse" /> carrying an <see cref="AllowVerdict" />.</returns>
     public static OutputHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
     /// <summary>Creates a response that denies the action.</summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
+    /// <returns>A new <see cref="OutputHookResponse" /> carrying a <see cref="DenyVerdict" />.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reason" /> is <see langword="null" />.</exception>
     public static OutputHookResponse Deny(string reason, string? message = null)
     {
         ArgumentNullException.ThrowIfNull(reason);
         return new() { Verdict = new DenyVerdict { Reason = reason, Message = message } };
     }
 
-    /// <summary>Creates a response that proceeds with <paramref name="output"/> replacing the whole output target.</summary>
+    /// <summary>Creates a response that proceeds with <paramref name="output" /> replacing the whole <c>output</c> target.</summary>
+    /// <param name="output">The replacement value for the <c>output</c> target.</param>
+    /// <returns>A new <see cref="OutputHookResponse" /> carrying a transform verdict.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="output" /> is <see langword="null" />.</exception>
     public static OutputHookResponse TransformOutput(Output output)
     {
         ArgumentNullException.ThrowIfNull(output);
@@ -157,11 +195,14 @@ public sealed partial class OutputHookResponse
 public sealed partial class AgentShutdownHookResponse
 {
     /// <summary>Creates a response that allows the action.</summary>
+    /// <returns>A new <see cref="AgentShutdownHookResponse" /> carrying an <see cref="AllowVerdict" />.</returns>
     public static AgentShutdownHookResponse Allow() => new() { Verdict = new AllowVerdict() };
 
     /// <summary>Creates a response that denies the action.</summary>
     /// <param name="reason">Machine-readable reason identifier.</param>
     /// <param name="message">Optional human-readable text for the caller.</param>
+    /// <returns>A new <see cref="AgentShutdownHookResponse" /> carrying a <see cref="DenyVerdict" />.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reason" /> is <see langword="null" />.</exception>
     public static AgentShutdownHookResponse Deny(string reason, string? message = null)
     {
         ArgumentNullException.ThrowIfNull(reason);

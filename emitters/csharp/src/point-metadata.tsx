@@ -221,12 +221,13 @@ interface PropertySpec {
   readonly prop: string;
   readonly type: Children;
   readonly nullable?: boolean;
+  readonly doc: Children;
 }
 
 interface ImmutableModelClassProps {
   name: string;
   refkey: Refkey;
-  doc: string;
+  doc: Children;
   members: readonly PropertySpec[];
 }
 
@@ -252,7 +253,16 @@ function ImmutableModelClass(props: ImmutableModelClassProps): Children {
           </For>
         </cs.Constructor>
         <For each={props.members} doubleHardline>
-          {(m) => <cs.Property public name={m.prop} type={m.type} nullable={m.nullable} get />}
+          {(m) => (
+            <cs.Property
+              public
+              name={m.prop}
+              type={m.type}
+              nullable={m.nullable}
+              get
+              doc={<cs.DocSummary>{m.doc}</cs.DocSummary>}
+            />
+          )}
         </For>
       </List>
     </cs.ClassDeclaration>
@@ -316,7 +326,7 @@ function InterceptionPointsClass(props: InterceptionPointsClassProps): Children 
       static
       name={POINT_METADATA_NAMES.lookup}
       refkey={lookupTypeKey(props.pointEnum)}
-      doc={<cs.DocSummary>Metadata lookup for every InterceptionPoint declared in the specification.</cs.DocSummary>}
+      doc={<cs.DocSummary>{code`Metadata lookup for every <see cref="${props.pointEnum.name}" /> declared in the specification.`}</cs.DocSummary>}
     >
       <List doubleHardline>
         <For each={props.entries} doubleHardline>
@@ -345,6 +355,7 @@ function InterceptionPointsClass(props: InterceptionPointsClassProps): Children 
           name="All"
           type={code`ImmutableArray<${metadataTypeKey(props.pointEnum)}>`}
           get
+          doc={<cs.DocSummary>Gets metadata for all interception points in specification order.</cs.DocSummary>}
           initializer={code`
             [
                 ${<For each={props.entries} comma hardline enderPunctuation>
@@ -359,6 +370,14 @@ function InterceptionPointsClass(props: InterceptionPointsClassProps): Children 
           name="Get"
           returns={metadataTypeKey(props.pointEnum)}
           parameters={[{ name: "point", type: ef.efRefkey(props.pointEnum) }]}
+          doc={
+            <List hardline>
+              <cs.DocSummary>{code`Returns metadata for <paramref name="point" />.`}</cs.DocSummary>
+              <cs.DocParam name="point">The interception point to look up.</cs.DocParam>
+              <cs.DocReturns>{code`The metadata describing <paramref name="point" />.`}</cs.DocReturns>
+              {code`<exception cref="ArgumentOutOfRangeException"><paramref name="point" /> is not a defined <see cref="${props.pointEnum.name}" /> value.</exception>`}
+            </List>
+          }
           expression
         >
           TryGet(point, out var metadata) ? metadata : throw new ArgumentOutOfRangeException(nameof(point), point, null)
@@ -369,6 +388,18 @@ function InterceptionPointsClass(props: InterceptionPointsClassProps): Children 
           name="TryGet"
           returns="bool"
           parameters={[{ name: "point", type: ef.efRefkey(props.pointEnum) }, outMetadataParam()]}
+          doc={
+            <List hardline>
+              <cs.DocSummary>{code`Attempts to retrieve metadata for <paramref name="point" />.`}</cs.DocSummary>
+              <cs.DocParam name="point">The interception point to look up.</cs.DocParam>
+              <cs.DocParam name="metadata">
+                {code`When this method returns <see langword="true" />, contains the metadata for <paramref name="point" />; otherwise, <see langword="null" />.`}
+              </cs.DocParam>
+              <cs.DocReturns>
+                {code`<see langword="true" /> if metadata was found for <paramref name="point" />; otherwise, <see langword="false" />.`}
+              </cs.DocReturns>
+            </List>
+          }
         >
           {code`
             metadata = point switch
@@ -387,6 +418,18 @@ function InterceptionPointsClass(props: InterceptionPointsClassProps): Children 
           name="TryGetByWireName"
           returns="bool"
           parameters={[{ name: "wireName", type: "string?" }, outMetadataParam()]}
+          doc={
+            <List hardline>
+              <cs.DocSummary>Attempts to retrieve metadata for an interception point by its specification wire name.</cs.DocSummary>
+              <cs.DocParam name="wireName">The specification wire name (for example, <cs.DocC>pre_tool_call</cs.DocC>).</cs.DocParam>
+              <cs.DocParam name="metadata">
+                {code`When this method returns <see langword="true" />, contains the matching metadata; otherwise, <see langword="null" />.`}
+              </cs.DocParam>
+              <cs.DocReturns>
+                {code`<see langword="true" /> if <paramref name="wireName" /> matched a point; otherwise, <see langword="false" />.`}
+              </cs.DocReturns>
+            </List>
+          }
         >
           {code`
             metadata = wireName switch
@@ -408,6 +451,18 @@ function InterceptionPointsClass(props: InterceptionPointsClassProps): Children 
             { name: "wireName", type: "string?" },
             { name: "point", type: ef.efRefkey(props.pointEnum), out: true },
           ]}
+          doc={
+            <List hardline>
+              <cs.DocSummary>{code`Attempts to parse a wire name into an <see cref="${props.pointEnum.name}" /> value.`}</cs.DocSummary>
+              <cs.DocParam name="wireName">The specification wire name to parse.</cs.DocParam>
+              <cs.DocParam name="point">
+                {code`When this method returns <see langword="true" />, contains the parsed <see cref="${props.pointEnum.name}" /> value; otherwise, the default value.`}
+              </cs.DocParam>
+              <cs.DocReturns>
+                {code`<see langword="true" /> if <paramref name="wireName" /> matched a point; otherwise, <see langword="false" />.`}
+              </cs.DocReturns>
+            </List>
+          }
         >
           {code`
             if (TryGetByWireName(wireName, out var metadata))
@@ -437,8 +492,8 @@ export function PointMetadataDeclarations(props: PointMetadataDeclarationsProps)
         refkey={transformTargetKey(props.info.pointEnum)}
         doc="The hook transform property name and the request JSON path it replaces."
         members={[
-          { param: "member", prop: "Member", type: "string" },
-          { param: "path", prop: "Path", type: "ImmutableArray<string>" },
+          { param: "member", prop: "Member", type: "string", doc: "Gets the property name on the hook transform payload." },
+          { param: "path", prop: "Path", type: "ImmutableArray<string>", doc: "Gets the JSON property path in the request object replaced as a whole by the transform." },
         ]}
       />
       <ImmutableModelClass
@@ -446,13 +501,19 @@ export function PointMetadataDeclarations(props: PointMetadataDeclarationsProps)
         refkey={metadataTypeKey(props.info.pointEnum)}
         doc="Metadata describing an interception point's wire name, schemas, contract types, and transform target."
         members={[
-          { param: "point", prop: "Point", type: ef.efRefkey(props.info.pointEnum) },
-          { param: "wireName", prop: "WireName", type: "string" },
-          { param: "requestSchema", prop: "RequestSchema", type: "string" },
-          { param: "responseSchema", prop: "ResponseSchema", type: "string" },
-          { param: "requestType", prop: "RequestType", type: "Type" },
-          { param: "responseType", prop: "ResponseType", type: "Type" },
-          { param: "transformTarget", prop: "TransformTarget", type: transformTargetKey(props.info.pointEnum), nullable: true },
+          { param: "point", prop: "Point", type: ef.efRefkey(props.info.pointEnum), doc: "Gets the interception point enum value." },
+          { param: "wireName", prop: "WireName", type: "string", doc: "Gets the specification wire name for the interception point." },
+          { param: "requestSchema", prop: "RequestSchema", type: "string", doc: "Gets the schema name for the point's candidate request." },
+          { param: "responseSchema", prop: "ResponseSchema", type: "string", doc: "Gets the schema name for the point's hook response." },
+          { param: "requestType", prop: "RequestType", type: "Type", doc: "Gets the generated C# contract type for the point's candidate request." },
+          { param: "responseType", prop: "ResponseType", type: "Type", doc: "Gets the generated C# contract type for the point's hook response." },
+          {
+            param: "transformTarget",
+            prop: "TransformTarget",
+            type: transformTargetKey(props.info.pointEnum),
+            nullable: true,
+            doc: code`Gets the transform target metadata, or <see langword="null" /> when transforms are forbidden at this point.`,
+          },
         ]}
       />
       <InterceptionPointsClass pointEnum={props.info.pointEnum} entries={props.info.entries} />
