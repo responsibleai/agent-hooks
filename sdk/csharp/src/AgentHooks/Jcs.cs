@@ -47,7 +47,14 @@ public static class Jcs
             ? schema["$defs"]?[reference["#/$defs/".Length..]]
             : property;
 
-    /// <summary>The RFC 8785 form of <paramref name="value"/>; integers must fit ±(2^53−1).</summary>
+    /// <summary>Serializes <paramref name="value" /> to its RFC 8785 canonical JSON form.</summary>
+    /// <param name="value">The JSON node to canonicalize.</param>
+    /// <returns>The canonical JSON string with sorted object keys and ECMAScript number formatting.</returns>
+    /// <exception cref="HookException">
+    /// Thrown with <see cref="HostErrors.ContextInvalid" /> if <paramref name="value" /> contains lone UTF-16
+    /// surrogates, duplicate object keys, non-finite numbers, nesting deeper than 128 levels, or integer tokens
+    /// outside <c>±(2^53−1)</c>.
+    /// </exception>
     public static string Canonicalize(JsonNode? value)
     {
         var element = ToElement(value);
@@ -55,7 +62,18 @@ public static class Jcs
         return Write(element);
     }
 
-    /// <summary>The <c>jcs-sha256</c> identity of a request (§10.1): <c>sha256:</c> + hex over the canonical projection.</summary>
+    /// <summary>Computes the <c>jcs-sha256</c> context identity of a wire request (§10.1).</summary>
+    /// <param name="request">The wire request object to identify.</param>
+    /// <returns>The identity string formatted as <c>sha256:&lt;lowercase-hex&gt;</c>.</returns>
+    /// <exception cref="HookException">
+    /// Thrown with <see cref="HostErrors.ContextInvalid" /> if <paramref name="request" /> does not satisfy its
+    /// point's request schema, has an invalid <c>interception_point</c> or <c>sequence</c>, or falls outside the
+    /// I-JSON / <c>±(2^53−1)</c> integer domain.
+    /// </exception>
+    /// <remarks>
+    /// Per spec §10.2, only the required top-level members of the point's request schema (and the required subfields
+    /// of required object members) enter the canonical preimage before SHA-256 hashing.
+    /// </remarks>
     public static string ContextIdentity(JsonObject request)
     {
         var context = ToElement(request);

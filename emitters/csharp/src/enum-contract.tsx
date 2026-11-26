@@ -27,7 +27,12 @@ export function EnumContract(props: { type: Enum; name: string }): Children {
         type={props.type}
         attributes={[<JsonConverterAttribute name={converterName} />]}
       />
-      <cs.ClassDeclaration public static name={extensionsName}>
+      <cs.ClassDeclaration
+        public
+        static
+        name={extensionsName}
+        doc={<cs.DocSummary>{code`Wire-format conversion helpers for <see cref="${props.name}" />.`}</cs.DocSummary>}
+      >
         <List doubleHardline>
           <cs.Method
             public
@@ -35,6 +40,14 @@ export function EnumContract(props: { type: Enum; name: string }): Children {
             name="ToWire"
             returns="string"
             parameters={[{ name: "value", type: code`this ${reference}` }]}
+            doc={
+              <List hardline>
+                <cs.DocSummary>{code`Returns the specification wire string for <paramref name="value" />.`}</cs.DocSummary>
+                <cs.DocParam name="value">The enum value to convert.</cs.DocParam>
+                <cs.DocReturns>{code`The wire string representation of <paramref name="value" />.`}</cs.DocReturns>
+                {code`<exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="${props.name}" /> value.</exception>`}
+              </List>
+            }
             expression
           >
             {code`
@@ -56,6 +69,18 @@ export function EnumContract(props: { type: Enum; name: string }): Children {
               { name: "wire", type: "string?" },
               { name: "value", type: reference, out: true },
             ]}
+            doc={
+              <List hardline>
+                <cs.DocSummary>{code`Attempts to parse a wire string as <see cref="${props.name}" />.`}</cs.DocSummary>
+                <cs.DocParam name="wire">The wire string to parse.</cs.DocParam>
+                <cs.DocParam name="value">
+                  {code`When this method returns <see langword="true" />, contains the parsed <see cref="${props.name}" /> value; otherwise, the default value.`}
+                </cs.DocParam>
+                <cs.DocReturns>
+                  {code`<see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.`}
+                </cs.DocReturns>
+              </List>
+            }
           >
             {code`
               ${reference}? parsed = wire switch
@@ -75,6 +100,7 @@ export function EnumContract(props: { type: Enum; name: string }): Children {
         name={converterName}
         baseType={code`StringEnumJsonConverter<${reference}>`}
         baseArguments={[`${extensionsName}.ToWire`, `${extensionsName}.TryParseWire`]}
+        doc={<cs.DocSummary>{code`JSON converter that serializes <see cref="${props.name}" /> values using their specification wire strings.`}</cs.DocSummary>}
       />
     </List>
   );

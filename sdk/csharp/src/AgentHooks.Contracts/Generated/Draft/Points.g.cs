@@ -22,8 +22,14 @@ public sealed class TransformTarget
         Path = path;
     }
 
+    /// <summary>
+    /// Gets the property name on the hook transform payload.
+    /// </summary>
     public string Member { get; }
 
+    /// <summary>
+    /// Gets the JSON property path in the request object replaced as a whole by the transform.
+    /// </summary>
     public ImmutableArray<string> Path { get; }
 }
 
@@ -51,23 +57,44 @@ public sealed class InterceptionPointMetadata
         TransformTarget = transformTarget;
     }
 
+    /// <summary>
+    /// Gets the interception point enum value.
+    /// </summary>
     public InterceptionPoint Point { get; }
 
+    /// <summary>
+    /// Gets the specification wire name for the interception point.
+    /// </summary>
     public string WireName { get; }
 
+    /// <summary>
+    /// Gets the schema name for the point's candidate request.
+    /// </summary>
     public string RequestSchema { get; }
 
+    /// <summary>
+    /// Gets the schema name for the point's hook response.
+    /// </summary>
     public string ResponseSchema { get; }
 
+    /// <summary>
+    /// Gets the generated C# contract type for the point's candidate request.
+    /// </summary>
     public Type RequestType { get; }
 
+    /// <summary>
+    /// Gets the generated C# contract type for the point's hook response.
+    /// </summary>
     public Type ResponseType { get; }
 
+    /// <summary>
+    /// Gets the transform target metadata, or <see langword="null" /> when transforms are forbidden at this point.
+    /// </summary>
     public TransformTarget? TransformTarget { get; }
 }
 
 /// <summary>
-/// Metadata lookup for every InterceptionPoint declared in the specification.
+/// Metadata lookup for every <see cref="InterceptionPoint" /> declared in the specification.
 /// </summary>
 public static class InterceptionPoints
 {
@@ -151,6 +178,9 @@ public static class InterceptionPoints
         null
     );
 
+    /// <summary>
+    /// Gets metadata for all interception points in specification order.
+    /// </summary>
     public static ImmutableArray<InterceptionPointMetadata> All { get; } =
         [
             _agentStartup,
@@ -163,9 +193,25 @@ public static class InterceptionPoints
             _agentShutdown,
         ];
 
+    /// <summary>
+    /// Returns metadata for <paramref name="point" />.
+    /// </summary>
+    /// <param name="point">The interception point to look up.</param>
+    /// <returns>
+    /// The metadata describing <paramref name="point" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="point" /> is not a defined <see cref="InterceptionPoint" /> value.</exception>
     public static InterceptionPointMetadata Get(InterceptionPoint point) =>
         TryGet(point, out var metadata) ? metadata : throw new ArgumentOutOfRangeException(nameof(point), point, null);
 
+    /// <summary>
+    /// Attempts to retrieve metadata for <paramref name="point" />.
+    /// </summary>
+    /// <param name="point">The interception point to look up.</param>
+    /// <param name="metadata">When this method returns <see langword="true" />, contains the metadata for <paramref name="point" />; otherwise, <see langword="null" />.</param>
+    /// <returns>
+    /// <see langword="true" /> if metadata was found for <paramref name="point" />; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryGet(
         InterceptionPoint point,
         [NotNullWhen(true)]
@@ -187,6 +233,14 @@ public static class InterceptionPoints
         return metadata is not null;
     }
 
+    /// <summary>
+    /// Attempts to retrieve metadata for an interception point by its specification wire name.
+    /// </summary>
+    /// <param name="wireName">The specification wire name (for example, <c>pre_tool_call</c>).</param>
+    /// <param name="metadata">When this method returns <see langword="true" />, contains the matching metadata; otherwise, <see langword="null" />.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wireName" /> matched a point; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryGetByWireName(
         string? wireName,
         [NotNullWhen(true)]
@@ -208,6 +262,14 @@ public static class InterceptionPoints
         return metadata is not null;
     }
 
+    /// <summary>
+    /// Attempts to parse a wire name into an <see cref="InterceptionPoint" /> value.
+    /// </summary>
+    /// <param name="wireName">The specification wire name to parse.</param>
+    /// <param name="point">When this method returns <see langword="true" />, contains the parsed <see cref="InterceptionPoint" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wireName" /> matched a point; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParse(string? wireName, out InterceptionPoint point)
     {
         if (TryGetByWireName(wireName, out var metadata))

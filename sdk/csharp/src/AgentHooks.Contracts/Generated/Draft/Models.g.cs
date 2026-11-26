@@ -23,6 +23,7 @@ public sealed class AgentStartupRequest
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -60,6 +61,10 @@ public sealed class AgentStartupRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>agent_startup</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent_startup</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -77,6 +82,9 @@ public sealed class AgentStartupRequest
     [JsonPropertyName("agent_init")]
     public required AgentInit AgentInit { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -97,6 +105,9 @@ public sealed class ContextMetadataAgent
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Version { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -115,6 +126,9 @@ public sealed class ContextMetadataSession
     [JsonConverter(typeof(BigIntegerJsonConverter))]
     public BigInteger? Turn { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -129,6 +143,9 @@ public sealed class ContextMetadataTrace
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SpanId { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -143,6 +160,9 @@ public sealed class ContextMetadataTenant
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Name { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -157,6 +177,9 @@ public sealed class ContextMetadataActor
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ActorKind? Kind { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -179,6 +202,9 @@ public sealed class ContextMetadataBudgets
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? CostUsd { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -197,6 +223,9 @@ public sealed class AgentInit
     [JsonPropertyName("tools_registered")]
     public required string[] ToolsRegistered { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -210,6 +239,7 @@ public sealed class InputRequest
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -247,6 +277,10 @@ public sealed class InputRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>input</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>input</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -262,6 +296,9 @@ public sealed class InputRequest
     [JsonPropertyName("input")]
     public required Input Input { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -277,6 +314,9 @@ public sealed class Input
     [JsonPropertyName("role")]
     public required InputRole Role { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -290,6 +330,7 @@ public sealed class PreModelCallRequest
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -327,6 +368,10 @@ public sealed class PreModelCallRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>pre_model_call</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>pre_model_call</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -355,6 +400,9 @@ public sealed class PreModelCallRequest
     [JsonPropertyName("model")]
     public required Model Model { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -370,6 +418,9 @@ public sealed class Message
     [JsonPropertyName("content")]
     public required JsonElement Content { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -390,6 +441,9 @@ public sealed class ToolDecl
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonObject? Schema { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -415,6 +469,9 @@ public sealed class Model
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonObject? Params { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -428,6 +485,7 @@ public sealed class PostModelCallRequest
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -465,6 +523,10 @@ public sealed class PostModelCallRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>post_model_call</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>post_model_call</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -493,6 +555,9 @@ public sealed class PostModelCallRequest
     [JsonPropertyName("response")]
     public required Response Response { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -512,6 +577,9 @@ public sealed class Usage
     [JsonConverter(typeof(BigIntegerJsonConverter))]
     public BigInteger? CompletionTokens { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -530,6 +598,9 @@ public sealed class Response
     [JsonPropertyName("finish_reason")]
     public required string FinishReason { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -549,6 +620,9 @@ public sealed class ToolCallRequest
     [JsonPropertyName("args")]
     public required JsonObject Args { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -562,6 +636,7 @@ public sealed class PreToolCallRequest
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -599,6 +674,10 @@ public sealed class PreToolCallRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>pre_tool_call</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>pre_tool_call</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -616,6 +695,9 @@ public sealed class PreToolCallRequest
     [JsonPropertyName("tool_call")]
     public required ToolCall ToolCall { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -638,6 +720,9 @@ public sealed class ToolCall
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ContentHash { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -651,6 +736,7 @@ public sealed class PostToolCallRequest
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -688,6 +774,10 @@ public sealed class PostToolCallRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>post_tool_call</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>post_tool_call</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -708,6 +798,9 @@ public sealed class PostToolCallRequest
     [JsonPropertyName("tool_result")]
     public required ToolResult ToolResult { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -727,6 +820,9 @@ public sealed class ToolResult
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? DurationMs { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -740,6 +836,7 @@ public sealed class OutputRequest
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -777,6 +874,10 @@ public sealed class OutputRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>output</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>output</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -792,6 +893,9 @@ public sealed class OutputRequest
     [JsonPropertyName("output")]
     public required Output Output { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -804,6 +908,9 @@ public sealed class Output
     [JsonPropertyName("content")]
     public required JsonElement Content { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -817,6 +924,7 @@ public sealed class AgentShutdownRequest
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -854,6 +962,10 @@ public sealed class AgentShutdownRequest
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>agent_shutdown</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent_shutdown</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -871,6 +983,9 @@ public sealed class AgentShutdownRequest
     [JsonPropertyName("summary")]
     public required Summary Summary { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -897,6 +1012,9 @@ public sealed class Summary
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? DurationSeconds { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -915,11 +1033,20 @@ public sealed partial class AgentStartupHookResponse
     public Extensions? Extensions { get; set; }
 }
 
+/// <summary>
+/// Verdict choices for hooks that do not support transforms.
+/// </summary>
 [JsonConverter(typeof(NonTransformVerdictJsonConverter))]
 public interface NonTransformVerdict;
 
+/// <summary>
+/// JSON converter for the <see cref="NonTransformVerdict" /> discriminated union.
+/// </summary>
 internal sealed class NonTransformVerdictJsonConverter : DiscriminatedUnionJsonConverter<NonTransformVerdict>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="NonTransformVerdictJsonConverter" /> class.
+    /// </summary>
     public NonTransformVerdictJsonConverter() : base(
         "decision",
         new Dictionary<(JsonValueKind, string), Type>
@@ -973,6 +1100,10 @@ public sealed class AllowVerdict : NonTransformVerdict, InputHookResponseVerdict
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string[]? ResultLabels { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>decision</c> value (<c>allow</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>allow</c>.</exception>
     [JsonPropertyName("decision")]
     [JsonRequired]
     public Decision Decision
@@ -1068,6 +1199,10 @@ public sealed class DenyVerdict : NonTransformVerdict, InputHookResponseVerdict,
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string[]? ResultLabels { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>decision</c> value (<c>deny</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>deny</c>.</exception>
     [JsonPropertyName("decision")]
     [JsonRequired]
     public Decision Decision
@@ -1099,11 +1234,20 @@ public sealed partial class InputHookResponse
     public Extensions? Extensions { get; set; }
 }
 
+/// <summary>
+/// Discriminated union selected by the <c>decision</c> property.
+/// </summary>
 [JsonConverter(typeof(InputHookResponseVerdictJsonConverter))]
 public interface InputHookResponseVerdict;
 
+/// <summary>
+/// JSON converter for the <see cref="InputHookResponseVerdict" /> discriminated union.
+/// </summary>
 internal sealed class InputHookResponseVerdictJsonConverter : DiscriminatedUnionJsonConverter<InputHookResponseVerdict>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="InputHookResponseVerdictJsonConverter" /> class.
+    /// </summary>
     public InputHookResponseVerdictJsonConverter() : base(
         "decision",
         new Dictionary<(JsonValueKind, string), Type>
@@ -1158,6 +1302,10 @@ public sealed class TransformVerdictInputHookTransform : InputHookResponseVerdic
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string[]? ResultLabels { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>decision</c> value (<c>transform</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>transform</c>.</exception>
     [JsonPropertyName("decision")]
     [JsonRequired]
     public Decision Decision
@@ -1194,11 +1342,20 @@ public sealed partial class PreModelHookResponse
     public Extensions? Extensions { get; set; }
 }
 
+/// <summary>
+/// Discriminated union selected by the <c>decision</c> property.
+/// </summary>
 [JsonConverter(typeof(PreModelHookResponseVerdictJsonConverter))]
 public interface PreModelHookResponseVerdict;
 
+/// <summary>
+/// JSON converter for the <see cref="PreModelHookResponseVerdict" /> discriminated union.
+/// </summary>
 internal sealed class PreModelHookResponseVerdictJsonConverter : DiscriminatedUnionJsonConverter<PreModelHookResponseVerdict>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PreModelHookResponseVerdictJsonConverter" /> class.
+    /// </summary>
     public PreModelHookResponseVerdictJsonConverter() : base(
         "decision",
         new Dictionary<(JsonValueKind, string), Type>
@@ -1253,6 +1410,10 @@ public sealed class TransformVerdictPreModelHookTransform : PreModelHookResponse
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string[]? ResultLabels { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>decision</c> value (<c>transform</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>transform</c>.</exception>
     [JsonPropertyName("decision")]
     [JsonRequired]
     public Decision Decision
@@ -1289,11 +1450,20 @@ public sealed partial class PostModelHookResponse
     public Extensions? Extensions { get; set; }
 }
 
+/// <summary>
+/// Discriminated union selected by the <c>decision</c> property.
+/// </summary>
 [JsonConverter(typeof(PostModelHookResponseVerdictJsonConverter))]
 public interface PostModelHookResponseVerdict;
 
+/// <summary>
+/// JSON converter for the <see cref="PostModelHookResponseVerdict" /> discriminated union.
+/// </summary>
 internal sealed class PostModelHookResponseVerdictJsonConverter : DiscriminatedUnionJsonConverter<PostModelHookResponseVerdict>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PostModelHookResponseVerdictJsonConverter" /> class.
+    /// </summary>
     public PostModelHookResponseVerdictJsonConverter() : base(
         "decision",
         new Dictionary<(JsonValueKind, string), Type>
@@ -1348,6 +1518,10 @@ public sealed class TransformVerdictPostModelHookTransform : PostModelHookRespon
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string[]? ResultLabels { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>decision</c> value (<c>transform</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>transform</c>.</exception>
     [JsonPropertyName("decision")]
     [JsonRequired]
     public Decision Decision
@@ -1384,11 +1558,20 @@ public sealed partial class PreToolHookResponse
     public Extensions? Extensions { get; set; }
 }
 
+/// <summary>
+/// Discriminated union selected by the <c>decision</c> property.
+/// </summary>
 [JsonConverter(typeof(PreToolHookResponseVerdictJsonConverter))]
 public interface PreToolHookResponseVerdict;
 
+/// <summary>
+/// JSON converter for the <see cref="PreToolHookResponseVerdict" /> discriminated union.
+/// </summary>
 internal sealed class PreToolHookResponseVerdictJsonConverter : DiscriminatedUnionJsonConverter<PreToolHookResponseVerdict>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PreToolHookResponseVerdictJsonConverter" /> class.
+    /// </summary>
     public PreToolHookResponseVerdictJsonConverter() : base(
         "decision",
         new Dictionary<(JsonValueKind, string), Type>
@@ -1443,6 +1626,10 @@ public sealed class TransformVerdictPreToolHookTransform : PreToolHookResponseVe
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string[]? ResultLabels { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>decision</c> value (<c>transform</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>transform</c>.</exception>
     [JsonPropertyName("decision")]
     [JsonRequired]
     public Decision Decision
@@ -1479,11 +1666,20 @@ public sealed partial class PostToolHookResponse
     public Extensions? Extensions { get; set; }
 }
 
+/// <summary>
+/// Discriminated union selected by the <c>decision</c> property.
+/// </summary>
 [JsonConverter(typeof(PostToolHookResponseVerdictJsonConverter))]
 public interface PostToolHookResponseVerdict;
 
+/// <summary>
+/// JSON converter for the <see cref="PostToolHookResponseVerdict" /> discriminated union.
+/// </summary>
 internal sealed class PostToolHookResponseVerdictJsonConverter : DiscriminatedUnionJsonConverter<PostToolHookResponseVerdict>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PostToolHookResponseVerdictJsonConverter" /> class.
+    /// </summary>
     public PostToolHookResponseVerdictJsonConverter() : base(
         "decision",
         new Dictionary<(JsonValueKind, string), Type>
@@ -1538,6 +1734,10 @@ public sealed class TransformVerdictPostToolHookTransform : PostToolHookResponse
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string[]? ResultLabels { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>decision</c> value (<c>transform</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>transform</c>.</exception>
     [JsonPropertyName("decision")]
     [JsonRequired]
     public Decision Decision
@@ -1574,11 +1774,20 @@ public sealed partial class OutputHookResponse
     public Extensions? Extensions { get; set; }
 }
 
+/// <summary>
+/// Discriminated union selected by the <c>decision</c> property.
+/// </summary>
 [JsonConverter(typeof(OutputHookResponseVerdictJsonConverter))]
 public interface OutputHookResponseVerdict;
 
+/// <summary>
+/// JSON converter for the <see cref="OutputHookResponseVerdict" /> discriminated union.
+/// </summary>
 internal sealed class OutputHookResponseVerdictJsonConverter : DiscriminatedUnionJsonConverter<OutputHookResponseVerdict>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OutputHookResponseVerdictJsonConverter" /> class.
+    /// </summary>
     public OutputHookResponseVerdictJsonConverter() : base(
         "decision",
         new Dictionary<(JsonValueKind, string), Type>
@@ -1633,6 +1842,10 @@ public sealed class TransformVerdictOutputHookTransform : OutputHookResponseVerd
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string[]? ResultLabels { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>decision</c> value (<c>transform</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>transform</c>.</exception>
     [JsonPropertyName("decision")]
     [JsonRequired]
     public Decision Decision
@@ -1701,6 +1914,10 @@ public sealed class ApprovalRequest
 /// </summary>
 public sealed class LiftableDeny
 {
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>decision</c> value (<c>deny</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>deny</c>.</exception>
     [JsonPropertyName("decision")]
     [JsonRequired]
     public Decision Decision
@@ -1709,15 +1926,29 @@ public sealed class LiftableDeny
         set { if (value != Decision.Deny) throw new JsonException("Expected decision = deny."); }
     }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
 
+/// <summary>
+/// Payload a host constructs at each interception point (AGENT-HOOKS-0.1 §4).
+/// Each variant requires its discriminator and own hook payload, with shared
+/// metadata and optional namespaced extensions.
+/// </summary>
 [JsonConverter(typeof(AgentContextJsonConverter))]
 public interface AgentContext;
 
+/// <summary>
+/// JSON converter for the <see cref="AgentContext" /> discriminated union.
+/// </summary>
 internal sealed class AgentContextJsonConverter : DiscriminatedUnionJsonConverter<AgentContext>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AgentContextJsonConverter" /> class.
+    /// </summary>
     public AgentContextJsonConverter() : base(
         "interception_point",
         new Dictionary<(JsonValueKind, string), Type>
@@ -1744,6 +1975,7 @@ public sealed class AgentStartupContext : AgentContext
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -1781,6 +2013,10 @@ public sealed class AgentStartupContext : AgentContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>agent_startup</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent_startup</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -1798,6 +2034,9 @@ public sealed class AgentStartupContext : AgentContext
     [JsonPropertyName("agent_init")]
     public required AgentInit AgentInit { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -1811,6 +2050,7 @@ public sealed class InputContext : AgentContext
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -1848,6 +2088,10 @@ public sealed class InputContext : AgentContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>input</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>input</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -1863,6 +2107,9 @@ public sealed class InputContext : AgentContext
     [JsonPropertyName("input")]
     public required Input Input { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -1876,6 +2123,7 @@ public sealed class PreModelCallContext : AgentContext
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -1913,6 +2161,10 @@ public sealed class PreModelCallContext : AgentContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>pre_model_call</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>pre_model_call</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -1941,6 +2193,9 @@ public sealed class PreModelCallContext : AgentContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RequestId { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -1954,6 +2209,7 @@ public sealed class PostModelCallContext : AgentContext
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -1991,6 +2247,10 @@ public sealed class PostModelCallContext : AgentContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>post_model_call</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>post_model_call</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -2019,6 +2279,9 @@ public sealed class PostModelCallContext : AgentContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Usage? Usage { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -2032,6 +2295,7 @@ public sealed class PreToolCallContext : AgentContext
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -2069,6 +2333,10 @@ public sealed class PreToolCallContext : AgentContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>pre_tool_call</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>pre_tool_call</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -2086,6 +2354,9 @@ public sealed class PreToolCallContext : AgentContext
     [JsonPropertyName("tool_call")]
     public required ToolCall ToolCall { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -2099,6 +2370,7 @@ public sealed class PostToolCallContext : AgentContext
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -2136,6 +2408,10 @@ public sealed class PostToolCallContext : AgentContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>post_tool_call</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>post_tool_call</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -2156,6 +2432,9 @@ public sealed class PostToolCallContext : AgentContext
     [JsonPropertyName("tool_result")]
     public required ToolResult ToolResult { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -2169,6 +2448,7 @@ public sealed class OutputContext : AgentContext
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -2206,6 +2486,10 @@ public sealed class OutputContext : AgentContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>output</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>output</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -2221,6 +2505,9 @@ public sealed class OutputContext : AgentContext
     [JsonPropertyName("output")]
     public required Output Output { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -2234,6 +2521,7 @@ public sealed class AgentShutdownContext : AgentContext
     /// This version's wire string (§4.1). A released version's contexts
     /// carry that version's own string, agent-hooks/&lt;major&gt;.&lt;minor&gt;.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -2271,6 +2559,10 @@ public sealed class AgentShutdownContext : AgentContext
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ContextMetadataBudgets? Budgets { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>interception_point</c> value (<c>agent_shutdown</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent_shutdown</c>.</exception>
     [JsonPropertyName("interception_point")]
     [JsonRequired]
     public InterceptionPoint InterceptionPoint
@@ -2288,6 +2580,9 @@ public sealed class AgentShutdownContext : AgentContext
     [JsonPropertyName("summary")]
     public required Summary Summary { get; set; }
 
+    /// <summary>
+    /// Unmapped JSON extension members captured during deserialization and re-emitted on serialization.
+    /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement> AdditionalProperties { get; set; } = new();
 }
@@ -2580,6 +2875,7 @@ public sealed class HostDeclaration
     /// released version names that version's own string instead, and is
     /// read by that version's rules.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>agent-hooks/draft</c>.</exception>
     [JsonPropertyName("spec")]
     [JsonRequired]
     public string Spec
@@ -2844,11 +3140,20 @@ public sealed class Host
     public string? Version { get; set; }
 }
 
+/// <summary>
+/// The declared surface (§13.1) in file form, by output posture.
+/// </summary>
 [JsonConverter(typeof(SurfaceJsonConverter))]
 public interface Surface;
 
+/// <summary>
+/// JSON converter for the <see cref="Surface" /> discriminated union.
+/// </summary>
 internal sealed class SurfaceJsonConverter : DiscriminatedUnionJsonConverter<Surface>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SurfaceJsonConverter" /> class.
+    /// </summary>
     public SurfaceJsonConverter() : base(
         "buffered_output",
         new Dictionary<(JsonValueKind, string), Type>
@@ -2887,6 +3192,7 @@ public sealed class BufferedSurface : Surface
     /// <summary>
     /// §12.1a. false must be declared explicitly and requires exposure_bound.
     /// </summary>
+    /// <exception cref="JsonException">The assigned non-null value does not equal <c>true</c>.</exception>
     [JsonPropertyName("buffered_output")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? BufferedOutput
@@ -2976,6 +3282,7 @@ public sealed class UnbufferedSurface : Surface
     /// <summary>
     /// §12.1a. false must be declared explicitly and requires exposure_bound.
     /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>false</c>.</exception>
     [JsonPropertyName("buffered_output")]
     [JsonRequired]
     public bool BufferedOutput
@@ -2991,11 +3298,20 @@ public sealed class UnbufferedSurface : Surface
     public required string ExposureBound { get; set; }
 }
 
+/// <summary>
+/// What the resolver returns (§9).
+/// </summary>
 [JsonConverter(typeof(ApprovalResolutionJsonConverter))]
 public interface ApprovalResolution;
 
+/// <summary>
+/// JSON converter for the <see cref="ApprovalResolution" /> discriminated union.
+/// </summary>
 internal sealed class ApprovalResolutionJsonConverter : DiscriminatedUnionJsonConverter<ApprovalResolution>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ApprovalResolutionJsonConverter" /> class.
+    /// </summary>
     public ApprovalResolutionJsonConverter() : base(
         "outcome",
         new Dictionary<(JsonValueKind, string), Type>
@@ -3021,6 +3337,10 @@ public sealed class ApproveResolution : ApprovalResolution
     [JsonPropertyName("context_identity")]
     public required string? ContextIdentity { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>outcome</c> value (<c>approve</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>approve</c>.</exception>
     [JsonPropertyName("outcome")]
     [JsonRequired]
     public Outcome Outcome
@@ -3046,6 +3366,10 @@ public sealed class RejectResolution : ApprovalResolution
     [JsonPropertyName("context_identity")]
     public required string? ContextIdentity { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>outcome</c> value (<c>reject</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>reject</c>.</exception>
     [JsonPropertyName("outcome")]
     [JsonRequired]
     public Outcome Outcome
@@ -3071,6 +3395,10 @@ public sealed class UnresolvedResolution : ApprovalResolution
     [JsonPropertyName("context_identity")]
     public required string? ContextIdentity { get; set; }
 
+    /// <summary>
+    /// Gets or sets the fixed wire literal <c>outcome</c> value (<c>unresolved</c>).
+    /// </summary>
+    /// <exception cref="JsonException">The assigned value does not equal <c>unresolved</c>.</exception>
     [JsonPropertyName("outcome")]
     [JsonRequired]
     public Outcome Outcome

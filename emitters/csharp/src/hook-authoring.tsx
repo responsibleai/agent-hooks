@@ -21,17 +21,39 @@ export function hookInterfaceName(operation: Operation): string {
  * authors implement only the points they care about; the full interceptor
  * composes them.
  */
-export function PointHookInterfaces(props: { name: string; operations: [Operation, string][] }): Children {
-  const hooks = props.operations.map(([operation, method]) => ({
-    operation, method, name: hookInterfaceName(operation), key: refkey(operation, "hook-interface"),
-  }));
+export function PointHookInterfaces(props: {
+  name: string;
+  operations: [Operation, string][];
+  points: readonly PointMetadataEntry[];
+}): Children {
+  const policy = cs.createCSharpNamePolicy();
+  const pointByRequest = new Map(props.points.map((entry) => [entry.requestModel, entry]));
+  const hooks = props.operations.map(([operation, method]) => {
+    const [requestParam] = operation.parameters.properties.values();
+    const requestModel = requestParam ? unwrap(requestParam.type) : undefined;
+    const entry = requestModel?.kind === "Model" ? pointByRequest.get(requestModel) : undefined;
+    const doc = entry
+      ? <cs.DocSummary>
+          {code`Typed hook interface for the <see cref="InterceptionPoint.${policy.getName(entry.member.name, "enum-member")}" /> (<c>${entry.wireName}</c>) interception point.`}
+        </cs.DocSummary>
+      : <cs.DocSummary>{code`Typed hook interface for the <c>${operation.name}</c> interception point.`}</cs.DocSummary>;
+    return {
+      operation, method, name: hookInterfaceName(operation), key: refkey(operation, "hook-interface"), doc,
+    };
+  });
   return <>
     <For each={hooks} doubleHardline>
-      {(hook) => <cs.InterfaceDeclaration public name={hook.name} refkey={hook.key}>
+      {(hook) => <cs.InterfaceDeclaration public name={hook.name} refkey={hook.key} doc={hook.doc}>
         <OperationHandler type={hook.operation} name={hook.method} />
       </cs.InterfaceDeclaration>}
     </For>
     <hbr /><hbr />
+    <cs.DocComment>
+      <cs.DocSummary>
+        Composite hook interface combining all per-point hook interfaces for interceptors that handle every interception point.
+      </cs.DocSummary>
+    </cs.DocComment>
+    <hbr />
     {code`public interface ${props.name} : ${<For each={hooks} joiner=", ">{(hook) => hook.key}</For>};`}
   </>;
 }
@@ -59,11 +81,13 @@ export function ResponseFactories(props: { entries: readonly PointMetadataEntry[
   return <For each={props.entries} doubleHardline>
     {(entry) => {
       const self = <ef.TypeExpression type={entry.responseModel} />;
+      const selfName = policy.getName(entry.responseModel.name, "class");
       const methods = verdictVariants(entry.responseModel).map(([kind, model]) => {
         const verdict = <ef.TypeExpression type={model} />;
         if (kind === "allow") {
           return code`
             /// <summary>Creates a response that allows the action.</summary>
+            /// <returns>A new <see cref="${selfName}" /> carrying an <see cref="AllowVerdict" />.</returns>
             public static ${self} Allow() => new() { Verdict = new ${verdict}() };
           `;
         }
@@ -72,6 +96,8 @@ export function ResponseFactories(props: { entries: readonly PointMetadataEntry[
             /// <summary>Creates a response that denies the action.</summary>
             /// <param name="reason">Machine-readable reason identifier.</param>
             /// <param name="message">Optional human-readable text for the caller.</param>
+            /// <returns>A new <see cref="${selfName}" /> carrying a <see cref="DenyVerdict" />.</returns>
+            /// <exception cref="ArgumentNullException"><paramref name="reason" /> is <see langword="null" />.</exception>
             public static ${self} Deny(string reason, string? message = null)
             {
                 ArgumentNullException.ThrowIfNull(reason);
@@ -86,16 +112,24 @@ export function ResponseFactories(props: { entries: readonly PointMetadataEntry[
         const parameter = policy.getName(member.name, "parameter");
         const element = memberType.kind === "Intrinsic" && memberType.name === "unknown";
         const signature = code`public static ${self} Transform${memberName}(${<ef.TypeExpression type={memberType} />} ${parameter})`;
-        const doc = `/// <summary>Creates a response that proceeds with <paramref name="${parameter}"/> replacing the whole ${member.name} target.</summary>`;
+        const summaryDoc = `/// <summary>Creates a response that proceeds with <paramref name="${parameter}" /> replacing the whole <c>${member.name}</c> target.</summary>`;
+        const paramDoc = `/// <param name="${parameter}">The replacement value for the <c>${member.name}</c> target.</param>`;
+        const returnsDoc = `/// <returns>A new <see cref="${selfName}" /> carrying a transform verdict.</returns>`;
         if (element) {
           return code`
-            ${doc}
+            ${summaryDoc}
+            ${paramDoc}
+            ${returnsDoc}
             ${signature} =>
                 new() { Verdict = new ${verdict} { Transform = new() { ${memberName} = ${parameter}.Clone() } } };
           `;
         }
+        const exceptionDoc = `/// <exception cref="ArgumentNullException"><paramref name="${parameter}" /> is <see langword="null" />.</exception>`;
         return code`
-          ${doc}
+          ${summaryDoc}
+          ${paramDoc}
+          ${returnsDoc}
+          ${exceptionDoc}
           ${signature}
           {
               ArgumentNullException.ThrowIfNull(${parameter});

@@ -27,8 +27,19 @@ public enum InterceptionPoint
     AgentShutdown
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="InterceptionPoint" />.
+/// </summary>
 public static class InterceptionPointExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="InterceptionPoint" /> value.</exception>
     public static string ToWire(this InterceptionPoint value) =>
         value switch
         {
@@ -43,6 +54,14 @@ public static class InterceptionPointExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="InterceptionPoint" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="InterceptionPoint" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out InterceptionPoint value)
     {
         InterceptionPoint? parsed = wire switch
@@ -62,8 +81,14 @@ public static class InterceptionPointExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="InterceptionPoint" /> values using their specification wire strings.
+/// </summary>
 internal sealed class InterceptionPointJsonConverter : StringEnumJsonConverter<InterceptionPoint>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="InterceptionPointJsonConverter" /> class.
+    /// </summary>
     public InterceptionPointJsonConverter() : base(
         InterceptionPointExtensions.ToWire,
         InterceptionPointExtensions.TryParseWire
@@ -81,8 +106,19 @@ public enum ActorKind
     Agent
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="ActorKind" />.
+/// </summary>
 public static class ActorKindExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="ActorKind" /> value.</exception>
     public static string ToWire(this ActorKind value) =>
         value switch
         {
@@ -92,6 +128,14 @@ public static class ActorKindExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="ActorKind" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="ActorKind" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out ActorKind value)
     {
         ActorKind? parsed = wire switch
@@ -106,8 +150,14 @@ public static class ActorKindExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="ActorKind" /> values using their specification wire strings.
+/// </summary>
 internal sealed class ActorKindJsonConverter : StringEnumJsonConverter<ActorKind>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ActorKindJsonConverter" /> class.
+    /// </summary>
     public ActorKindJsonConverter() : base(ActorKindExtensions.ToWire, ActorKindExtensions.TryParseWire) {}
 }
 
@@ -122,8 +172,19 @@ public enum InputRole
     External
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="InputRole" />.
+/// </summary>
 public static class InputRoleExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="InputRole" /> value.</exception>
     public static string ToWire(this InputRole value) =>
         value switch
         {
@@ -133,6 +194,14 @@ public static class InputRoleExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="InputRole" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="InputRole" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out InputRole value)
     {
         InputRole? parsed = wire switch
@@ -147,8 +216,14 @@ public static class InputRoleExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="InputRole" /> values using their specification wire strings.
+/// </summary>
 internal sealed class InputRoleJsonConverter : StringEnumJsonConverter<InputRole>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="InputRoleJsonConverter" /> class.
+    /// </summary>
     public InputRoleJsonConverter() : base(InputRoleExtensions.ToWire, InputRoleExtensions.TryParseWire) {}
 }
 
@@ -163,8 +238,19 @@ public enum SummaryReason
     Cancelled
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="SummaryReason" />.
+/// </summary>
 public static class SummaryReasonExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="SummaryReason" /> value.</exception>
     public static string ToWire(this SummaryReason value) =>
         value switch
         {
@@ -174,6 +260,14 @@ public static class SummaryReasonExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="SummaryReason" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="SummaryReason" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out SummaryReason value)
     {
         SummaryReason? parsed = wire switch
@@ -188,8 +282,14 @@ public static class SummaryReasonExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="SummaryReason" /> values using their specification wire strings.
+/// </summary>
 internal sealed class SummaryReasonJsonConverter : StringEnumJsonConverter<SummaryReason>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SummaryReasonJsonConverter" /> class.
+    /// </summary>
     public SummaryReasonJsonConverter() : base(SummaryReasonExtensions.ToWire, SummaryReasonExtensions.TryParseWire) {}
 }
 
@@ -204,8 +304,19 @@ public enum Decision
     Transform
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="Decision" />.
+/// </summary>
 public static class DecisionExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="Decision" /> value.</exception>
     public static string ToWire(this Decision value) =>
         value switch
         {
@@ -215,6 +326,14 @@ public static class DecisionExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="Decision" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="Decision" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out Decision value)
     {
         Decision? parsed = wire switch
@@ -229,8 +348,14 @@ public static class DecisionExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="Decision" /> values using their specification wire strings.
+/// </summary>
 internal sealed class DecisionJsonConverter : StringEnumJsonConverter<Decision>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DecisionJsonConverter" /> class.
+    /// </summary>
     public DecisionJsonConverter() : base(DecisionExtensions.ToWire, DecisionExtensions.TryParseWire) {}
 }
 
@@ -244,8 +369,19 @@ public enum Mode
     EvaluateOnly
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="Mode" />.
+/// </summary>
 public static class ModeExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="Mode" /> value.</exception>
     public static string ToWire(this Mode value) =>
         value switch
         {
@@ -254,6 +390,14 @@ public static class ModeExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="Mode" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="Mode" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out Mode value)
     {
         Mode? parsed = wire switch
@@ -267,8 +411,14 @@ public static class ModeExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="Mode" /> values using their specification wire strings.
+/// </summary>
 internal sealed class ModeJsonConverter : StringEnumJsonConverter<Mode>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ModeJsonConverter" /> class.
+    /// </summary>
     public ModeJsonConverter() : base(ModeExtensions.ToWire, ModeExtensions.TryParseWire) {}
 }
 
@@ -284,8 +434,19 @@ public enum CompositionProfile
     ParallelUnanimous
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="CompositionProfile" />.
+/// </summary>
 public static class CompositionProfileExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="CompositionProfile" /> value.</exception>
     public static string ToWire(this CompositionProfile value) =>
         value switch
         {
@@ -296,6 +457,14 @@ public static class CompositionProfileExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="CompositionProfile" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="CompositionProfile" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out CompositionProfile value)
     {
         CompositionProfile? parsed = wire switch
@@ -311,8 +480,14 @@ public static class CompositionProfileExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="CompositionProfile" /> values using their specification wire strings.
+/// </summary>
 internal sealed class CompositionProfileJsonConverter : StringEnumJsonConverter<CompositionProfile>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CompositionProfileJsonConverter" /> class.
+    /// </summary>
     public CompositionProfileJsonConverter() : base(
         CompositionProfileExtensions.ToWire,
         CompositionProfileExtensions.TryParseWire
@@ -329,8 +504,19 @@ public enum OnApproval
     Resume
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="OnApproval" />.
+/// </summary>
 public static class OnApprovalExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="OnApproval" /> value.</exception>
     public static string ToWire(this OnApproval value) =>
         value switch
         {
@@ -339,6 +525,14 @@ public static class OnApprovalExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="OnApproval" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="OnApproval" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out OnApproval value)
     {
         OnApproval? parsed = wire switch
@@ -352,8 +546,14 @@ public static class OnApprovalExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="OnApproval" /> values using their specification wire strings.
+/// </summary>
 internal sealed class OnApprovalJsonConverter : StringEnumJsonConverter<OnApproval>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OnApprovalJsonConverter" /> class.
+    /// </summary>
     public OnApprovalJsonConverter() : base(OnApprovalExtensions.ToWire, OnApprovalExtensions.TryParseWire) {}
 }
 
@@ -367,8 +567,19 @@ public enum ConflictResolution
     Approval
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="ConflictResolution" />.
+/// </summary>
 public static class ConflictResolutionExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="ConflictResolution" /> value.</exception>
     public static string ToWire(this ConflictResolution value) =>
         value switch
         {
@@ -377,6 +588,14 @@ public static class ConflictResolutionExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="ConflictResolution" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="ConflictResolution" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out ConflictResolution value)
     {
         ConflictResolution? parsed = wire switch
@@ -390,8 +609,14 @@ public static class ConflictResolutionExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="ConflictResolution" /> values using their specification wire strings.
+/// </summary>
 internal sealed class ConflictResolutionJsonConverter : StringEnumJsonConverter<ConflictResolution>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ConflictResolutionJsonConverter" /> class.
+    /// </summary>
     public ConflictResolutionJsonConverter() : base(
         ConflictResolutionExtensions.ToWire,
         ConflictResolutionExtensions.TryParseWire
@@ -409,8 +634,19 @@ public enum SubstitutedFor
     VerdictInvalid
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="SubstitutedFor" />.
+/// </summary>
 public static class SubstitutedForExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="SubstitutedFor" /> value.</exception>
     public static string ToWire(this SubstitutedFor value) =>
         value switch
         {
@@ -420,6 +656,14 @@ public static class SubstitutedForExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="SubstitutedFor" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="SubstitutedFor" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out SubstitutedFor value)
     {
         SubstitutedFor? parsed = wire switch
@@ -434,8 +678,14 @@ public static class SubstitutedForExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="SubstitutedFor" /> values using their specification wire strings.
+/// </summary>
 internal sealed class SubstitutedForJsonConverter : StringEnumJsonConverter<SubstitutedFor>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SubstitutedForJsonConverter" /> class.
+    /// </summary>
     public SubstitutedForJsonConverter() : base(
         SubstitutedForExtensions.ToWire,
         SubstitutedForExtensions.TryParseWire
@@ -452,8 +702,19 @@ public enum ResolvedBy
     Rejection
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="ResolvedBy" />.
+/// </summary>
 public static class ResolvedByExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="ResolvedBy" /> value.</exception>
     public static string ToWire(this ResolvedBy value) =>
         value switch
         {
@@ -462,6 +723,14 @@ public static class ResolvedByExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="ResolvedBy" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="ResolvedBy" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out ResolvedBy value)
     {
         ResolvedBy? parsed = wire switch
@@ -475,8 +744,14 @@ public static class ResolvedByExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="ResolvedBy" /> values using their specification wire strings.
+/// </summary>
 internal sealed class ResolvedByJsonConverter : StringEnumJsonConverter<ResolvedBy>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ResolvedByJsonConverter" /> class.
+    /// </summary>
     public ResolvedByJsonConverter() : base(ResolvedByExtensions.ToWire, ResolvedByExtensions.TryParseWire) {}
 }
 
@@ -490,8 +765,19 @@ public enum ToolSeamHostError
     Terminate
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="ToolSeamHostError" />.
+/// </summary>
 public static class ToolSeamHostErrorExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="ToolSeamHostError" /> value.</exception>
     public static string ToWire(this ToolSeamHostError value) =>
         value switch
         {
@@ -500,6 +786,14 @@ public static class ToolSeamHostErrorExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="ToolSeamHostError" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="ToolSeamHostError" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out ToolSeamHostError value)
     {
         ToolSeamHostError? parsed = wire switch
@@ -513,8 +807,14 @@ public static class ToolSeamHostErrorExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="ToolSeamHostError" /> values using their specification wire strings.
+/// </summary>
 internal sealed class ToolSeamHostErrorJsonConverter : StringEnumJsonConverter<ToolSeamHostError>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ToolSeamHostErrorJsonConverter" /> class.
+    /// </summary>
     public ToolSeamHostErrorJsonConverter() : base(
         ToolSeamHostErrorExtensions.ToWire,
         ToolSeamHostErrorExtensions.TryParseWire
@@ -531,8 +831,19 @@ public enum OnError
     Continue
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="OnError" />.
+/// </summary>
 public static class OnErrorExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="OnError" /> value.</exception>
     public static string ToWire(this OnError value) =>
         value switch
         {
@@ -541,6 +852,14 @@ public static class OnErrorExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="OnError" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="OnError" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out OnError value)
     {
         OnError? parsed = wire switch
@@ -554,8 +873,14 @@ public static class OnErrorExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="OnError" /> values using their specification wire strings.
+/// </summary>
 internal sealed class OnErrorJsonConverter : StringEnumJsonConverter<OnError>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OnErrorJsonConverter" /> class.
+    /// </summary>
     public OnErrorJsonConverter() : base(OnErrorExtensions.ToWire, OnErrorExtensions.TryParseWire) {}
 }
 
@@ -578,8 +903,19 @@ public enum Capability
     HostDeclaration
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="Capability" />.
+/// </summary>
 public static class CapabilityExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="Capability" /> value.</exception>
     public static string ToWire(this Capability value) =>
         value switch
         {
@@ -595,6 +931,14 @@ public static class CapabilityExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="Capability" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="Capability" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out Capability value)
     {
         Capability? parsed = wire switch
@@ -615,8 +959,14 @@ public static class CapabilityExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="Capability" /> values using their specification wire strings.
+/// </summary>
 internal sealed class CapabilityJsonConverter : StringEnumJsonConverter<Capability>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CapabilityJsonConverter" /> class.
+    /// </summary>
     public CapabilityJsonConverter() : base(CapabilityExtensions.ToWire, CapabilityExtensions.TryParseWire) {}
 }
 
@@ -631,8 +981,19 @@ public enum Outcome
     Unresolved
 }
 
+/// <summary>
+/// Wire-format conversion helpers for <see cref="Outcome" />.
+/// </summary>
 public static class OutcomeExtensions
 {
+    /// <summary>
+    /// Returns the specification wire string for <paramref name="value" />.
+    /// </summary>
+    /// <param name="value">The enum value to convert.</param>
+    /// <returns>
+    /// The wire string representation of <paramref name="value" />.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value" /> is not a defined <see cref="Outcome" /> value.</exception>
     public static string ToWire(this Outcome value) =>
         value switch
         {
@@ -642,6 +1003,14 @@ public static class OutcomeExtensions
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
         };
 
+    /// <summary>
+    /// Attempts to parse a wire string as <see cref="Outcome" />.
+    /// </summary>
+    /// <param name="wire">The wire string to parse.</param>
+    /// <param name="value">When this method returns <see langword="true" />, contains the parsed <see cref="Outcome" /> value; otherwise, the default value.</param>
+    /// <returns>
+    /// <see langword="true" /> if <paramref name="wire" /> matched a defined value; otherwise, <see langword="false" />.
+    /// </returns>
     public static bool TryParseWire(string? wire, out Outcome value)
     {
         Outcome? parsed = wire switch
@@ -656,7 +1025,13 @@ public static class OutcomeExtensions
     }
 }
 
+/// <summary>
+/// JSON converter that serializes <see cref="Outcome" /> values using their specification wire strings.
+/// </summary>
 internal sealed class OutcomeJsonConverter : StringEnumJsonConverter<Outcome>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OutcomeJsonConverter" /> class.
+    /// </summary>
     public OutcomeJsonConverter() : base(OutcomeExtensions.ToWire, OutcomeExtensions.TryParseWire) {}
 }

@@ -3,7 +3,7 @@
 import { code, For, List, type Children } from "@alloy-js/core";
 import * as cs from "@alloy-js/csharp";
 import {
-  type EmitContext, type Enum, type Model, type ModelProperty, type Operation, type Program, type Type,
+  type EmitContext, type Enum, type Interface, type Model, type ModelProperty, type Operation, type Program, type Type,
   type Union, createTypeSpecLibrary, isNeverType, isTemplateDeclaration,
 } from "@typespec/compiler";
 import {
@@ -125,7 +125,7 @@ function contracts(program: Program) {
     if (!type.name) throw new Error("Unsupported unnamed JSON Schema contract root.");
     visit(type, type.name);
   }
-  const handlers = new Map<string, [Operation, string][]>();
+  const handlers = new Map<string, { iface: Interface; operations: [Operation, string][] }>();
   for (const iface of namespace.interfaces.values()) {
     const interfaceName = `I${policy.getName(iface.name, "class")}`;
     if (usedNames.has(interfaceName)) throw new Error(`Duplicate C# contract name: ${interfaceName}`);
@@ -148,7 +148,7 @@ function contracts(program: Program) {
       visit(operation.returnType, `${name}Response`);
       operations.push([operation, name]);
     }
-    handlers.set(interfaceName, operations);
+    handlers.set(interfaceName, { iface, operations });
   }
   return { names, aliases, handlers };
 }
@@ -219,6 +219,19 @@ function ContractProperty(props: { type: ModelProperty }): Children {
       ? code`if (value is not null && value != ${initializer}) throw new JsonException(${JSON.stringify(`Expected ${property.name} = ${String(value)}.`)}); ${backingField} = value;`
       : code`if (value != ${initializer}) throw new JsonException(${JSON.stringify(`Expected ${property.name} = ${String(value)}.`)});`
     : true;
+  const propertyDoc = xmlDocComments(property);
+  const doc = constant
+    ? <List hardline>
+        {propertyDoc ?? <cs.DocSummary>
+          {optionalConstant
+            ? code`Gets or sets the fixed wire literal <c>${property.name}</c> value (<c>${String(value)}</c>) when present.`
+            : code`Gets or sets the fixed wire literal <c>${property.name}</c> value (<c>${String(value)}</c>).`}
+        </cs.DocSummary>}
+        {optionalConstant
+          ? code`<exception cref="JsonException">The assigned non-null value does not equal <c>${String(value)}</c>.</exception>`
+          : code`<exception cref="JsonException">The assigned value does not equal <c>${String(value)}</c>.</exception>`}
+      </List>
+    : propertyDoc;
   return <>
     {optionalConstant && <>
       <cs.Field private name={backingField} type={code`${expression}?`} />
@@ -232,7 +245,7 @@ function ContractProperty(props: { type: ModelProperty }): Children {
         : constant ? code`return ${initializer};` : true}
       set={setter}
       attributes={attributes}
-      doc={xmlDocComments(property)}
+      doc={doc}
     />
   </>;
 }
@@ -243,12 +256,18 @@ function UnionContract(props: { type: Union; name: string; info: UnionContractIn
   const reference = <cs.Reference refkey={ef.efRefkey(props.type)} />;
   const defaultModel = models.find((model) => model.properties.get(discriminator)!.optional);
   const defaultType = defaultModel ? code`typeof(${<ef.TypeExpression type={defaultModel} />})` : "null";
+  const doc = xmlDocComments(props.type) ?? (
+    <cs.DocSummary>
+      {code`Discriminated union selected by the <c>${discriminator}</c> property.`}
+    </cs.DocSummary>
+  );
   return <>
     <cs.InterfaceDeclaration public name={props.name} refkey={ef.efRefkey(props.type)}
-      attributes={[<JsonConverterAttribute name={name} />]} />
+      attributes={[<JsonConverterAttribute name={name} />]} doc={doc} />
     <hbr /><hbr />
     <JsonConverterDeclaration name={name}
       baseType={code`DiscriminatedUnionJsonConverter<${reference}>`}
+      doc={<cs.DocSummary>{code`JSON converter for the <see cref="${props.name}" /> discriminated union.`}</cs.DocSummary>}
       baseArguments={[
         JSON.stringify(discriminator),
         <DictionaryInitializer keyType="(JsonValueKind, string)" valueType="Type"
@@ -287,7 +306,8 @@ function ModelContract(props: { type: Model; name: string; unions: UnionContract
     {!dictionary && <>
       <hbr /><hbr />
       <cs.Property public name="AdditionalProperties" type="Dictionary<string, JsonElement>"
-        get set initializer="new()" attributes={[<cs.Attribute name="JsonExtensionData" />]} />
+        get set initializer="new()" attributes={[<cs.Attribute name="JsonExtensionData" />]}
+        doc={<cs.DocSummary>Unmapped JSON extension members captured during deserialization and re-emitted on serialization.</cs.DocSummary>} />
     </>}
   </cs.ClassDeclaration>;
 }
@@ -346,8 +366,9 @@ function GeneratedContracts(): Children {
         using={["System.Threading", "System.Threading.Tasks"]}>
         {"#nullable enable"}<hbr /><hbr />
         <For each={[...handlers.entries()]} doubleHardline>
-          {([name, operations]) => name === "IInterceptor" ? <PointHookInterfaces name={name} operations={operations} />
-            : <cs.InterfaceDeclaration public name={name}>
+          {([name, { iface, operations }]) => name === "IInterceptor"
+            ? <PointHookInterfaces name={name} operations={operations} points={points.entries} />
+            : <cs.InterfaceDeclaration public name={name} doc={xmlDocComments(iface)}>
             <For each={operations} doubleHardline>
               {([type, methodName]) => <OperationHandler type={type} name={methodName} />}
             </For>
