@@ -6,17 +6,30 @@ release (one per root tag). Versioning rules: [VERSIONING.md](VERSIONING.md).
 
 ## Unreleased SDK (next tag v0.1.0-beta.4)
 
-Spec: 0.1 and draft. The SDKs support both specification versions
-side by side: `SUPPORTED_SPEC_VERSIONS` is `["0.1", "draft"]` in every
-core (`Spec.SupportedVersions` in .NET, `SupportedSpecVersions` in Go),
+- Breaking (C#): the .NET SDK is rebuilt as a draft-only, managed SDK on the
+  generated `AgentHooks.Contracts` assembly, shipped inside the single
+  `ResponsibleAI.AgentHooks` package; no Rust/FFI or native assets remain.
+  `HookEmitter.CreateBuilder()` binds typed per-point handlers
+  (`OnPreToolCall`, ...) or `IHookInterceptor`s with per-binding
+  `BindingOptions` (name, `on_error`, timeout); `HookEmitter.FromDeclaration`
+  loads draft host declarations against a `HostRegistry`. `EmitAsync<TRequest>`
+  returns the effective typed request, wire verdict and generated
+  `InterceptionRecord`; records go to a sink callback. The 0.1 API (`Spec`,
+  `InterceptionEmitter`, `Verdict`, `AgentContextBuilder`, `DraftHandlers`,
+  record buffering) is removed.
+
+Spec: 0.1 and draft. The Rust, Python, TypeScript, and Go SDKs support
+both specification versions side by side (the C# SDK above is
+draft-only): `SUPPORTED_SPEC_VERSIONS` is `["0.1", "draft"]` in the
+Rust, Python, TypeScript, and Go cores (`SupportedSpecVersions` in Go),
 with the wire strings `SPEC_VERSION_0_1` (`agent-hooks/0.1`) and
-`SPEC_VERSION_DRAFT` (`agent-hooks/draft`; `Spec.V01` and `Spec.Draft`,
-`SpecVersion01` and `SpecVersionDraft`). The version a context or a
-document names selects the rules it is checked by: the envelope, the
-strict per-point check, the identity rules, the reserved reasons
-(`host_warning:*` under the draft only), the declaration errors and the
-declaration contracts a loader accepts (1.0 under 0.1; 1.0 and 1.1
-under the draft). An unknown version is refused as before.
+`SPEC_VERSION_DRAFT` (`agent-hooks/draft`; `SpecVersion01` and
+`SpecVersionDraft` in Go). The version a context or a document names
+selects the rules it is checked by: the envelope, the strict per-point
+check, the identity rules, the reserved reasons (`host_warning:*` under
+the draft only), the declaration errors and the declaration contracts a
+loader accepts (1.0 under 0.1; 1.0 and 1.1 under the draft). An unknown
+version is refused as before.
 
 - Breaking SDK API change: the context builder requires the spec
   version; hosts pass `agent-hooks/0.1` or `agent-hooks/draft`. The

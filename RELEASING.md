@@ -170,12 +170,14 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
    of its last change; no SDK tag edits it.
 
    An SDK release does not cut a specification version.
-   `SUPPORTED_SPEC_VERSIONS` in the five cores names the `spec/<entry>/`
+   `SUPPORTED_SPEC_VERSIONS` in the Rust, TypeScript, Python and Go
+   cores names the `spec/<entry>/`
    folders whose contexts the SDK accepts, released versions and the
    draft (`["0.1", "draft"]` today). The draft entry is how an SDK
    carries text no released version holds; a host that wants it names
-   `agent-hooks/draft`. Add or drop an entry in all five cores together,
-   with its rules in the Rust core's `SpecVersion`.
+   `agent-hooks/draft`. Add or drop an entry in all four cores together,
+   with its rules in the Rust core's `SpecVersion`. The C# SDK compiles
+   against the generated draft contracts and has no such list.
 
    Regenerate `sdk/typescript/binding.js` after the bump (`pnpm run
    build:native` in `sdk/typescript`); the napi version strings it
@@ -209,30 +211,9 @@ MAJOR for a breaking one. Cut it in one spec-only pull request.
 
 3. Dry run: Actions, `release`, Run workflow with `dry_run: true` on
    `main`. This builds every artifact (five Python wheels and the
-   sdist, the crate package, five napi bindings, four FFI libraries and
-   the nupkg, and the Go build and tests). It uploads the build
+   sdist, the crate package, five napi bindings, the nupkg, and the Go
+   build and tests). It uploads the build
    artifacts to the run, publishes nothing and attests nothing.
-
-#### Windows FFI hardening
-
-The Windows x64 FFI leg uses
-[the shared Windows build action](.github/actions/windows-ffi/action.yml):
-pinned nightly Rust `nightly-2026-10-21`, rebuilt `std`/`panic_unwind`,
-strong stack protection and CFG. Other release legs keep their existing
-toolchains. Do not replace this leg with a plain stable Cargo build.
-
-Before native upload, the full matching-PDB BinSkim scan must complete,
-match the DLL hash, pass BA2014 and BA2008 without suppression, and have
-no error findings. The `windows-ffi-hardening` artifact retains the DLL,
-PDB, SARIF and scanner log for 14 days. Existing warnings remain reported,
-not waived. The NuGet job then verifies exact identity between the scanned
-Windows DLL and the bundled payload. These checks do not establish a
-downstream consumer's security-policy acceptance.
-
-For local builds and checks, see the
-[Windows source-build instructions](sdk/csharp/README.md#windows-x64-source-builds-and-release-checks).
-Changing the nightly pin requires rerunning the native scan, gate regressions,
-Rust tests, .NET tests, package-consumer smoke and latency comparison.
 
 ### Tag
 
@@ -261,7 +242,8 @@ on tags, including dry runs; manual branch dry runs do not require a tag.
   channel tag from its label: `alpha` for `-alpha.N`, `beta` for
   `-beta.N`, `rc` for `-rc.N`, `next` for any other label. Stable
   versions carry only `latest`.
-- NuGet `ResponsibleAI.AgentHooks`, bundling four native runtimes
+- NuGet `ResponsibleAI.AgentHooks`, managed-only. It bundles the generated
+  `AgentHooks.Contracts` assembly, so there is no separate contracts package.
 - Go: nothing. The `go` job builds and tests `sdk/go` as a consumer
   would see it. See the next section.
 

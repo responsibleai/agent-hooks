@@ -1,6 +1,6 @@
 [package]
 name = "agent-hooks-ffi"
-description = "C-ABI cdylib over the agent-hooks core for Go (cgo) and .NET (P/Invoke)."
+description = "C-ABI cdylib over the agent-hooks core for Go (cgo)."
 publish = false
 version.workspace = true
 edition.workspace = true

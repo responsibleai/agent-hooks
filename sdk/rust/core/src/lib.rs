@@ -4,7 +4,7 @@
 //!
 //! This crate is the **canonical implementation** of
 //! [AGENT-HOOKS-0.1](../../../spec/0.1/AGENT-HOOKS-0.1.md). The Python,
-//! TypeScript, .NET, and Go SDKs bind to it via FFI so that
+//! TypeScript, and Go SDKs bind to it via FFI so that
 //! `canonical_json`, `context_identity`, transform application, verdict
 //! validation, and verdict combination have exactly one implementation.
 //!
