@@ -30,6 +30,26 @@ managed assemblies:
 `AgentHooks.Conformance`, the draft CTK runner and reference harness, lives in
 the repository and is not packaged.
 
+## Install
+
+```bash
+dotnet add package ResponsibleAI.AgentHooks --prerelease
+```
+
+Check that `obj/project.assets.json` lists `ResponsibleAI.AgentHooks/0.1.0-beta.4`
+or later. `0.1.0-beta.3` and earlier are the retired 0.1 SDK, a different API
+under the same package ID.
+
+Preview builds from pull requests ship as `.nupkg` files on
+[GitHub releases](https://github.com/responsibleai/agent-hooks/releases). To use
+one, save it in a folder, add the folder as a NuGet source, and add the package
+with its exact `--version`. Keep nuget.org as a source too, because the package
+depends on `JsonSchema.Net`.
+
+The contracts are in `AgentHooks.Contracts.Draft`. Alias the namespace as the
+samples do, `using Draft = AgentHooks.Contracts.Draft;`, because it has its own
+`JsonObject`, which clashes with `System.Text.Json.Nodes.JsonObject`.
+
 ## Emitting
 
 ```csharp
@@ -65,6 +85,33 @@ if (!result.Proceeds) Console.WriteLine($"denied: {result.Verdict["reason"]}");
   (with `null` identities) to the sink when a host cannot construct a request.
 - Emitters are immutable and thread-safe; sink exceptions are swallowed so
   audit delivery never disrupts enforcement.
+
+### The request at each point
+
+Every request needs `Timestamp` (ISO 8601), `Sequence` (increasing within a
+session), `Agent` (`Id` and `Framework`) and `Session` (`Id`). Each point adds
+its own payload:
+
+| Point | Request | Payload | Response |
+| --- | --- | --- | --- |
+| `input` | `Draft.InputRequest` | `Input.Content` (`JsonElement`) and `Input.Role` | `Draft.InputHookResponse` |
+| `pre_tool_call` | `Draft.PreToolCallRequest` | `ToolCall.Id`, `ToolCall.Name` and `ToolCall.Args` (`Draft.JsonObject` of `JsonElement` values) | `Draft.PreToolHookResponse` |
+| `post_tool_call` | `Draft.PostToolCallRequest` | `ToolCall`, `ToolResult.Value` (`JsonElement`) and `ToolResult.IsError` | `Draft.PostToolHookResponse` |
+| `output` | `Draft.OutputRequest` | `Output.Content` (`JsonElement`) | `Draft.OutputHookResponse` |
+
+The other four points follow the same pattern.
+
+### Reading the result
+
+- `Proceeds`: whether the step may run.
+- `Request`: the effective request. Run the step on it, not on your original.
+- `Verdict`: wire JSON. Read `result.Verdict["decision"]`, `["reason"]` and
+  `["message"]`.
+- `Record.Verdicts`: one slot per interceptor that ran, each with the
+  `BindingOptions.Name` it was bound with. Under the default profile a deny is
+  the last slot.
+- `Draft.InterceptionPoints.Get(point).WireName` gives a point's wire name, such
+  as `pre_tool_call`, for logs.
 
 ## Authoring hooks
 
@@ -132,6 +179,9 @@ Hook classes can be unit-tested directly with constructible generated requests
 without special test factories.
 
 ## Composition, approval, identity, and failure posture
+
+With no `WithComposition` call, interceptors run in registration order and the
+first deny wins (`SequentialFirstDeny`). Exceptions and timeouts deny.
 
 - **Composition & mode:** `WithComposition` configures all four profiles
   (`SequentialFirstDeny`, `SequentialRunAll`, `ParallelStrictest`,
