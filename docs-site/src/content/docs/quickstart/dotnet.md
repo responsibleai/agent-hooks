@@ -78,3 +78,10 @@ Reusable policies can implement any of the generated per-point interfaces,
 point is bound automatically. These optional interfaces use `Task<TResponse>`
 and the same constructible generated requests as delegates, so policies can
 be tested or mocked without special request factories.
+
+## Next steps
+
+See the [.NET SDK guide](../sdk/dotnet.md) for the complete API: all eight
+interception points, composition profiles, evaluation mode, timeouts and
+`on_error` failure posture, approval resolvers and redactors, context identity
+providers, host declarations, and unit testing.

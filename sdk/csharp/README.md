@@ -2,9 +2,10 @@
 
 A managed .NET 8 host SDK for the
 [agent-hooks draft specification](https://github.com/responsibleai/agent-hooks/blob/main/spec/draft/AGENT-HOOKS-DRAFT.md):
-typed interception points, all four composition profiles, failure posture,
-approval, context identity, payload-free audit records, host declarations and
-the conformance (CTK) runner. No native libraries or platform-specific assets.
+typed interception points, all four composition profiles, evaluation mode,
+timeouts and failure posture, the approval seam, RFC 8785 context identity,
+payload-free audit records, and host declarations. No native libraries or
+platform-specific assets.
 
 > **Trust model.** agent-hooks is a *cooperative contract*, not a security
 > boundary: the host framework is fully trusted and interceptors run in-process
@@ -12,15 +13,22 @@ the conformance (CTK) runner. No native libraries or platform-specific assets.
 > [SECURITY.md](https://github.com/responsibleai/agent-hooks/blob/main/SECURITY.md)
 > before relying on it.
 
-The SDK ships as one NuGet package, `ResponsibleAI.AgentHooks`, which carries
-two assemblies:
+**Documentation:**
+[.NET quickstart](https://responsibleai.github.io/agent-hooks/quickstart/dotnet/) ·
+[.NET SDK guide](https://responsibleai.github.io/agent-hooks/sdk/dotnet/)
+
+## Package contents
+
+The SDK ships as one NuGet package, `ResponsibleAI.AgentHooks`, carrying two
+managed assemblies:
 
 | Assembly | Contents |
 | --- | --- |
-| `AgentHooks.Contracts` | Types generated from `spec/draft` TypeSpec: per-point requests, responses (with `Allow`/`Deny`/`Transform*` factories) and transforms, verdicts, approval requests/resolutions, `InterceptionRecord`, `HostDeclaration`, the per-point hook interfaces (`IPreToolCallHook`, …) composed by `IInterceptor`, and `IApprovalResolver`. |
-| `AgentHooks` | The runtime: `HookEmitter`, its builder, declarations, and RFC 8785 identity (`Jcs`). |
+| `AgentHooks.Contracts` | Types generated from `spec/draft` TypeSpec: per-point requests, responses (with `Allow`/`Deny`/`Transform*` factories) and transforms, verdicts, approval requests/resolutions, `InterceptionRecord`, `HostDeclaration`, per-point hook interfaces (`IAgentStartupHook` … `IAgentShutdownHook`), `IInterceptor`, `IApprovalResolver`, and `InterceptionPoints` metadata. |
+| `AgentHooks` | The runtime: `HookEmitter`, `HookEmitterBuilder`, `IHookInterceptor`, `IApprovalResolver`, `BindingOptions`, `IdentityProvider`, `Jcs`, `HostErrors`, `ContractSerializer`, `HostSurface`, `HostRegistry`, and `DeclarationException`. |
 
-`AgentHooks.Conformance`, the draft CTK runner and reference harness, is not packaged.
+`AgentHooks.Conformance`, the draft CTK runner and reference harness, lives in
+the repository and is not packaged.
 
 ## Emitting
 
@@ -50,31 +58,18 @@ if (!result.Proceeds) Console.WriteLine($"denied: {result.Verdict["reason"]}");
 ```
 
 - `EmitAsync<TRequest>` returns `Proceeds`, the effective `Request` (with any
-  enforced transform applied — act on this, not the original), the wire
-  `Verdict`, and the generated `InterceptionRecord`. `EmitAsync(JsonObject)`
-  is the same at the wire level.
-- Typed handlers (`OnAgentStartup` … `OnAgentShutdown`) take a
-  `(request, cancellationToken) => Task<response>` lambda over the generated
-  request and response types; `BindingOptions` sets the recorded name,
-  timeout and error posture. For untyped or multi-point interceptors implement
-  `IHookInterceptor` (or pass a delegate to `Use`): it receives a `HookCall`
-  (point, isolated request copy, effective timeout) and returns a
-  `HookOutcome` — a response body, `TimedOut`, `Cancelled` or `Failed`.
-- The emitter always enforces timeouts (default 5000 ms; the approval resolver
-  defaults to the interceptor timeout). Failures map to the reserved
-  `host_error:*` reasons; `BindingOptions.OnError = Continue` substitutes an
-  allow with a `host_warning:control_failed` warning, reported to the
-  `OnControlFailure` notifier (without a notifier the deny stands).
-- `WithComposition`, `WithMode`, `WithIdentityProvider`,
-  `WithApprovalResolver`/`WithApprovalRedactor`, `WithTimeouts` and
-  `WithToolSeamPosture` configure the remaining draft knobs. Emitters are
-  immutable and thread-safe.
+  enforced whole-target transform applied — act on this, not the original), the
+  wire `Verdict`, and the projected `InterceptionRecord`. `EmitAsync(JsonObject)`
+  provides the same flow at the wire JSON level.
+- `RecordHostFailure` emits a fail-closed `HostErrors.ContextInvalid` record
+  (with `null` identities) to the sink when a host cannot construct a request.
+- Emitters are immutable and thread-safe; sink exceptions are swallowed so
+  audit delivery never disrupts enforcement.
 
 ## Authoring hooks
 
-Prefer the delegates above for inline policies. Each generated response type
-has static factories, generated from the spec's verdict unions and transform
-targets, so no verdict hierarchy or JSON request wrapper is needed:
+Prefer inline typed delegates (`OnAgentStartup` … `OnAgentShutdown`) for simple
+policies. Each generated response type has static factories:
 
 | Point | Factories |
 | --- | --- |
@@ -88,13 +83,10 @@ targets, so no verdict hierarchy or JSON request wrapper is needed:
 | Agent shutdown | `Draft.AgentShutdownHookResponse.Allow()`, `.Deny(reason, message?)` |
 
 Transforms replace the **whole target member**, not individual keys or paths.
-Arguments are the generated target types (`Draft.Input`, `Draft.Message[]`,
-`Draft.Response`, `Draft.JsonObject`, `JsonElement`, `Draft.Output`). Mutable
-targets are retained by the response; do not mutate them while a handler is
-returning it. `TransformValue` clones its `JsonElement`, including JSON null,
-so a source `JsonDocument` may be disposed. Runtime schema and semantic gates
-still apply. Use the generated initializers for advanced verdict metadata
-(warnings, evidence, approval, or result labels).
+`TransformValue` clones its `JsonElement` (including JSON `null`), so a source
+`JsonDocument` may be disposed. Use generated verdict initializers
+(`Draft.AllowVerdict`, `Draft.DenyVerdict`) when attaching `Warnings`,
+`Evidence`, `Approval`, or `ResultLabels`.
 
 ```csharp
 var emitter = HookEmitter.CreateBuilder()
@@ -108,11 +100,10 @@ var emitter = HookEmitter.CreateBuilder()
     .Build();
 ```
 
-For reusable classes, implement only the per-point interfaces you need.
-`AddHook` binds **every implemented interface** in specification order, with
-the same `BindingOptions` at each point; it throws for null or unsupported
-objects. There are eight generated interfaces, from `Draft.IAgentStartupHook` to
-`Draft.IAgentShutdownHook`; all methods return `Task<TResponse>`.
+For reusable classes, implement only the per-point interfaces you need
+(`Draft.IAgentStartupHook` through `Draft.IAgentShutdownHook`, or
+`Draft.IInterceptor` for all eight). `AddHook` binds every implemented
+interface in specification order with the same `BindingOptions`:
 
 ```csharp
 var emitter = HookEmitter.CreateBuilder()
@@ -133,10 +124,31 @@ sealed class EgressGuard : Draft.IPreToolCallHook, Draft.IPostToolCallHook
 }
 ```
 
-Hook implementations can be tested directly with constructible generated
-requests, or mocked through these interfaces. No public `ForTest` factories
-are required. `Draft.IInterceptor` composes all eight interfaces, so an
-all-point interceptor can be passed to `AddHook` as well.
+For untyped or multi-point interceptors, implement `IHookInterceptor` (or pass
+a delegate to `Use`): it receives a `HookCall` (point, isolated `JsonObject`
+copy, timeout) and returns a `HookOutcome` (a wire response `JsonObject`,
+`HookOutcome.Timeout`, `HookOutcome.Cancellation`, or `HookOutcome.Failed`).
+Hook classes can be unit-tested directly with constructible generated requests
+without special test factories.
+
+## Composition, approval, identity, and failure posture
+
+- **Composition & mode:** `WithComposition` configures all four profiles
+  (`SequentialFirstDeny`, `SequentialRunAll`, `ParallelStrictest`,
+  `ParallelUnanimous`) and their knobs (`onApproval`, `onTransformConflict`,
+  `onDisagreement`). `WithMode(Draft.Mode.EvaluateOnly)` evaluates and records
+  verdicts without blocking or applying transforms.
+- **Timeouts & failure posture:** The emitter enforces a 5000 ms default
+  timeout (`WithTimeouts`, `BindingOptions.Timeout`). Failures map to reserved
+  `HostErrors.*` reasons; `OnError = Draft.OnError.Continue` (via
+  `WithDefaultOnError` or `BindingOptions.OnError`) substitutes an allow with
+  `HostErrors.ControlFailedWarning` only when `OnControlFailure` is registered
+  and succeeds (caller cancellation is never continuable). `WithToolSeamPosture`
+  sets `Draft.ToolSeamHostError.Continue` or `Terminate`.
+- **Approval & identity:** `WithApprovalResolver` (typed delegate or wire
+  `IApprovalResolver`) and `WithApprovalRedactor` handle liftable denies under
+  the echo rule. `WithIdentityProvider` selects `IdentityProvider.JcsSha256`
+  (default, backed by `Jcs`), a custom provider, or `null` (identity-unbound).
 
 ## Host declarations
 
@@ -149,9 +161,11 @@ var registry = new HostRegistry()
 var emitter = HookEmitter.FromDeclarationFile("agent-hooks.json", registry);
 ```
 
-`FromDeclaration` also accepts JSON text or a generated `Draft.HostDeclaration`.
-A refused document throws `DeclarationException` with `Code`
-(`declaration_error:<class>`) and JSON-pointer `Findings`.
+`HookEmitter.FromDeclaration` also accepts JSON text or a generated
+`Draft.HostDeclaration`, and `HostRegistry` also accepts a custom `HostSurface`,
+`AddIdentityProvider`, `AddApprovalRedactor`, and `OnControlFailure`. A refused
+document throws `DeclarationException` with `Code` (`declaration_error:<class>`)
+and RFC 6901 JSON-pointer `Findings`.
 
 ## Development
 
