@@ -1,0 +1,31 @@
+# Agent Hooks
+
+> A framework neutral control contract for AI agents: eight interception points, three verdicts and a conformance kit. A host asks its interceptors for a verdict at each point and enforces it. SDKs for Rust, Python, TypeScript, Go and .NET.
+
+Agent Hooks is a cooperative contract, not a security boundary. 0.1 is the released specification. The draft, wire version `agent-hooks/draft`, changes without notice. The .NET SDK implements the draft only.
+
+## Specification
+
+- [Draft specification](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/spec/draft/AGENT-HOOKS-DRAFT.md): the working text
+- [0.1 specification](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/spec/0.1/AGENT-HOOKS-0.1.md): the released text
+- [Versioning](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/VERSIONING.md): how specification and package versions move
+
+## SDKs
+
+- [.NET](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/sdk/csharp/README.md): install, the request at each point, reading the result, authoring hooks and host declarations
+- [Python](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/sdk/python/README.md)
+- [TypeScript](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/sdk/typescript/README.md)
+- [Go](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/sdk/go/README.md)
+- [Rust](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/sdk/rust/README.md)
+
+## Guides
+
+- [Implementing Agent Hooks](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/docs/IMPLEMENTING.md): what a harness or gateway must do
+- [Conformance harness](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/conformance/HARNESS.md): how to write a harness and run the conformance kit
+- [Threat model](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/docs/THREAT-MODEL.md)
+- [Documentation site](https://responsibleai.github.io/agent-hooks/): quickstarts for each language
+
+## Optional
+
+- [Contributing](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/CONTRIBUTING.md)
+- [Agent guidance for this repository](https://raw.githubusercontent.com/responsibleai/agent-hooks/main/AGENTS.md)

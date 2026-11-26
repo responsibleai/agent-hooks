@@ -284,6 +284,8 @@ and, for the proposed draft declaration format,
   process in [`docs/proposals/README.md`](docs/proposals/README.md).
 - [`GOVERNANCE.md`](GOVERNANCE.md), [`CONTRIBUTING.md`](CONTRIBUTING.md),
   [`CHANGELOG.md`](CHANGELOG.md).
+- [`AGENTS.md`](AGENTS.md) and [`llms.txt`](llms.txt): guidance for coding
+  agents that work in this repository or use an SDK.
 
 ## License
 
