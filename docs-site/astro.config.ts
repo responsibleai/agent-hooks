@@ -56,6 +56,12 @@ export default defineConfig({
           ],
         },
         {
+          label: "SDK guides",
+          items: [
+            { label: ".NET SDK", slug: "sdk/dotnet" },
+          ],
+        },
+        {
           label: "Examples",
           items: [
             { label: "Policy deny", slug: "examples/policy-deny" },
