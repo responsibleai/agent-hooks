@@ -37,7 +37,7 @@
     "test:draft": "node --test test/draft/*.mjs"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.7.2",
+    "@napi-rs/cli": "^3.11.1",
     "@types/node": "^26.1.1",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
